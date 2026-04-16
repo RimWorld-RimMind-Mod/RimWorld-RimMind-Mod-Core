@@ -6,8 +6,8 @@ namespace RimMind.Core.Settings
     {
         // ── API 配置 ──────────────────────────────────────────
         public string apiKey = string.Empty;
-        public string apiEndpoint = "https://api.openai.com/v1";
-        public string modelName = "gpt-4o-mini";
+        public string apiEndpoint = "https://api.deepseek.com/v1";
+        public string modelName = "deepseek-chat";
 
         // ── 模型行为 ──────────────────────────────────────────
         /// <summary>
