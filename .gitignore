@@ -1,0 +1,21 @@
+# Build output
+**/*.dll
+**/*.pdb
+**/*.exe
+bin/
+obj/
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db

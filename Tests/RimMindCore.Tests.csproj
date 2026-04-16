@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <!-- net10.0 for Linux test runner; JsonTagExtractor 无 RimWorld 依赖，兼容现代 .NET -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>RimMind.Core.Tests</RootNamespace>
+    <AssemblyName>RimMindCore.Tests</AssemblyName>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- Tests 项目不引用 RimWorld，只测纯逻辑 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <!-- 直接编译纯逻辑源文件（不引用 RimWorld 依赖的代码） -->
+  <ItemGroup>
+    <Compile Include="../Source/Core/JsonTagExtractor.cs" />
+  </ItemGroup>
+
+</Project>
