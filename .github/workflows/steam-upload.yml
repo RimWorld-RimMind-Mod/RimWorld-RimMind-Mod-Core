@@ -1,0 +1,210 @@
+# Steam 创意工坊上传工作流 (占位)
+# 功能：
+# 1. Release 发布后自动触发
+# 2. 打包 Mod 文件
+# 3. 上传到 Steam 创意工坊 (需要配置 Steam 凭证)
+#
+# TODO: 需要配置以下 secrets:
+#   - STEAM_USERNAME: Steam 用户名
+#   - STEAM_PASSWORD: Steam 密码 (或 Steam Guard 代码)
+#   - STEAM_API_KEY: Steam API Key (可选，用于高级功能)
+
+name: Steam Upload
+
+on:
+  # 由 release.yml 触发
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag'
+        required: true
+        type: string
+      release_id:
+        description: 'Release ID'
+        required: true
+        type: string
+
+  # 手动触发测试
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+      release_id:
+        required: true
+        type: string
+
+concurrency:
+  group: steam-upload-${{ github.event.inputs.release_tag || github.event.inputs.release_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  STEAM_APP_ID: 294100  # RimWorld App ID
+
+jobs:
+  # 准备上传
+  prepare:
+    name: Prepare Upload
+    runs-on: ubuntu-latest
+    outputs:
+      mod_path: ${{ steps.setup.outputs.mod_path }}
+      changelog: ${{ steps.changelog.outputs.content }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Mod Path
+        id: setup
+        run: |
+          MOD_NAME=$(basename ${{ github.workspace }})
+          echo "mod_path=$MOD_NAME" >> $GITHUB_OUTPUT
+          echo "Mod 路径: $MOD_NAME"
+
+      - name: Get Release Changelog
+        id: changelog
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseId = '${{ github.event.inputs.release_id }}';
+            if (!releaseId) {
+              core.setOutput('content', 'No changelog available');
+              return;
+            }
+
+            try {
+              const { data: release } = await github.rest.repos.getRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: releaseId
+              });
+              core.setOutput('content', release.body || 'No changelog');
+            } catch (e) {
+              core.setOutput('content', 'Failed to fetch changelog');
+            }
+
+  # 构建和打包
+  package:
+    name: Package for Steam
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SteamCMD Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lib32gcc-s1 lib32stdc++6
+
+      - name: Download SteamCMD
+        run: |
+          mkdir -p ~/steamcmd
+          cd ~/steamcmd
+          curl -sqL "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz" | tar zxvf -
+
+      - name: Package Mod
+        run: |
+          VERSION="${{ github.event.inputs.release_tag }}"
+          MOD_NAME=$(basename ${{ github.workspace }})
+
+          # 创建发布目录结构
+          mkdir -p /tmp/steam-upload/${MOD_NAME}
+
+          # 复制 Mod 文件 (排除开发文件)
+          rsync -av --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='Source/' \
+            --exclude='Tests/' \
+            --exclude='script/' \
+            --exclude='.claude/' \
+            --exclude='.trae/' \
+            --exclude='docs/' \
+            --exclude='*.csproj' \
+            --exclude='*.sln' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='*.md' \
+            ./ /tmp/steam-upload/${MOD_NAME}/
+
+          # 创建预览图 (如果存在)
+          if [ -f "About/Preview.png" ]; then
+            cp About/Preview.png /tmp/steam-upload/
+          fi
+
+          # 打包
+          cd /tmp/steam-upload
+          zip -r "${MOD_NAME}-${VERSION}-steam.zip" ${MOD_NAME}/
+
+          echo "打包完成: ${MOD_NAME}-${VERSION}-steam.zip"
+          ls -la /tmp/steam-upload/
+
+      - name: Upload Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: steam-mod-package
+          path: /tmp/steam-upload/*.zip
+          retention-days: 7
+
+  # Steam 上传 (占位)
+  upload:
+    name: Upload to Steam Workshop
+    needs: [prepare, package]
+    runs-on: ubuntu-latest
+    environment: steam-production  # 需要配置环境保护规则
+    steps:
+      - name: Download Package
+        uses: actions/download-artifact@v4
+        with:
+          name: steam-mod-package
+          path: /tmp/steam-upload/
+
+      - name: Placeholder Upload
+        run: |
+          echo "========================================"
+          echo "Steam 创意工坊上传 (占位)"
+          echo "========================================"
+          echo ""
+          echo "Release Tag: ${{ github.event.inputs.release_tag }}"
+          echo "Release ID: ${{ github.event.inputs.release_id }}"
+          echo "Mod 名称: ${{ needs.prepare.outputs.mod_path }}"
+          echo ""
+          echo "Changelog:"
+          echo "${{ needs.prepare.outputs.changelog }}"
+          echo ""
+          echo "========================================"
+          echo "TODO: 实现实际上传逻辑"
+          echo "========================================"
+          echo ""
+          echo "需要配置:"
+          echo "  1. Steam 账号凭证 (secrets.STEAM_USERNAME, secrets.STEAM_PASSWORD)"
+          echo "  2. Steam Guard 处理 (推荐使用手机验证器 + 一次性代码)"
+          echo "  3. 创意工坊 Item ID (可以在 About.xml 或工作流中配置)"
+          echo ""
+          echo "参考工具:"
+          echo "  - SteamCMD: https://developer.valvesoftware.com/wiki/SteamCMD"
+          echo "  - RimWorld 创意工坊上传指南"
+          echo ""
+
+      # TODO: 实际上传步骤
+      # 可以使用以下方式之一:
+      # 1. SteamCMD + workshop_build_item
+      # 2. steam-workshop-upload Action
+      # 3. 自定义脚本调用 Steam Web API
+
+      - name: Upload Status Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseId = '${{ github.event.inputs.release_id }}';
+            if (!releaseId) return;
+
+            await github.rest.repos.createReleaseComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              body: `## 🚂 Steam 上传状态\n\n**状态**: 占位 (未实现实际上传)\n\n**时间**: ${new Date().toISOString()}\n\n**备注**: 需要配置 Steam 凭证后才能实际上传到创意工坊。`
+            });

@@ -1,0 +1,68 @@
+# CodeRabbit AI 代码审查配置
+# 文档: https://docs.coderabbit.ai/guides/configure-coderabbit
+# 注意: 此文件必须放在仓库根目录，放在 .github/ 下无效
+
+version: 1
+
+language: zh-CN
+
+early_access: true
+
+reviews:
+  profile: chill
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  path_filters:
+    - "!**/*.md"
+    - "!docs/**"
+    - "!.claude/**"
+    - "!.trae/**"
+    - "!script/**"
+    - "!.github/**"
+  path_instructions:
+    - path: "Source/**/*.cs"
+      instructions: |
+        审查 C# 代码时请注意：
+        1. RimWorld Mod 开发规范 - 使用 Harmony 进行 Patch，遵循 RimWorld 的 Def 系统
+        2. 检查是否正确处理 Unity 生命周期和 RimWorld 的 Tick 系统
+        3. 验证 XML Defs 和 C# 代码的兼容性
+        4. 关注性能，避免在 Tick 中进行高开销操作
+        5. 检查是否正确使用 Verse 和 RimWorld 命名空间
+    - path: "Defs/**/*.xml"
+      instructions: |
+        审查 XML Defs 时请注意：
+        1. 检查 DefType 定义是否正确
+        2. 验证 ParentName 继承关系
+        3. 检查是否有重复的 defName
+        4. 确认 XML 结构符合 RimWorld 规范
+    - path: "Languages/**/*.xml"
+      instructions: |
+        审查本地化文件时请注意：
+        1. 检查 Key 是否在其他地方有定义
+        2. 验证翻译的完整性
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "Draft"
+      - "[DO NOT MERGE]"
+    drafts: false
+    base_branches:
+      - "main"
+      - "master"
+      - "dev"
+      - "develop"
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local

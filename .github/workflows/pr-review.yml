@@ -1,0 +1,273 @@
+# PR 审查工作流
+# 功能：
+# 1. 自动标记需要审查的 PR
+# 2. 检查 PR 描述完整性
+# 3. 通知维护者审查
+# 4. 合并前检查清单
+
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+    branches:
+      - main
+      - master
+      - dev
+      - develop
+
+  pull_request_review:
+    types: [submitted]
+
+  # 手动触发审查检查
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR 编号 (可选，不填则检查所有 open 的 PR)'
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  REQUIRED_REVIEWERS: 1
+
+jobs:
+  # 检查 PR 描述完整性
+  check-pr-description:
+    name: Check PR Description
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check PR Description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            // 检查关键部分
+            const checks = {
+              hasSummary: body.includes('## 变更摘要'),
+              hasType: body.includes('## 变更类型'),
+              hasDescription: body.includes('## 详细说明'),
+              hasTestInfo: body.includes('## 测试说明'),
+              hasCheckedType: /-\s*\[x\]/i.test(body)
+            };
+
+            const missing = [];
+            if (!checks.hasSummary) missing.push('变更摘要');
+            if (!checks.hasType) missing.push('变更类型');
+            if (!checks.hasDescription) missing.push('详细说明');
+            if (!checks.hasCheckedType) missing.push('未选择变更类型（请在方括号中打 x）');
+
+            if (missing.length > 0) {
+              const message = `## ⚠️ PR 描述不完整\n\n请补充以下内容：\n${missing.map(m => `- [ ] ${m}`).join('\n')}\n\n请参考 [PR 模板](${context.payload.repository.html_url}/blob/main/.github/pull_request_template.md) 填写。`;
+
+              // 检查是否已存在类似评论
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number
+              });
+
+              const hasExistingComment = comments.some(c =>
+                c.body && c.body.includes('PR 描述不完整')
+              );
+
+              if (!hasExistingComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: message
+                });
+              }
+
+              core.setFailed(`PR 描述不完整: ${missing.join(', ')}`);
+            } else {
+              console.log('✅ PR 描述完整');
+            }
+
+  # 标记需要审查的 PR
+  label-pr:
+    name: Label PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const title = pr.title || '';
+
+            const labelsToAdd = [];
+
+            // 根据 PR 内容自动标记
+            if (body.includes('[x] 新功能') || title.toLowerCase().includes('feat')) {
+              labelsToAdd.push('feature');
+            }
+            if (body.includes('[x] Bug 修复') || title.toLowerCase().includes('fix')) {
+              labelsToAdd.push('bugfix');
+            }
+            if (body.includes('[x] 兼容性变更') || body.includes('breaking')) {
+              labelsToAdd.push('breaking');
+            }
+            if (body.includes('[x] 文档更新')) {
+              labelsToAdd.push('docs');
+            }
+            if (body.includes('[x] CI/CD 变更')) {
+              labelsToAdd.push('ci');
+            }
+
+            // 总是添加需要审查标签
+            labelsToAdd.push('needs-review');
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: labelsToAdd
+              });
+              console.log(`已添加标签: ${labelsToAdd.join(', ')}`);
+            }
+
+  # 通知维护者审查
+  notify-reviewers:
+    name: Notify Reviewers
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
+    steps:
+      - name: Request Review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // 获取仓库协作者列表 (简化处理，实际可以从配置文件中读取)
+            const maintainers = ['mcocdaa']; // 替换为实际维护者
+
+            // 请求审查
+            await github.rest.pulls.requestReviewers({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              reviewers: maintainers.filter(m => m !== pr.user.login)
+            });
+
+            // 添加评论通知
+            const body = `## 🔍 需要审查\n\n@${maintainers.join(' @')} 请审查此 PR。\n\n检查清单:\n- [ ] 代码逻辑正确\n- [ ] 无破坏性变更 (或有适当标记)\n- [ ] 测试通过\n- [ ] 文档已更新 (如需要)`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: body
+            });
+
+  # 检查审查状态
+  check-review-status:
+    name: Check Review Status
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_review'
+    steps:
+      - name: Update Labels on Review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = context.payload.review;
+            const pr = context.payload.pull_request;
+
+            // 移除 needs-review 标签
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                name: 'needs-review'
+              });
+            } catch (e) {
+              // 标签可能不存在
+            }
+
+            // 根据审查状态添加标签
+            if (review.state === 'approved') {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['reviewed-approved']
+              });
+
+              // 添加批准评论
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `✅ **审查通过** - @${review.user.login}\n\n${review.body || ''}`
+              });
+            } else if (review.state === 'changes_requested') {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['changes-requested']
+              });
+
+              // 添加需要修改评论
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `🔄 **需要修改** - @${review.user.login}\n\n${review.body || ''}`
+              });
+            }
+
+  # 合并前最终检查
+  merge-check:
+    name: Merge Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'synchronize'
+    steps:
+      - name: Check Merge Requirements
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // 获取审查列表
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            // 计算批准数
+            const approvals = reviews.filter(r => r.state === 'APPROVED').length;
+            const changesRequested = reviews.filter(r => r.state === 'CHANGES_REQUESTED').length;
+
+            if (changesRequested > 0) {
+              core.setFailed('有审查者请求修改，请先解决');
+            }
+
+            if (approvals < parseInt(process.env.REQUIRED_REVIEWERS)) {
+              core.setFailed(`需要至少 ${process.env.REQUIRED_REVIEWERS} 个审查批准，当前: ${approvals}`);
+            }
+
+            console.log(`✅ 合并检查通过: ${approvals} 个批准`);
