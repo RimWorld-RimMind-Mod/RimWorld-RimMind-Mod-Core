@@ -10,7 +10,7 @@
 name: Create Release
 
 on:
-  # 手动触发
+  # 手动触发 - 仅支持通过 GitHub UI 或 API 调用
   workflow_dispatch:
     inputs:
       bump_type:
@@ -32,16 +32,6 @@ on:
         description: '补充说明 (可选)'
         required: false
         type: string
-
-  # 当推送到 main/master 分支且包含 version-bump 标记时自动触发
-  push:
-    branches:
-      - main
-      - master
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
 
 permissions:
   contents: write
