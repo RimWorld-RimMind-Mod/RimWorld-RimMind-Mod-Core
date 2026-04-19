@@ -292,23 +292,46 @@ namespace RimMind.Core.Internal
             {
                 var parts = new List<string>();
 
-                // 主武器
                 var weapon = pawn.equipment?.Primary;
                 if (weapon != null)
-                    parts.Add("RimMind.Core.Prompt.Weapon".Translate(weapon.LabelCap));
+                    parts.Add("RimMind.Core.Prompt.Weapon".Translate(LabelWithQuality(weapon)));
 
-                // 身上服装（跳过美观层占位符）
                 if (pawn.apparel?.WornApparel != null)
                 {
                     var apparel = new List<string>();
                     foreach (var a in pawn.apparel.WornApparel)
-                        apparel.Add(a.LabelCap);
+                        apparel.Add(LabelWithQuality(a));
                     if (apparel.Count > 0)
                         parts.Add("RimMind.Core.Prompt.Apparel".Translate(string.Join(", ", apparel)));
                 }
 
                 if (parts.Count > 0)
                     sb.AppendLine(string.Join("  ", parts));
+            }
+
+            if (ctx.IncludeInventory)
+            {
+                var innerContainer = pawn.inventory?.innerContainer;
+                if (innerContainer != null && innerContainer.Count > 0)
+                {
+                    var items = new Dictionary<string, int>();
+                    foreach (var thing in innerContainer)
+                    {
+                        string key = thing.def?.defName ?? thing.Label;
+                        if (!items.ContainsKey(key))
+                            items[key] = 0;
+                        items[key] += thing.stackCount;
+                    }
+                    var itemStrs = items.OrderByDescending(kv => kv.Value)
+                        .Take(8)
+                        .Select(kv =>
+                        {
+                            var def = DefDatabase<ThingDef>.GetNamedSilentFail(kv.Key);
+                            string label = def?.LabelCap ?? kv.Key;
+                            return kv.Value > 1 ? $"{label}×{kv.Value}" : label;
+                        });
+                    sb.AppendLine("RimMind.Core.Prompt.Inventory".Translate(string.Join(", ", itemStrs)));
+                }
             }
 
             // 位置（房间类型 + 温度）
@@ -443,6 +466,16 @@ namespace RimMind.Core.Internal
             return parts.Count > 0 ? string.Join("  ", parts) : string.Empty;
         }
 
+        private static string LabelWithQuality(Thing thing)
+        {
+            string label = thing.LabelCap;
+            if (thing.TryGetQuality(out QualityCategory qc))
+                label += $"({qc.GetLabel()})";
+            if (thing.def.useHitPoints && thing.HitPoints < thing.MaxHitPoints * 0.5f)
+                label += " " + "RimMind.Core.Prompt.Damaged".Translate();
+            return label;
+        }
+
         private static string ThreatLabel(float wealth)
         {
             return wealth > 200000 ? "RimMind.Core.Prompt.Threat.Extreme".Translate()
@@ -527,7 +560,7 @@ namespace RimMind.Core.Internal
 
             var weapon = pawn.equipment?.Primary;
             if (weapon != null)
-                sb.AppendLine("RimMind.Core.Prompt.CompactWeapon".Translate(weapon.LabelCap));
+                sb.AppendLine("RimMind.Core.Prompt.CompactWeapon".Translate(LabelWithQuality(weapon)));
 
             if (pawn.Drafted)
                 sb.AppendLine("RimMind.Core.Prompt.Drafted".Translate());

@@ -1,0 +1,74 @@
+[h1]RimMind - Core[/h1]
+RimMind 套件的核心基础设施，提供 LLM 客户端、异步请求队列和游戏上下文构建器，是所有 RimMind 子模组的前置依赖。
+
+[h2] RimMind 是什么 [/h2]
+RimMind 是一套 AI 驱动的 RimWorld 模组套件，通过接入大语言模型 (LLM)，让殖民者拥有人格、记忆、对话和自主决策能力。
+
+[h2] 子模组列表与依赖关系 [/h2]
+[table][tr][td][b] 模组 [/b][/td][td][b] 职责 [/b][/td][td][b] 依赖 [/b][/td][td][b] GitHub [/b][/td][/tr][tr][td][b] RimMind-Core [/b][/td][td] API 客户端、请求调度、上下文打包 [/td][td] Harmony [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Core] 链接 [/url][/td][/tr][tr][td] RimMind-Actions [/td][td] AI 控制小人的动作执行库 [/td][td] Core [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Actions] 链接 [/url][/td][/tr][tr][td] RimMind-Advisor [/td][td] AI 扮演小人做出工作决策 [/td][td] Core, Actions [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Advisor] 链接 [/url][/td][/tr][tr][td] RimMind-Dialogue [/td][td] AI 驱动的对话系统 [/td][td] Core [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Dialogue] 链接 [/url][/td][/tr][tr][td] RimMind-Memory [/td][td] 记忆采集与上下文注入 [/td][td] Core [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Memory] 链接 [/url][/td][/tr][tr][td] RimMind-Personality [/td][td] AI 生成人格与想法 [/td][td] Core [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Personality] 链接 [/url][/td][/tr][tr][td] RimMind-Storyteller [/td][td] AI 叙事者，智能选择事件 [/td][td] Core [/td][td][url=https://github.com/mcocdaa/RimWorld-RimMind-Mod-Storyteller] 链接 [/url][/td][/tr][/table]
+[code]Core ── Actions ── Advisor
+  ├── Dialogue
+  ├── Memory
+  ├── Personality
+  └── Storyteller[/code]
+
+[h2] 核心能力 [/h2]
+[b] 智能上下文构建 [/b] - 自动采集游戏状态：殖民者心情、健康、技能、装备、地图财富、威胁等级、季节天气等，为 AI 决策提供完整情报。
+[b] 异步请求队列 [/b] - 智能管理 LLM 请求，避免阻塞游戏主线程，支持请求优先级和冷却控制。
+[b] 模块化 API 设计 [/b] - 其他 RimMind 组件通过统一接口调用，无需关心底层实现细节。
+[b] 上下文过滤器 [/b] - 28+ 个可配置选项，精确控制注入 Prompt 的信息量，节省 Token 开销。
+[b] 调试工具集 [/b] - 内置 AI 请求日志窗口，实时查看每次 AI 调用的输入输出，方便排查问题。
+
+[h2] 技术亮点 [/h2]
+[list]
+[*] 兼容 OpenAI / DeepSeek / Ollama 等所有 OpenAI Chat Completions 格式的 API
+[*] 可配置的上下文过滤器，提供最小 / 标准 / 完整三种预设
+[*] JSON 模式支持，确保 AI 返回结构化数据
+[*] 请求悬浮窗，实时显示 AI 请求状态
+[/list]
+
+[h2] 支持的 API 端点 [/h2]
+[table][tr][td][b] 服务 [/b][/td][td][b] 端点 [/b][/td][td][b] 说明 [/b][/td][/tr][tr][td] OpenAI [/td][td] https://api.openai.com/v1 [/td][td] GPT-4o-mini 等模型 [/td][/tr][tr][td] DeepSeek [/td][td] https://api.deepseek.com/v1 [/td][td] deepseek-chat 等模型 [/td][/tr][tr][td] Ollama (本地) [/td][td] http://localhost:11434/v1 [/td][td] 本地部署的模型 [/td][/tr][tr][td] 其他 [/td][td] 填入 Base URL [/td][td] 任何 OpenAI 兼容接口 [/td][/tr][/table]
+
+[h2] 核心功能 [/h2]
+[b] LLM 客户端 [/b]
+兼容 OpenAI / DeepSeek / 本地 Ollama 等所有 OpenAI Chat Completions 格式的 API。支持 JSON 强制模式（response_format: json_object），本地模型可关闭。
+
+[b] 异步请求队列 [/b]
+所有 AI 请求在后台线程执行，不阻塞游戏主线程。每个请求独立冷却，过期请求自动丢弃。
+
+[b] 上下文构建 [/b]
+自动采集游戏状态并打包为文本供各模块使用：
+[list]
+[*] [b]地图上下文[/b]：时间、殖民者、食物、威胁、季节、天气
+[*] [b]小人上下文[/b]：年龄、背景、心情、健康、技能、装备、工作分配、关系
+[/list]
+
+[b] 上下文过滤器 [/b]
+通过"上下文过滤"设置页精确控制哪些游戏信息注入 Prompt，节省 Token。提供最小/标准/完整三种预设，也可自定义勾选 28+ 个选项。
+
+[b] 调试工具 [/b]
+[list]
+[*] [b]AI Debug Log[/b]：浮动窗口，查看每次 AI 调用的完整 Prompt + Response
+[*] [b]请求悬浮窗[/b]：右下角实时显示 AI 请求状态
+[*] [b]Dev 菜单[/b]：测试连接、查看上下文、清除冷却等
+[/list]
+
+[h2] 设置项 [/h2]
+[table][tr][td][b] 设置 [/b][/td][td][b] 默认值 [/b][/td][td][b] 说明 [/b][/td][/tr][tr][td] API Key [/td][td] - [/td][td] 你的 API 密钥 [/td][/tr][tr][td] API 端点 [/td][td] https://api.deepseek.com/v1 [/td][td] OpenAI 兼容端点 [/td][/tr][tr][td] 模型名称 [/td][td] deepseek-chat [/td][td] 任意模型 ID [/td][/tr][tr][td] 强制 JSON 模式 [/td][td] 开启 [/td][td] 不支持的本地模型请关闭 [/td][/tr][tr][td] 最大 Token [/td][td] 800 [/td][td] 响应长度上限 [/td][/tr][tr][td] 最大并发请求数 [/td][td] 3 [/td][td] 同时等待响应的请求上限 [/td][/tr][tr][td] 最大重试次数 [/td][td] 2 [/td][td] 请求失败后重试次数 [/td][/tr][tr][td] 请求超时 [/td][td] 120 秒 [/td][td] 单次请求超时时间 [/td][/tr][tr][td] 详细日志 [/td][td] 关闭 [/td][td] 输出到 Player.log [/td][/tr][tr][td] 请求悬浮窗 [/td][td] 开启 [/td][td] 右下角显示请求状态 [/td][/tr][/table]
+
+[h2] 常见问题 [/h2]
+[b] Q: 支持哪些大模型？ [/b]
+A: 任何兼容 OpenAI Chat Completions API 的模型均可使用，包括 OpenAI GPT 系列、DeepSeek、本地 Ollama 等。
+
+[b] Q: 会不会影响游戏帧率？ [/b]
+A: 不会。所有 AI 请求在后台线程执行，主线程只处理回调结果。
+
+[b] Q: API Key 安全吗？ [/b]
+A: API Key 仅存储在本地 RimWorld 设置文件中，不会上传到任何服务器。
+
+[b] Q: 不填 API Key 会怎样？ [/b]
+A: Core 本身不会报错，但所有依赖 AI 的子模组功能将无法工作。
+
+[b] Q: 推荐用什么模型？ [/b]
+A: 推荐使用 gpt-4o-mini 或 deepseek-chat，性价比高且响应速度快。本地 Ollama 用户可使用 qwen2.5:7b 等模型。

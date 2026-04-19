@@ -16,8 +16,8 @@ namespace RimMind.Core
     {
         // ── Provider 注册表 ───────────────────────────────────────────────────
 
-        private static readonly Dictionary<string, (string modId, Func<string> provider, int priority)>
-            _staticProviders = new Dictionary<string, (string, Func<string>, int)>();
+        private static readonly Dictionary<string, (string modId, Func<string?> provider, int priority)>
+            _staticProviders = new Dictionary<string, (string, Func<string?>, int)>();
 
         private static readonly Dictionary<string, (string modId, Func<string, string> provider, int priority)>
             _dynamicProviders = new Dictionary<string, (string, Func<string, string>, int)>();
@@ -35,6 +35,15 @@ namespace RimMind.Core
             = new Dictionary<string, Func<int>>();
 
         private static Action<Pawn, string, Pawn?>? _dialogueTriggerFn;
+
+        private static readonly Dictionary<string, Func<Pawn, string, bool>> _dialogueSkipChecks
+            = new Dictionary<string, Func<Pawn, string, bool>>();
+
+        private static readonly Dictionary<string, Func<bool>> _floatMenuSkipChecks
+            = new Dictionary<string, Func<bool>>();
+
+        private static readonly Dictionary<string, Func<string, bool>> _actionSkipChecks
+            = new Dictionary<string, Func<string, bool>>();
 
         // ── 核心请求 API ──────────────────────────────────────────────────────
 
@@ -71,6 +80,25 @@ namespace RimMind.Core
             }
             queue.EnqueueImmediate(request, onComplete, client);
         }
+
+        public static bool CancelRequest(string requestId)
+            => AIRequestQueue.Instance?.CancelRequest(requestId) ?? false;
+
+        public static void PauseQueue() => AIRequestQueue.Instance?.PauseQueue();
+
+        public static void ResumeQueue() => AIRequestQueue.Instance?.ResumeQueue();
+
+        public static bool IsQueuePaused => AIRequestQueue.Instance?.IsPaused ?? false;
+
+        public static int ActiveRequestCount => AIRequestQueue.Instance?.ActiveRequestCount ?? 0;
+
+        public static IReadOnlyList<AIRequestQueue.TrackedRequest> GetActiveRequests()
+            => AIRequestQueue.Instance?.GetActiveRequests() ?? new List<AIRequestQueue.TrackedRequest>();
+
+        public static IReadOnlyList<AIRequestQueue.TrackedRequest> GetAllQueuedRequests()
+            => AIRequestQueue.Instance?.GetAllQueuedRequests() ?? new List<AIRequestQueue.TrackedRequest>();
+
+        public static int TotalQueuedCount => AIRequestQueue.Instance?.TotalQueuedCount ?? 0;
 
         // ── 上下文构建 ────────────────────────────────────────────────────────
 
@@ -237,7 +265,7 @@ namespace RimMind.Core
 
         // ── Provider 注册（去重/覆盖） ──────────────────────────────────────────
 
-        public static void RegisterStaticProvider(string category, Func<string> provider,
+        public static void RegisterStaticProvider(string category, Func<string?> provider,
             int priority = PromptSection.PriorityAuxiliary, string modId = "", bool overrideExisting = true)
         {
             if (_staticProviders.ContainsKey(category))
@@ -277,6 +305,44 @@ namespace RimMind.Core
             {
                 _pawnProviders[category] = (modId, provider, priority);
             }
+        }
+
+        // ── Provider 查询（供外部 Mod 读取 RimMind 数据） ──────────────────────
+
+        public static string? GetProviderData(string category, Pawn pawn)
+        {
+            if (!_pawnProviders.TryGetValue(category, out var entry)) return null;
+            var ctx = RimMindCoreMod.Settings?.Context;
+            if (ctx?.exposedProviders.Count > 0 && !ctx.exposedProviders.Contains(category)) return null;
+            try { return entry.provider(pawn); }
+            catch (System.Exception ex) { Log.Warning($"[RimMind] GetProviderData '{category}' error: {ex.Message}"); return null; }
+        }
+
+        public static string? GetStaticProviderData(string category)
+        {
+            if (!_staticProviders.TryGetValue(category, out var entry)) return null;
+            var ctx = RimMindCoreMod.Settings?.Context;
+            if (ctx?.exposedProviders.Count > 0 && !ctx.exposedProviders.Contains(category)) return null;
+            try { return entry.provider(); }
+            catch (System.Exception ex) { Log.Warning($"[RimMind] GetStaticProviderData '{category}' error: {ex.Message}"); return null; }
+        }
+
+        public static string? GetDynamicProviderData(string category, string query)
+        {
+            if (!_dynamicProviders.TryGetValue(category, out var entry)) return null;
+            var ctx = RimMindCoreMod.Settings?.Context;
+            if (ctx?.exposedProviders.Count > 0 && !ctx.exposedProviders.Contains(category)) return null;
+            try { return entry.provider(query); }
+            catch (System.Exception ex) { Log.Warning($"[RimMind] GetDynamicProviderData '{category}' error: {ex.Message}"); return null; }
+        }
+
+        public static List<string> GetRegisteredCategories()
+        {
+            var result = new List<string>();
+            result.AddRange(_staticProviders.Keys);
+            result.AddRange(_pawnProviders.Keys);
+            result.AddRange(_dynamicProviders.Keys);
+            return result;
         }
 
         // ── Provider 卸载 ──────────────────────────────────────────────────────
@@ -348,6 +414,117 @@ namespace RimMind.Core
                 return;
             }
             _dialogueTriggerFn(pawn, context, recipient);
+        }
+
+        // ── SkipCheck API ──────────────────────────────────────────────────
+
+        public static void RegisterDialogueSkipCheck(string sourceId, Func<Pawn, string, bool> skipCheck)
+        {
+            _dialogueSkipChecks[sourceId] = skipCheck;
+        }
+
+        public static void UnregisterDialogueSkipCheck(string sourceId)
+            => _dialogueSkipChecks.Remove(sourceId);
+
+        public static bool ShouldSkipDialogue(Pawn pawn, string triggerType)
+        {
+            foreach (var kvp in _dialogueSkipChecks)
+            {
+                try
+                {
+                    if (kvp.Value(pawn, triggerType)) return true;
+                }
+                catch (System.Exception ex)
+                {
+                    Log.Warning($"[RimMind] DialogueSkipCheck '{kvp.Key}' error: {ex.Message}");
+                }
+            }
+            return false;
+        }
+
+        public static void RegisterFloatMenuSkipCheck(string sourceId, Func<bool> skipCheck)
+        {
+            _floatMenuSkipChecks[sourceId] = skipCheck;
+        }
+
+        public static void UnregisterFloatMenuSkipCheck(string sourceId)
+            => _floatMenuSkipChecks.Remove(sourceId);
+
+        public static bool ShouldSkipFloatMenu()
+        {
+            foreach (var kvp in _floatMenuSkipChecks)
+            {
+                try
+                {
+                    if (kvp.Value()) return true;
+                }
+                catch (System.Exception ex)
+                {
+                    Log.Warning($"[RimMind] FloatMenuSkipCheck '{kvp.Key}' error: {ex.Message}");
+                }
+            }
+            return false;
+        }
+
+        // ── ActionSkipCheck API ──────────────────────────────────────────────
+
+        public static void RegisterActionSkipCheck(string sourceId, Func<string, bool> skipCheck)
+        {
+            _actionSkipChecks[sourceId] = skipCheck;
+        }
+
+        public static void UnregisterActionSkipCheck(string sourceId)
+            => _actionSkipChecks.Remove(sourceId);
+
+        public static bool ShouldSkipAction(string intentId)
+        {
+            foreach (var kvp in _actionSkipChecks)
+            {
+                try
+                {
+                    if (kvp.Value(intentId)) return true;
+                }
+                catch (System.Exception ex)
+                {
+                    Log.Warning($"[RimMind] ActionSkipCheck '{kvp.Key}' error: {ex.Message}");
+                }
+            }
+            return false;
+        }
+
+        // ── Incident Cooldown API ────────────────────────────────────────────
+
+        private static readonly List<Action> _incidentExecutedCallbacks = new List<Action>();
+
+        public static void RegisterIncidentExecutedCallback(Action callback)
+        {
+            _incidentExecutedCallbacks.Add(callback);
+        }
+
+        public static void NotifyIncidentExecuted()
+        {
+            foreach (var cb in _incidentExecutedCallbacks)
+            {
+                try { cb(); }
+                catch (System.Exception ex) { Log.Warning($"[RimMind] IncidentExecuted callback error: {ex.Message}"); }
+            }
+        }
+
+        private static readonly List<Func<bool>> _storytellerIncidentSkipChecks = new List<Func<bool>>();
+
+        public static void RegisterStorytellerIncidentSkipCheck(Func<bool> check)
+        {
+            _storytellerIncidentSkipChecks.Add(check);
+        }
+
+        public static bool ShouldSkipStorytellerIncident()
+        {
+            foreach (var check in _storytellerIncidentSkipChecks)
+            {
+                try { if (check()) return true; }
+                catch (System.Exception ex) { Log.Warning($"[RimMind] StorytellerIncidentSkipCheck error: {ex.Message}"); }
+            }
+            return false;
         }
 
         // ── RequestOverlay API ────────────────────────────────────────────────

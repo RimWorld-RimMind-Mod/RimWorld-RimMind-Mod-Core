@@ -70,8 +70,8 @@ cd RimWorld-RimMind-Mod-Core
 
 | 服务 | 端点 | 说明 |
 |------|------|------|
+| DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat 等模型（默认） |
 | OpenAI | `https://api.openai.com/v1` | GPT-4o-mini 等模型 |
-| DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat 等模型 |
 | Ollama (本地) | `http://localhost:11434/v1` | 本地部署的模型 |
 | 其他 | 填入 Base URL | 任何 OpenAI 兼容接口 |
 
@@ -100,7 +100,7 @@ cd RimWorld-RimMind-Mod-Core
 
 ### 上下文过滤器
 
-通过"上下文过滤"设置页精确控制哪些游戏信息注入 Prompt，节省 Token。提供最小/标准/完整三种预设，也可自定义勾选 30+ 个选项。
+通过"上下文过滤"设置页精确控制哪些游戏信息注入 Prompt，节省 Token。提供最小/标准/完整三种预设，也可自定义勾选 28+ 个选项。
 
 ### 调试工具
 
@@ -113,12 +113,18 @@ cd RimWorld-RimMind-Mod-Core
 | 设置 | 默认值 | 说明 |
 |------|--------|------|
 | API Key | - | 你的 API 密钥 |
-| API 端点 | `https://api.openai.com/v1` | OpenAI 兼容端点 |
-| 模型名称 | `gpt-4o-mini` | 任意模型 ID |
+| API 端点 | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
+| 模型名称 | `deepseek-chat` | 任意模型 ID |
 | 强制 JSON 模式 | 开启 | 不支持的本地模型请关闭 |
-| 最大 Token | 800 | 响应长度上限 |
+| 最大 Token | 800 | 响应长度上限（200-2000） |
+| 最大并发请求数 | 3 | 同时发送请求的上限（1-10） |
+| 最大重试次数 | 2 | 请求失败后重试次数（0-5） |
+| 请求超时 | 120秒 | 等待 AI 响应的最大时间（10-300秒） |
 | 详细日志 | 关闭 | 输出到 Player.log |
 | 请求悬浮窗 | 开启 | 右下角显示请求状态 |
+| 自定义人物提示词 | 空 | 追加在人物上下文末尾 |
+| 自定义地图提示词 | 空 | 追加在地图上下文末尾 |
+| 上下文过滤器 | 标准 | 28+ 个可选项，三种预设 |
 
 ## 常见问题
 
@@ -213,8 +219,8 @@ cd RimWorld-RimMind-Mod-Core
 
 | Service | Endpoint | Notes |
 |---------|----------|-------|
+| DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat etc. (default) |
 | OpenAI | `https://api.openai.com/v1` | GPT-4o-mini etc. |
-| DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat etc. |
 | Ollama (local) | `http://localhost:11434/v1` | Locally deployed models |
 | Others | Enter Base URL | Any OpenAI-compatible API |
 
@@ -223,7 +229,7 @@ cd RimWorld-RimMind-Mod-Core
 - **LLM Client**: Compatible with OpenAI / DeepSeek / local Ollama and any OpenAI Chat Completions API
 - **Async Request Queue**: All AI requests run on background threads, never blocking the game
 - **Context Builder**: Automatically collects game state (colonist stats, map info, etc.) for AI prompts
-- **Context Filter**: Fine-grained control over what game info gets sent to AI, with Minimal/Standard/Full presets
+- **Context Filter**: Fine-grained control over what game info gets sent to AI, with Minimal/Standard/Full presets and 28+ configurable options
 - **Debug Tools**: AI Debug Log window, request overlay, Dev menu actions
 
 ## FAQ

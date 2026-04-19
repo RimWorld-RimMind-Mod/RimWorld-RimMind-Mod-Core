@@ -154,6 +154,8 @@ namespace RimMind.Core.UI
                         _pending.RemoveAt(i);
                         break;
                     }
+                    if (entry.optionTooltips != null && j < entry.optionTooltips.Length && !entry.optionTooltips[j].NullOrEmpty())
+                        TooltipHandler.TipRegion(btnRect, entry.optionTooltips[j]);
                 }
 
                 y += entryH;

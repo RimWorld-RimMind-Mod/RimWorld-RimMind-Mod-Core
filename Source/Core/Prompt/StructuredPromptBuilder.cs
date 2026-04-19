@@ -95,7 +95,7 @@ namespace RimMind.Core.Prompt
             AppendSection(sb, "Fallback", _fallback);
             AppendSection(sb, "Custom", _custom);
 
-            return sb.ToString().TrimEnd();
+            return PromptSanitizer.Sanitize(sb.ToString().TrimEnd());
         }
 
         public PromptSection ToSection(string tag = "system_prompt", int priority = 0)

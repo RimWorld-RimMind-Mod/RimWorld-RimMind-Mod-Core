@@ -43,6 +43,40 @@
     <RimMind.Core.Settings.Section.ModelBehavior>模型行为</RimMind.Core.Settings.Section.ModelBehavior>
     <RimMind.Core.Settings.Section.Request>请求设置</RimMind.Core.Settings.Section.Request>
     <RimMind.Core.Settings.Section.Debug>调试</RimMind.Core.Settings.Section.Debug>
+    <RimMind.Core.Settings.MaxConcurrent>最大并发请求数</RimMind.Core.Settings.MaxConcurrent>
+    <RimMind.Core.Settings.MaxConcurrent.Desc>同时向 AI 发送请求的上限。增大可提高响应速度，但会增加 API 费用。</RimMind.Core.Settings.MaxConcurrent.Desc>
+    <RimMind.Core.Settings.MaxRetry>最大重试次数</RimMind.Core.Settings.MaxRetry>
+    <RimMind.Core.Settings.MaxRetry.Desc>请求失败后的最大重试次数。设为 0 则不重试。</RimMind.Core.Settings.MaxRetry.Desc>
+    <RimMind.Core.Settings.RequestTimeout>请求超时（秒）</RimMind.Core.Settings.RequestTimeout>
+    <RimMind.Core.Settings.RequestTimeout.Desc>等待 AI 响应的最大时间，超时后请求将被取消。网络较慢或模型较大时可适当增大。</RimMind.Core.Settings.RequestTimeout.Desc>
+    <RimMind.Core.Settings.QueuePaused>队列：已暂停</RimMind.Core.Settings.QueuePaused>
+    <RimMind.Core.Settings.QueueRunning>队列：运行中</RimMind.Core.Settings.QueueRunning>
+    <RimMind.Core.Settings.QueueSeeTab>队列状态已移至「队列」标签页查看</RimMind.Core.Settings.QueueSeeTab>
+    <RimMind.Core.Settings.Tab.Queue>队列</RimMind.Core.Settings.Tab.Queue>
+    <RimMind.Core.Settings.QueueNotAvailable>队列尚未初始化（需进入游戏存档后可用）</RimMind.Core.Settings.QueueNotAvailable>
+    <RimMind.Core.Settings.Queue.Status>总体状态</RimMind.Core.Settings.Queue.Status>
+    <RimMind.Core.Settings.Queue.Active>活跃请求</RimMind.Core.Settings.Queue.Active>
+    <RimMind.Core.Settings.Queue.Queued>排队请求</RimMind.Core.Settings.Queue.Queued>
+    <RimMind.Core.Settings.Queue.LocalModel>本地模型</RimMind.Core.Settings.Queue.LocalModel>
+    <RimMind.Core.Settings.Queue.Busy>忙碌</RimMind.Core.Settings.Queue.Busy>
+    <RimMind.Core.Settings.Queue.Idle>空闲</RimMind.Core.Settings.Queue.Idle>
+    <RimMind.Core.Settings.Queue.Resume>恢复队列</RimMind.Core.Settings.Queue.Resume>
+    <RimMind.Core.Settings.Queue.Pause>暂停队列</RimMind.Core.Settings.Queue.Pause>
+    <RimMind.Core.Settings.Queue.ClearQueues>清空队列</RimMind.Core.Settings.Queue.ClearQueues>
+    <RimMind.Core.Settings.Queue.ClearCooldowns>清空冷却</RimMind.Core.Settings.Queue.ClearCooldowns>
+    <RimMind.Core.Settings.Queue.PerMod>各 Mod 队列</RimMind.Core.Settings.Queue.PerMod>
+    <RimMind.Core.Settings.Queue.NoMods>暂无注册的 Mod 队列</RimMind.Core.Settings.Queue.NoMods>
+    <RimMind.Core.Settings.Queue.Cooldown>冷却</RimMind.Core.Settings.Queue.Cooldown>
+    <RimMind.Core.Settings.Queue.Ready>就绪</RimMind.Core.Settings.Queue.Ready>
+    <RimMind.Core.Settings.Queue.QueueCount>排队</RimMind.Core.Settings.Queue.QueueCount>
+    <RimMind.Core.Settings.Queue.ActiveRequests>活跃请求详情</RimMind.Core.Settings.Queue.ActiveRequests>
+    <RimMind.Core.Settings.Queue.NoActive>当前无活跃请求</RimMind.Core.Settings.Queue.NoActive>
+    <RimMind.Core.Settings.Queue.QueuedRequests>排队请求详情</RimMind.Core.Settings.Queue.QueuedRequests>
+    <RimMind.Core.Settings.Queue.NoQueued>当前无排队请求</RimMind.Core.Settings.Queue.NoQueued>
+    <RimMind.Core.Settings.Queue.Priority>优先级</RimMind.Core.Settings.Queue.Priority>
+    <RimMind.Core.Settings.Queue.Attempt>尝试</RimMind.Core.Settings.Queue.Attempt>
+    <RimMind.Core.Settings.Queue.Elapsed>已用时</RimMind.Core.Settings.Queue.Elapsed>
+    <RimMind.Core.Settings.Queue.Waiting>等待</RimMind.Core.Settings.Queue.Waiting>
     <RimMind.Core.Settings.TestMessage>这是一个测试信息，请用一句话回复。</RimMind.Core.Settings.TestMessage>
 
     <!-- AICoreSettingsUI.cs - Context filter -->
@@ -64,33 +98,65 @@
 
     <!-- Context - Pawn info checkboxes -->
     <RimMind.Core.Context.IncludeRace>种族</RimMind.Core.Context.IncludeRace>
+    <RimMind.Core.Context.IncludeRace.Desc>将小人的种族信息注入 AI 上下文。</RimMind.Core.Context.IncludeRace.Desc>
     <RimMind.Core.Context.IncludeAge>年龄</RimMind.Core.Context.IncludeAge>
+    <RimMind.Core.Context.IncludeAge.Desc>将小人的年龄注入 AI 上下文。</RimMind.Core.Context.IncludeAge.Desc>
     <RimMind.Core.Context.IncludeGender>性别</RimMind.Core.Context.IncludeGender>
+    <RimMind.Core.Context.IncludeGender.Desc>将小人的性别注入 AI 上下文。</RimMind.Core.Context.IncludeGender.Desc>
     <RimMind.Core.Context.IncludeBackstory>背景故事</RimMind.Core.Context.IncludeBackstory>
+    <RimMind.Core.Context.IncludeBackstory.Desc>将小人的童年和成年背景故事注入 AI 上下文。</RimMind.Core.Context.IncludeBackstory.Desc>
     <RimMind.Core.Context.IncludeIdeology>意识形态（需 Ideology DLC）</RimMind.Core.Context.IncludeIdeology>
+    <RimMind.Core.Context.IncludeIdeology.Desc>将小人的意识形态和信念注入 AI 上下文。</RimMind.Core.Context.IncludeIdeology.Desc>
     <RimMind.Core.Context.IncludeTraits>特性</RimMind.Core.Context.IncludeTraits>
+    <RimMind.Core.Context.IncludeTraits.Desc>将小人的性格特性注入 AI 上下文。</RimMind.Core.Context.IncludeTraits.Desc>
     <RimMind.Core.Context.IncludeSkills>技能</RimMind.Core.Context.IncludeSkills>
+    <RimMind.Core.Context.IncludeSkills.Desc>将小人的技能等级注入 AI 上下文。低于最低技能等级的技能会被过滤。</RimMind.Core.Context.IncludeSkills.Desc>
     <RimMind.Core.Context.MinSkillLevel>最低技能等级</RimMind.Core.Context.MinSkillLevel>
+    <RimMind.Core.Context.MinSkillLevel.Desc>低于此等级的技能不会注入 AI 上下文，可节省 Token。</RimMind.Core.Context.MinSkillLevel.Desc>
     <RimMind.Core.Context.IncludeHealth>健康状况</RimMind.Core.Context.IncludeHealth>
+    <RimMind.Core.Context.IncludeHealth.Desc>将小人的健康问题（伤口、疾病、义体等）注入 AI 上下文。</RimMind.Core.Context.IncludeHealth.Desc>
+    <RimMind.Core.Context.IncludeCapacities>行动能力</RimMind.Core.Context.IncludeCapacities>
+    <RimMind.Core.Context.IncludeCapacities.Desc>将小人的身体行动能力（操纵、移动、视觉等）注入 AI 上下文。</RimMind.Core.Context.IncludeCapacities.Desc>
     <RimMind.Core.Context.IncludeMood>心情</RimMind.Core.Context.IncludeMood>
+    <RimMind.Core.Context.IncludeMood.Desc>将小人的当前心情百分比注入 AI 上下文。</RimMind.Core.Context.IncludeMood.Desc>
     <RimMind.Core.Context.IncludeMoodThoughts>心情因子（前8条）</RimMind.Core.Context.IncludeMoodThoughts>
+    <RimMind.Core.Context.IncludeMoodThoughts.Desc>将影响心情的前8条因子注入 AI 上下文。</RimMind.Core.Context.IncludeMoodThoughts.Desc>
     <RimMind.Core.Context.IncludeCurrentJob>当前任务</RimMind.Core.Context.IncludeCurrentJob>
+    <RimMind.Core.Context.IncludeCurrentJob.Desc>将小人正在执行的任务注入 AI 上下文。</RimMind.Core.Context.IncludeCurrentJob.Desc>
     <RimMind.Core.Context.IncludeWorkPriorities>工作分配</RimMind.Core.Context.IncludeWorkPriorities>
+    <RimMind.Core.Context.IncludeWorkPriorities.Desc>将小人的工作优先级分配注入 AI 上下文。</RimMind.Core.Context.IncludeWorkPriorities.Desc>
     <RimMind.Core.Context.IncludeEquipment>武器与服装</RimMind.Core.Context.IncludeEquipment>
+    <RimMind.Core.Context.IncludeEquipment.Desc>将小人装备的武器和服装注入 AI 上下文。</RimMind.Core.Context.IncludeEquipment.Desc>
+    <RimMind.Core.Context.IncludeInventory>携带物品</RimMind.Core.Context.IncludeInventory>
+    <RimMind.Core.Context.IncludeInventory.Desc>将小人携带的物品（背包）注入 AI 上下文。</RimMind.Core.Context.IncludeInventory.Desc>
     <RimMind.Core.Context.IncludeLocation>位置与温度</RimMind.Core.Context.IncludeLocation>
+    <RimMind.Core.Context.IncludeLocation.Desc>将小人的位置坐标和所在区域温度注入 AI 上下文。</RimMind.Core.Context.IncludeLocation.Desc>
     <RimMind.Core.Context.IncludeRelations>社交关系</RimMind.Core.Context.IncludeRelations>
+    <RimMind.Core.Context.IncludeRelations.Desc>将小人与其他人的社交关系注入 AI 上下文。</RimMind.Core.Context.IncludeRelations.Desc>
     <RimMind.Core.Context.IncludeGenes>基因（需 Biotech DLC）</RimMind.Core.Context.IncludeGenes>
+    <RimMind.Core.Context.IncludeGenes.Desc>将小人的基因信息注入 AI 上下文。</RimMind.Core.Context.IncludeGenes.Desc>
     <RimMind.Core.Context.IncludeSurroundings>周围环境</RimMind.Core.Context.IncludeSurroundings>
+    <RimMind.Core.Context.IncludeSurroundings.Desc>将小人周围的建筑、物品和动物注入 AI 上下文。</RimMind.Core.Context.IncludeSurroundings.Desc>
     <RimMind.Core.Context.IncludeCombatStatus>战斗状态</RimMind.Core.Context.IncludeCombatStatus>
+    <RimMind.Core.Context.IncludeCombatStatus.Desc>将小人是否在战斗中、是否被征召等状态注入 AI 上下文。</RimMind.Core.Context.IncludeCombatStatus.Desc>
 
     <!-- Context - Environment checkboxes -->
     <RimMind.Core.Context.IncludeGameTime>游戏时间</RimMind.Core.Context.IncludeGameTime>
+    <RimMind.Core.Context.IncludeGameTime.Desc>将当前游戏日期和时间注入 AI 上下文。</RimMind.Core.Context.IncludeGameTime.Desc>
     <RimMind.Core.Context.IncludeColonistCount>殖民者数量</RimMind.Core.Context.IncludeColonistCount>
+    <RimMind.Core.Context.IncludeColonistCount.Desc>将殖民者和囚犯数量注入 AI 上下文。</RimMind.Core.Context.IncludeColonistCount.Desc>
+    <RimMind.Core.Context.IncludeColonistNames>殖民者名单</RimMind.Core.Context.IncludeColonistNames>
+    <RimMind.Core.Context.IncludeColonistNames.Desc>将殖民者和囚犯的名字注入 AI 上下文。</RimMind.Core.Context.IncludeColonistNames.Desc>
     <RimMind.Core.Context.IncludeWealth>财富等级</RimMind.Core.Context.IncludeWealth>
+    <RimMind.Core.Context.IncludeWealth.Desc>将殖民地财富和威胁等级注入 AI 上下文。</RimMind.Core.Context.IncludeWealth.Desc>
     <RimMind.Core.Context.IncludeFood>食物储量</RimMind.Core.Context.IncludeFood>
+    <RimMind.Core.Context.IncludeFood.Desc>将殖民地的食物营养总量注入 AI 上下文。</RimMind.Core.Context.IncludeFood.Desc>
     <RimMind.Core.Context.IncludeSeason>季节</RimMind.Core.Context.IncludeSeason>
+    <RimMind.Core.Context.IncludeSeason.Desc>将当前季节注入 AI 上下文。</RimMind.Core.Context.IncludeSeason.Desc>
     <RimMind.Core.Context.IncludeWeather>天气</RimMind.Core.Context.IncludeWeather>
+    <RimMind.Core.Context.IncludeWeather.Desc>将当前天气状况注入 AI 上下文。</RimMind.Core.Context.IncludeWeather.Desc>
     <RimMind.Core.Context.IncludeThreats>威胁等级</RimMind.Core.Context.IncludeThreats>
+    <RimMind.Core.Context.IncludeThreats.Desc>将当前地图的威胁等级注入 AI 上下文。</RimMind.Core.Context.IncludeThreats.Desc>
 
     <!-- GameContextBuilder.cs - Map context -->
     <RimMind.Core.Prompt.MapStatusHeader>[当前地图状态]</RimMind.Core.Prompt.MapStatusHeader>
@@ -129,6 +195,8 @@
     <RimMind.Core.Prompt.Traits>特性：{0}</RimMind.Core.Prompt.Traits>
     <RimMind.Core.Prompt.Weapon>武器：{0}</RimMind.Core.Prompt.Weapon>
     <RimMind.Core.Prompt.Apparel>服装：{0}</RimMind.Core.Prompt.Apparel>
+    <RimMind.Core.Prompt.Inventory>携带：{0}</RimMind.Core.Prompt.Inventory>
+    <RimMind.Core.Prompt.Damaged>损坏</RimMind.Core.Prompt.Damaged>
     <RimMind.Core.Prompt.Room.Indoors>室内</RimMind.Core.Prompt.Room.Indoors>
     <RimMind.Core.Prompt.Room.Outdoors>室外</RimMind.Core.Prompt.Room.Outdoors>
     <RimMind.Core.Prompt.Location>位置：{0}  温度：{1}°C</RimMind.Core.Prompt.Location>
@@ -165,6 +233,9 @@
     <RimMind.Core.Prompts.PawnPromptLabel>追加在人物上下文末尾的自定义提示词（留空则不追加）：</RimMind.Core.Prompts.PawnPromptLabel>
     <RimMind.Core.Prompts.MapPrompt>全局地图提示词</RimMind.Core.Prompts.MapPrompt>
     <RimMind.Core.Prompts.MapPromptLabel>追加在地图上下文末尾的自定义提示词（留空则不追加）：</RimMind.Core.Prompts.MapPromptLabel>
+
+    <!-- ContextComposer.cs -->
+    <RimMind.Core.Prompt.HistoryOmitted>（{0}条更早的记录已省略）</RimMind.Core.Prompt.HistoryOmitted>
 
     <!-- AICoreAPI.cs - Custom prompt headers -->
     <RimMind.Core.Prompt.CustomPawnHeader>[玩家自定义人物提示词]</RimMind.Core.Prompt.CustomPawnHeader>

@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using RimMind.Core.Client;
 using Verse;
 
@@ -51,6 +50,13 @@ namespace RimMind.Core.Internal
                 TokensUsed        = response.TokensUsed,
                 IsError           = !response.Success,
                 ErrorMsg          = response.Error,
+                Priority          = response.Priority,
+                State             = response.State,
+                AttemptCount      = response.AttemptCount,
+                QueueWaitMs       = response.QueueWaitMs,
+                ProcessingMs      = response.ProcessingMs,
+                HttpStatusCode    = response.HttpStatusCode,
+                RequestPayloadBytes = response.RequestPayloadBytes,
             });
         }
     }
@@ -68,7 +74,14 @@ namespace RimMind.Core.Internal
         public bool   IsError          { get; set; }
         public string ErrorMsg         { get; set; } = string.Empty;
 
-        /// <summary>格式化为游戏时间形式。</summary>
+        public AIRequestPriority Priority          { get; set; }
+        public AIRequestState    State             { get; set; }
+        public int               AttemptCount      { get; set; }
+        public long              QueueWaitMs       { get; set; }
+        public long              ProcessingMs      { get; set; }
+        public long              HttpStatusCode    { get; set; }
+        public int               RequestPayloadBytes { get; set; }
+
         public string FormattedTime
         {
             get

@@ -10,6 +10,7 @@ namespace RimMind.Core.UI
         public string title = "";
         public string? description;
         public string[] options = new string[0];
+        public string[]? optionTooltips;
         public Action<string>? callback;
         public bool systemBlocked;
         public int tick;

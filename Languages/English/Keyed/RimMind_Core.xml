@@ -43,6 +43,40 @@
     <RimMind.Core.Settings.Section.ModelBehavior>Model Behavior</RimMind.Core.Settings.Section.ModelBehavior>
     <RimMind.Core.Settings.Section.Request>Request Settings</RimMind.Core.Settings.Section.Request>
     <RimMind.Core.Settings.Section.Debug>Debug</RimMind.Core.Settings.Section.Debug>
+    <RimMind.Core.Settings.MaxConcurrent>Max Concurrent Requests</RimMind.Core.Settings.MaxConcurrent>
+    <RimMind.Core.Settings.MaxConcurrent.Desc>Maximum number of simultaneous AI requests. Higher values improve responsiveness but increase API costs.</RimMind.Core.Settings.MaxConcurrent.Desc>
+    <RimMind.Core.Settings.MaxRetry>Max Retry Count</RimMind.Core.Settings.MaxRetry>
+    <RimMind.Core.Settings.MaxRetry.Desc>Maximum number of retries after a request failure. Set to 0 to disable retries.</RimMind.Core.Settings.MaxRetry.Desc>
+    <RimMind.Core.Settings.RequestTimeout>Request Timeout (seconds)</RimMind.Core.Settings.RequestTimeout>
+    <RimMind.Core.Settings.RequestTimeout.Desc>Maximum time to wait for an AI response before timing out. Increase for slow models or networks.</RimMind.Core.Settings.RequestTimeout.Desc>
+    <RimMind.Core.Settings.QueuePaused>Queue: PAUSED</RimMind.Core.Settings.QueuePaused>
+    <RimMind.Core.Settings.QueueRunning>Queue: Running</RimMind.Core.Settings.QueueRunning>
+    <RimMind.Core.Settings.QueueSeeTab>Queue status has been moved to the "Queue" tab</RimMind.Core.Settings.QueueSeeTab>
+    <RimMind.Core.Settings.Tab.Queue>Queue</RimMind.Core.Settings.Tab.Queue>
+    <RimMind.Core.Settings.QueueNotAvailable>Queue not initialized (available after loading a save)</RimMind.Core.Settings.QueueNotAvailable>
+    <RimMind.Core.Settings.Queue.Status>Overall Status</RimMind.Core.Settings.Queue.Status>
+    <RimMind.Core.Settings.Queue.Active>Active Requests</RimMind.Core.Settings.Queue.Active>
+    <RimMind.Core.Settings.Queue.Queued>Queued Requests</RimMind.Core.Settings.Queue.Queued>
+    <RimMind.Core.Settings.Queue.LocalModel>Local Model</RimMind.Core.Settings.Queue.LocalModel>
+    <RimMind.Core.Settings.Queue.Busy>Busy</RimMind.Core.Settings.Queue.Busy>
+    <RimMind.Core.Settings.Queue.Idle>Idle</RimMind.Core.Settings.Queue.Idle>
+    <RimMind.Core.Settings.Queue.Resume>Resume Queue</RimMind.Core.Settings.Queue.Resume>
+    <RimMind.Core.Settings.Queue.Pause>Pause Queue</RimMind.Core.Settings.Queue.Pause>
+    <RimMind.Core.Settings.Queue.ClearQueues>Clear Queues</RimMind.Core.Settings.Queue.ClearQueues>
+    <RimMind.Core.Settings.Queue.ClearCooldowns>Clear Cooldowns</RimMind.Core.Settings.Queue.ClearCooldowns>
+    <RimMind.Core.Settings.Queue.PerMod>Per-Mod Queues</RimMind.Core.Settings.Queue.PerMod>
+    <RimMind.Core.Settings.Queue.NoMods>No registered mod queues</RimMind.Core.Settings.Queue.NoMods>
+    <RimMind.Core.Settings.Queue.Cooldown>Cooldown</RimMind.Core.Settings.Queue.Cooldown>
+    <RimMind.Core.Settings.Queue.Ready>Ready</RimMind.Core.Settings.Queue.Ready>
+    <RimMind.Core.Settings.Queue.QueueCount>Queued</RimMind.Core.Settings.Queue.QueueCount>
+    <RimMind.Core.Settings.Queue.ActiveRequests>Active Request Details</RimMind.Core.Settings.Queue.ActiveRequests>
+    <RimMind.Core.Settings.Queue.NoActive>No active requests</RimMind.Core.Settings.Queue.NoActive>
+    <RimMind.Core.Settings.Queue.QueuedRequests>Queued Request Details</RimMind.Core.Settings.Queue.QueuedRequests>
+    <RimMind.Core.Settings.Queue.NoQueued>No queued requests</RimMind.Core.Settings.Queue.NoQueued>
+    <RimMind.Core.Settings.Queue.Priority>Priority</RimMind.Core.Settings.Queue.Priority>
+    <RimMind.Core.Settings.Queue.Attempt>Attempt</RimMind.Core.Settings.Queue.Attempt>
+    <RimMind.Core.Settings.Queue.Elapsed>Elapsed</RimMind.Core.Settings.Queue.Elapsed>
+    <RimMind.Core.Settings.Queue.Waiting>Waiting</RimMind.Core.Settings.Queue.Waiting>
     <RimMind.Core.Settings.TestMessage>This is a test message, please reply in one sentence.</RimMind.Core.Settings.TestMessage>
 
     <!-- AICoreSettingsUI.cs - Context filter -->
@@ -64,33 +98,65 @@
 
     <!-- Context - Pawn info checkboxes -->
     <RimMind.Core.Context.IncludeRace>Race</RimMind.Core.Context.IncludeRace>
+    <RimMind.Core.Context.IncludeRace.Desc>Inject the pawn's race info into AI context.</RimMind.Core.Context.IncludeRace.Desc>
     <RimMind.Core.Context.IncludeAge>Age</RimMind.Core.Context.IncludeAge>
+    <RimMind.Core.Context.IncludeAge.Desc>Inject the pawn's age into AI context.</RimMind.Core.Context.IncludeAge.Desc>
     <RimMind.Core.Context.IncludeGender>Gender</RimMind.Core.Context.IncludeGender>
+    <RimMind.Core.Context.IncludeGender.Desc>Inject the pawn's gender into AI context.</RimMind.Core.Context.IncludeGender.Desc>
     <RimMind.Core.Context.IncludeBackstory>Backstory</RimMind.Core.Context.IncludeBackstory>
+    <RimMind.Core.Context.IncludeBackstory.Desc>Inject the pawn's childhood and adulthood backstories into AI context.</RimMind.Core.Context.IncludeBackstory.Desc>
     <RimMind.Core.Context.IncludeIdeology>Ideology (requires Ideology DLC)</RimMind.Core.Context.IncludeIdeology>
+    <RimMind.Core.Context.IncludeIdeology.Desc>Inject the pawn's ideology and beliefs into AI context.</RimMind.Core.Context.IncludeIdeology.Desc>
     <RimMind.Core.Context.IncludeTraits>Traits</RimMind.Core.Context.IncludeTraits>
+    <RimMind.Core.Context.IncludeTraits.Desc>Inject the pawn's character traits into AI context.</RimMind.Core.Context.IncludeTraits.Desc>
     <RimMind.Core.Context.IncludeSkills>Skills</RimMind.Core.Context.IncludeSkills>
+    <RimMind.Core.Context.IncludeSkills.Desc>Inject the pawn's skill levels into AI context. Skills below the minimum level are filtered out.</RimMind.Core.Context.IncludeSkills.Desc>
     <RimMind.Core.Context.MinSkillLevel>Min Skill Level</RimMind.Core.Context.MinSkillLevel>
+    <RimMind.Core.Context.MinSkillLevel.Desc>Skills below this level are not injected into AI context, saving tokens.</RimMind.Core.Context.MinSkillLevel.Desc>
     <RimMind.Core.Context.IncludeHealth>Health</RimMind.Core.Context.IncludeHealth>
+    <RimMind.Core.Context.IncludeHealth.Desc>Inject the pawn's health issues (wounds, diseases, implants, etc.) into AI context.</RimMind.Core.Context.IncludeHealth.Desc>
+    <RimMind.Core.Context.IncludeCapacities>Capacities</RimMind.Core.Context.IncludeCapacities>
+    <RimMind.Core.Context.IncludeCapacities.Desc>Inject the pawn's body capacities (manipulation, moving, sight, etc.) into AI context.</RimMind.Core.Context.IncludeCapacities.Desc>
     <RimMind.Core.Context.IncludeMood>Mood</RimMind.Core.Context.IncludeMood>
+    <RimMind.Core.Context.IncludeMood.Desc>Inject the pawn's current mood percentage into AI context.</RimMind.Core.Context.IncludeMood.Desc>
     <RimMind.Core.Context.IncludeMoodThoughts>Mood Factors (top 8)</RimMind.Core.Context.IncludeMoodThoughts>
+    <RimMind.Core.Context.IncludeMoodThoughts.Desc>Inject the top 8 mood-affecting factors into AI context.</RimMind.Core.Context.IncludeMoodThoughts.Desc>
     <RimMind.Core.Context.IncludeCurrentJob>Current Job</RimMind.Core.Context.IncludeCurrentJob>
+    <RimMind.Core.Context.IncludeCurrentJob.Desc>Inject the pawn's current job into AI context.</RimMind.Core.Context.IncludeCurrentJob.Desc>
     <RimMind.Core.Context.IncludeWorkPriorities>Work Assignments</RimMind.Core.Context.IncludeWorkPriorities>
+    <RimMind.Core.Context.IncludeWorkPriorities.Desc>Inject the pawn's work priority assignments into AI context.</RimMind.Core.Context.IncludeWorkPriorities.Desc>
     <RimMind.Core.Context.IncludeEquipment>Weapons &amp; Apparel</RimMind.Core.Context.IncludeEquipment>
+    <RimMind.Core.Context.IncludeEquipment.Desc>Inject the pawn's equipped weapons and apparel into AI context.</RimMind.Core.Context.IncludeEquipment.Desc>
+    <RimMind.Core.Context.IncludeInventory>Carried Items</RimMind.Core.Context.IncludeInventory>
+    <RimMind.Core.Context.IncludeInventory.Desc>Inject the pawn's carried items (inventory) into AI context.</RimMind.Core.Context.IncludeInventory.Desc>
     <RimMind.Core.Context.IncludeLocation>Location &amp; Temperature</RimMind.Core.Context.IncludeLocation>
+    <RimMind.Core.Context.IncludeLocation.Desc>Inject the pawn's position and local temperature into AI context.</RimMind.Core.Context.IncludeLocation.Desc>
     <RimMind.Core.Context.IncludeRelations>Relations</RimMind.Core.Context.IncludeRelations>
+    <RimMind.Core.Context.IncludeRelations.Desc>Inject the pawn's social relationships into AI context.</RimMind.Core.Context.IncludeRelations.Desc>
     <RimMind.Core.Context.IncludeGenes>Genes (requires Biotech DLC)</RimMind.Core.Context.IncludeGenes>
+    <RimMind.Core.Context.IncludeGenes.Desc>Inject the pawn's gene information into AI context.</RimMind.Core.Context.IncludeGenes.Desc>
     <RimMind.Core.Context.IncludeSurroundings>Surroundings</RimMind.Core.Context.IncludeSurroundings>
+    <RimMind.Core.Context.IncludeSurroundings.Desc>Inject nearby buildings, items, and animals into AI context.</RimMind.Core.Context.IncludeSurroundings.Desc>
     <RimMind.Core.Context.IncludeCombatStatus>Combat Status</RimMind.Core.Context.IncludeCombatStatus>
+    <RimMind.Core.Context.IncludeCombatStatus.Desc>Inject whether the pawn is in combat or drafted into AI context.</RimMind.Core.Context.IncludeCombatStatus.Desc>
 
     <!-- Context - Environment checkboxes -->
     <RimMind.Core.Context.IncludeGameTime>Game Time</RimMind.Core.Context.IncludeGameTime>
+    <RimMind.Core.Context.IncludeGameTime.Desc>Inject the current game date and time into AI context.</RimMind.Core.Context.IncludeGameTime.Desc>
     <RimMind.Core.Context.IncludeColonistCount>Colonist Count</RimMind.Core.Context.IncludeColonistCount>
+    <RimMind.Core.Context.IncludeColonistCount.Desc>Inject the colonist and prisoner counts into AI context.</RimMind.Core.Context.IncludeColonistCount.Desc>
+    <RimMind.Core.Context.IncludeColonistNames>Colonist Names</RimMind.Core.Context.IncludeColonistNames>
+    <RimMind.Core.Context.IncludeColonistNames.Desc>Inject the names of colonists and prisoners into AI context.</RimMind.Core.Context.IncludeColonistNames.Desc>
     <RimMind.Core.Context.IncludeWealth>Wealth Level</RimMind.Core.Context.IncludeWealth>
+    <RimMind.Core.Context.IncludeWealth.Desc>Inject the colony wealth and threat level into AI context.</RimMind.Core.Context.IncludeWealth.Desc>
     <RimMind.Core.Context.IncludeFood>Food Storage</RimMind.Core.Context.IncludeFood>
+    <RimMind.Core.Context.IncludeFood.Desc>Inject the colony's total food nutrition into AI context.</RimMind.Core.Context.IncludeFood.Desc>
     <RimMind.Core.Context.IncludeSeason>Season</RimMind.Core.Context.IncludeSeason>
+    <RimMind.Core.Context.IncludeSeason.Desc>Inject the current season into AI context.</RimMind.Core.Context.IncludeSeason.Desc>
     <RimMind.Core.Context.IncludeWeather>Weather</RimMind.Core.Context.IncludeWeather>
+    <RimMind.Core.Context.IncludeWeather.Desc>Inject the current weather conditions into AI context.</RimMind.Core.Context.IncludeWeather.Desc>
     <RimMind.Core.Context.IncludeThreats>Threat Level</RimMind.Core.Context.IncludeThreats>
+    <RimMind.Core.Context.IncludeThreats.Desc>Inject the current map threat level into AI context.</RimMind.Core.Context.IncludeThreats.Desc>
 
     <!-- GameContextBuilder.cs - Map context -->
     <RimMind.Core.Prompt.MapStatusHeader>[Current Map Status]</RimMind.Core.Prompt.MapStatusHeader>
@@ -129,6 +195,8 @@
     <RimMind.Core.Prompt.Traits>Traits: {0}</RimMind.Core.Prompt.Traits>
     <RimMind.Core.Prompt.Weapon>Weapon: {0}</RimMind.Core.Prompt.Weapon>
     <RimMind.Core.Prompt.Apparel>Apparel: {0}</RimMind.Core.Prompt.Apparel>
+    <RimMind.Core.Prompt.Inventory>Carried: {0}</RimMind.Core.Prompt.Inventory>
+    <RimMind.Core.Prompt.Damaged>damaged</RimMind.Core.Prompt.Damaged>
     <RimMind.Core.Prompt.Room.Indoors>Indoors</RimMind.Core.Prompt.Room.Indoors>
     <RimMind.Core.Prompt.Room.Outdoors>Outdoors</RimMind.Core.Prompt.Room.Outdoors>
     <RimMind.Core.Prompt.Location>Location: {0}  Temp: {1}°C</RimMind.Core.Prompt.Location>
@@ -165,6 +233,9 @@
     <RimMind.Core.Prompts.PawnPromptLabel>Custom prompt appended after pawn context (leave empty to skip):</RimMind.Core.Prompts.PawnPromptLabel>
     <RimMind.Core.Prompts.MapPrompt>Global Map Prompt</RimMind.Core.Prompts.MapPrompt>
     <RimMind.Core.Prompts.MapPromptLabel>Custom prompt appended after map context (leave empty to skip):</RimMind.Core.Prompts.MapPromptLabel>
+
+    <!-- ContextComposer.cs -->
+    <RimMind.Core.Prompt.HistoryOmitted>({0} earlier records omitted)</RimMind.Core.Prompt.HistoryOmitted>
 
     <!-- AICoreAPI.cs - Custom prompt headers -->
     <RimMind.Core.Prompt.CustomPawnHeader>[Player Custom Pawn Prompt]</RimMind.Core.Prompt.CustomPawnHeader>

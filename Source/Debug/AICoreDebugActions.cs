@@ -6,9 +6,6 @@ using Verse;
 
 namespace RimMind.Core.Debug
 {
-    /// <summary>
-    /// 开发模式调试动作（Dev 菜单 → RimMind）。
-    /// </summary>
     [StaticConstructorOnStartup]
     public static class RimMindCoreDebugActions
     {
@@ -30,6 +27,7 @@ namespace RimMind.Core.Debug
                 RequestId    = "Debug_TestConnection",
                 ModId        = "Debug",
                 ExpireAtTicks = Find.TickManager.TicksGame + 3600,
+                Priority     = AIRequestPriority.High,
             };
 
             RimMindAPI.RequestImmediate(request, response =>
@@ -87,6 +85,52 @@ namespace RimMind.Core.Debug
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (pawn == null) { Log.Warning("[RimMind] Select a pawn first."); return; }
             Log.Message("[RimMind] Full Pawn Prompt:\n" + RimMindAPI.BuildFullPawnPrompt(pawn));
+        }
+
+        [DebugAction("RimMind", "Show Queue State", actionType = DebugActionType.Action)]
+        public static void ShowQueueState()
+        {
+            var queue = AIRequestQueue.Instance;
+            if (queue == null)
+            {
+                Log.Warning("[RimMind] AIRequestQueue not initialized.");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[RimMind] === Queue State ===");
+            sb.AppendLine($"  Paused: {queue.IsPaused}");
+            sb.AppendLine($"  Active requests: {queue.ActiveRequestCount}");
+            sb.AppendLine($"  Local model busy: {queue.IsLocalModelBusy}");
+
+            var active = queue.GetActiveRequests();
+            foreach (var t in active)
+            {
+                sb.AppendLine($"  [Active] {t.Request.RequestId} mod={t.Request.ModId} " +
+                              $"priority={t.Request.Priority} state={t.State} attempt={t.AttemptCount}");
+            }
+
+            foreach (var kvp in queue.GetAllQueueDepths())
+            {
+                int cooldownLeft = queue.GetCooldownTicksLeft(kvp.Key);
+                sb.AppendLine($"  [Queue] {kvp.Key}: depth={kvp.Value}, cooldown={cooldownLeft}t");
+            }
+
+            Log.Message(sb.ToString());
+        }
+
+        [DebugAction("RimMind", "Pause Queue", actionType = DebugActionType.Action)]
+        public static void PauseQueue()
+        {
+            RimMindAPI.PauseQueue();
+            Log.Message("[RimMind] Queue paused.");
+        }
+
+        [DebugAction("RimMind", "Resume Queue", actionType = DebugActionType.Action)]
+        public static void ResumeQueue()
+        {
+            RimMindAPI.ResumeQueue();
+            Log.Message("[RimMind] Queue resumed.");
         }
     }
 }

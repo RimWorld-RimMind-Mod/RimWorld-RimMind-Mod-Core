@@ -13,10 +13,6 @@ using Verse;
 
 namespace RimMind.Core.Client.OpenAI
 {
-    /// <summary>
-    /// OpenAI 兼容 API 客户端（支持 OpenAI / DeepSeek / 本地 Ollama 等）。
-    /// 使用 UnityWebRequest（RimWorld 内置），在协程外通过 async/await + Task.Delay 轮询。
-    /// </summary>
     public class OpenAIClient : IAIClient
     {
         private readonly RimMindCoreSettings _settings;
@@ -27,6 +23,15 @@ namespace RimMind.Core.Client.OpenAI
         }
 
         public bool IsConfigured() => _settings.IsConfigured();
+
+        public bool IsLocalEndpoint
+        {
+            get
+            {
+                string ep = _settings.apiEndpoint ?? string.Empty;
+                return ep.Contains("localhost") || ep.Contains("127.0.0.1");
+            }
+        }
 
         public async Task<AIResponse> SendAsync(AIRequest request)
         {
@@ -39,7 +44,7 @@ namespace RimMind.Core.Client.OpenAI
             var sw = Stopwatch.StartNew();
             try
             {
-                string responseText = await PostAsync(endpoint, json);
+                (string responseText, long httpStatusCode) = await PostAsync(endpoint, json);
                 var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
                 string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
                 int tokens = parsed?.usage?.total_tokens ?? 0;
@@ -49,21 +54,25 @@ namespace RimMind.Core.Client.OpenAI
                     AIRequestQueue.LogFromBackground($"[RimMind] ← {request.RequestId} ({tokens} tok)\n{content}");
 
                 var response = AIResponse.Ok(request.RequestId, content, tokens);
+                response.ProcessingMs = sw.ElapsedMilliseconds;
+                response.HttpStatusCode = httpStatusCode;
+                response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
+                response.Priority = request.Priority;
                 AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
                 return response;
             }
             catch (Exception ex)
             {
                 sw.Stop();
-                // 通过安全队列在主线程输出，避免后台线程直接写 Log 引发枚举冲突
                 AIRequestQueue.LogFromBackground($"[RimMind] Request failed ({request.RequestId}): {ex.Message}", isWarning: true);
                 var response = AIResponse.Failure(request.RequestId, ex.Message);
+                response.ProcessingMs = sw.ElapsedMilliseconds;
+                response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
+                response.Priority = request.Priority;
                 AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
                 return response;
             }
         }
-
-        // ── 请求体构建 ────────────────────────────────────────────────────────────
 
         private string BuildRequestJson(AIRequest request)
         {
@@ -71,14 +80,12 @@ namespace RimMind.Core.Client.OpenAI
 
             if (request.Messages != null && request.Messages.Count > 0)
             {
-                // 多轮模式（AIDialogue）
                 messages = request.Messages
                     .Select(m => new MessageDto { role = m.Role, content = m.Content })
                     .ToList();
             }
             else
             {
-                // 单轮模式
                 messages = new List<MessageDto>();
                 if (!string.IsNullOrEmpty(request.SystemPrompt))
                     messages.Add(new MessageDto { role = "system", content = request.SystemPrompt });
@@ -101,9 +108,7 @@ namespace RimMind.Core.Client.OpenAI
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
         }
 
-        // ── HTTP ──────────────────────────────────────────────────────────────────
-
-        private async Task<string> PostAsync(string url, string jsonBody)
+        private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody)
         {
             bool isLocal = url.Contains("localhost") || url.Contains("127.0.0.1");
             float connectTimeout = isLocal ? 300f : 60f;
@@ -111,7 +116,7 @@ namespace RimMind.Core.Client.OpenAI
 
             using var webRequest = new UnityWebRequest(url, "POST");
             webRequest.uploadHandler = new UploadHandlerRaw(
-                System.Text.Encoding.UTF8.GetBytes(jsonBody));
+                Encoding.UTF8.GetBytes(jsonBody));
             webRequest.downloadHandler = new DownloadHandlerBuffer();
             webRequest.SetRequestHeader("Content-Type", "application/json");
             webRequest.SetRequestHeader("Authorization", $"Bearer {_settings.apiKey}");
@@ -144,8 +149,8 @@ namespace RimMind.Core.Client.OpenAI
                 }
             }
 
-            if (webRequest.result == UnityEngine.Networking.UnityWebRequest.Result.ConnectionError ||
-                webRequest.result == UnityEngine.Networking.UnityWebRequest.Result.ProtocolError)
+            if (webRequest.result == UnityWebRequest.Result.ConnectionError ||
+                webRequest.result == UnityWebRequest.Result.ProtocolError)
             {
                 string body    = webRequest.downloadHandler.text;
                 string unityErr = webRequest.error ?? "";
@@ -153,7 +158,7 @@ namespace RimMind.Core.Client.OpenAI
                 throw new Exception($"HTTP {webRequest.responseCode}: {detail}");
             }
 
-            return webRequest.downloadHandler.text;
+            return (webRequest.downloadHandler.text, webRequest.responseCode);
         }
 
         private static string FormatEndpoint(string baseUrl)

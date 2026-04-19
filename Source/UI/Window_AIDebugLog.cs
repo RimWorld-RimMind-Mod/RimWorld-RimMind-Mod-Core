@@ -113,12 +113,17 @@ namespace RimMind.Core.UI
 
                 string status = entry.IsError ? "✗" : "✓";
                 Widgets.Label(new Rect(textRect.x, textRect.y,      textRect.width, 18f),
-                    $"{status} {entry.FormattedTime}  {entry.ElapsedMs}ms");
+                    $"{status} {entry.FormattedTime}  {entry.ElapsedMs}ms  [{entry.Priority}]");
                 Widgets.Label(new Rect(textRect.x, textRect.y + 18f, textRect.width, 18f),
                     entry.Source);
                 GUI.color = Color.gray;
+                string telemetry = $"{entry.ModelName}  {entry.TokensUsed} tok";
+                if (entry.AttemptCount > 1)
+                    telemetry += $"  retry={entry.AttemptCount}";
+                if (entry.QueueWaitMs > 0)
+                    telemetry += $"  wait={entry.QueueWaitMs}ms";
                 Widgets.Label(new Rect(textRect.x, textRect.y + 36f, textRect.width, 16f),
-                    $"{entry.ModelName}  {entry.TokensUsed} tok");
+                    telemetry);
                 GUI.color = Color.white;
 
                 if (Widgets.ButtonInvisible(row)) _selected = entry;
@@ -159,8 +164,14 @@ namespace RimMind.Core.UI
 
             // 元数据行
             GUI.color = Color.gray;
-            Widgets.Label(new Rect(r.x, r.y + 4f, r.width - 140f, 20f),
-                $"{_selected.Source}  |  {_selected.ModelName}  |  {_selected.TokensUsed} tok  |  {_selected.ElapsedMs}ms");
+            string metaLine = $"{_selected.Source}  |  {_selected.ModelName}  |  {_selected.TokensUsed} tok  |  {_selected.ElapsedMs}ms  |  {_selected.Priority}";
+            if (_selected.AttemptCount > 1)
+                metaLine += $"  |  attempt={_selected.AttemptCount}";
+            if (_selected.QueueWaitMs > 0)
+                metaLine += $"  |  queueWait={_selected.QueueWaitMs}ms";
+            if (_selected.HttpStatusCode > 0)
+                metaLine += $"  |  HTTP {_selected.HttpStatusCode}";
+            Widgets.Label(new Rect(r.x, r.y + 4f, r.width - 140f, 20f), metaLine);
             GUI.color = Color.white;
 
             string emptyLbl = "RimMind.Core.UI.Empty".Translate();

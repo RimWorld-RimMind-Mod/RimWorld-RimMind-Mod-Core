@@ -25,6 +25,7 @@ namespace RimMind.Core.Settings
         public bool IncludeCurrentJob    = true;
         public bool IncludeWorkPriorities = true;
         public bool IncludeEquipment     = true;
+        public bool IncludeInventory     = true;
         public bool IncludeLocation      = true;
         public bool IncludeRelations     = true;
         public bool IncludeGenes         = true;
@@ -43,6 +44,8 @@ namespace RimMind.Core.Settings
 
         public HashSet<string> disabledProviders = new HashSet<string>();
 
+        public HashSet<string> exposedProviders = new HashSet<string>();
+
         public void ExposeData()
         {
             Scribe_Values.Look(ref IncludeRace,           "IncludeRace",           true);
@@ -60,6 +63,7 @@ namespace RimMind.Core.Settings
             Scribe_Values.Look(ref IncludeCurrentJob,     "IncludeCurrentJob",     true);
             Scribe_Values.Look(ref IncludeWorkPriorities, "IncludeWorkPriorities", true);
             Scribe_Values.Look(ref IncludeEquipment,      "IncludeEquipment",      true);
+            Scribe_Values.Look(ref IncludeInventory,      "IncludeInventory",      true);
             Scribe_Values.Look(ref IncludeLocation,       "IncludeLocation",       true);
             Scribe_Values.Look(ref IncludeRelations,      "IncludeRelations",      true);
             Scribe_Values.Look(ref IncludeGenes,          "IncludeGenes",          true);
@@ -76,6 +80,9 @@ namespace RimMind.Core.Settings
             Scribe_Collections.Look(ref disabledProviders, "disabledProviders", LookMode.Value);
             if (Scribe.mode == LoadSaveMode.LoadingVars && disabledProviders == null)
                 disabledProviders = new HashSet<string>();
+            Scribe_Collections.Look(ref exposedProviders, "exposedProviders", LookMode.Value);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && exposedProviders == null)
+                exposedProviders = new HashSet<string>();
         }
 
         /// <summary>应用预设。</summary>
@@ -89,7 +96,7 @@ namespace RimMind.Core.Settings
                     IncludeTraits = false; IncludeSkills = false; MinSkillLevel = 4;
                     IncludeHealth = true; IncludeCapacities = false; IncludeMood = true; IncludeMoodThoughts = false;
                     IncludeCurrentJob = false; IncludeWorkPriorities = false;
-                    IncludeEquipment = false; IncludeLocation = false;
+                    IncludeEquipment = false; IncludeInventory = false; IncludeLocation = false;
                     IncludeRelations = false; IncludeGenes = false;
                     IncludeSurroundings = false; IncludeCombatStatus = true;
                     IncludeGameTime = false; IncludeColonistCount = true; IncludeColonistNames = false; IncludeWealth = false;
@@ -102,7 +109,7 @@ namespace RimMind.Core.Settings
                     IncludeTraits = true; IncludeSkills = true; MinSkillLevel = 4;
                     IncludeHealth = true; IncludeCapacities = true; IncludeMood = true; IncludeMoodThoughts = false;
                     IncludeCurrentJob = true; IncludeWorkPriorities = true;
-                    IncludeEquipment = true; IncludeLocation = false;
+                    IncludeEquipment = true; IncludeInventory = false; IncludeLocation = false;
                     IncludeRelations = true; IncludeGenes = true;
                     IncludeSurroundings = false; IncludeCombatStatus = true;
                     IncludeGameTime = true; IncludeColonistCount = true; IncludeColonistNames = true; IncludeWealth = false;
@@ -115,7 +122,7 @@ namespace RimMind.Core.Settings
                     IncludeTraits = true; IncludeSkills = true; MinSkillLevel = 1;
                     IncludeHealth = true; IncludeCapacities = true; IncludeMood = true; IncludeMoodThoughts = true;
                     IncludeCurrentJob = true; IncludeWorkPriorities = true;
-                    IncludeEquipment = true; IncludeLocation = true;
+                    IncludeEquipment = true; IncludeInventory = true; IncludeLocation = true;
                     IncludeRelations = true; IncludeGenes = true;
                     IncludeSurroundings = true; IncludeCombatStatus = true;
                     IncludeGameTime = true; IncludeColonistCount = true; IncludeColonistNames = true; IncludeWealth = true;

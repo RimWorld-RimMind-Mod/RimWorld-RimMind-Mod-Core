@@ -20,11 +20,15 @@ namespace RimMind.Core.Client
         public int ExpireAtTicks { get; set; }
 
         public bool UseJsonMode { get; set; } = true;
+
+        public AIRequestPriority Priority { get; set; } = AIRequestPriority.Normal;
+
+        public int MaxRetryCount { get; set; } = -1;
     }
 
     public class ChatMessage
     {
-        public string Role { get; set; } = string.Empty;   // "system" | "user" | "assistant"
+        public string Role { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
     }
 }

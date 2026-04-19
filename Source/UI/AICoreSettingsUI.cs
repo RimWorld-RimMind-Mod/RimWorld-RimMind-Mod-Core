@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using RimMind.Core.Client;
@@ -22,8 +23,11 @@ namespace RimMind.Core.UI
     {
         private const float TabBarHeight  = 32f;
         private const float TabBarGap     = 6f;
+        private const float TabMinWidth   = 120f;
+        private const float TabGap        = 4f;
 
         private static string _curTab = "api";
+        private static float _cachedTabBarHeight = TabBarHeight;
 
         // API tab state
         private static bool   _showApiKey;
@@ -38,20 +42,25 @@ namespace RimMind.Core.UI
         // Prompts tab state
         private static Vector2 _promptsScroll;
 
+        // Queue tab state
+        private static Vector2 _queueScroll;
+
         // ── 入口 ─────────────────────────────────────────────────────────────
 
         public static void Draw(Rect inRect)
         {
-            // ── Tab 按钮行（ButtonText 式，不会压住 mod 标题）
-            DrawTabBar(new Rect(inRect.x, inRect.y, inRect.width, TabBarHeight));
+            var tabs = CollectTabs();
+            _cachedTabBarHeight = CalcTabBarHeight(inRect.width, tabs.Count);
 
-            // ── 内容区
-            Rect content = new Rect(inRect.x, inRect.y + TabBarHeight + TabBarGap,
-                                    inRect.width, inRect.height - TabBarHeight - TabBarGap);
+            DrawTabBar(new Rect(inRect.x, inRect.y, inRect.width, _cachedTabBarHeight), tabs);
+
+            Rect content = new Rect(inRect.x, inRect.y + _cachedTabBarHeight + TabBarGap,
+                                    inRect.width, inRect.height - _cachedTabBarHeight - TabBarGap);
 
             switch (_curTab)
             {
                 case "api":     DrawApiTab(content);     break;
+                case "queue":   DrawQueueTab(content);   break;
                 case "context": DrawContextTab(content); break;
                 case "prompts": DrawPromptsTab(content); break;
                 default:
@@ -61,23 +70,55 @@ namespace RimMind.Core.UI
             }
         }
 
-        private static void DrawTabBar(Rect r)
+        private static List<(string id, string label)> CollectTabs()
         {
-            // 收集所有 tab：内置 2 个 + 子 mod 注册的
             var tabs = new List<(string id, string label)>
             {
                 ("api",     "RimMind.Core.Settings.Tab.Api".Translate()),
+                ("queue",   "RimMind.Core.Settings.Tab.Queue".Translate()),
                 ("prompts", "RimMind.Core.Settings.Tab.Prompts".Translate()),
                 ("context", "RimMind.Core.Settings.Tab.Context".Translate()),
             };
             foreach (var (id, labelFn, _) in RimMindAPI.SettingsTabs)
                 tabs.Add((id, labelFn()));
+            return tabs;
+        }
 
-            float w = r.width / tabs.Count;
-            for (int i = 0; i < tabs.Count; i++)
+        private static int CalcMaxPerRow(float availableWidth, int tabCount)
+        {
+            if (tabCount <= 0) return 1;
+            int perRow = Mathf.FloorToInt((availableWidth + TabGap) / (TabMinWidth + TabGap));
+            return Mathf.Clamp(perRow, 1, tabCount);
+        }
+
+        private static float CalcTabBarHeight(float availableWidth, int tabCount)
+        {
+            if (tabCount <= 0) return TabBarHeight;
+            int perRow = CalcMaxPerRow(availableWidth, tabCount);
+            int rows = Mathf.CeilToInt((float)tabCount / perRow);
+            return rows * TabBarHeight + (rows - 1) * TabGap;
+        }
+
+        private static void DrawTabBar(Rect r, List<(string id, string label)> tabs)
+        {
+            int count = tabs.Count;
+            if (count == 0) return;
+
+            int perRow = CalcMaxPerRow(r.width, count);
+            int rows = Mathf.CeilToInt((float)count / perRow);
+
+            for (int i = 0; i < count; i++)
             {
+                int row = i / perRow;
+                int col = i % perRow;
+                int colsInRow = (row == rows - 1) ? (count - row * perRow) : perRow;
+
+                float w = (r.width - TabGap * (colsInRow - 1)) / colsInRow;
+                float x = r.x + col * (w + TabGap);
+                float y = r.y + row * (TabBarHeight + TabGap);
+
                 var (id, label) = tabs[i];
-                Rect btn = new Rect(r.x + w * i, r.y, w, TabBarHeight);
+                Rect btn = new Rect(x, y, w, TabBarHeight);
                 bool selected = _curTab == id;
 
                 GUI.color = selected ? Color.white : Color.gray;
@@ -168,23 +209,31 @@ namespace RimMind.Core.UI
             GUI.color = Color.white;
             s.maxTokens = (int)listing.Slider(s.maxTokens, 200f, 2000f);
 
+            listing.Label($"{"RimMind.Core.Settings.MaxConcurrent".Translate()}: {s.maxConcurrentRequests}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Settings.MaxConcurrent.Desc".Translate());
+            GUI.color = Color.white;
+            s.maxConcurrentRequests = (int)listing.Slider(s.maxConcurrentRequests, 1f, 10f);
+
+            listing.Label($"{"RimMind.Core.Settings.MaxRetry".Translate()}: {s.maxRetryCount}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Settings.MaxRetry.Desc".Translate());
+            GUI.color = Color.white;
+            s.maxRetryCount = (int)listing.Slider(s.maxRetryCount, 0f, 5f);
+
+            listing.Label($"{"RimMind.Core.Settings.RequestTimeout".Translate()}: {s.requestTimeoutMs / 1000}s");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Settings.RequestTimeout.Desc".Translate());
+            GUI.color = Color.white;
+            s.requestTimeoutMs = (int)listing.Slider(s.requestTimeoutMs / 1000f, 10f, 300f) * 1000;
+
             var queue = AIRequestQueue.Instance;
             if (queue != null)
             {
-                foreach (var kvp in RimMindAPI.ModCooldownGetters)
-                {
-                    string modId = kvp.Key;
-                    int cooldownLeft = queue.GetCooldownTicksLeft(modId);
-                    int queueDepth = queue.GetQueueDepth(modId);
-                    string status = cooldownLeft > 0
-                        ? $"  ({cooldownLeft} ticks)"
-                        : "  (ready)";
-                    string queueInfo = queueDepth > 0
-                        ? $"  [queue: {queueDepth}]"
-                        : "";
-                    GUI.color = cooldownLeft > 0 ? Color.gray : new Color(0.4f, 0.9f, 0.4f);
-                    listing.Label($"{modId}{status}{queueInfo}");
-                }
+                listing.Gap(4f);
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Core.Settings.QueueSeeTab".Translate());
+                GUI.color = Color.white;
             }
             GUI.color = Color.white;
 
@@ -303,6 +352,167 @@ namespace RimMind.Core.UI
             return trimmed + "/v1/chat/completions";
         }
 
+        // ── 队列状态分页 ──────────────────────────────────────────────────────
+
+        private static void DrawQueueTab(Rect inRect)
+        {
+            var queue = AIRequestQueue.Instance;
+            if (queue == null)
+            {
+                var listing0 = new Listing_Standard();
+                listing0.Begin(inRect);
+                GUI.color = Color.yellow;
+                listing0.Label("RimMind.Core.Settings.QueueNotAvailable".Translate());
+                GUI.color = Color.white;
+                listing0.End();
+                return;
+            }
+
+            int modCount = queue.GetAllQueueDepths().Count;
+            int activeCount = queue.ActiveRequestCount;
+            int queuedCount = queue.TotalQueuedCount;
+            float contentH = 60f + 28f + modCount * 26f + 28f + activeCount * 24f + 28f + queuedCount * 24f + 80f;
+            contentH = Mathf.Max(contentH, inRect.height + 10f);
+
+            Rect viewRect = new Rect(0f, 0f, inRect.width - 16f, contentH);
+            Widgets.BeginScrollView(inRect, ref _queueScroll, viewRect);
+
+            var listing = new Listing_Standard();
+            listing.Begin(viewRect);
+
+            // ── 总体状态 ──────────────────────────────────────────────────────
+            SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.Settings.Queue.Status".Translate());
+
+            string pauseLabel = queue.IsPaused
+                ? "RimMind.Core.Settings.QueuePaused".Translate()
+                : "RimMind.Core.Settings.QueueRunning".Translate();
+            GUI.color = queue.IsPaused ? Color.yellow : new Color(0.4f, 0.9f, 0.4f);
+            listing.Label(pauseLabel);
+            GUI.color = Color.white;
+
+            listing.Label($"{"RimMind.Core.Settings.Queue.Active".Translate()}: {activeCount} / {RimMindCoreMod.Settings.maxConcurrentRequests}");
+            listing.Label($"{"RimMind.Core.Settings.Queue.Queued".Translate()}: {queuedCount}");
+            GUI.color = queue.IsLocalModelBusy ? new Color(0.9f, 0.6f, 0.3f) : new Color(0.4f, 0.9f, 0.4f);
+            listing.Label($"{"RimMind.Core.Settings.Queue.LocalModel".Translate()}: {(queue.IsLocalModelBusy ? "RimMind.Core.Settings.Queue.Busy".Translate() : "RimMind.Core.Settings.Queue.Idle".Translate())}");
+            GUI.color = Color.white;
+
+            // ── 操作按钮 ──────────────────────────────────────────────────────
+            listing.Gap(4f);
+            Rect btnRow = listing.GetRect(28f);
+            float btnW = 110f;
+            float gap = 8f;
+
+            Rect pauseBtn = new Rect(btnRow.x, btnRow.y, btnW, btnRow.height);
+            Rect clearBtn = new Rect(pauseBtn.xMax + gap, btnRow.y, btnW, btnRow.height);
+            Rect clearCdBtn = new Rect(clearBtn.xMax + gap, btnRow.y, btnW + 20f, btnRow.height);
+
+            string pauseText = queue.IsPaused
+                ? "RimMind.Core.Settings.Queue.Resume".Translate()
+                : "RimMind.Core.Settings.Queue.Pause".Translate();
+            if (Widgets.ButtonText(pauseBtn, pauseText))
+            {
+                if (queue.IsPaused) queue.ResumeQueue();
+                else queue.PauseQueue();
+            }
+            if (Widgets.ButtonText(clearBtn, "RimMind.Core.Settings.Queue.ClearQueues".Translate()))
+                queue.ClearAllQueues();
+            if (Widgets.ButtonText(clearCdBtn, "RimMind.Core.Settings.Queue.ClearCooldowns".Translate()))
+                queue.ClearAllCooldowns();
+
+            // ── 各 Mod 队列 ──────────────────────────────────────────────────
+            SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.Settings.Queue.PerMod".Translate());
+
+            var allDepths = queue.GetAllQueueDepths();
+            var allCooldowns = queue.GetAllCooldowns();
+            var allModIds = new HashSet<string>(allDepths.Keys);
+            allModIds.UnionWith(allCooldowns.Keys);
+            allModIds.UnionWith(RimMindAPI.ModCooldownGetters.Keys);
+
+            if (allModIds.Count == 0)
+            {
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Core.Settings.Queue.NoMods".Translate());
+                GUI.color = Color.white;
+            }
+            else
+            {
+                foreach (string modId in allModIds.OrderBy(id => id))
+                {
+                    int depth = allDepths.TryGetValue(modId, out var d) ? d : 0;
+                    int cooldownLeft = queue.GetCooldownTicksLeft(modId);
+                    float cooldownSec = cooldownLeft / 60f;
+
+                    string cooldownStr = cooldownLeft > 0
+                        ? $"{"RimMind.Core.Settings.Queue.Cooldown".Translate()}: {cooldownSec:F1}s"
+                        : "RimMind.Core.Settings.Queue.Ready".Translate();
+                    string depthStr = depth > 0
+                        ? $"  [{"RimMind.Core.Settings.Queue.QueueCount".Translate()}: {depth}]"
+                        : "";
+
+                    GUI.color = cooldownLeft > 0 ? new Color(0.9f, 0.6f, 0.3f) : new Color(0.4f, 0.9f, 0.4f);
+                    listing.Label($"{modId}  {cooldownStr}{depthStr}");
+                }
+            }
+            GUI.color = Color.white;
+
+            // ── 活跃请求 ──────────────────────────────────────────────────────
+            SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.Settings.Queue.ActiveRequests".Translate());
+
+            var activeRequests = queue.GetActiveRequests();
+            if (activeRequests.Count == 0)
+            {
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Core.Settings.Queue.NoActive".Translate());
+                GUI.color = Color.white;
+            }
+            else
+            {
+                foreach (var req in activeRequests)
+                {
+                    int elapsedTicks = Find.TickManager.TicksGame - req.StartedProcessingAtTick;
+                    float elapsedSec = elapsedTicks / 60f;
+                    string priority = req.Request.Priority.ToString();
+                    string info = $"[{req.Request.ModId}] {req.Request.RequestId}  " +
+                                  $"{"RimMind.Core.Settings.Queue.Priority".Translate()}: {priority}  " +
+                                  $"{"RimMind.Core.Settings.Queue.Attempt".Translate()}: {req.AttemptCount}/{req.MaxAttempts}  " +
+                                  $"{"RimMind.Core.Settings.Queue.Elapsed".Translate()}: {elapsedSec:F1}s";
+                    GUI.color = new Color(0.7f, 0.85f, 1f);
+                    listing.Label(info);
+                }
+            }
+            GUI.color = Color.white;
+
+            // ── 排队请求 ──────────────────────────────────────────────────────
+            SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.Settings.Queue.QueuedRequests".Translate());
+
+            var queuedRequests = queue.GetAllQueuedRequests();
+            if (queuedRequests.Count == 0)
+            {
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Core.Settings.Queue.NoQueued".Translate());
+                GUI.color = Color.white;
+            }
+            else
+            {
+                foreach (var req in queuedRequests)
+                {
+                    int waitTicks = Find.TickManager.TicksGame - req.EnqueuedAtTick;
+                    float waitSec = waitTicks / 60f;
+                    string priority = req.Request.Priority.ToString();
+                    string info = $"[{req.Request.ModId}] {req.Request.RequestId}  " +
+                                  $"{"RimMind.Core.Settings.Queue.Priority".Translate()}: {priority}  " +
+                                  $"{"RimMind.Core.Settings.Queue.Attempt".Translate()}: {req.AttemptCount}/{req.MaxAttempts}  " +
+                                  $"{"RimMind.Core.Settings.Queue.Waiting".Translate()}: {waitSec:F1}s";
+                    GUI.color = new Color(0.85f, 0.85f, 0.7f);
+                    listing.Label(info);
+                }
+            }
+            GUI.color = Color.white;
+
+            listing.End();
+            Widgets.EndScrollView();
+        }
+
         // ── 自定义提示词分页 ──────────────────────────────────────────────────
 
         private static void DrawPromptsTab(Rect inRect)
@@ -367,29 +577,31 @@ namespace RimMind.Core.UI
             left.Label("RimMind.Core.Context.PawnInfo".Translate());
             GUI.color = Color.white;
             left.Gap(4f);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeRace".Translate(),           ref ctx.IncludeRace);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeAge".Translate(),            ref ctx.IncludeAge);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeGender".Translate(),         ref ctx.IncludeGender);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeBackstory".Translate(),      ref ctx.IncludeBackstory);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeIdeology".Translate(),       ref ctx.IncludeIdeology);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeTraits".Translate(),         ref ctx.IncludeTraits);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeSkills".Translate(),         ref ctx.IncludeSkills);
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeRace".Translate(),           ref ctx.IncludeRace,           "RimMind.Core.Context.IncludeRace.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeAge".Translate(),            ref ctx.IncludeAge,            "RimMind.Core.Context.IncludeAge.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeGender".Translate(),         ref ctx.IncludeGender,         "RimMind.Core.Context.IncludeGender.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeBackstory".Translate(),      ref ctx.IncludeBackstory,      "RimMind.Core.Context.IncludeBackstory.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeIdeology".Translate(),       ref ctx.IncludeIdeology,       "RimMind.Core.Context.IncludeIdeology.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeTraits".Translate(),         ref ctx.IncludeTraits,         "RimMind.Core.Context.IncludeTraits.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeSkills".Translate(),         ref ctx.IncludeSkills,         "RimMind.Core.Context.IncludeSkills.Desc".Translate());
             if (ctx.IncludeSkills)
             {
                 left.Label($"  {"RimMind.Core.Context.MinSkillLevel".Translate()}: {ctx.MinSkillLevel}");
                 ctx.MinSkillLevel = (int)left.Slider(ctx.MinSkillLevel, 1f, 15f);
             }
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeHealth".Translate(),         ref ctx.IncludeHealth);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeMood".Translate(),           ref ctx.IncludeMood);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeMoodThoughts".Translate(),   ref ctx.IncludeMoodThoughts);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeCurrentJob".Translate(),     ref ctx.IncludeCurrentJob);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeWorkPriorities".Translate(), ref ctx.IncludeWorkPriorities);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeEquipment".Translate(),      ref ctx.IncludeEquipment);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeLocation".Translate(),       ref ctx.IncludeLocation);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeRelations".Translate(),      ref ctx.IncludeRelations);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeGenes".Translate(),          ref ctx.IncludeGenes);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeCombatStatus".Translate(),   ref ctx.IncludeCombatStatus);
-            left.CheckboxLabeled("RimMind.Core.Context.IncludeSurroundings".Translate(),   ref ctx.IncludeSurroundings);
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeHealth".Translate(),         ref ctx.IncludeHealth,         "RimMind.Core.Context.IncludeHealth.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeCapacities".Translate(),     ref ctx.IncludeCapacities,     "RimMind.Core.Context.IncludeCapacities.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeMood".Translate(),           ref ctx.IncludeMood,           "RimMind.Core.Context.IncludeMood.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeMoodThoughts".Translate(),   ref ctx.IncludeMoodThoughts,   "RimMind.Core.Context.IncludeMoodThoughts.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeCurrentJob".Translate(),     ref ctx.IncludeCurrentJob,     "RimMind.Core.Context.IncludeCurrentJob.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeWorkPriorities".Translate(), ref ctx.IncludeWorkPriorities, "RimMind.Core.Context.IncludeWorkPriorities.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeEquipment".Translate(),      ref ctx.IncludeEquipment,      "RimMind.Core.Context.IncludeEquipment.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeInventory".Translate(),      ref ctx.IncludeInventory,      "RimMind.Core.Context.IncludeInventory.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeLocation".Translate(),       ref ctx.IncludeLocation,       "RimMind.Core.Context.IncludeLocation.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeRelations".Translate(),      ref ctx.IncludeRelations,      "RimMind.Core.Context.IncludeRelations.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeGenes".Translate(),          ref ctx.IncludeGenes,          "RimMind.Core.Context.IncludeGenes.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeCombatStatus".Translate(),   ref ctx.IncludeCombatStatus,   "RimMind.Core.Context.IncludeCombatStatus.Desc".Translate());
+            left.CheckboxLabeled("RimMind.Core.Context.IncludeSurroundings".Translate(),   ref ctx.IncludeSurroundings,   "RimMind.Core.Context.IncludeSurroundings.Desc".Translate());
             float leftH = left.CurHeight;
             left.End();
 
@@ -399,13 +611,14 @@ namespace RimMind.Core.UI
             right.Label("RimMind.Core.Context.Environment".Translate());
             GUI.color = Color.white;
             right.Gap(4f);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeGameTime".Translate(),        ref ctx.IncludeGameTime);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeColonistCount".Translate(), ref ctx.IncludeColonistCount);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeWealth".Translate(),        ref ctx.IncludeWealth);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeFood".Translate(),          ref ctx.IncludeFood);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeSeason".Translate(),        ref ctx.IncludeSeason);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeWeather".Translate(),       ref ctx.IncludeWeather);
-            right.CheckboxLabeled("RimMind.Core.Context.IncludeThreats".Translate(),       ref ctx.IncludeThreats);
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeGameTime".Translate(),        ref ctx.IncludeGameTime,        "RimMind.Core.Context.IncludeGameTime.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeColonistCount".Translate(), ref ctx.IncludeColonistCount, "RimMind.Core.Context.IncludeColonistCount.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeColonistNames".Translate(), ref ctx.IncludeColonistNames, "RimMind.Core.Context.IncludeColonistNames.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeWealth".Translate(),        ref ctx.IncludeWealth,        "RimMind.Core.Context.IncludeWealth.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeFood".Translate(),          ref ctx.IncludeFood,          "RimMind.Core.Context.IncludeFood.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeSeason".Translate(),        ref ctx.IncludeSeason,        "RimMind.Core.Context.IncludeSeason.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeWeather".Translate(),       ref ctx.IncludeWeather,       "RimMind.Core.Context.IncludeWeather.Desc".Translate());
+            right.CheckboxLabeled("RimMind.Core.Context.IncludeThreats".Translate(),       ref ctx.IncludeThreats,       "RimMind.Core.Context.IncludeThreats.Desc".Translate());
             float rightH = right.CurHeight;
             right.End();
 
@@ -482,8 +695,6 @@ namespace RimMind.Core.UI
             h += 24f + 24f;
             h += 24f + 24f + 32f;
             h += 24f;
-            int modCount = RimMindAPI.ModCooldownGetters.Count;
-            h += modCount * 24f;
             h += 24f;
             h += 24f + 24f;
             return h + 40f;
