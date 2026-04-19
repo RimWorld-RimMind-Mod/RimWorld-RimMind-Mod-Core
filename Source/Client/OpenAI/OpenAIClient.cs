@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using RimMind.Core.Client;
@@ -15,6 +16,16 @@ namespace RimMind.Core.Client.OpenAI
 {
     public class OpenAIClient : IAIClient
     {
+        private sealed class AIHttpException : Exception
+        {
+            public long StatusCode { get; }
+
+            public AIHttpException(long statusCode, string message) : base(message)
+            {
+                StatusCode = statusCode;
+            }
+        }
+
         private readonly RimMindCoreSettings _settings;
 
         public OpenAIClient(RimMindCoreSettings settings)
@@ -24,13 +35,17 @@ namespace RimMind.Core.Client.OpenAI
 
         public bool IsConfigured() => _settings.IsConfigured();
 
-        public bool IsLocalEndpoint
+        public bool IsLocalEndpoint => IsLoopbackEndpoint(_settings.apiEndpoint);
+
+        private static bool IsLoopbackEndpoint(string endpoint)
         {
-            get
-            {
-                string ep = _settings.apiEndpoint ?? string.Empty;
-                return ep.Contains("localhost") || ep.Contains("127.0.0.1");
-            }
+            if (string.IsNullOrEmpty(endpoint)) return false;
+            if (!Uri.TryCreate(endpoint.Trim(), UriKind.Absolute, out var uri)) return false;
+            if (uri.IsLoopback) return true;
+            string host = uri.Host;
+            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(host, "host.docker.internal", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         public async Task<AIResponse> SendAsync(AIRequest request)
@@ -56,6 +71,18 @@ namespace RimMind.Core.Client.OpenAI
                 var response = AIResponse.Ok(request.RequestId, content, tokens);
                 response.ProcessingMs = sw.ElapsedMilliseconds;
                 response.HttpStatusCode = httpStatusCode;
+                response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
+                response.Priority = request.Priority;
+                AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
+                return response;
+            }
+            catch (AIHttpException ex)
+            {
+                sw.Stop();
+                AIRequestQueue.LogFromBackground($"[RimMind] Request failed ({request.RequestId}): {ex.Message}", isWarning: true);
+                var response = AIResponse.Failure(request.RequestId, ex.Message);
+                response.ProcessingMs = sw.ElapsedMilliseconds;
+                response.HttpStatusCode = ex.StatusCode;
                 response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
                 response.Priority = request.Priority;
                 AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
@@ -110,7 +137,7 @@ namespace RimMind.Core.Client.OpenAI
 
         private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody)
         {
-            bool isLocal = url.Contains("localhost") || url.Contains("127.0.0.1");
+            bool isLocal = IsLoopbackEndpoint(url);
             float connectTimeout = isLocal ? 300f : 60f;
             float readTimeout = 60f;
 
@@ -155,7 +182,7 @@ namespace RimMind.Core.Client.OpenAI
                 string body    = webRequest.downloadHandler.text;
                 string unityErr = webRequest.error ?? "";
                 string detail  = body.Length > 0 ? body : unityErr;
-                throw new Exception($"HTTP {webRequest.responseCode}: {detail}");
+                throw new AIHttpException(webRequest.responseCode, $"HTTP {webRequest.responseCode}: {detail}");
             }
 
             return (webRequest.downloadHandler.text, webRequest.responseCode);

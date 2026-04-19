@@ -2,11 +2,11 @@ namespace RimMind.Core.Client
 {
     public enum AIRequestState
     {
-        Queued,
-        Processing,
-        Completed,
-        Error,
-        Cancelled
+        Queued = 0,
+        Processing = 1,
+        Completed = 2,
+        Error = 3,
+        Cancelled = 4
     }
 
     public enum AIRequestPriority

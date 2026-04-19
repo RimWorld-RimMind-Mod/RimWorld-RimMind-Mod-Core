@@ -368,7 +368,13 @@ namespace RimMind.Core.UI
                 return;
             }
 
-            int modCount = queue.GetAllQueueDepths().Count;
+            var allDepths = queue.GetAllQueueDepths();
+            var allCooldowns = queue.GetAllCooldowns();
+            var allModIds = new HashSet<string>(allDepths.Keys);
+            allModIds.UnionWith(allCooldowns.Keys);
+            allModIds.UnionWith(RimMindAPI.ModCooldownGetters.Keys);
+
+            int modCount = allModIds.Count;
             int activeCount = queue.ActiveRequestCount;
             int queuedCount = queue.TotalQueuedCount;
             float contentH = 60f + 28f + modCount * 26f + 28f + activeCount * 24f + 28f + queuedCount * 24f + 80f;
@@ -421,12 +427,6 @@ namespace RimMind.Core.UI
 
             // ── 各 Mod 队列 ──────────────────────────────────────────────────
             SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.Settings.Queue.PerMod".Translate());
-
-            var allDepths = queue.GetAllQueueDepths();
-            var allCooldowns = queue.GetAllCooldowns();
-            var allModIds = new HashSet<string>(allDepths.Keys);
-            allModIds.UnionWith(allCooldowns.Keys);
-            allModIds.UnionWith(RimMindAPI.ModCooldownGetters.Keys);
 
             if (allModIds.Count == 0)
             {

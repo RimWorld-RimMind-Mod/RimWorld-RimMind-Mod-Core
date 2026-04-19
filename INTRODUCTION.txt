@@ -65,7 +65,7 @@ A: 任何兼容 OpenAI Chat Completions API 的模型均可使用，包括 OpenA
 A: 不会。所有 AI 请求在后台线程执行，主线程只处理回调结果。
 
 [b] Q: API Key 安全吗？ [/b]
-A: API Key 仅存储在本地 RimWorld 设置文件中，不会上传到任何服务器。
+A: API Key 仅存储在本地 RimWorld 设置文件中；发起 AI 请求时会发送给你配置的 API 端点，不会上传到 RimMind 自有服务器。
 
 [b] Q: 不填 API Key 会怎样？ [/b]
 A: Core 本身不会报错，但所有依赖 AI 的子模组功能将无法工作。

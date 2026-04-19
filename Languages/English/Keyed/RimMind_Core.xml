@@ -7,6 +7,11 @@
     <RimMind.Core.UI.DebugLog.CopyResponse>Copy Response</RimMind.Core.UI.DebugLog.CopyResponse>
     <RimMind.Core.UI.DebugLog.ClickToView>(Click an entry on the left to view details)</RimMind.Core.UI.DebugLog.ClickToView>
     <RimMind.Core.UI.DebugLog.RecordCount>{0} records</RimMind.Core.UI.DebugLog.RecordCount>
+    <RimMind.Core.UI.DebugLog.Tok>tok</RimMind.Core.UI.DebugLog.Tok>
+    <RimMind.Core.UI.DebugLog.Retry>retry</RimMind.Core.UI.DebugLog.Retry>
+    <RimMind.Core.UI.DebugLog.Wait>wait</RimMind.Core.UI.DebugLog.Wait>
+    <RimMind.Core.UI.DebugLog.Attempt>attempt</RimMind.Core.UI.DebugLog.Attempt>
+    <RimMind.Core.UI.DebugLog.QueueWait>queueWait</RimMind.Core.UI.DebugLog.QueueWait>
     <RimMind.Core.UI.Empty>(empty)</RimMind.Core.UI.Empty>
 
     <!-- AITogglePatch.cs -->
@@ -130,7 +135,7 @@
     <RimMind.Core.Context.IncludeInventory>Carried Items</RimMind.Core.Context.IncludeInventory>
     <RimMind.Core.Context.IncludeInventory.Desc>Inject the pawn's carried items (inventory) into AI context.</RimMind.Core.Context.IncludeInventory.Desc>
     <RimMind.Core.Context.IncludeLocation>Location &amp; Temperature</RimMind.Core.Context.IncludeLocation>
-    <RimMind.Core.Context.IncludeLocation.Desc>Inject the pawn's position and local temperature into AI context.</RimMind.Core.Context.IncludeLocation.Desc>
+    <RimMind.Core.Context.IncludeLocation.Desc>Inject the pawn's location (indoors/outdoors/room type) and local temperature into AI context.</RimMind.Core.Context.IncludeLocation.Desc>
     <RimMind.Core.Context.IncludeRelations>Relations</RimMind.Core.Context.IncludeRelations>
     <RimMind.Core.Context.IncludeRelations.Desc>Inject the pawn's social relationships into AI context.</RimMind.Core.Context.IncludeRelations.Desc>
     <RimMind.Core.Context.IncludeGenes>Genes (requires Biotech DLC)</RimMind.Core.Context.IncludeGenes>

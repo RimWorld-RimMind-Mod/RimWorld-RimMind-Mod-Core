@@ -338,11 +338,16 @@ namespace RimMind.Core
 
         public static List<string> GetRegisteredCategories()
         {
-            var result = new List<string>();
-            result.AddRange(_staticProviders.Keys);
-            result.AddRange(_pawnProviders.Keys);
-            result.AddRange(_dynamicProviders.Keys);
-            return result;
+            var all = new HashSet<string>();
+            all.UnionWith(_staticProviders.Keys);
+            all.UnionWith(_pawnProviders.Keys);
+            all.UnionWith(_dynamicProviders.Keys);
+
+            var ctx = RimMindCoreMod.Settings?.Context;
+            if (ctx?.exposedProviders.Count > 0)
+                all.IntersectWith(ctx.exposedProviders);
+
+            return all.ToList();
         }
 
         // ── Provider 卸载 ──────────────────────────────────────────────────────
@@ -428,15 +433,15 @@ namespace RimMind.Core
 
         public static bool ShouldSkipDialogue(Pawn pawn, string triggerType)
         {
-            foreach (var kvp in _dialogueSkipChecks)
+            foreach (var kvp in _dialogueSkipChecks.Values.ToList())
             {
                 try
                 {
-                    if (kvp.Value(pawn, triggerType)) return true;
+                    if (kvp(pawn, triggerType)) return true;
                 }
                 catch (System.Exception ex)
                 {
-                    Log.Warning($"[RimMind] DialogueSkipCheck '{kvp.Key}' error: {ex.Message}");
+                    Log.Warning($"[RimMind] DialogueSkipCheck error: {ex.Message}");
                 }
             }
             return false;
@@ -452,15 +457,15 @@ namespace RimMind.Core
 
         public static bool ShouldSkipFloatMenu()
         {
-            foreach (var kvp in _floatMenuSkipChecks)
+            foreach (var check in _floatMenuSkipChecks.Values.ToList())
             {
                 try
                 {
-                    if (kvp.Value()) return true;
+                    if (check()) return true;
                 }
                 catch (System.Exception ex)
                 {
-                    Log.Warning($"[RimMind] FloatMenuSkipCheck '{kvp.Key}' error: {ex.Message}");
+                    Log.Warning($"[RimMind] FloatMenuSkipCheck error: {ex.Message}");
                 }
             }
             return false;
@@ -478,15 +483,15 @@ namespace RimMind.Core
 
         public static bool ShouldSkipAction(string intentId)
         {
-            foreach (var kvp in _actionSkipChecks)
+            foreach (var check in _actionSkipChecks.Values.ToList())
             {
                 try
                 {
-                    if (kvp.Value(intentId)) return true;
+                    if (check(intentId)) return true;
                 }
                 catch (System.Exception ex)
                 {
-                    Log.Warning($"[RimMind] ActionSkipCheck '{kvp.Key}' error: {ex.Message}");
+                    Log.Warning($"[RimMind] ActionSkipCheck error: {ex.Message}");
                 }
             }
             return false;
@@ -503,11 +508,16 @@ namespace RimMind.Core
 
         public static void NotifyIncidentExecuted()
         {
-            foreach (var cb in _incidentExecutedCallbacks)
+            foreach (var cb in _incidentExecutedCallbacks.ToList())
             {
                 try { cb(); }
                 catch (System.Exception ex) { Log.Warning($"[RimMind] IncidentExecuted callback error: {ex.Message}"); }
             }
+        }
+
+        public static void UnregisterIncidentExecutedCallback(Action callback)
+        {
+            _incidentExecutedCallbacks.Remove(callback);
         }
 
         private static readonly List<Func<bool>> _storytellerIncidentSkipChecks = new List<Func<bool>>();
@@ -517,9 +527,14 @@ namespace RimMind.Core
             _storytellerIncidentSkipChecks.Add(check);
         }
 
+        public static void UnregisterStorytellerIncidentSkipCheck(Func<bool> check)
+        {
+            _storytellerIncidentSkipChecks.Remove(check);
+        }
+
         public static bool ShouldSkipStorytellerIncident()
         {
-            foreach (var check in _storytellerIncidentSkipChecks)
+            foreach (var check in _storytellerIncidentSkipChecks.ToList())
             {
                 try { if (check()) return true; }
                 catch (System.Exception ex) { Log.Warning($"[RimMind] StorytellerIncidentSkipCheck error: {ex.Message}"); }

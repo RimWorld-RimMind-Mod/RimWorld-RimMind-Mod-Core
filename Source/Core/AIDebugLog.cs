@@ -26,6 +26,7 @@ namespace RimMind.Core.Internal
         {
             while (_pendingEntries.TryDequeue(out var entry))
             {
+                entry.GameTick = Find.TickManager.TicksGame;
                 if (_entries.Count >= MaxEntries)
                     _entries.RemoveAt(0);
                 _entries.Add(entry);
@@ -38,7 +39,6 @@ namespace RimMind.Core.Internal
         {
             _instance?._pendingEntries.Enqueue(new AIDebugEntry
             {
-                GameTick          = Find.TickManager.TicksGame,
                 Source            = request.RequestId,
                 ModelName         = RimMindCoreMod.Settings.modelName,
                 FullSystemPrompt  = request.SystemPrompt,

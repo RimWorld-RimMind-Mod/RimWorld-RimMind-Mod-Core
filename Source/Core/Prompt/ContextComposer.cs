@@ -48,7 +48,7 @@ namespace RimMind.Core.Prompt
                 if (!string.IsNullOrEmpty(section.Content))
                     sb.AppendLine(section.Content);
             }
-            return sb.ToString().TrimEnd();
+            return PromptSanitizer.Sanitize(sb.ToString().TrimEnd());
         }
 
         public static string CompressHistory(string historyText, int maxLines = 6, string summaryLine = "")

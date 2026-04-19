@@ -7,6 +7,11 @@
     <RimMind.Core.UI.DebugLog.CopyResponse>复制响应</RimMind.Core.UI.DebugLog.CopyResponse>
     <RimMind.Core.UI.DebugLog.ClickToView>（点击左侧条目查看详情）</RimMind.Core.UI.DebugLog.ClickToView>
     <RimMind.Core.UI.DebugLog.RecordCount>{0} 条记录</RimMind.Core.UI.DebugLog.RecordCount>
+    <RimMind.Core.UI.DebugLog.Tok>tok</RimMind.Core.UI.DebugLog.Tok>
+    <RimMind.Core.UI.DebugLog.Retry>重试</RimMind.Core.UI.DebugLog.Retry>
+    <RimMind.Core.UI.DebugLog.Wait>等待</RimMind.Core.UI.DebugLog.Wait>
+    <RimMind.Core.UI.DebugLog.Attempt>尝试</RimMind.Core.UI.DebugLog.Attempt>
+    <RimMind.Core.UI.DebugLog.QueueWait>排队等待</RimMind.Core.UI.DebugLog.QueueWait>
     <RimMind.Core.UI.Empty>(空)</RimMind.Core.UI.Empty>
 
     <!-- AITogglePatch.cs -->
@@ -130,7 +135,7 @@
     <RimMind.Core.Context.IncludeInventory>携带物品</RimMind.Core.Context.IncludeInventory>
     <RimMind.Core.Context.IncludeInventory.Desc>将小人携带的物品（背包）注入 AI 上下文。</RimMind.Core.Context.IncludeInventory.Desc>
     <RimMind.Core.Context.IncludeLocation>位置与温度</RimMind.Core.Context.IncludeLocation>
-    <RimMind.Core.Context.IncludeLocation.Desc>将小人的位置坐标和所在区域温度注入 AI 上下文。</RimMind.Core.Context.IncludeLocation.Desc>
+    <RimMind.Core.Context.IncludeLocation.Desc>将小人所在区域（室内/室外/房间类型）和温度注入 AI 上下文。</RimMind.Core.Context.IncludeLocation.Desc>
     <RimMind.Core.Context.IncludeRelations>社交关系</RimMind.Core.Context.IncludeRelations>
     <RimMind.Core.Context.IncludeRelations.Desc>将小人与其他人的社交关系注入 AI 上下文。</RimMind.Core.Context.IncludeRelations.Desc>
     <RimMind.Core.Context.IncludeGenes>基因（需 Biotech DLC）</RimMind.Core.Context.IncludeGenes>

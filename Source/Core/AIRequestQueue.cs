@@ -18,6 +18,18 @@ namespace RimMind.Core.Internal
         private readonly ConcurrentQueue<(string msg, bool isWarning)> _pendingLogs
             = new ConcurrentQueue<(string, bool)>();
 
+        private enum FireResultKind { Complete, Retry }
+
+        private struct PendingFireResult
+        {
+            public FireResultKind Kind;
+            public TrackedRequest Tracked;
+            public AIResponse Response;
+        }
+
+        private readonly ConcurrentQueue<PendingFireResult> _pendingFireResults
+            = new ConcurrentQueue<PendingFireResult>();
+
         private readonly Dictionary<string, int> _modCooldowns = new Dictionary<string, int>();
 
         private readonly Dictionary<string, List<TrackedRequest>> _modQueues
@@ -75,6 +87,11 @@ namespace RimMind.Core.Internal
                 else               Log.Message(log.msg);
             }
 
+            while (_pendingFireResults.TryDequeue(out var fireResult))
+            {
+                ProcessFireResult(fireResult);
+            }
+
             while (_results.TryDequeue(out var item))
             {
                 try { item.callback?.Invoke(item.response); }
@@ -112,6 +129,7 @@ namespace RimMind.Core.Internal
                 Request = request,
                 Callback = callback,
                 Client = client,
+                IsLocalEndpointSnapshot = client.IsLocalEndpoint,
                 State = AIRequestState.Queued,
                 EnqueuedAtTick = Find.TickManager.TicksGame,
                 EnqueuedAtMs = Stopwatch.GetTimestamp(),
@@ -153,6 +171,7 @@ namespace RimMind.Core.Internal
                 Request = request,
                 Callback = callback,
                 Client = client,
+                IsLocalEndpointSnapshot = client.IsLocalEndpoint,
                 State = AIRequestState.Processing,
                 EnqueuedAtTick = Find.TickManager.TicksGame,
                 EnqueuedAtMs = Stopwatch.GetTimestamp(),
@@ -219,7 +238,7 @@ namespace RimMind.Core.Internal
                 if (_activeRequests.Count >= maxConcurrent)
                     break;
 
-                if (tracked.Client.IsLocalEndpoint && _isProcessingLocalRequest)
+                if (tracked.IsLocalEndpointSnapshot && _isProcessingLocalRequest)
                     continue;
 
                 if (!_modQueues.TryGetValue(modId, out var queue) || queue.Count == 0 || queue[0] != tracked)
@@ -235,7 +254,7 @@ namespace RimMind.Core.Internal
                 _activeRequests[tracked.TrackingId] = tracked;
                 _requestIdToActive[tracked.Request.RequestId] = tracked;
 
-                if (tracked.Client.IsLocalEndpoint)
+                if (tracked.IsLocalEndpointSnapshot)
                     _isProcessingLocalRequest = true;
 
                 if (RimMindCoreMod.Settings.debugLogging)
@@ -284,49 +303,55 @@ namespace RimMind.Core.Internal
                 response.QueueWaitMs = queueWaitMs;
                 response.Priority = tracked.Request.Priority;
 
-                if (tracked.Client.IsLocalEndpoint)
-                {
-                    _instance!._isProcessingLocalRequest = false;
-                }
-
                 bool shouldRetry = !response.Success
                     && tracked.AttemptCount < tracked.MaxAttempts
                     && IsTransientError(response.Error);
 
-                if (shouldRetry)
+                _instance!._pendingFireResults.Enqueue(new PendingFireResult
                 {
-                    tracked.AttemptCount++;
-                    tracked.State = AIRequestState.Queued;
-                    tracked.StartedProcessingAtTick = 0;
+                    Kind = shouldRetry ? FireResultKind.Retry : FireResultKind.Complete,
+                    Tracked = tracked,
+                    Response = response,
+                });
+            });
+        }
 
-                    _instance!._activeRequests.Remove(tracked.TrackingId);
-                    _instance!._requestIdToActive.Remove(tracked.Request.RequestId);
+        private void ProcessFireResult(PendingFireResult result)
+        {
+            var tracked = result.Tracked;
 
-                    string modId = tracked.Request.ModId;
-                    if (!_instance!._modQueues.TryGetValue(modId, out var queue))
-                    {
-                        queue = new List<TrackedRequest>();
-                        _instance!._modQueues[modId] = queue;
-                    }
+            _activeRequests.Remove(tracked.TrackingId);
+            _requestIdToActive.Remove(tracked.Request.RequestId);
 
-                    int insertIdx = queue.FindIndex(t => t.Request.Priority > tracked.Request.Priority);
-                    if (insertIdx >= 0)
-                        queue.Insert(insertIdx, tracked);
-                    else
-                        queue.Add(tracked);
+            if (tracked.IsLocalEndpointSnapshot)
+                _isProcessingLocalRequest = false;
 
-                    if (RimMindCoreMod.Settings.debugLogging)
-                        AIRequestQueue.LogFromBackground(
-                            $"[RimMind] Retrying request {tracked.Request.RequestId} (attempt {tracked.AttemptCount}/{tracked.MaxAttempts})");
+            if (result.Kind == FireResultKind.Retry)
+            {
+                tracked.AttemptCount++;
+                tracked.State = AIRequestState.Queued;
+                tracked.StartedProcessingAtTick = 0;
 
-                    return;
+                string modId = tracked.Request.ModId;
+                if (!_modQueues.TryGetValue(modId, out var queue))
+                {
+                    queue = new List<TrackedRequest>();
+                    _modQueues[modId] = queue;
                 }
 
-                _instance!._activeRequests.Remove(tracked.TrackingId);
-                _instance!._requestIdToActive.Remove(tracked.Request.RequestId);
+                int insertIdx = queue.FindIndex(t => t.Request.Priority > tracked.Request.Priority);
+                if (insertIdx >= 0)
+                    queue.Insert(insertIdx, tracked);
+                else
+                    queue.Add(tracked);
 
-                _instance!._results.Enqueue((response, tracked.Callback));
-            });
+                if (RimMindCoreMod.Settings.debugLogging)
+                    Log.Message($"[RimMind] Retrying request {tracked.Request.RequestId} (attempt {tracked.AttemptCount}/{tracked.MaxAttempts})");
+            }
+            else
+            {
+                _results.Enqueue((result.Response, tracked.Callback));
+            }
         }
 
         private void CheckActiveRequestTimeouts()
@@ -353,7 +378,7 @@ namespace RimMind.Core.Internal
                 _activeRequests.Remove(tracked.TrackingId);
                 _requestIdToActive.Remove(tracked.Request.RequestId);
 
-                if (tracked.Client.IsLocalEndpoint)
+                if (tracked.IsLocalEndpointSnapshot)
                     _isProcessingLocalRequest = false;
 
                 var response = AIResponse.Failure(tracked.Request.RequestId,
@@ -390,7 +415,7 @@ namespace RimMind.Core.Internal
                 _activeRequests.Remove(active.TrackingId);
                 _requestIdToActive.Remove(requestId);
 
-                if (active.Client.IsLocalEndpoint)
+                if (active.IsLocalEndpointSnapshot)
                     _isProcessingLocalRequest = false;
 
                 var response = AIResponse.Cancelled(requestId, "Cancelled by user");
@@ -497,6 +522,7 @@ namespace RimMind.Core.Internal
             public AIRequest Request = null!;
             public Action<AIResponse> Callback = null!;
             public IAIClient Client = null!;
+            public bool IsLocalEndpointSnapshot;
             public AIRequestState State;
             public int EnqueuedAtTick;
             public long EnqueuedAtMs;
