@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using RimMind.Core.Client;
+using RimMind.Core.Client.Player2;
 using RimMind.Core.Internal;
 using RimMind.Core.Settings;
 using Newtonsoft.Json;
@@ -141,44 +142,114 @@ namespace RimMind.Core.UI
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            // ── API 配置 ──────────────────────────────────────────────────────
+            // ── Provider 选择 ──────────────────────────────────────────────
             SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.Settings.Tab.Api".Translate());
 
-            listing.Label("RimMind.Core.Settings.ApiKey".Translate());
+            listing.Label("RimMind.Core.Settings.Provider".Translate());
             GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Core.Settings.ApiKey.Desc".Translate());
+            listing.Label("  " + "RimMind.Core.Settings.Provider.Desc".Translate());
             GUI.color = Color.white;
             {
-                Rect row    = listing.GetRect(26f);
-                float btnW  = 52f;
-                Rect field  = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
-                Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
-
-                if (_showApiKey)
-                    s.apiKey = Widgets.TextField(field, s.apiKey);
-                else
+                Rect row = listing.GetRect(28f);
+                if (Widgets.ButtonText(row, GetProviderLabel(s.provider)))
                 {
-                    GUI.enabled = false;
-                    Widgets.TextField(field, new string('•', s.apiKey?.Length ?? 0));
-                    GUI.enabled = true;
+                    var options = new List<FloatMenuOption>();
+                    foreach (AIProvider p in Enum.GetValues(typeof(AIProvider)))
+                    {
+                        var label = GetProviderLabel(p);
+                        options.Add(new FloatMenuOption(label, () =>
+                        {
+                            var prev = s.provider;
+                            s.provider = p;
+                            if (p == AIProvider.Player2)
+                                Player2Client.CheckPlayer2StatusAndNotify();
+                            if (prev != p)
+                                RimMindAPI.InvalidateClientCache();
+                        }));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(options));
                 }
-                if (Widgets.ButtonText(toggle, _showApiKey ? "RimMind.Core.Settings.Hide".Translate() : "RimMind.Core.Settings.Show".Translate()))
-                    _showApiKey = !_showApiKey;
             }
 
-            listing.Gap(4f);
-            listing.Label("RimMind.Core.Settings.ApiEndpoint".Translate());
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Core.Settings.ApiEndpoint.Desc".Translate());
-            GUI.color = Color.white;
-            s.apiEndpoint = listing.TextEntry(s.apiEndpoint);
+            listing.Gap(6f);
 
-            listing.Gap(4f);
-            listing.Label("RimMind.Core.Settings.ModelName".Translate());
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Core.Settings.ModelName.Desc".Translate());
-            GUI.color = Color.white;
-            s.modelName = listing.TextEntry(s.modelName);
+            // ── API 配置（OpenAI 兼容模式） ──────────────────────────────────
+            if (s.provider == AIProvider.OpenAI)
+            {
+                listing.Label("RimMind.Core.Settings.ApiKey".Translate());
+                GUI.color = Color.gray;
+                listing.Label("  " + "RimMind.Core.Settings.ApiKey.Desc".Translate());
+                GUI.color = Color.white;
+                {
+                    Rect row    = listing.GetRect(26f);
+                    float btnW  = 52f;
+                    Rect field  = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
+                    Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
+
+                    if (_showApiKey)
+                        s.apiKey = Widgets.TextField(field, s.apiKey);
+                    else
+                    {
+                        GUI.enabled = false;
+                        Widgets.TextField(field, new string('•', s.apiKey?.Length ?? 0));
+                        GUI.enabled = true;
+                    }
+                    if (Widgets.ButtonText(toggle, _showApiKey ? "RimMind.Core.Settings.Hide".Translate() : "RimMind.Core.Settings.Show".Translate()))
+                        _showApiKey = !_showApiKey;
+                }
+
+                listing.Gap(4f);
+                listing.Label("RimMind.Core.Settings.ApiEndpoint".Translate());
+                GUI.color = Color.gray;
+                listing.Label("  " + "RimMind.Core.Settings.ApiEndpoint.Desc".Translate());
+                GUI.color = Color.white;
+                s.apiEndpoint = listing.TextEntry(s.apiEndpoint);
+
+                listing.Gap(4f);
+                listing.Label("RimMind.Core.Settings.ModelName".Translate());
+                GUI.color = Color.gray;
+                listing.Label("  " + "RimMind.Core.Settings.ModelName.Desc".Translate());
+                GUI.color = Color.white;
+                s.modelName = listing.TextEntry(s.modelName);
+            }
+
+            // ── Player2 模式 ───────────────────────────────────────────────
+            if (s.provider == AIProvider.Player2)
+            {
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Core.Settings.Player2.Desc".Translate());
+                GUI.color = Color.white;
+                listing.Gap(4f);
+
+                listing.Label("RimMind.Core.Settings.ApiKey".Translate() + " (" + "RimMind.Core.Settings.Player2.ApiKeyOptional".Translate() + ")");
+                GUI.color = Color.gray;
+                listing.Label("  " + "RimMind.Core.Settings.Player2.ApiKeyDesc".Translate());
+                GUI.color = Color.white;
+                {
+                    Rect row    = listing.GetRect(26f);
+                    float btnW  = 52f;
+                    Rect field  = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
+                    Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
+
+                    if (_showApiKey)
+                        s.apiKey = Widgets.TextField(field, s.apiKey);
+                    else
+                    {
+                        GUI.enabled = false;
+                        Widgets.TextField(field, new string('•', s.apiKey?.Length ?? 0));
+                        GUI.enabled = true;
+                    }
+                    if (Widgets.ButtonText(toggle, _showApiKey ? "RimMind.Core.Settings.Hide".Translate() : "RimMind.Core.Settings.Show".Translate()))
+                        _showApiKey = !_showApiKey;
+                }
+
+                listing.Gap(4f);
+                {
+                    Rect checkBtnRow = listing.GetRect(28f);
+                    if (Widgets.ButtonText(checkBtnRow, "RimMind.Core.Settings.Player2.CheckLocal".Translate()))
+                        Player2Client.CheckPlayer2StatusAndNotify();
+                }
+            }
 
             listing.Gap(10f);
 
@@ -250,7 +321,53 @@ namespace RimMind.Core.UI
         /// </summary>
         private static void RunConnectionTest(RimMindCoreSettings s)
         {
-            if (!s.IsConfigured())
+            if (s.provider == AIProvider.Player2)
+            {
+                _testStatus      = "RimMind.Core.Settings.Status.Testing".Translate();
+                _testStatusColor = Color.yellow;
+
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var client = await Player2Client.CreateAsync(s);
+                        if (!client.IsConfigured())
+                        {
+                            _testStatus      = "RimMind.Core.Settings.Player2.NotAvailable".Translate();
+                            _testStatusColor = new Color(0.9f, 0.4f, 0.4f);
+                            return;
+                        }
+
+                        var request = new AIRequest
+                        {
+                            RequestId = "test",
+                            UserPrompt = "RimMind.Core.Settings.TestMessage".Translate(),
+                            MaxTokens = 60,
+                            Temperature = 0.7f,
+                            ModId = "RimMind.Test"
+                        };
+                        var response = await client.SendAsync(request);
+                        if (response.Success)
+                        {
+                            _testStatus      = $"✓ {response.Content.Trim()} ({response.TokensUsed} tok)";
+                            _testStatusColor = new Color(0.4f, 0.9f, 0.4f);
+                        }
+                        else
+                        {
+                            _testStatus      = $"✗ {response.Error}";
+                            _testStatusColor = new Color(0.9f, 0.4f, 0.4f);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _testStatus      = $"✗ {ex.Message}";
+                        _testStatusColor = new Color(0.9f, 0.4f, 0.4f);
+                    }
+                });
+                return;
+            }
+
+            if (!s.IsOpenAIConfigured())
             {
                 _testStatus      = "RimMind.Core.Settings.Status.NotConfigured".Translate();
                 _testStatusColor = Color.yellow;
@@ -274,7 +391,7 @@ namespace RimMind.Core.UI
                         model    = model,
                         messages = new[]
                         {
-                            new { role = "user", content = "RimMind.Core.Settings.TestMessage".Translate() }
+                            new { role = "user", content = (string)"RimMind.Core.Settings.TestMessage".Translate() }
                         },
                         max_tokens  = 60,
                         temperature = 0.7f,
@@ -689,6 +806,7 @@ namespace RimMind.Core.UI
         private static float EstimateApiHeight()
         {
             float h = 30f;
+            h += 24f + 28f + 6f;
             h += 24f + 26f + 4f + 24f + 4f + 24f + 10f + 28f;
             h += 24f + 24f;
             h += 24f + 24f + 32f;
@@ -698,6 +816,16 @@ namespace RimMind.Core.UI
             h += 24f;
             h += 24f + 24f;
             return h + 40f;
+        }
+
+        private static string GetProviderLabel(AIProvider p)
+        {
+            return p switch
+            {
+                AIProvider.OpenAI  => "RimMind.Core.Settings.Provider.OpenAI".Translate(),
+                AIProvider.Player2 => "RimMind.Core.Settings.Provider.Player2".Translate(),
+                _ => p.ToString()
+            };
         }
 
     }

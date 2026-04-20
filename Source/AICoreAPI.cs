@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using RimMind.Core.Client;
 using RimMind.Core.Client.OpenAI;
+using RimMind.Core.Client.Player2;
 using RimMind.Core.Internal;
 using RimMind.Core.Prompt;
 using RimMind.Core.Settings;
@@ -559,7 +561,66 @@ namespace RimMind.Core
         {
             var s = RimMindCoreMod.Settings;
             if (!s.IsConfigured()) return null;
+
+            if (s.provider == AIProvider.Player2)
+            {
+                var cached = EnsurePlayer2Client(s);
+                return cached;
+            }
+
             return new OpenAIClient(s);
+        }
+
+        private static Player2Client? _cachedPlayer2Client;
+        private static AIProvider _cachedProvider;
+        private static bool _player2InitInProgress;
+        private static readonly object _player2Lock = new object();
+
+        private static Player2Client? EnsurePlayer2Client(RimMindCoreSettings s)
+        {
+            lock (_player2Lock)
+            {
+                if (_cachedPlayer2Client != null && _cachedProvider == AIProvider.Player2)
+                    return _cachedPlayer2Client.IsConfigured() ? _cachedPlayer2Client : null;
+
+                if (_player2InitInProgress) return null;
+                _player2InitInProgress = true;
+            }
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var client = await Player2Client.CreateAsync(s);
+                    lock (_player2Lock)
+                    {
+                        _cachedPlayer2Client = client;
+                        _cachedProvider = AIProvider.Player2;
+                        _player2InitInProgress = false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AIRequestQueue.LogFromBackground($"[RimMind] Player2 init failed: {ex.Message}", isWarning: true);
+                    lock (_player2Lock)
+                    {
+                        _player2InitInProgress = false;
+                    }
+                }
+            });
+
+            return null;
+        }
+
+        public static void InvalidateClientCache()
+        {
+            lock (_player2Lock)
+            {
+                if (_cachedProvider == AIProvider.Player2)
+                    Player2Client.StopHealthCheck();
+                _cachedPlayer2Client = null;
+                _cachedProvider = default;
+            }
         }
     }
 }

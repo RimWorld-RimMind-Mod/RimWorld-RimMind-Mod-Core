@@ -23,6 +23,10 @@
     <RimMind.Core.Settings.Tab.Prompts>自定义提示词</RimMind.Core.Settings.Tab.Prompts>
 
     <!-- AICoreSettingsUI.cs - API settings -->
+    <RimMind.Core.Settings.Provider>AI 服务商</RimMind.Core.Settings.Provider>
+    <RimMind.Core.Settings.Provider.Desc>选择 AI 服务提供商。Player2 可自动检测本地桌面应用，无需手动配置。</RimMind.Core.Settings.Provider.Desc>
+    <RimMind.Core.Settings.Provider.OpenAI>OpenAI 兼容</RimMind.Core.Settings.Provider.OpenAI>
+    <RimMind.Core.Settings.Provider.Player2>Player2</RimMind.Core.Settings.Provider.Player2>
     <RimMind.Core.Settings.ApiKey>API 密钥</RimMind.Core.Settings.ApiKey>
     <RimMind.Core.Settings.ApiKey.Desc>你的 AI 服务商提供的 API Key，用于身份验证。</RimMind.Core.Settings.ApiKey.Desc>
     <RimMind.Core.Settings.ApiEndpoint>API 端点</RimMind.Core.Settings.ApiEndpoint>
@@ -43,6 +47,15 @@
     <RimMind.Core.Settings.Status.Testing>测试中...</RimMind.Core.Settings.Status.Testing>
     <RimMind.Core.Settings.Show>显示</RimMind.Core.Settings.Show>
     <RimMind.Core.Settings.Hide>隐藏</RimMind.Core.Settings.Hide>
+
+    <!-- Player2 -->
+    <RimMind.Core.Settings.Player2.Desc>Player2 是一个 AI 游戏助手平台。选择此模式后，系统会自动检测本地 Player2 桌面应用并完成认证，无需手动输入 API Key。如未安装本地应用，也可手动输入 API Key。</RimMind.Core.Settings.Player2.Desc>
+    <RimMind.Core.Settings.Player2.ApiKeyOptional>可选</RimMind.Core.Settings.Player2.ApiKeyOptional>
+    <RimMind.Core.Settings.Player2.ApiKeyDesc>Player2 优先使用本地桌面应用自动认证。仅在未安装本地应用时需要手动输入 API Key。</RimMind.Core.Settings.Player2.ApiKeyDesc>
+    <RimMind.Core.Settings.Player2.CheckLocal>检测本地 Player2 应用</RimMind.Core.Settings.Player2.CheckLocal>
+    <RimMind.Core.Settings.Player2.NotAvailable>Player2 不可用：未检测到本地应用且未配置 API Key</RimMind.Core.Settings.Player2.NotAvailable>
+    <RimMind.Core.Player2.LocalDetected>RimMind: 已检测到 Player2 桌面应用！使用自动认证（无需 API Key）。</RimMind.Core.Player2.LocalDetected>
+    <RimMind.Core.Player2.LocalNotFound>RimMind: 未检测到 Player2 桌面应用。请启动应用或手动输入 API Key。</RimMind.Core.Player2.LocalNotFound>
 
     <!-- AICoreSettingsUI.cs - Section headers -->
     <RimMind.Core.Settings.Section.ModelBehavior>模型行为</RimMind.Core.Settings.Section.ModelBehavior>

@@ -4,6 +4,8 @@ namespace RimMind.Core.Settings
 {
     public class RimMindCoreSettings : ModSettings
     {
+        public AIProvider provider = AIProvider.OpenAI;
+
         public string apiKey = string.Empty;
         public string apiEndpoint = "https://api.deepseek.com/v1";
         public string modelName = "deepseek-chat";
@@ -30,12 +32,20 @@ namespace RimMind.Core.Settings
         public int maxRetryCount = 2;
         public int requestTimeoutMs = 120000;
 
-        public bool IsConfigured() =>
+        public bool IsConfigured()
+        {
+            if (provider == AIProvider.Player2)
+                return true;
+            return !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiEndpoint);
+        }
+
+        public bool IsOpenAIConfigured() =>
             !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiEndpoint);
 
         public override void ExposeData()
         {
             base.ExposeData();
+            Scribe_Values.Look(ref provider,           "provider",            AIProvider.OpenAI);
             Scribe_Values.Look(ref apiKey,               "apiKey",               string.Empty);
             Scribe_Values.Look(ref apiEndpoint,          "apiEndpoint",          "https://api.deepseek.com/v1");
             Scribe_Values.Look(ref modelName,            "modelName",            "deepseek-chat");

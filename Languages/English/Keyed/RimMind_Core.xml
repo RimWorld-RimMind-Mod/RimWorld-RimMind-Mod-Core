@@ -23,6 +23,10 @@
     <RimMind.Core.Settings.Tab.Prompts>Custom Prompts</RimMind.Core.Settings.Tab.Prompts>
 
     <!-- AICoreSettingsUI.cs - API settings -->
+    <RimMind.Core.Settings.Provider>AI Provider</RimMind.Core.Settings.Provider>
+    <RimMind.Core.Settings.Provider.Desc>Select an AI service provider. Player2 can auto-detect the local desktop app, no manual configuration needed.</RimMind.Core.Settings.Provider.Desc>
+    <RimMind.Core.Settings.Provider.OpenAI>OpenAI Compatible</RimMind.Core.Settings.Provider.OpenAI>
+    <RimMind.Core.Settings.Provider.Player2>Player2</RimMind.Core.Settings.Provider.Player2>
     <RimMind.Core.Settings.ApiKey>API Key</RimMind.Core.Settings.ApiKey>
     <RimMind.Core.Settings.ApiKey.Desc>Your AI provider's API key for authentication.</RimMind.Core.Settings.ApiKey.Desc>
     <RimMind.Core.Settings.ApiEndpoint>API Endpoint</RimMind.Core.Settings.ApiEndpoint>
@@ -43,6 +47,15 @@
     <RimMind.Core.Settings.Status.Testing>Testing...</RimMind.Core.Settings.Status.Testing>
     <RimMind.Core.Settings.Show>Show</RimMind.Core.Settings.Show>
     <RimMind.Core.Settings.Hide>Hide</RimMind.Core.Settings.Hide>
+
+    <!-- Player2 -->
+    <RimMind.Core.Settings.Player2.Desc>Player2 is an AI gaming assistant platform. When selected, the system will auto-detect the local Player2 desktop app and authenticate, no API Key needed. If the local app is not installed, you can also enter an API Key manually.</RimMind.Core.Settings.Player2.Desc>
+    <RimMind.Core.Settings.Player2.ApiKeyOptional>optional</RimMind.Core.Settings.Player2.ApiKeyOptional>
+    <RimMind.Core.Settings.Player2.ApiKeyDesc>Player2 prioritizes local desktop app auto-authentication. Only enter an API Key manually if the local app is not installed.</RimMind.Core.Settings.Player2.ApiKeyDesc>
+    <RimMind.Core.Settings.Player2.CheckLocal>Detect Local Player2 App</RimMind.Core.Settings.Player2.CheckLocal>
+    <RimMind.Core.Settings.Player2.NotAvailable>Player2 not available: local app not detected and no API Key configured</RimMind.Core.Settings.Player2.NotAvailable>
+    <RimMind.Core.Player2.LocalDetected>RimMind: Player2 desktop app detected! Using automatic authentication (no API key needed).</RimMind.Core.Player2.LocalDetected>
+    <RimMind.Core.Player2.LocalNotFound>RimMind: Player2 desktop app not found. Please start the app or add an API key manually.</RimMind.Core.Player2.LocalNotFound>
 
     <!-- AICoreSettingsUI.cs - Section headers -->
     <RimMind.Core.Settings.Section.ModelBehavior>Model Behavior</RimMind.Core.Settings.Section.ModelBehavior>
