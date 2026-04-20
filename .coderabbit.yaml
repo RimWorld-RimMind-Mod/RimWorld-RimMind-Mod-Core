@@ -2,8 +2,6 @@
 # 文档: https://docs.coderabbit.ai/guides/configure-coderabbit
 # 注意: 此文件必须放在仓库根目录，放在 .github/ 下无效
 
-version: 1
-
 language: zh-CN
 
 early_access: true
