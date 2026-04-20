@@ -59,9 +59,14 @@ cd RimWorld-RimMind-Mod-Core
 
 1. 启动游戏，进入主菜单
 2. 点击 **选项 → 模组设置 → RimMind-Core**
-3. 填写你的 **API Key**
-4. 填写 **API 端点**（见下方支持的端点列表）
-5. 填写 **模型名称**（如 `gpt-4o-mini`、`deepseek-chat`）
+3. 选择 **AI Provider**（OpenAI 兼容 API 或 Player2）
+4. 如果选择 OpenAI 兼容模式：
+   - 填写你的 **API Key**
+   - 填写 **API 端点**（见下方支持的端点列表）
+   - 填写 **模型名称**（如 `gpt-4o-mini`、`deepseek-chat`）
+5. 如果选择 Player2 模式：
+   - 安装 Player2 本地应用后可自动检测，无需手动配置
+   - 也可手动填写 Player2 API Key 使用远程服务
 6. 点击 **测试连接**，确认显示"连接成功"
 
 <!-- ![API 设置](images/api-settings.png) -->
@@ -73,6 +78,7 @@ cd RimWorld-RimMind-Mod-Core
 | DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat 等模型（默认） |
 | OpenAI | `https://api.openai.com/v1` | GPT-4o-mini 等模型 |
 | Ollama (本地) | `http://localhost:11434/v1` | 本地部署的模型 |
+| Player2 | 自动检测 / 手动配置 | Player2 本地应用或远程 API |
 | 其他 | 填入 Base URL | 任何 OpenAI 兼容接口 |
 
 ## 截图展示
@@ -85,11 +91,11 @@ cd RimWorld-RimMind-Mod-Core
 
 ### LLM 客户端
 
-兼容 OpenAI / DeepSeek / 本地 Ollama 等所有 OpenAI Chat Completions 格式的 API。支持 JSON 强制模式（`response_format: json_object`），本地模型可关闭。
+兼容 OpenAI / DeepSeek / 本地 Ollama 等所有 OpenAI Chat Completions 格式的 API，同时支持 Player2 服务（本地应用自动检测 + 远程 API）。支持 JSON 强制模式（`response_format: json_object`），本地模型可关闭。
 
 ### 异步请求队列
 
-所有 AI 请求在后台线程执行，不阻塞游戏主线程。每个请求独立冷却，过期请求自动丢弃。
+所有 AI 请求在后台线程执行，不阻塞游戏主线程。每个请求独立冷却，过期请求自动丢弃。支持瞬态错误自动重试（timeout / 429 / 502 / 503 等），本地模型串行处理避免资源竞争。
 
 ### 上下文构建
 
@@ -106,13 +112,14 @@ cd RimWorld-RimMind-Mod-Core
 
 - **AI Debug Log**：浮动窗口，查看每次 AI 调用的完整 Prompt + Response
 - **请求悬浮窗**：右下角实时显示 AI 请求状态
-- **Dev 菜单**：测试连接、查看上下文、清除冷却等
+- **Dev 菜单**：测试连接、查看上下文、清除冷却、暂停/恢复队列等
 
 ## 设置项
 
 | 设置 | 默认值 | 说明 |
 |------|--------|------|
-| API Key | - | 你的 API 密钥 |
+| AI Provider | OpenAI | 选择 OpenAI 兼容 API 或 Player2 |
+| API Key | - | 你的 API 密钥（Player2 模式可选） |
 | API 端点 | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
 | 模型名称 | `deepseek-chat` | 任意模型 ID |
 | 强制 JSON 模式 | 开启 | 不支持的本地模型请关闭 |
@@ -129,7 +136,7 @@ cd RimWorld-RimMind-Mod-Core
 ## 常见问题
 
 **Q: 支持哪些大模型？**
-A: 任何兼容 OpenAI Chat Completions API 的模型均可使用，包括 OpenAI GPT 系列、DeepSeek、本地 Ollama 等。
+A: 任何兼容 OpenAI Chat Completions API 的模型均可使用，包括 OpenAI GPT 系列、DeepSeek、本地 Ollama 等。同时支持 Player2 服务（本地应用自动检测 + 远程 API）。
 
 **Q: 会不会影响游戏帧率？**
 A: 不会。所有 AI 请求在后台线程执行，主线程只处理回调结果。
@@ -210,9 +217,14 @@ cd RimWorld-RimMind-Mod-Core
 
 1. Launch the game, go to main menu
 2. Click **Options → Mod Settings → RimMind-Core**
-3. Enter your **API Key**
-4. Enter your **API Endpoint** (see supported endpoints below)
-5. Enter your **Model Name** (e.g., `gpt-4o-mini`, `deepseek-chat`)
+3. Select **AI Provider** (OpenAI-compatible API or Player2)
+4. If using OpenAI-compatible mode:
+   - Enter your **API Key**
+   - Enter your **API Endpoint** (see supported endpoints below)
+   - Enter your **Model Name** (e.g., `gpt-4o-mini`, `deepseek-chat`)
+5. If using Player2 mode:
+   - Install Player2 local app for automatic detection, no manual configuration needed
+   - Or manually enter a Player2 API Key for remote service
 6. Click **Test Connection** and confirm "Connection Successful"
 
 ### Supported API Endpoints
@@ -222,20 +234,21 @@ cd RimWorld-RimMind-Mod-Core
 | DeepSeek | `https://api.deepseek.com/v1` | deepseek-chat etc. (default) |
 | OpenAI | `https://api.openai.com/v1` | GPT-4o-mini etc. |
 | Ollama (local) | `http://localhost:11434/v1` | Locally deployed models |
+| Player2 | Auto-detect / Manual | Player2 local app or remote API |
 | Others | Enter Base URL | Any OpenAI-compatible API |
 
 ## Key Features
 
-- **LLM Client**: Compatible with OpenAI / DeepSeek / local Ollama and any OpenAI Chat Completions API
-- **Async Request Queue**: All AI requests run on background threads, never blocking the game
+- **LLM Client**: Compatible with OpenAI / DeepSeek / local Ollama and any OpenAI Chat Completions API, plus Player2 service (local app auto-detect + remote API)
+- **Async Request Queue**: All AI requests run on background threads, never blocking the game. Supports automatic retry for transient errors (timeout / 429 / 502 / 503 etc.), serial processing for local models
 - **Context Builder**: Automatically collects game state (colonist stats, map info, etc.) for AI prompts
 - **Context Filter**: Fine-grained control over what game info gets sent to AI, with Minimal/Standard/Full presets and 28+ configurable options
-- **Debug Tools**: AI Debug Log window, request overlay, Dev menu actions
+- **Debug Tools**: AI Debug Log window, request overlay, Dev menu actions (test connection, view context, clear cooldowns, pause/resume queue)
 
 ## FAQ
 
 **Q: Which models are supported?**
-A: Any model compatible with the OpenAI Chat Completions API, including OpenAI GPT, DeepSeek, and local Ollama.
+A: Any model compatible with the OpenAI Chat Completions API, including OpenAI GPT, DeepSeek, and local Ollama. Also supports Player2 service (local app auto-detect + remote API).
 
 **Q: Will it affect game FPS?**
 A: No. All AI requests run on background threads; the main thread only processes callbacks.

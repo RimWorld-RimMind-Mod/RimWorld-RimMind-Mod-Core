@@ -6,14 +6,15 @@
 
 RimMind-Core 是 RimMind AI 模组套件的核心基础设施层。所有子模组（Actions、Personality、Advisor、Memory 等）均依赖本模组。职责：
 
-1. **LLM 客户端**：OpenAI Chat Completions 兼容，通过 `UnityWebRequest` 发送
-2. **异步请求队列**：后台线程发请求，主线程回调，`ConcurrentQueue` 桥接
-3. **游戏上下文构建**：将游戏状态打包为中文文本，供 AI Prompt 使用
+1. **LLM 客户端**：OpenAI Chat Completions 兼容 + Player2 服务，通过 `UnityWebRequest` 发送
+2. **异步请求队列**：后台线程发请求，主线程回调，`ConcurrentQueue` 桥接，支持重试/暂停/取消
+3. **游戏上下文构建**：将游戏状态打包为文本，供 AI Prompt 使用
 4. **Prompt 组装系统**：`StructuredPromptBuilder` + `PromptSection` + `PromptBudget` + `ContextComposer`，支持优先级排序、压缩与 Token 预算裁剪
 5. **Provider 注册机制**：子模组通过注册 API 注入上下文段，支持卸载与覆盖，实现解耦
 6. **请求审批悬浮窗**：`RequestOverlay` + `RequestEntry`，子模组可注册待审批请求供玩家选择
-7. **设置 UI**：多分页设置界面，子模组可注册额外分页
-8. **调试工具**：AI Debug Log 窗口、Dev DebugAction
+7. **SkipCheck 机制**：子模组可注册对话/浮菜单/动作/叙事者的跳过检查，实现互斥控制
+8. **设置 UI**：多分页设置界面（API/队列/提示词/上下文），子模组可注册额外分页
+9. **调试工具**：AI Debug Log 窗口、Dev DebugAction
 
 ## 源码结构
 
@@ -24,12 +25,16 @@ Source/
 ├── Client/
 │   ├── IAIClient.cs          AI 客户端接口
 │   ├── AIRequest.cs          请求数据结构（含 ChatMessage 多轮支持）
-│   ├── AIResponse.cs         响应数据结构
-│   └── OpenAI/
-│       ├── OpenAIClient.cs   OpenAI 兼容客户端实现
-│       └── OpenAIDto.cs      请求/响应 DTO（internal）
+│   ├── AIResponse.cs         响应数据结构（含状态/优先级/重试/遥测）
+│   ├── AIRequestState.cs     请求状态枚举 + 优先级枚举
+│   ├── OpenAI/
+│   │   ├── OpenAIClient.cs   OpenAI 兼容客户端实现
+│   │   └── OpenAIDto.cs      请求/响应 DTO（internal）
+│   └── Player2/
+│       ├── Player2Client.cs  Player2 客户端实现（本地应用 + 远程 API）
+│       └── Player2Models.cs  Player2 请求/响应 DTO（internal）
 ├── Core/
-│   ├── AIRequestQueue.cs     GameComponent，异步请求队列 + 冷却管理
+│   ├── AIRequestQueue.cs     GameComponent，异步请求队列 + 冷却 + 重试 + 暂停/取消
 │   ├── GameContextBuilder.cs 静态工具类，构建地图/Pawn 上下文文本（含 Section 和精简版本）
 │   ├── JsonTagExtractor.cs   从 AI 响应提取 <Tag>JSON</Tag> 内容
 │   ├── AIDebugLog.cs         GameComponent，存储最近 200 条请求记录（含 AIDebugEntry）
@@ -37,12 +42,14 @@ Source/
 │       ├── StructuredPromptBuilder.cs  流式 Prompt 构建器（链式 API + FromKeyPrefix + ToSection）
 │       ├── PromptSection.cs            Prompt 段落（Tag/Content/Priority/EstimatedTokens/Compress）
 │       ├── PromptBudget.cs             Token 预算管理（先压缩后裁剪）
-│       └── ContextComposer.cs          段落排序 + 历史压缩
+│       ├── ContextComposer.cs          段落排序 + 历史压缩
+│       └── PromptSanitizer.cs          Prompt 清理（去除双花括号）
 ├── Settings/
-│   ├── AICoreSettings.cs     模组设置（API 配置 + 请求控制 + 调试 + 流式）
-│   └── ContextSettings.cs    上下文过滤器（28 个 Include* 字段 + ContextPreset 预设）
+│   ├── AICoreSettings.cs     模组设置（Provider 选择 + API 配置 + 请求控制 + 调试）
+│   ├── AIProvider.cs         AI 提供者枚举（OpenAI / Player2）
+│   └── ContextSettings.cs    上下文过滤器（28 个 Include* 字段 + ContextPreset 预设 + disabledProviders + exposedProviders）
 ├── UI/
-│   ├── AICoreSettingsUI.cs   多分页设置界面
+│   ├── AICoreSettingsUI.cs   多分页设置界面（API/队列/提示词/上下文）
 │   ├── Window_AIDebugLog.cs  AI Debug Log 浮动窗口
 │   ├── RequestOverlay.cs     请求审批悬浮窗（可拖拽/可缩放/可持久化位置）
 │   ├── RequestEntry.cs       悬浮窗请求条目数据结构
@@ -65,6 +72,14 @@ Source/
 // ── 请求 ──
 RimMindAPI.RequestAsync(AIRequest request, Action<AIResponse> onComplete)
 RimMindAPI.RequestImmediate(AIRequest request, Action<AIResponse> onComplete) // 绕过队列/冷却
+RimMindAPI.CancelRequest(string requestId) // 取消指定请求
+RimMindAPI.PauseQueue()   // 暂停队列
+RimMindAPI.ResumeQueue()  // 恢复队列
+RimMindAPI.IsQueuePaused  // 队列是否暂停
+RimMindAPI.ActiveRequestCount     // 当前活跃请求数
+RimMindAPI.TotalQueuedCount       // 排队中请求总数
+RimMindAPI.GetActiveRequests()    // 获取活跃请求列表
+RimMindAPI.GetAllQueuedRequests() // 获取所有排队请求
 
 // ── 上下文构建 ──
 RimMindAPI.BuildMapContext(Map map, bool brief = false)
@@ -79,6 +94,12 @@ RimMindAPI.BuildFullPawnSections(Pawn pawn, string? currentQuery, string[]? excl
 RimMindAPI.RegisterStaticProvider(string category, Func<string> provider, int priority, string modId = "", bool overrideExisting = true)
 RimMindAPI.RegisterDynamicProvider(string category, Func<string, string> provider, int priority, string modId = "", bool overrideExisting = true)
 RimMindAPI.RegisterPawnContextProvider(string category, Func<Pawn, string?> provider, int priority, string modId = "", bool overrideExisting = true)
+
+// ── Provider 查询（供外部 Mod 读取 RimMind 数据）──
+RimMindAPI.GetProviderData(string category, Pawn pawn)       // Pawn 级 Provider 数据
+RimMindAPI.GetStaticProviderData(string category)             // 静态 Provider 数据
+RimMindAPI.GetDynamicProviderData(string category, string query) // 动态 Provider 数据
+RimMindAPI.GetRegisteredCategories()                          // 所有已注册的 category 列表
 
 // ── Provider 卸载 ──
 RimMindAPI.UnregisterStaticProvider(string category)
@@ -102,6 +123,28 @@ RimMindAPI.RegisterDialogueTrigger(Action<Pawn, string, Pawn?> triggerFn)
 RimMindAPI.TriggerDialogue(Pawn pawn, string context, Pawn? recipient)
 RimMindAPI.CanTriggerDialogue // getter
 
+// ── SkipCheck（互斥控制）──
+RimMindAPI.RegisterDialogueSkipCheck(string sourceId, Func<Pawn, string, bool> skipCheck)
+RimMindAPI.UnregisterDialogueSkipCheck(string sourceId)
+RimMindAPI.ShouldSkipDialogue(Pawn pawn, string triggerType) // 任一检查返回 true 则跳过
+
+RimMindAPI.RegisterFloatMenuSkipCheck(string sourceId, Func<bool> skipCheck)
+RimMindAPI.UnregisterFloatMenuSkipCheck(string sourceId)
+RimMindAPI.ShouldSkipFloatMenu() // 任一检查返回 true 则跳过
+
+RimMindAPI.RegisterActionSkipCheck(string sourceId, Func<string, bool> skipCheck)
+RimMindAPI.UnregisterActionSkipCheck(string sourceId)
+RimMindAPI.ShouldSkipAction(string intentId) // 任一检查返回 true 则跳过
+
+// ── Incident 回调 ──
+RimMindAPI.RegisterIncidentExecutedCallback(Action callback)
+RimMindAPI.UnregisterIncidentExecutedCallback(Action callback)
+RimMindAPI.NotifyIncidentExecuted() // 通知所有回调
+
+RimMindAPI.RegisterStorytellerIncidentSkipCheck(Func<bool> check)
+RimMindAPI.UnregisterStorytellerIncidentSkipCheck(Func<bool> check)
+RimMindAPI.ShouldSkipStorytellerIncident() // 任一检查返回 true 则跳过
+
 // ── 请求审批悬浮窗 ──
 RimMindAPI.RegisterPendingRequest(RequestEntry entry)
 RimMindAPI.GetPendingRequests() // IReadOnlyList<RequestEntry>
@@ -111,9 +154,21 @@ RimMindAPI.RemovePendingRequest(RequestEntry entry)
 RimMindAPI.IsConfigured()
 RimMindAPI.IsAnyToggleActive()
 RimMindAPI.ToggleAll()
+
+// ── 客户端缓存 ──
+RimMindAPI.InvalidateClientCache() // 切换 Provider 时调用
 ```
 
-### AIRequest / AIResponse
+### AIProvider（AIProvider.cs）
+
+```csharp
+enum AIProvider {
+    OpenAI  = 0,  // OpenAI 兼容 API（DeepSeek / Ollama 等）
+    Player2 = 1,  // Player2 服务（本地应用 + 远程 API）
+}
+```
+
+### AIRequest / AIResponse / AIRequestState
 
 ```csharp
 class AIRequest {
@@ -126,6 +181,8 @@ class AIRequest {
     string ModId;                // 模组标识，用于冷却分组
     int ExpireAtTicks;           // 过期时间，0=不过期
     bool UseJsonMode;            // 默认 true，设 false 绕过 response_format
+    AIRequestPriority Priority;  // 默认 Normal
+    int MaxRetryCount;           // 默认 -1（使用全局设置）
 }
 
 class ChatMessage {
@@ -139,10 +196,51 @@ class AIResponse {
     string Error;
     int TokensUsed;
     string RequestId;
+    AIRequestState State;         // 请求状态
+    AIRequestPriority Priority;   // 请求优先级
+    int QueuePosition;            // 队列位置
+    int AttemptCount;             // 尝试次数
+    long QueueWaitMs;             // 队列等待时间
+    long ProcessingMs;            // 处理时间
+    long HttpStatusCode;          // HTTP 状态码
+    int RequestPayloadBytes;      // 请求体字节数
+    string CancelReason;          // 取消原因
+
     static AIResponse Failure(string requestId, string error);
     static AIResponse Ok(string requestId, string content, int tokens);
+    static AIResponse Cancelled(string requestId, string reason);
+}
+
+enum AIRequestState { Queued, Processing, Completed, Error, Cancelled }
+enum AIRequestPriority { High = 0, Normal = 1, Low = 2 }
+```
+
+### IAIClient
+
+```csharp
+interface IAIClient {
+    Task<AIResponse> SendAsync(AIRequest request);
+    bool IsConfigured();
+    bool IsLocalEndpoint { get; }  // 本地端点（Ollama/Player2 本地），串行处理
 }
 ```
+
+### OpenAIClient
+
+OpenAI Chat Completions 兼容客户端，支持：
+- 自动拼接 `/v1/chat/completions` 端点路径
+- JSON 强制模式（`response_format: json_object`）
+- 本地端点检测（localhost / 127.0.0.1 / host.docker.internal）
+- 连接超时（本地 300s / 远程 60s）+ 读取超时（60s）
+- 游戏卸载时自动取消请求
+
+### Player2Client
+
+Player2 服务客户端，支持两种连接模式：
+- **本地模式**：自动检测本地 Player2 应用（`localhost:4315`），自动登录获取 API Key
+- **远程模式**：使用手动填写的 API Key 连接 `api.player2.game`
+- 定期健康检查（60s 间隔）
+- 缓存客户端实例，切换 Provider 时需调用 `InvalidateClientCache()`
 
 ### Prompt 组装系统
 
@@ -234,6 +332,14 @@ static class ContextComposer {
 }
 ```
 
+#### PromptSanitizer
+
+```csharp
+static class PromptSanitizer {
+    string Sanitize(string prompt); // 去除 {{ }} 双花括号，防止模板注入
+}
+```
+
 ### GameContextBuilder
 
 ```csharp
@@ -259,6 +365,7 @@ static class GameContextBuilder {
 3. 游戏状态 → BuildPawnContextSection(pawn)（带压缩回调）
 4. 地图状态 → BuildMapContextSection(pawn.Map)（带压缩回调）
 5. 动态段  → RegisterDynamicProvider 注册的段（Memory 语义检索等）
+6. 自定义提示词 → customPawnPrompt + customMapPrompt
 ```
 
 所有段落以 `PromptSection` 形式传递，按 `Priority` 排序后拼接。带 `PromptBudget` 的版本会先压缩再裁剪。
@@ -283,6 +390,13 @@ class AIRequestQueue : GameComponent {
 
     void Enqueue(AIRequest request, Action<AIResponse> callback, IAIClient client);
     void EnqueueImmediate(AIRequest request, Action<AIResponse> callback, IAIClient client);
+    bool CancelRequest(string requestId);
+
+    void PauseQueue();
+    void ResumeQueue();
+    bool IsPaused { get; }
+    int ActiveRequestCount { get; }
+    bool IsLocalModelBusy { get; }  // 本地模型是否正在处理
 
     int GetCooldownTicksLeft(string modId);
     int GetQueueDepth(string modId);
@@ -291,8 +405,17 @@ class AIRequestQueue : GameComponent {
     void ClearAllQueues();
     IReadOnlyDictionary<string, int> GetAllCooldowns();
     IReadOnlyDictionary<string, int> GetAllQueueDepths();
+    IReadOnlyList<TrackedRequest> GetActiveRequests();
+    IReadOnlyList<TrackedRequest> GetQueuedRequests(string modId);
+    IReadOnlyList<TrackedRequest> GetAllQueuedRequests();
+    int TotalQueuedCount { get; }
 }
 ```
+
+重试逻辑：
+- 瞬态错误自动重试（timeout / connection / network / 502 / 503 / 429 / rate limit）
+- 重试次数由 `AIRequest.MaxRetryCount` 控制（-1 使用全局设置 `maxRetryCount`）
+- 本地端点（Ollama / Player2 本地）串行处理，同时只允许一个请求
 
 ### AIDebugLog / AIDebugEntry
 
@@ -315,6 +438,13 @@ class AIDebugEntry {
     int TokensUsed;
     bool IsError;
     string ErrorMsg;
+    AIRequestPriority Priority;
+    AIRequestState State;
+    int AttemptCount;
+    long QueueWaitMs;
+    long ProcessingMs;
+    long HttpStatusCode;
+    int RequestPayloadBytes;
     string FormattedTime; // 格式化时间
 }
 ```
@@ -330,6 +460,7 @@ class RequestEntry {
     string title;           // 请求标题
     string? description;    // 请求描述
     string[] options;       // 选项列表
+    string[]? optionTooltips; // 选项提示文本
     Action<string>? callback; // 选择回调（参数为选中的选项文本）
     bool systemBlocked;     // 是否被系统拦截
     int tick;               // 创建时间
@@ -364,6 +495,7 @@ static class SettingsUIHelper {
 
 ```csharp
 class RimMindCoreSettings : ModSettings {
+    AIProvider provider;          // 默认 OpenAI
     string apiKey;
     string apiEndpoint;           // 默认 "https://api.deepseek.com/v1"
     string modelName;             // 默认 "deepseek-chat"
@@ -380,7 +512,8 @@ class RimMindCoreSettings : ModSettings {
     bool requestOverlayEnabled;
     float requestOverlayX, requestOverlayY, requestOverlayW, requestOverlayH;
 
-    bool IsConfigured();
+    bool IsConfigured();          // Player2 模式无需 API Key
+    bool IsOpenAIConfigured();    // OpenAI 模式需要 API Key + 端点
     override void ExposeData();
 }
 ```
@@ -413,6 +546,7 @@ enum ContextPreset { Minimal, Standard, Full, Custom }
 - **主线程**：读写游戏状态、消费 `ConcurrentQueue` 结果、所有 RimWorld/Unity API
 - **后台线程**：HTTP 请求、JSON 解析、生产 `ConcurrentQueue` 结果
 - **严禁**在后台线程调用任何 RimWorld/Unity API
+- 后台线程结果通过 `_pendingFireResults` 队列传回主线程处理（含重试逻辑）
 - 后台线程日志必须通过 `AIRequestQueue.LogFromBackground()` 写入，主线程 Tick 时输出
 
 ## 数据流
@@ -428,14 +562,20 @@ enum ContextPreset { Minimal, Standard, Full, Custom }
     │       ▼
     │   AIRequestQueue.Enqueue()
     │       ├── 检查冷却 → 跳过或接受
-    │       └── Task.Run → OpenAIClient.SendAsync()
+    │       ├── 检查过期 → 丢弃过期请求
+    │       ├── 按优先级排序
+    │       └── Task.Run → IAIClient.SendAsync()
     │                         ▼ (后台线程)
     │                       HTTP 请求 → 解析响应
     │                         ▼
-    │                       _results.Enqueue((response, callback))
+    │                       _pendingFireResults.Enqueue()
     │
     ├── GameComponentTick()
     │       ▼
+    │   消费 _pendingFireResults
+    │       ├── 瞬态错误 → 重试（重新入队）
+    │       └── 成功/最终失败 → _results.Enqueue()
+    │
     │   消费 _results 队列
     │       ▼
     │   callback(response)  ← 主线程安全
@@ -507,9 +647,10 @@ enum ContextPreset { Minimal, Standard, Full, Custom }
 |---------|------|------|
 | `RimMind.Core` | Source/ 根目录 | Mod 入口、API |
 | `RimMind.Core.Client` | Client/ | AI 客户端接口与数据结构 |
-| `RimMind.Core.Client.OpenAI` | Client/OpenAI/ | OpenAI 实现 |
+| `RimMind.Core.Client.OpenAI` | Client/OpenAI/ | OpenAI 兼容实现 |
+| `RimMind.Core.Client.Player2` | Client/Player2/ | Player2 实现 |
 | `RimMind.Core.Internal` | Core/ | 内部组件（队列、上下文构建、日志、JSON 提取） |
-| `RimMind.Core.Prompt` | Core/Prompt/ | Prompt 组装（段落、预算、排序、结构化构建） |
+| `RimMind.Core.Prompt` | Core/Prompt/ | Prompt 组装（段落、预算、排序、结构化构建、清理） |
 | `RimMind.Core.Settings` | Settings/ | 设置 |
 | `RimMind.Core.UI` | UI/ | 界面 |
 | `RimMind.Core.Patch` | Patch/ | Harmony 补丁 |
@@ -660,6 +801,7 @@ RimMindAPI.RegisterPendingRequest(new RequestEntry
     title = "标题",
     description = "描述",
     options = new[] { "选项A", "选项B", "忽略" },
+    optionTooltips = new[] { "执行A", "执行B", "跳过" },
     expireTicks = 30000,
     callback = choice =>
     {
@@ -668,7 +810,17 @@ RimMindAPI.RegisterPendingRequest(new RequestEntry
 });
 ```
 
-### 7. 响应格式约定
+### 7. 使用 SkipCheck 实现互斥
+
+```csharp
+// 注册：当对话系统正在处理时，跳过浮菜单 AI 选项
+RimMindAPI.RegisterFloatMenuSkipCheck("MyMod", () => isProcessing);
+
+// 卸载时清理
+RimMindAPI.UnregisterFloatMenuSkipCheck("MyMod");
+```
+
+### 8. 响应格式约定
 
 所有子模组统一使用 `<TagName>{JSON}</TagName>` 格式，AI 可在标签前后输出思考过程：
 
@@ -679,11 +831,26 @@ RimMindAPI.RegisterPendingRequest(new RequestEntry
 </Advice>
 ```
 
-### 8. 冷却机制
+### 9. 冷却机制
 
-- Core 层冷却：`globalCooldownTicks`（默认 3600），按 ModId 独立
+- Core 层冷却：默认 3600 ticks，按 ModId 独立
 - 子模组通过 `RegisterModCooldown` 注册自定义冷却 Getter
+- 本地端点（Ollama / Player2 本地）串行处理，同一时刻只有一个请求
 - DebugAction 可清除冷却：`AIRequestQueue.Instance?.ClearCooldown(modId)`
+
+### 10. Incident 回调
+
+子模组可注册事件执行回调，用于跨模组协调：
+
+```csharp
+RimMindAPI.RegisterIncidentExecutedCallback(() =>
+{
+    // 事件执行后的处理逻辑
+});
+
+// 叙事者执行事件后通知
+RimMindAPI.NotifyIncidentExecuted();
+```
 
 ## AI 响应格式标准
 
