@@ -29,6 +29,7 @@ namespace RimMind.Core.Npc
                     _cachedDriver = new HybridStorageDriver(client, historyManager);
                     return _cachedDriver;
                 }
+                Log.Warning("[RimMind] Player2 client not available, falling back to LocalStorageDriver");
             }
 
             _cachedDriver = new LocalStorageDriver(historyManager);

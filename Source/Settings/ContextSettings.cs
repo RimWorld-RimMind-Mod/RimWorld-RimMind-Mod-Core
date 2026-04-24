@@ -122,6 +122,8 @@ namespace RimMind.Core.Settings
                     IncludeWeather = true; IncludeThreats = true;
                     ContextBudget = 1.0f;
                     break;
+                case ContextPreset.Custom:
+                    break;
             }
         }
     }

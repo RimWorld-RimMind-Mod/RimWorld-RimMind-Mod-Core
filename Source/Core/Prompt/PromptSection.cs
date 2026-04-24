@@ -45,6 +45,19 @@ namespace RimMind.Core.Prompt
 
         public bool IsCompressible => Compress != null && IsTrimable;
 
+        public PromptSection Clone()
+        {
+            return new PromptSection
+            {
+                Tag = Tag,
+                Content = Content,
+                Priority = Priority,
+                EstimatedTokens = EstimatedTokens,
+                Compress = Compress,
+                LayerTag = LayerTag,
+            };
+        }
+
         public override string ToString() => $"[{Tag}] P{Priority} ~{EstimatedTokens}tok";
     }
 }

@@ -22,7 +22,7 @@ namespace RimMind.Core.Prompt
             if (sections == null || sections.Count == 0)
                 return sections;
 
-            var result = new List<PromptSection>(sections);
+            var result = sections.Select(s => s.Clone()).ToList();
             int totalTokens = result.Sum(s => s.EstimatedTokens);
 
             if (totalTokens <= AvailableForInput)

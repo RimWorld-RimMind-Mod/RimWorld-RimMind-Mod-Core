@@ -291,15 +291,8 @@ namespace RimMind.Core
         public static void RegisterStaticProvider(string category, Func<string?> provider,
             int priority = PromptSection.PriorityAuxiliary, string modId = "", bool overrideExisting = true)
         {
-            if (_staticProviders.ContainsKey(category))
-            {
-                if (!overrideExisting) return;
-                _staticProviders[category] = (modId, provider, priority);
-            }
-            else
-            {
-                _staticProviders[category] = (modId, provider, priority);
-            }
+            if (_staticProviders.ContainsKey(category) && !overrideExisting) return;
+            _staticProviders[category] = (modId, provider, priority);
             float priorityFloat = 1.0f - (priority / 10.0f);
             ContextLayer layer = InferLayer(priority);
             var wrappedProvider = new Func<Pawn, List<ContextEntry>>(_ =>
@@ -313,15 +306,8 @@ namespace RimMind.Core
         public static void RegisterDynamicProvider(string category, Func<string, string> provider,
             int priority = PromptSection.PriorityAuxiliary, string modId = "", bool overrideExisting = true)
         {
-            if (_dynamicProviders.ContainsKey(category))
-            {
-                if (!overrideExisting) return;
-                _dynamicProviders[category] = (modId, provider, priority);
-            }
-            else
-            {
-                _dynamicProviders[category] = (modId, provider, priority);
-            }
+            if (_dynamicProviders.ContainsKey(category) && !overrideExisting) return;
+            _dynamicProviders[category] = (modId, provider, priority);
             float priorityFloat = 1.0f - (priority / 10.0f);
             ContextLayer layer = InferLayer(priority);
             var wrappedProvider = new Func<Pawn, List<ContextEntry>>(pawn =>
@@ -335,15 +321,8 @@ namespace RimMind.Core
         public static void RegisterPawnContextProvider(string category, Func<Pawn, string?> provider,
             int priority = PromptSection.PriorityAuxiliary, string modId = "", bool overrideExisting = true)
         {
-            if (_pawnProviders.ContainsKey(category))
-            {
-                if (!overrideExisting) return;
-                _pawnProviders[category] = (modId, provider, priority);
-            }
-            else
-            {
-                _pawnProviders[category] = (modId, provider, priority);
-            }
+            if (_pawnProviders.ContainsKey(category) && !overrideExisting) return;
+            _pawnProviders[category] = (modId, provider, priority);
             float priorityFloat = 1.0f - (priority / 10.0f);
             ContextLayer layer = InferLayer(priority);
             var wrappedProvider = new Func<Pawn, List<ContextEntry>>(pawn =>
