@@ -79,6 +79,9 @@ namespace RimMind.Core.Npc
         {
             try
             {
+                if (_client == null || !_client.IsConfigured())
+                    return new NpcChatResult { Error = "Player2 client not configured." };
+
                 var body = new
                 {
                     npc_id = snapshot.NpcId,
@@ -102,6 +105,7 @@ namespace RimMind.Core.Npc
             }
             catch (System.Exception ex)
             {
+                Log.Warning($"[RimMind] Player2StorageDriver.ChatAsync failed for '{snapshot.NpcId}': {ex.Message}");
                 return new NpcChatResult { Error = ex.Message };
             }
         }
