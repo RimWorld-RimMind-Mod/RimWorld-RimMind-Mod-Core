@@ -308,6 +308,7 @@
     <RimMind.Core.UI.AgentDialogue.Send>Send</RimMind.Core.UI.AgentDialogue.Send>
     <RimMind.Core.UI.AgentDialogue.PlayerLabel>Player</RimMind.Core.UI.AgentDialogue.PlayerLabel>
     <RimMind.Core.UI.AgentDialogue.AgentLabel>Agent</RimMind.Core.UI.AgentDialogue.AgentLabel>
+    <RimMind.Core.UI.AgentDialogue.Thinking>(thinking...)</RimMind.Core.UI.AgentDialogue.Thinking>
 
     <!-- Agent Gizmo - Dialogue -->
     <RimMind.Core.Agent.Gizmo.Dialogue>Chat</RimMind.Core.Agent.Gizmo.Dialogue>

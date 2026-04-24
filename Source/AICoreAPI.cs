@@ -189,7 +189,6 @@ namespace RimMind.Core
             Action<AIResponse> onComplete, List<StructuredTool>? tools = null)
         {
             var snapshot = _contextEngine.BuildSnapshot(request);
-            // 从 snapshot 构建 AIRequest
             var aiRequest = new AIRequest
             {
                 SystemPrompt = null,
@@ -202,13 +201,43 @@ namespace RimMind.Core
                 UseJsonMode = true,
                 Priority = AIRequestPriority.Normal,
             };
+
+            Action<AIResponse> wrappedOnComplete = (response) =>
+            {
+                try
+                {
+                    Telemetry.Record(new TelemetryRecord
+                    {
+                        NpcId = request.NpcId,
+                        Scenario = request.Scenario,
+                        PromptTokens = response.PromptTokens,
+                        CompletionTokens = response.CompletionTokens,
+                        TotalTokens = response.TokensUsed,
+                        CachedTokens = response.CachedTokens,
+                        BudgetValue = snapshot.BudgetValue,
+                        KeysIncluded = snapshot.IncludedKeys,
+                        KeysTrimmed = snapshot.TrimmedKeys,
+                        LayerTokenBreakdown = new Dictionary<string, int>
+                        {
+                            { "L0", snapshot.Meta.L0Tokens },
+                            { "L1", snapshot.Meta.L1Tokens },
+                            { "L2", snapshot.Meta.L2Tokens },
+                            { "L3", snapshot.Meta.L3Tokens },
+                            { "L4", snapshot.Meta.L4Tokens },
+                        },
+                        TimestampTicks = DateTime.Now.Ticks,
+                    });
+                }
+                catch { }
+                onComplete?.Invoke(response);
+            };
+
             try
             {
-                RequestStructuredAsync(aiRequest, schema, onComplete, tools);
+                RequestStructuredAsync(aiRequest, schema, wrappedOnComplete, tools);
             }
             catch
             {
-                // 降级: 结构化请求失败，走基础请求入队
                 var fallbackRequest = new AIRequest
                 {
                     SystemPrompt = null,
@@ -224,9 +253,9 @@ namespace RimMind.Core
                 var queue = AIRequestQueue.Instance;
                 var client = GetClient();
                 if (queue != null && client != null)
-                    queue.Enqueue(fallbackRequest, onComplete, client);
+                    queue.Enqueue(fallbackRequest, wrappedOnComplete, client);
                 else
-                    onComplete?.Invoke(AIResponse.Failure(fallbackRequest.RequestId, "No AI client available"));
+                    wrappedOnComplete?.Invoke(AIResponse.Failure(fallbackRequest.RequestId, "No AI client available"));
             }
         }
 

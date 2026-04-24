@@ -308,6 +308,7 @@
     <RimMind.Core.UI.AgentDialogue.Send>发送</RimMind.Core.UI.AgentDialogue.Send>
     <RimMind.Core.UI.AgentDialogue.PlayerLabel>玩家</RimMind.Core.UI.AgentDialogue.PlayerLabel>
     <RimMind.Core.UI.AgentDialogue.AgentLabel>Agent</RimMind.Core.UI.AgentDialogue.AgentLabel>
+    <RimMind.Core.UI.AgentDialogue.Thinking>(思考中...)</RimMind.Core.UI.AgentDialogue.Thinking>
 
     <!-- Agent Gizmo - Dialogue -->
     <RimMind.Core.Agent.Gizmo.Dialogue>对话</RimMind.Core.Agent.Gizmo.Dialogue>

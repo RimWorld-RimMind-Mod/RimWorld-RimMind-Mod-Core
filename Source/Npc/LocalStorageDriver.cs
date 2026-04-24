@@ -61,7 +61,6 @@ namespace RimMind.Core.Npc
             };
 
             var tcs = new TaskCompletionSource<AIResponse>();
-            // 直接入队
             var queue = AIRequestQueue.Instance;
             var client = RimMindAPI.GetClient();
             if (queue != null && client != null)
@@ -69,6 +68,8 @@ namespace RimMind.Core.Npc
             else
                 return new NpcChatResult { Error = "AI client not configured." };
 
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+            cts.Token.Register(() => tcs.TrySetResult(AIResponse.Failure(request.RequestId, "ChatAsync timed out (120s)")));
             var response = await tcs.Task;
             if (!response.Success)
                 return new NpcChatResult { Error = response.Error };

@@ -16,6 +16,7 @@ namespace RimMind.Core.UI
         private Vector2 _scrollPosition;
         private float _lastContentHeight;
         private const int MaxHistoryRounds = 20;
+        private int _lastHistoryCount;
 
         public override Vector2 InitialSize => new Vector2(500f, 500f);
 
@@ -39,22 +40,39 @@ namespace RimMind.Core.UI
             float historyHeight = inRect.height - 70f;
             var historyRect = new Rect(0f, 35f, inRect.width, historyHeight);
 
+            CheckAndUpdateThinking();
             DrawHistory(historyRect);
 
             float inputY = inRect.height - 30f;
             var inputRect = new Rect(0f, inputY, inRect.width - 100f, 30f);
             var sendRect = new Rect(inRect.width - 95f, inputY, 95f, 30f);
 
+            string prevText = _inputText;
             _inputText = Widgets.TextField(inputRect, _inputText);
+            bool inputFocused = GUI.GetNameOfFocusedControl() == "AgentDialogueInput";
+
             if (Widgets.ButtonText(sendRect, "RimMind.Core.UI.AgentDialogue.Send".Translate()))
             {
                 SendMessage();
             }
 
-            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return)
+            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return && inputFocused)
             {
                 SendMessage();
                 Event.current.Use();
+            }
+        }
+
+        private void CheckAndUpdateThinking()
+        {
+            if (_agent == null || !_agent.IsActive) return;
+
+            var history = HistoryManager.Instance.GetHistory(_npcId, MaxHistoryRounds);
+            int currentCount = history?.Count ?? 0;
+
+            if (currentCount != _lastHistoryCount)
+            {
+                _lastHistoryCount = currentCount;
             }
         }
 
@@ -85,7 +103,10 @@ namespace RimMind.Core.UI
                     string prefix = role == "user"
                         ? "RimMind.Core.UI.AgentDialogue.PlayerLabel".Translate() + ": "
                         : "RimMind.Core.UI.AgentDialogue.AgentLabel".Translate() + ": ";
-                    string line = prefix + content;
+                    string displayContent = content;
+                    if (role == "assistant" && content == "RimMind.Core.UI.AgentDialogue.Thinking".Translate())
+                        displayContent = content;
+                    string line = prefix + displayContent;
                     float height = Text.CalcHeight(line, contentRect.width - 10f) + 4f;
                     var lineRect = new Rect(5f, y, contentRect.width - 10f, height);
                     Widgets.Label(lineRect, line);
@@ -112,8 +133,52 @@ namespace RimMind.Core.UI
             string message = _inputText.Trim();
             _inputText = "";
 
-            HistoryManager.Instance.AddTurn(_npcId, message, "(thinking...)");
+            string thinkingText = "RimMind.Core.UI.AgentDialogue.Thinking".Translate();
+            HistoryManager.Instance.AddTurn(_npcId, message, thinkingText);
+
+            var npcId = _npcId;
             _agent.ForceThink();
+
+            var request = new RimMind.Core.Context.ContextRequest
+            {
+                NpcId = npcId,
+                Scenario = RimMind.Core.Context.ScenarioIds.Dialogue,
+                Budget = 0.6f,
+                CurrentQuery = message,
+                MaxTokens = 400,
+                Temperature = 0.8f,
+            };
+
+            var engine = RimMindAPI.GetContextEngine();
+            var snapshot = engine.BuildSnapshot(request);
+            var driver = RimMind.Core.Npc.StorageDriverFactory.GetDriver();
+
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var result = await driver.ChatAsync(snapshot);
+                    LongEventHandler.ExecuteWhenFinished(() =>
+                    {
+                        var currentHistory = HistoryManager.Instance.GetHistory(npcId, MaxHistoryRounds);
+                        if (currentHistory != null)
+                        {
+                            for (int i = currentHistory.Count - 1; i >= 0; i--)
+                            {
+                                if (currentHistory[i].role == "assistant" && currentHistory[i].content == thinkingText)
+                                {
+                                    HistoryManager.Instance.ReplaceLastAssistantTurn(npcId, result.Message ?? "");
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                }
+                catch (System.Exception ex)
+                {
+                    Log.Warning($"[RimMind] AgentDialogue chat failed: {ex.Message}");
+                }
+            });
         }
     }
 }

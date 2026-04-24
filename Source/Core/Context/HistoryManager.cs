@@ -94,5 +94,19 @@ namespace RimMind.Core.Context
             foreach (var kvp in data)
                 _histories[kvp.Key] = new List<HistoryEntry>(kvp.Value);
         }
+
+        public void ReplaceLastAssistantTurn(string npcId, string newContent)
+        {
+            if (!_histories.TryGetValue(npcId, out var entries) || entries.Count == 0) return;
+
+            for (int i = entries.Count - 1; i >= 0; i--)
+            {
+                if (entries[i].Role == "assistant")
+                {
+                    entries[i] = new HistoryEntry("assistant", newContent, entries[i].Tick, entries[i].Scenario);
+                    return;
+                }
+            }
+        }
     }
 }
