@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-    <name>RimMind - Core</name>
-    <author>mcocdaa</author>
-    <packageId>mcocdaa.RimMindCore</packageId>
-    <modVersion>0.0.1</modVersion>
-    <supportedVersions>
-        <li>1.6</li>
-    </supportedVersions>
-    <description>Infrastructure for AI-powered RimWorld mods. Provides LLM client, async request queue, game context builders, and debug tooling. Required by all RimMind suite components.</description>
-    <modDependencies>
-        <li>
-            <packageId>brrainz.harmony</packageId>
-            <displayName>Harmony</displayName>
-            <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
-        </li>
-    </modDependencies>
-    <loadAfter>
-        <li>brrainz.harmony</li>
-    </loadAfter>
+  <name>RimMind - Core</name>
+  <author>mcocdaa</author>
+  <packageId>mcocdaa.RimMindCore</packageId>
+  <modVersion>0.0.1</modVersion>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Infrastructure for AI-powered RimWorld mods. Provides LLM client, async request queue, game context builders, and debug tooling. Required by all RimMind suite components.</description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
 </ModMetaData>
