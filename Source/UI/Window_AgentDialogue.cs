@@ -145,8 +145,8 @@ namespace RimMind.Core.UI
                 Scenario = RimMind.Core.Context.ScenarioIds.Dialogue,
                 Budget = 0.6f,
                 CurrentQuery = message,
-                MaxTokens = 400,
-                Temperature = 0.8f,
+                MaxTokens = RimMindCoreMod.Settings.maxTokens,
+                Temperature = RimMindCoreMod.Settings.defaultTemperature,
             };
 
             var engine = RimMindAPI.GetContextEngine();

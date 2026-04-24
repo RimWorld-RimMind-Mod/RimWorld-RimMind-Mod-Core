@@ -477,7 +477,7 @@ namespace RimMind.Core.UI
 
             var asyncOp = webRequest.SendWebRequest();
 
-            float timeout = 30f;
+            float timeout = RimMindCoreMod.Settings?.requestTimeoutMs / 1000f ?? 30f;
             float elapsed = 0f;
 
             while (!asyncOp.isDone)

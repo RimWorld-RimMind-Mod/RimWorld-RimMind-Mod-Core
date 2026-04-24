@@ -39,7 +39,7 @@ namespace RimMind.Core.Flywheel
                 {
                     RunPeriodicAnalysis();
                 }
-                catch { }
+                catch (Exception ex) { Log.Warning($"[RimMind] Flywheel analysis failed: {ex.Message}"); }
             }
         }
 

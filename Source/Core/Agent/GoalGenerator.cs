@@ -93,7 +93,7 @@ namespace RimMind.Core.Agent
             if (_customGenerators.TryGetValue(eventType, out var customGen))
             {
                 try { return customGen(content) ?? new List<AgentGoal>(); }
-                catch { return new List<AgentGoal>(); }
+                catch (Exception ex) { Log.Warning($"[RimMind] Custom goal generator for '{eventType}' failed: {ex.Message}"); return new List<AgentGoal>(); }
             }
             var goals = new List<AgentGoal>();
             switch (eventType)

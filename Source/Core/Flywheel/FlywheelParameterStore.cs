@@ -18,6 +18,8 @@ namespace RimMind.Core.Flywheel
             RegisterDefaults();
         }
 
+        public int TotalBudget => (int)Get("TotalBudget");
+
         private void RegisterDefaults()
         {
             _defaults["w1"] = 0.4f;

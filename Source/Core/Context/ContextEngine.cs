@@ -242,7 +242,7 @@ namespace RimMind.Core.Context
                     });
                 }
             }
-            catch { }
+            catch (Exception ex) { Log.Warning($"[RimMind] Embedding snapshot failed: {ex.Message}"); }
 
             return snapshot;
         }
@@ -559,7 +559,7 @@ namespace RimMind.Core.Context
         {
             if (snapshot.Messages == null || snapshot.Messages.Count == 0) return;
 
-            int totalBudget = 4000;
+            int totalBudget = FlywheelParameterStore.Instance?.TotalBudget ?? 4000;
             int reserveForOutput = RimMindCoreMod.Settings?.maxTokens > 0
                 ? RimMindCoreMod.Settings.maxTokens
                 : 800;

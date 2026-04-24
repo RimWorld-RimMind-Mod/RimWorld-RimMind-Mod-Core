@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HarmonyLib;
+using RimMind.Core.Comps;
 using RimMind.Core.Perception;
 using RimWorld;
 using Verse;
@@ -24,7 +25,8 @@ namespace RimMind.Core.Patch
                 return;
             }
 
-            if (!pawn.IsHashIntervalTick(150)) return;
+            var comp = CompPawnAgent.GetComp(pawn);
+            if (comp?.Agent?.IsActive != true) return;
 
             float currentLevel = __instance.CurLevel;
 
