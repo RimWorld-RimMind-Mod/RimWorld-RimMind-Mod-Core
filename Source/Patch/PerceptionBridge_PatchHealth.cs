@@ -15,9 +15,10 @@ namespace RimMind.Core.Patch
                 || hediff.def.makesSickThought;
             if (!isHarmful && hediff.PainFactor <= 1f && hediff.Severity <= 0.1f) return;
             if (__instance.pawn == null || __instance.pawn.Dead) return;
-            if (!__instance.pawn.IsHashIntervalTick(60)) return;
 
             float severity = hediff.Severity;
+            if (severity <= 0.5f && !__instance.pawn.IsHashIntervalTick(60)) return;
+
             float importance = severity > 0.5f ? 0.9f : 0.7f;
             string content = $"HediffAdded:{hediff.def.defName}(severity:{severity:F1})";
             PerceptionBridge.PublishPerceptionForPawn(__instance.pawn, "damage", content, importance);

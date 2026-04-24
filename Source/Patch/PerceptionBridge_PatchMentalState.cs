@@ -13,7 +13,6 @@ namespace RimMind.Core.Patch
             if (!__result) return;
             var pawn = Traverse.Create(__instance).Field("pawn").GetValue<Pawn>();
             if (pawn == null || pawn.Dead) return;
-            if (!pawn.IsHashIntervalTick(120)) return;
 
             string content = $"MentalBreak:{pawn.LabelShortCap}({stateDef?.defName ?? "unknown"})";
             PerceptionBridge.PublishPerceptionForPawn(pawn, "mental_break", content, 0.9f);

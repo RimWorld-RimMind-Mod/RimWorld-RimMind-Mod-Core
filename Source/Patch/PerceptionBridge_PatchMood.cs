@@ -14,10 +14,18 @@ namespace RimMind.Core.Patch
         static void Postfix(Need_Mood __instance)
         {
             var pawn = Traverse.Create(__instance).Field("pawn").GetValue<Pawn>();
-            if (pawn == null || pawn.Dead) return;
-            if (!pawn.IsHashIntervalTick(150)) return;
+            if (pawn == null) return;
 
             int pawnId = pawn.thingIDNumber;
+
+            if (pawn.Dead)
+            {
+                _lastMoodLevel.Remove(pawnId);
+                return;
+            }
+
+            if (!pawn.IsHashIntervalTick(150)) return;
+
             float currentLevel = __instance.CurLevel;
 
             if (!_lastMoodLevel.TryGetValue(pawnId, out float lastLevel))
@@ -31,6 +39,12 @@ namespace RimMind.Core.Patch
             {
                 string content = $"MoodDrop:{currentLevel:F2}(drop:{drop:F2})";
                 PerceptionBridge.PublishPerceptionForPawn(pawn, "mood_drop", content, 0.6f);
+            }
+
+            if (currentLevel < 0.15f && lastLevel >= 0.15f)
+            {
+                string content = $"MoodCritical:{currentLevel:F2}";
+                PerceptionBridge.PublishPerceptionForPawn(pawn, "mood_critical", content, 0.9f);
             }
 
             _lastMoodLevel[pawnId] = currentLevel;

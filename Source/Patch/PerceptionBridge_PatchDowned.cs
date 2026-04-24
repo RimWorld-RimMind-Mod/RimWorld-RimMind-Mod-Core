@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HarmonyLib;
+using RimMind.Core.Comps;
 using RimMind.Core.Perception;
 using Verse;
 
@@ -12,8 +13,18 @@ namespace RimMind.Core.Patch
 
         static void Postfix(Pawn __instance, ref bool __result)
         {
-            if (__instance == null || __instance.Dead) return;
+            if (__instance == null) return;
+
             int pawnId = __instance.thingIDNumber;
+
+            if (__instance.Dead)
+            {
+                _wasDowned.Remove(pawnId);
+                return;
+            }
+
+            var comp = CompPawnAgent.GetComp(__instance);
+            if (comp?.Agent?.IsActive != true) return;
 
             bool wasDown = _wasDowned.Contains(pawnId);
             if (__result && !wasDown)
