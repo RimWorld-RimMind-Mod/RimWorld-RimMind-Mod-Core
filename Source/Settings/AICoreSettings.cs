@@ -1,3 +1,4 @@
+using RimMind.Core.Flywheel;
 using Verse;
 
 namespace RimMind.Core.Settings
@@ -34,6 +35,12 @@ namespace RimMind.Core.Settings
         public int maxRetryCount = 2;
         public int requestTimeoutMs = 120000;
 
+        public string telemetryDataPath = string.Empty;
+        public string embeddingSnapshotPath = string.Empty;
+        public string analysisReportPath = string.Empty;
+        public FlywheelAutoApplyMode autoApplyMode = FlywheelAutoApplyMode.Off;
+        public float autoApplyConfidenceThreshold = 0.8f;
+
         public bool IsConfigured()
         {
             if (provider == AIProvider.Player2)
@@ -68,6 +75,11 @@ namespace RimMind.Core.Settings
             Scribe_Values.Look(ref maxConcurrentRequests, "maxConcurrentRequests", 3);
             Scribe_Values.Look(ref maxRetryCount, "maxRetryCount", 2);
             Scribe_Values.Look(ref requestTimeoutMs, "requestTimeoutMs", 120000);
+            Scribe_Values.Look(ref telemetryDataPath, "telemetryDataPath", string.Empty);
+            Scribe_Values.Look(ref embeddingSnapshotPath, "embeddingSnapshotPath", string.Empty);
+            Scribe_Values.Look(ref analysisReportPath, "analysisReportPath", string.Empty);
+            Scribe_Values.Look(ref autoApplyMode, "autoApplyMode", FlywheelAutoApplyMode.Off);
+            Scribe_Values.Look(ref autoApplyConfidenceThreshold, "autoApplyConfidenceThreshold", 0.8f);
         }
     }
 }

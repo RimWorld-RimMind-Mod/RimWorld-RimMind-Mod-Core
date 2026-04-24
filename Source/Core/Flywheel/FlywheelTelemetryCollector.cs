@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using RimMind.Core.Context;
+using RimMind.Core.Settings;
 using Verse;
 
 namespace RimMind.Core.Flywheel
@@ -33,8 +34,10 @@ namespace RimMind.Core.Flywheel
     public class FlywheelTelemetryCollector
     {
         private const int FlushThreshold = 50;
+        private const int RecentRecordsCapacity = 200;
 
         private readonly List<TelemetryRecord> _buffer = new List<TelemetryRecord>();
+        private readonly List<TelemetryRecord> _recentRecords = new List<TelemetryRecord>();
         private readonly object _lock = new object();
 
         public void Record(TelemetryRecord record)
@@ -42,8 +45,21 @@ namespace RimMind.Core.Flywheel
             lock (_lock)
             {
                 _buffer.Add(record);
+                _recentRecords.Add(record);
+                if (_recentRecords.Count > RecentRecordsCapacity)
+                    _recentRecords.RemoveRange(0, _recentRecords.Count - RecentRecordsCapacity);
                 if (_buffer.Count >= FlushThreshold)
                     FlushInternal();
+            }
+        }
+
+        public List<TelemetryRecord> GetRecentRecords(int count)
+        {
+            lock (_lock)
+            {
+                if (count >= _recentRecords.Count)
+                    return new List<TelemetryRecord>(_recentRecords);
+                return _recentRecords.GetRange(_recentRecords.Count - count, count);
             }
         }
 
@@ -64,8 +80,10 @@ namespace RimMind.Core.Flywheel
 
             try
             {
-                string dataDir = GenFilePaths.SaveDataFolderPath;
-                string dir = Path.Combine(dataDir, "Telemetry");
+                string settingsPath = RimMindCoreMod.Settings?.telemetryDataPath;
+                string dir = !string.IsNullOrWhiteSpace(settingsPath)
+                    ? settingsPath
+                    : Path.Combine(GenFilePaths.SaveDataFolderPath, "Telemetry");
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
 

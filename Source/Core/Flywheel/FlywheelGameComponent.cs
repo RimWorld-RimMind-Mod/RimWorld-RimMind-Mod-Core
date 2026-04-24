@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using RimMind.Core.Context;
@@ -8,13 +10,44 @@ namespace RimMind.Core.Flywheel
 {
     public class FlywheelGameComponent : GameComponent
     {
+        private const int AnalysisIntervalTicks = 60000;
+        private int _lastAnalysisTick;
+
         public FlywheelGameComponent() : base() { }
 
         public override void ExposeData()
         {
             base.ExposeData();
             if (Scribe.mode == LoadSaveMode.Saving)
+            {
                 RimMindAPI.Telemetry.Flush();
+                var engine = RimMindAPI.GetContextEngine();
+                engine?.GetEmbeddingSnapshotStore()?.Flush();
+            }
+        }
+
+        public override void GameComponentTick()
+        {
+            base.GameComponentTick();
+            int ticks = Find.TickManager?.TicksGame ?? 0;
+            if (_lastAnalysisTick == 0)
+                _lastAnalysisTick = ticks;
+            if (ticks - _lastAnalysisTick >= AnalysisIntervalTicks)
+            {
+                _lastAnalysisTick = ticks;
+                try
+                {
+                    RunPeriodicAnalysis();
+                }
+                catch { }
+            }
+        }
+
+        private void RunPeriodicAnalysis()
+        {
+            var records = RimMindAPI.Telemetry.GetRecentRecords(100);
+            if (records == null || records.Count == 0) return;
+            FlywheelRuleEngine.Analyze(records);
         }
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using RimMind.Core.Client;
+using RimMind.Core.Flywheel;
 using RimMind.Core.Npc;
 using RimMind.Core.Prompt;
 using RimMind.Core.Settings;
@@ -27,6 +28,7 @@ namespace RimMind.Core.Context
         private readonly Dictionary<string, Dictionary<string, string>> _keyLastValues = new Dictionary<string, Dictionary<string, string>>();
         private readonly LinkedList<string> _cacheOrder = new LinkedList<string>();
         private readonly Dictionary<string, bool> _pendingCacheEvents = new Dictionary<string, bool>();
+        private readonly EmbeddingSnapshotStore _embeddingSnapshotStore = new EmbeddingSnapshotStore();
 
         public ContextEngine(HistoryManager historyManager)
         {
@@ -34,6 +36,7 @@ namespace RimMind.Core.Context
         }
 
         public BudgetScheduler GetScheduler() => _scheduler;
+        public EmbeddingSnapshotStore GetEmbeddingSnapshotStore() => _embeddingSnapshotStore;
 
         private void TouchCache(string npcId)
         {
@@ -209,6 +212,37 @@ namespace RimMind.Core.Context
                 if (key.UpdateCount > 0)
                     snapshot.KeyChangeCounts[key.Key] = key.UpdateCount;
             }
+
+            try
+            {
+                var allSnapshotKeys = schedule.L0Keys.Concat(schedule.L1Keys)
+                    .Concat(schedule.L2Keys).Concat(schedule.L3Keys);
+                foreach (var key in allSnapshotKeys)
+                {
+                    string sourceText = "";
+                    if (_keyLastValues.TryGetValue(request.NpcId, out var vals) &&
+                        vals.TryGetValue(key.Key, out var val))
+                    {
+                        sourceText = val.Length > 500 ? val.Substring(0, 500) : val;
+                    }
+                    float[] vector = SemanticEmbedding.GetBlockEmbedding(request.NpcId, key.Key);
+                    if (vector == null && key.KeyEmbedding != null)
+                        vector = key.KeyEmbedding;
+                    float relevanceScore = snapshot.KeyScores.TryGetValue(key.Key, out var score) ? score : 0f;
+                    _embeddingSnapshotStore.Record(new EmbeddingSnapshotRecord
+                    {
+                        NpcId = request.NpcId,
+                        ScenarioId = request.Scenario,
+                        Key = key.Key,
+                        Layer = key.Layer.ToString(),
+                        SourceText = sourceText,
+                        Vector = vector,
+                        RelevanceScore = relevanceScore,
+                        TimestampTicks = DateTime.Now.Ticks,
+                    });
+                }
+            }
+            catch { }
 
             return snapshot;
         }
