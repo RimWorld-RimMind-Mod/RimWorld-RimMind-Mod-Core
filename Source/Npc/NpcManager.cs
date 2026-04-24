@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using RimMind.Core.AgentBus;
 using RimMind.Core.Settings;
 using RimWorld.Planet;
 using Verse;
@@ -11,11 +12,6 @@ namespace RimMind.Core.Npc
         private Dictionary<string, NpcProfile> _registry = new Dictionary<string, NpcProfile>();
         private static NpcManager? _instance;
         public static NpcManager? Instance => _instance;
-
-        public NpcManager() : base()
-        {
-            _instance = this;
-        }
 
         public NpcManager(Game game) : base()
         {
@@ -31,7 +27,11 @@ namespace RimMind.Core.Npc
         public void KillNpc(string npcId)
         {
             if (string.IsNullOrEmpty(npcId)) return;
-            _registry.Remove(npcId);
+            if (_registry.TryGetValue(npcId, out var profile))
+            {
+                AgentBus.AgentBus.Publish(new AgentLifecycleEvent(npcId, 0, "Alive", "Dead"));
+                _registry.Remove(npcId);
+            }
         }
 
         public bool IsNpcAlive(string npcId)

@@ -31,6 +31,7 @@ namespace RimMind.Core.Npc
             Scribe_Values.Look(ref SystemPrompt, "sysPrompt");
             Scribe_Collections.Look(ref Commands, "commands", LookMode.Deep);
             Commands ??= new List<NpcCommand>();
+            Scribe_Deep.Look(ref TtsConfig, "ttsConfig");
         }
     }
 
@@ -50,11 +51,19 @@ namespace RimMind.Core.Npc
         }
     }
 
-    public class NpcTtsConfig
+    public class NpcTtsConfig : IExposable
     {
         public List<string> VoiceIds = new List<string>();
         public float Speed = 1.0f;
         public string AudioFormat = "mp3";
+
+        public void ExposeData()
+        {
+            Scribe_Collections.Look(ref VoiceIds, "voiceIds");
+            Scribe_Values.Look(ref Speed, "speed", 1.0f);
+            Scribe_Values.Look(ref AudioFormat, "audioFormat", "mp3");
+            VoiceIds ??= new List<string>();
+        }
     }
 
     public class NpcChatResult
