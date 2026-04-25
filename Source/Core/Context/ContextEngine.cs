@@ -63,11 +63,12 @@ namespace RimMind.Core.Context
             RelevanceTable.RegisterCoreRelevance();
             ContextKeyRegistry.RegisterCoreKeys();
             TouchCache(request.NpcId);
+            ContextKeyRegistry.CurrentScenario = request.Scenario ?? ScenarioIds.Dialogue;
 
             var snapshot = new ContextSnapshot
             {
                 NpcId = request.NpcId,
-                Scenario = request.Scenario,
+                Scenario = request.Scenario ?? ScenarioIds.Dialogue,
                 MaxTokens = request.MaxTokens,
                 Temperature = request.Temperature,
                 CurrentQuery = request.CurrentQuery,
@@ -77,7 +78,7 @@ namespace RimMind.Core.Context
             var pawn = FindPawnByNpcId(request.NpcId);
             var allKeys = ContextKeyRegistry.GetAll();
 
-            var scenarioMeta = ScenarioRegistry.Get(request.Scenario);
+            var scenarioMeta = ScenarioRegistry.Get(request.Scenario ?? ScenarioIds.Dialogue);
 
             var excludeSet = new HashSet<string>();
             if (scenarioMeta?.DefaultExcludeKeys != null)
@@ -94,7 +95,7 @@ namespace RimMind.Core.Context
                     : (RimMindCoreMod.Settings?.Context?.ContextBudget > 0
                         ? RimMindCoreMod.Settings.Context.ContextBudget
                         : 0.6f));
-            var schedule = _scheduler.Schedule(filteredKeys, request.Scenario, budget, request.CurrentQuery);
+            var schedule = _scheduler.Schedule(filteredKeys, request.Scenario ?? ScenarioIds.Dialogue, budget, request.CurrentQuery);
 
             var allScheduledKeys = schedule.L0Keys.Concat(schedule.L1Keys)
                 .Concat(schedule.L2Keys).Concat(schedule.L3Keys)
@@ -186,7 +187,7 @@ namespace RimMind.Core.Context
 
             if (!string.IsNullOrEmpty(request.CurrentQuery))
             {
-                messages.Add(new ChatMessage { Role = "user", Content = request.CurrentQuery });
+                messages.Add(new ChatMessage { Role = "user", Content = request.CurrentQuery! });
             }
 
             snapshot.Messages = messages;
@@ -225,18 +226,18 @@ namespace RimMind.Core.Context
                     {
                         sourceText = val.Length > 500 ? val.Substring(0, 500) : val;
                     }
-                    float[] vector = SemanticEmbedding.GetBlockEmbedding(request.NpcId, key.Key);
+                    float[]? vector = SemanticEmbedding.GetBlockEmbedding(request.NpcId, key.Key);
                     if (vector == null && key.KeyEmbedding != null)
                         vector = key.KeyEmbedding;
                     float relevanceScore = snapshot.KeyScores.TryGetValue(key.Key, out var score) ? score : 0f;
                     _embeddingSnapshotStore.Record(new EmbeddingSnapshotRecord
                     {
                         NpcId = request.NpcId,
-                        ScenarioId = request.Scenario,
+                        ScenarioId = request.Scenario ?? ScenarioIds.Dialogue,
                         Key = key.Key,
                         Layer = key.Layer.ToString(),
                         SourceText = sourceText,
-                        Vector = vector,
+                        Vector = vector!,
                         RelevanceScore = relevanceScore,
                         TimestampTicks = DateTime.Now.Ticks,
                     });
@@ -244,6 +245,7 @@ namespace RimMind.Core.Context
             }
             catch (Exception ex) { Log.Warning($"[RimMind] Embedding snapshot failed: {ex.Message}"); }
 
+            ContextKeyRegistry.CurrentScenario = string.Empty;
             return snapshot;
         }
 

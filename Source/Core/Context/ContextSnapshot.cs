@@ -5,7 +5,7 @@ namespace RimMind.Core.Context
 {
     public class ContextSnapshot
     {
-        public string NpcId;
+        public string NpcId = null!;
         public string Scenario = "";
         public List<ChatMessage> Messages = new List<ChatMessage>();
         public List<StructuredTool>? Tools;

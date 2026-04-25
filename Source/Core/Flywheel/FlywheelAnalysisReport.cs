@@ -11,16 +11,16 @@ namespace RimMind.Core.Flywheel
     {
         public bool Applied;
         public long ApplyTimestampTicks;
-        public string TriggerRule;
-        public string ComputationDetail;
+        public string TriggerRule = null!;
+        public string ComputationDetail = null!;
     }
 
     public class AnalysisReportRecord
     {
-        public string AnalysisWindow;
+        public string AnalysisWindow = null!;
         public int TotalRecords;
-        public Dictionary<string, float> ComputedMetrics;
-        public List<AnalysisRecommendationEntry> Recommendations;
+        public Dictionary<string, float> ComputedMetrics = null!;
+        public List<AnalysisRecommendationEntry> Recommendations = null!;
         public long GeneratedAtTicks;
     }
 
@@ -30,9 +30,9 @@ namespace RimMind.Core.Flywheel
         {
             try
             {
-                string settingsPath = RimMindCoreMod.Settings?.analysisReportPath;
+                string? settingsPath = RimMindCoreMod.Settings?.analysisReportPath;
                 string dir = !string.IsNullOrWhiteSpace(settingsPath)
-                    ? settingsPath
+                    ? settingsPath!
                     : Path.Combine(GenFilePaths.SaveDataFolderPath, "Telemetry", "Analysis");
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);

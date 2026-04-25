@@ -98,7 +98,7 @@ namespace RimMind.Core.Npc
                 if (!response.Success)
                     return new NpcChatResult { Error = response.Error };
 
-                var result = JsonConvert.DeserializeObject<NpcChatResult>(response.Content);
+                var result = JsonConvert.DeserializeObject<NpcChatResult>(response.Content!);
                 result ??= new NpcChatResult { Message = response.Content ?? "" };
                 MaybeDispatch(result, snapshot.NpcId);
                 return result;
@@ -114,7 +114,6 @@ namespace RimMind.Core.Npc
         {
             try
             {
-                // 当 gameStateInfo 为空时，通过 ContextEngine 构建游戏状态
                 if (string.IsNullOrEmpty(gameStateInfo))
                 {
                     var engine = RimMindAPI.GetContextEngine();
@@ -157,7 +156,7 @@ namespace RimMind.Core.Npc
                 if (!response.Success)
                     return new NpcChatResult { Error = response.Error };
 
-                var result = JsonConvert.DeserializeObject<NpcChatResult>(response.Content);
+                var result = JsonConvert.DeserializeObject<NpcChatResult>(response.Content!);
                 result ??= new NpcChatResult { Message = response.Content ?? "" };
                 MaybeDispatch(result, npcId);
                 return result;
@@ -234,7 +233,7 @@ namespace RimMind.Core.Npc
                 string json = JsonConvert.SerializeObject(body);
                 var response = await _client.SendRawAsync($"/games/{_gameId}/data/user/batch", json);
                 if (!response.Success) return new Dictionary<string, string>();
-                return JsonConvert.DeserializeObject<Dictionary<string, string>>(response.Content)
+                return JsonConvert.DeserializeObject<Dictionary<string, string>>(response.Content!)
                     ?? new Dictionary<string, string>();
             }
             catch { return new Dictionary<string, string>(); }

@@ -10,24 +10,24 @@ namespace RimMind.Core.Flywheel
 {
     public class TelemetryRecord
     {
-        public string NpcId;
-        public string Scenario;
+        public string NpcId = null!;
+        public string Scenario = null!;
         public int PromptTokens;
         public int CompletionTokens;
         public int TotalTokens;
         public int CachedTokens;
         public float BudgetValue;
-        public string[] KeysIncluded;
-        public string[] KeysTrimmed;
-        public Dictionary<string, int> LayerTokenBreakdown;
+        public string[] KeysIncluded = null!;
+        public string[] KeysTrimmed = null!;
+        public Dictionary<string, int> LayerTokenBreakdown = null!;
         public long TimestampTicks;
-        public Dictionary<string, int> KeyChangeFreq;
-        public Dictionary<string, float> CacheHitRate;
-        public Dictionary<string, float> ScoreDistribution;
+        public Dictionary<string, int> KeyChangeFreq = null!;
+        public Dictionary<string, float> CacheHitRate = null!;
+        public Dictionary<string, float> ScoreDistribution = null!;
         public int DiffCount;
         public float DiffMergeLatency;
         public bool ResponseParseSuccess;
-        public Dictionary<string, long> LatencyByLayerMs;
+        public Dictionary<string, long> LatencyByLayerMs = null!;
         public long RequestLatencyMs;
     }
 
@@ -80,9 +80,9 @@ namespace RimMind.Core.Flywheel
 
             try
             {
-                string settingsPath = RimMindCoreMod.Settings?.telemetryDataPath;
+                string? settingsPath = RimMindCoreMod.Settings?.telemetryDataPath;
                 string dir = !string.IsNullOrWhiteSpace(settingsPath)
-                    ? settingsPath
+                    ? settingsPath!
                     : Path.Combine(GenFilePaths.SaveDataFolderPath, "Telemetry");
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
@@ -121,15 +121,15 @@ namespace RimMind.Core.Flywheel
                 },
                 KeyChangeFreq = snapshot.KeyChangeCounts.Count > 0
                     ? new Dictionary<string, int>(snapshot.KeyChangeCounts)
-                    : null,
-                CacheHitRate = ComputeCacheHitRates(snapshot),
+                    : null!,
+                CacheHitRate = ComputeCacheHitRates(snapshot)!,
                 ScoreDistribution = snapshot.KeyScores.Count > 0
                     ? new Dictionary<string, float>(snapshot.KeyScores)
-                    : null,
+                    : null!,
                 DiffCount = snapshot.DiffCount,
                 LatencyByLayerMs = snapshot.LatencyByLayerMs.Count > 0
                     ? new Dictionary<string, long>(snapshot.LatencyByLayerMs)
-                    : null,
+                    : null!,
                 RequestLatencyMs = snapshot.BuildStartTicks > 0
                     ? (DateTime.Now.Ticks - snapshot.BuildStartTicks) / TimeSpan.TicksPerMillisecond
                     : 0,
@@ -138,7 +138,7 @@ namespace RimMind.Core.Flywheel
             Record(record);
         }
 
-        private static Dictionary<string, float> ComputeCacheHitRates(ContextSnapshot snapshot)
+        private static Dictionary<string, float>? ComputeCacheHitRates(ContextSnapshot snapshot)
         {
             if (snapshot.CacheHitEvents.Count == 0) return null;
             var byLayer = new Dictionary<string, List<bool>>();

@@ -6,10 +6,10 @@ namespace RimMind.Core.Context
     {
         public const int DefaultLifetimeTicks = 600;
 
-        public string Key;
+        public string Key = null!;
         public ContextLayer Layer;
-        public string OldValue;
-        public string NewValue;
+        public string OldValue = null!;
+        public string NewValue = null!;
         public int InsertedTick;
         public int ExpireTick;
 

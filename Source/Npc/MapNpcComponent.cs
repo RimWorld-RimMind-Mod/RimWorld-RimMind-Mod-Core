@@ -20,20 +20,32 @@ namespace RimMind.Core.Npc
             }
             else if (NpcManager.Instance != null)
             {
-                _profile = NpcManager.Instance.GetNpc(_npcId);
+                _profile = NpcManager.Instance.GetNpc(_npcId)!;
+            }
+        }
+
+        public override void MapRemoved()
+        {
+            base.MapRemoved();
+            if (NpcManager.Instance != null && NpcManager.Instance.IsNpcAlive(_npcId))
+            {
+                NpcManager.Instance.KillNpc(_npcId);
             }
         }
 
         public override void ExposeData()
         {
             base.ExposeData();
+#pragma warning disable CS8601
             Scribe_Values.Look(ref _npcId, "npcId");
+#pragma warning restore CS8601
+            _npcId ??= "";
 
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
                 if (NpcManager.Instance != null)
                 {
-                    _profile = NpcManager.Instance.GetNpc(_npcId);
+                    _profile = NpcManager.Instance.GetNpc(_npcId!)!;
                     if (_profile == null && !string.IsNullOrEmpty(_npcId))
                     {
                         _profile = NpcProfileBuilder.BuildMapNpc(map);

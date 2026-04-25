@@ -23,12 +23,19 @@ namespace RimMind.Core.Npc
 
         public void ExposeData()
         {
+#pragma warning disable CS8601
             Scribe_Values.Look(ref NpcId, "npcId");
             Scribe_Values.Look(ref Type, "type");
             Scribe_Values.Look(ref Name, "name");
             Scribe_Values.Look(ref ShortName, "shortName");
             Scribe_Values.Look(ref CharacterDescription, "charDesc");
             Scribe_Values.Look(ref SystemPrompt, "sysPrompt");
+#pragma warning restore CS8601
+            NpcId ??= "";
+            Name ??= "";
+            ShortName ??= "";
+            CharacterDescription ??= "";
+            SystemPrompt ??= "";
             Scribe_Collections.Look(ref Commands, "commands", LookMode.Deep);
             Commands ??= new List<NpcCommand>();
             Scribe_Deep.Look(ref TtsConfig, "ttsConfig");
@@ -44,8 +51,12 @@ namespace RimMind.Core.Npc
 
         public void ExposeData()
         {
+#pragma warning disable CS8601
             Scribe_Values.Look(ref Name, "name");
             Scribe_Values.Look(ref Description, "desc");
+#pragma warning restore CS8601
+            Name ??= "";
+            Description ??= "";
             Scribe_Values.Look(ref Parameters, "params");
             Scribe_Values.Look(ref NeverRespondWithMessage, "neverRespond", false);
         }

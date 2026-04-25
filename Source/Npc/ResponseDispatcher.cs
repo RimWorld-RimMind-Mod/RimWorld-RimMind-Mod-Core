@@ -24,7 +24,7 @@ namespace RimMind.Core.Npc
                 DispatchCommands(result.Commands.ToArray(), pawn);
 
             if (!string.IsNullOrEmpty(result.AudioUrl))
-                DispatchAudio(result.AudioUrl);
+                DispatchAudio(result.AudioUrl!);
         }
 
         public static void DispatchMessage(string message, Pawn? pawn)

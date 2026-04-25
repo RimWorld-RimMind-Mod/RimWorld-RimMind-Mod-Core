@@ -64,7 +64,7 @@ namespace RimMind.Core.Npc
             var queue = AIRequestQueue.Instance;
             var client = RimMindAPI.GetClient();
             if (queue != null && client != null)
-                queue.Enqueue(request, resp => tcs.SetResult(resp), client);
+                queue.Enqueue(request, resp => tcs.TrySetResult(resp), client);
             else
                 return new NpcChatResult { Error = "AI client not configured." };
 
@@ -76,7 +76,8 @@ namespace RimMind.Core.Npc
 
             string content = response.Content ?? "";
 
-            // 解析命令
+            content = ExtractMessageFromJson(content);
+
             var commands = ParseCommands(content);
 
             // 提取 user 消息和 assistant 消息用于历史记录
@@ -135,7 +136,7 @@ namespace RimMind.Core.Npc
         }
 
         public Task<bool> PutAsync(string key, string value) { _kvStore[key] = value; return Task.FromResult(true); }
-        public Task<string?> GetAsync(string key) { _kvStore.TryGetValue(key, out var v); return Task.FromResult(v); }
+        public Task<string?> GetAsync(string key) { _kvStore.TryGetValue(key, out var v); return Task.FromResult<string?>(v); }
         public Task<bool> DeleteAsync(string key) { _kvStore.Remove(key); return Task.FromResult(true); }
         public Task<Dictionary<string, string>> GetBatchAsync(IEnumerable<string> keys)
         {
@@ -167,6 +168,22 @@ namespace RimMind.Core.Npc
         /// <summary>
         /// 解析响应中的命令格式 [CMD:action_name:params] 或 [CMD:action_name]
         /// </summary>
+        private static string ExtractMessageFromJson(string content)
+        {
+            if (string.IsNullOrEmpty(content) || !content.TrimStart().StartsWith("{")) return content;
+            try
+            {
+                var obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, object>>(content);
+                if (obj != null && obj.TryGetValue("message", out var msg) && msg != null)
+                {
+                    string? extracted = msg.ToString();
+                    if (!string.IsNullOrEmpty(extracted)) return extracted;
+                }
+            }
+            catch { }
+            return content;
+        }
+
         private static List<NpcCommandResult> ParseCommands(string content)
         {
             var commands = new List<NpcCommandResult>();

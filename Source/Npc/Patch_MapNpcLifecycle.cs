@@ -19,18 +19,4 @@ namespace RimMind.Core.Patch
         }
     }
 
-    [HarmonyPatch(typeof(Map), "Deinit")]
-    public static class Patch_Map_Deinit
-    {
-        static void Prefix(Map __instance)
-        {
-            if (__instance == null) return;
-
-            string npcId = NpcManager.GetMapNpcId(__instance);
-            if (NpcManager.Instance != null && NpcManager.Instance.IsNpcAlive(npcId))
-            {
-                NpcManager.Instance.KillNpc(npcId);
-            }
-        }
-    }
 }

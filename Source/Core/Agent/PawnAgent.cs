@@ -85,7 +85,7 @@ namespace RimMind.Core.Agent
             }
 
             var topGoal = _goalStack.ActiveGoals[0];
-            var npcId = $"NPC-{Pawn.ThingID}";
+            var npcId = $"NPC-{Pawn.thingIDNumber}";
             var ctxRequest = new ContextRequest
             {
                 NpcId = npcId,
@@ -110,7 +110,7 @@ namespace RimMind.Core.Agent
 
             var aiRequest = new AIRequest
             {
-                SystemPrompt = null,
+                SystemPrompt = null!,
                 Messages = snapshot.Messages,
                 MaxTokens = snapshot.MaxTokens,
                 Temperature = snapshot.Temperature,
@@ -157,7 +157,7 @@ namespace RimMind.Core.Agent
 
             if (!string.IsNullOrEmpty(response.ToolCallsJson))
             {
-                HandleToolCalls(response.ToolCallsJson, goal);
+                HandleToolCalls(response.ToolCallsJson!, goal);
                 return;
             }
 
@@ -173,7 +173,7 @@ namespace RimMind.Core.Agent
 
                 if (!string.IsNullOrEmpty(action))
                 {
-                    PublishDecisionAndRecord(action, null, reason ?? "");
+                    PublishDecisionAndRecord(action!, null, reason ?? "");
                 }
             }
             catch (System.Exception ex)
@@ -275,7 +275,7 @@ namespace RimMind.Core.Agent
 
             _lastMessages = messages;
 
-            var npcId = $"NPC-{Pawn.ThingID}";
+            var npcId = $"NPC-{Pawn.thingIDNumber}";
             var followUpRequest = new AIRequest
             {
                 Messages = messages,
@@ -315,7 +315,7 @@ namespace RimMind.Core.Agent
                 }
                 try
                 {
-                    executed = bridge.Execute(action, Pawn, targetPawn, null, eventId);
+                    executed = bridge.Execute(action, Pawn!, targetPawn, null, eventId);
                     resultReason = executed ? "Executed" : "Execution failed";
                 }
                 catch (System.Exception ex)

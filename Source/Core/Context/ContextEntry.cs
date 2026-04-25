@@ -2,7 +2,7 @@ namespace RimMind.Core.Context
 {
     public class ContextEntry
     {
-        public string Content;
+        public string Content = null!;
         public float[]? Embedding;
         public string? Tag;
 

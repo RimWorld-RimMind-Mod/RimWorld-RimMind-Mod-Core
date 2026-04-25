@@ -11,6 +11,8 @@ namespace RimMind.Core.Context
     {
         private static readonly Dictionary<string, KeyMeta> _keys = new Dictionary<string, KeyMeta>();
         private static bool _coreRegistered = false;
+        private static string _currentScenario = string.Empty;
+        public static string CurrentScenario { get => _currentScenario; set => _currentScenario = value; }
 
         public static void Register(string key, ContextLayer layer, float priority,
             Func<Pawn, List<ContextEntry>> provider, string ownerMod,
@@ -74,11 +76,11 @@ namespace RimMind.Core.Context
                     var profile = NpcManager.Instance?.GetNpc($"NPC-{pawn.thingIDNumber}");
                     if (profile == null) return WrapEntry("");
                     var sb = new System.Text.StringBuilder();
-                    sb.AppendLine($"Name: {profile.Name}");
+                    sb.AppendLine("RimMind.Core.Prompt.Identity.Name".Translate(profile.Name));
                     if (!string.IsNullOrEmpty(profile.ShortName))
-                        sb.AppendLine($"ShortName: {profile.ShortName}");
+                        sb.AppendLine("RimMind.Core.Prompt.Identity.ShortName".Translate(profile.ShortName));
                     if (!string.IsNullOrEmpty(profile.CharacterDescription))
-                        sb.AppendLine($"Description: {profile.CharacterDescription}");
+                        sb.AppendLine("RimMind.Core.Prompt.Identity.Description".Translate(profile.CharacterDescription));
                     return WrapEntry(sb.ToString().TrimEnd());
                 }, "Core");
             Register("npc_commands", ContextLayer.L0_Static, 1.0f,
@@ -87,22 +89,27 @@ namespace RimMind.Core.Context
                     var profile = NpcManager.Instance?.GetNpc($"NPC-{pawn.thingIDNumber}");
                     if (profile == null || profile.Commands.Count == 0) return WrapEntry("");
                     var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("Available commands:");
+                    sb.AppendLine("RimMind.Core.Prompt.Commands.Available".Translate());
                     foreach (var cmd in profile.Commands)
-                        sb.AppendLine($"- {cmd.Name}: {cmd.Description}");
+                        sb.AppendLine("RimMind.Core.Prompt.Commands.Entry".Translate(cmd.Name, cmd.Description));
                     return WrapEntry(sb.ToString().TrimEnd());
                 }, "Core");
             Register("world_rules", ContextLayer.L0_Static, 1.0f,
                 pawn =>
                 {
                     var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("Core rules:");
-                    sb.AppendLine("- Colonists must survive by managing food, shelter, and mood");
-                    sb.AppendLine("- Combat is dangerous; avoid unnecessary fights");
-                    sb.AppendLine("- Relationships affect mood and productivity");
-                    sb.AppendLine("- Weather and seasons impact survival");
-                    sb.AppendLine("- Medical needs must be addressed promptly");
+                    sb.AppendLine("RimMind.Core.Prompt.WorldRules.Header".Translate());
+                    sb.AppendLine("RimMind.Core.Prompt.WorldRules.Survival".Translate());
+                    sb.AppendLine("RimMind.Core.Prompt.WorldRules.Combat".Translate());
+                    sb.AppendLine("RimMind.Core.Prompt.WorldRules.Relationships".Translate());
+                    sb.AppendLine("RimMind.Core.Prompt.WorldRules.Weather".Translate());
+                    sb.AppendLine("RimMind.Core.Prompt.WorldRules.Medical".Translate());
                     return WrapEntry(sb.ToString().TrimEnd());
+                }, "Core");
+            Register("npc_task_instruction", ContextLayer.L0_Static, 1.0f,
+                pawn =>
+                {
+                    return WrapEntry("RimMind.Core.Prompt.TaskInstruction.Base".Translate());
                 }, "Core");
 
             Register("map_structure", ContextLayer.L1_Baseline, 0.95f,

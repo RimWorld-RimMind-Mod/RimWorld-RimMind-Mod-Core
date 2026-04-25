@@ -10,12 +10,12 @@ namespace RimMind.Core.Flywheel
 {
     public class EmbeddingSnapshotRecord
     {
-        public string NpcId;
-        public string ScenarioId;
-        public string Key;
-        public string Layer;
-        public string SourceText;
-        public float[] Vector;
+        public string NpcId = null!;
+        public string ScenarioId = null!;
+        public string Key = null!;
+        public string Layer = null!;
+        public string SourceText = null!;
+        public float[] Vector = null!;
         public float RelevanceScore;
         public long TimestampTicks;
     }
@@ -54,9 +54,9 @@ namespace RimMind.Core.Flywheel
 
             try
             {
-                string settingsPath = RimMindCoreMod.Settings?.embeddingSnapshotPath;
+                string? settingsPath = RimMindCoreMod.Settings?.embeddingSnapshotPath;
                 string dir = !string.IsNullOrWhiteSpace(settingsPath)
-                    ? settingsPath
+                    ? settingsPath!
                     : Path.Combine(GenFilePaths.SaveDataFolderPath, "Telemetry", "Embedding");
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);

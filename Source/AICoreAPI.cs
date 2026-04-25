@@ -106,9 +106,42 @@ namespace RimMind.Core
 
         public static async Task<NpcChatResult> Chat(ContextRequest request, CancellationToken ct = default)
         {
-            var snapshot = _contextEngine.BuildSnapshot(request);
             var driver = StorageDriverFactory.GetDriver();
+
+            if (!driver.IsNpcAlive(request.NpcId) && request.NpcId.StartsWith("NPC-"))
+            {
+                if (int.TryParse(request.NpcId.Substring(4), out int thingId))
+                {
+                    var pawn = FindPawnByThingId(thingId);
+                    if (pawn != null)
+                    {
+                        var profile = NpcProfileBuilder.BuildPawnNpc(pawn);
+                        await driver.SpawnNpcAsync(profile);
+                        NpcManager.Instance?.SpawnNpc(profile);
+                    }
+                }
+            }
+
+            var snapshot = _contextEngine.BuildSnapshot(request);
             return await driver.ChatAsync(snapshot, ct);
+        }
+
+        private static Pawn? FindPawnByThingId(int thingId)
+        {
+            foreach (var map in Find.Maps)
+            {
+                if (map.mapPawns?.AllPawns != null)
+                {
+                    foreach (var p in map.mapPawns.AllPawns)
+                        if (p.thingIDNumber == thingId) return p;
+                }
+            }
+            if (Find.WorldPawns?.AllPawnsAlive != null)
+            {
+                foreach (var p in Find.WorldPawns.AllPawnsAlive)
+                    if (p.thingIDNumber == thingId) return p;
+            }
+            return null;
         }
 
         // ── Structured Request API ───────────────────────────────────────────
@@ -191,7 +224,7 @@ namespace RimMind.Core
             var snapshot = _contextEngine.BuildSnapshot(request);
             var aiRequest = new AIRequest
             {
-                SystemPrompt = null,
+                SystemPrompt = null!,
                 Messages = snapshot.Messages,
                 MaxTokens = snapshot.MaxTokens,
                 Temperature = snapshot.Temperature,
@@ -227,14 +260,14 @@ namespace RimMind.Core
                             { "L4", snapshot.Meta.L4Tokens },
                         },
                         KeyChangeFreq = snapshot.KeyChangeCounts.Count > 0
-                            ? new Dictionary<string, int>(snapshot.KeyChangeCounts) : null,
+                            ? new Dictionary<string, int>(snapshot.KeyChangeCounts) : null!,
                         CacheHitRate = snapshot.CacheHitEvents.Count > 0
-                            ? ComputeCacheHitRatesFromSnapshot(snapshot) : null,
+                            ? ComputeCacheHitRatesFromSnapshot(snapshot)! : null!,
                         ScoreDistribution = snapshot.KeyScores.Count > 0
-                            ? new Dictionary<string, float>(snapshot.KeyScores) : null,
+                            ? new Dictionary<string, float>(snapshot.KeyScores) : null!,
                         DiffCount = snapshot.DiffCount,
                         LatencyByLayerMs = snapshot.LatencyByLayerMs.Count > 0
-                            ? new Dictionary<string, long>(snapshot.LatencyByLayerMs) : null,
+                            ? new Dictionary<string, long>(snapshot.LatencyByLayerMs) : null!,
                         RequestLatencyMs = snapshot.BuildStartTicks > 0
                             ? (DateTime.Now.Ticks - snapshot.BuildStartTicks) / TimeSpan.TicksPerMillisecond : 0,
                         ResponseParseSuccess = parseSuccess,
@@ -253,7 +286,7 @@ namespace RimMind.Core
             {
                 var fallbackRequest = new AIRequest
                 {
-                    SystemPrompt = null,
+                    SystemPrompt = null!,
                     Messages = snapshot.Messages,
                     MaxTokens = snapshot.MaxTokens,
                     Temperature = snapshot.Temperature,
@@ -311,7 +344,7 @@ namespace RimMind.Core
             var wrappedProvider = new Func<Pawn, List<ContextEntry>>(_ =>
             {
                 string? val = provider();
-                return string.IsNullOrEmpty(val) ? new List<ContextEntry>() : new List<ContextEntry> { new ContextEntry(val) };
+                return string.IsNullOrEmpty(val) ? new List<ContextEntry>() : new List<ContextEntry> { new ContextEntry(val!) };
             });
             ContextKeyRegistry.Register(category, layer, priorityFloat, wrappedProvider, modId);
         }
@@ -341,7 +374,7 @@ namespace RimMind.Core
             var wrappedProvider = new Func<Pawn, List<ContextEntry>>(pawn =>
             {
                 string? val = provider(pawn);
-                return string.IsNullOrEmpty(val) ? new List<ContextEntry>() : new List<ContextEntry> { new ContextEntry(val) };
+                return string.IsNullOrEmpty(val) ? new List<ContextEntry>() : new List<ContextEntry> { new ContextEntry(val!) };
             });
             ContextKeyRegistry.Register(category, layer, priorityFloat, wrappedProvider, modId);
         }
@@ -652,7 +685,7 @@ namespace RimMind.Core
             return ContextLayer.L3_State;
         }
 
-        private static Dictionary<string, float> ComputeCacheHitRatesFromSnapshot(ContextSnapshot snapshot)
+        private static Dictionary<string, float>? ComputeCacheHitRatesFromSnapshot(ContextSnapshot snapshot)
         {
             if (snapshot.CacheHitEvents.Count == 0) return null;
             var byLayer = new Dictionary<string, List<bool>>();

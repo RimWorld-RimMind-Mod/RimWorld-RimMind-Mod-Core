@@ -20,7 +20,7 @@ namespace RimMind.Core.Prompt
         public List<PromptSection> Compose(List<PromptSection> sections)
         {
             if (sections == null || sections.Count == 0)
-                return sections;
+                return sections!;
 
             var result = sections.Select(s => s.Clone()).ToList();
             int totalTokens = result.Sum(s => s.EstimatedTokens);

@@ -50,8 +50,19 @@ namespace RimMind.Core.Client.OpenAI
 
         public async Task<AIResponse> SendAsync(AIRequest request)
         {
+            var response = await SendAsyncInner(request, useResponseFormat: _settings.forceJsonMode && request.UseJsonMode);
+            if (!response.Success && IsResponseFormatError(response))
+            {
+                AIRequestQueue.LogFromBackground($"[RimMind] json_object not supported, retrying without response_format for {request.RequestId}", isWarning: true);
+                response = await SendAsyncInner(request, useResponseFormat: false);
+            }
+            return response;
+        }
+
+        private async Task<AIResponse> SendAsyncInner(AIRequest request, bool useResponseFormat)
+        {
             string endpoint = FormatEndpoint(_settings.apiEndpoint);
-            string json = BuildRequestJson(request);
+            string json = BuildRequestJson(request, useResponseFormat);
 
             if (_settings.debugLogging)
                 AIRequestQueue.LogFromBackground($"[RimMind] → {request.RequestId}\n{json}");
@@ -110,10 +121,33 @@ namespace RimMind.Core.Client.OpenAI
         public async Task<AIResponse> SendStructuredAsync(AIRequest request, string? jsonSchema, List<StructuredTool>? tools)
         {
             string endpoint = FormatEndpoint(_settings.apiEndpoint);
-            string json = BuildStructuredRequestJson(request, jsonSchema, tools);
+
+            var response = await TrySendStructuredAsync(request, endpoint, jsonSchema, tools, "json_schema");
+            if (response.Success || !IsResponseFormatError(response))
+                return response;
+
+            AIRequestQueue.LogFromBackground($"[RimMind] json_schema not supported, retrying with json_object for {request.RequestId}", isWarning: true);
+            response = await TrySendStructuredAsync(request, endpoint, null, tools, "json_object");
+            if (response.Success || !IsResponseFormatError(response))
+                return response;
+
+            AIRequestQueue.LogFromBackground($"[RimMind] json_object not supported, retrying without response_format for {request.RequestId}", isWarning: true);
+            return await TrySendStructuredAsync(request, endpoint, null, tools, "none");
+        }
+
+        public static bool IsResponseFormatError(AIResponse response)
+        {
+            if (response.HttpStatusCode != 400 && response.HttpStatusCode != 422) return false;
+            string err = response.Error ?? "";
+            return err.Contains("response_format") || err.Contains("json_schema") || err.Contains("json_object");
+        }
+
+        private async Task<AIResponse> TrySendStructuredAsync(AIRequest request, string endpoint, string? jsonSchema, List<StructuredTool>? tools, string formatMode)
+        {
+            string json = BuildStructuredRequestJson(request, jsonSchema, tools, formatMode);
 
             if (_settings.debugLogging)
-                AIRequestQueue.LogFromBackground($"[RimMind] → Structured {request.RequestId}\n{json}");
+                AIRequestQueue.LogFromBackground($"[RimMind] → Structured {request.RequestId} (format={formatMode})\n{json}");
 
             var sw = Stopwatch.StartNew();
             try
@@ -190,9 +224,12 @@ namespace RimMind.Core.Client.OpenAI
             }
         }
 
-        private string BuildRequestJson(AIRequest request)
+        private string BuildRequestJson(AIRequest request, bool useResponseFormat = true)
         {
             List<MessageDto> messages = BuildMessages(request);
+
+            if (useResponseFormat)
+                EnsureJsonKeyword(messages);
 
             var body = new OpenAIRequestDto
             {
@@ -203,16 +240,19 @@ namespace RimMind.Core.Client.OpenAI
                 stream = false,
             };
 
-            if (_settings.forceJsonMode && request.UseJsonMode)
+            if (useResponseFormat)
                 body.response_format = new ResponseFormatDto { type = "json_object" };
 
             return JsonConvert.SerializeObject(body, Formatting.None,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
         }
 
-        private string BuildStructuredRequestJson(AIRequest request, string? jsonSchema, List<StructuredTool>? tools)
+        private string BuildStructuredRequestJson(AIRequest request, string? jsonSchema, List<StructuredTool>? tools, string formatMode = "json_schema")
         {
             List<MessageDto> messages = BuildMessages(request);
+
+            if (formatMode == "json_object")
+                EnsureJsonKeyword(messages);
 
             var body = new OpenAIRequestDto
             {
@@ -223,15 +263,15 @@ namespace RimMind.Core.Client.OpenAI
                 stream = false,
             };
 
-            if (!string.IsNullOrEmpty(jsonSchema))
+            if (formatMode == "json_schema" && !string.IsNullOrEmpty(jsonSchema))
             {
                 body.response_format = new ResponseFormatDto
                 {
                     type = "json_schema",
-                    json_schema = new { name = "response", schema = JsonConvert.DeserializeObject(jsonSchema) },
+                    json_schema = new { name = "response", schema = JsonConvert.DeserializeObject(jsonSchema!) },
                 };
             }
-            else if (_settings.forceJsonMode && request.UseJsonMode)
+            else if (formatMode == "json_object" && (_settings.forceJsonMode || request.UseJsonMode))
             {
                 body.response_format = new ResponseFormatDto { type = "json_object" };
             }
@@ -298,6 +338,28 @@ namespace RimMind.Core.Client.OpenAI
             }
 
             return messages;
+        }
+
+        private static void EnsureJsonKeyword(List<MessageDto> messages)
+        {
+            foreach (var m in messages)
+            {
+                if (m.content != null && m.content.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return;
+            }
+            int lastSys = -1;
+            for (int i = messages.Count - 1; i >= 0; i--)
+            {
+                if (messages[i].role == "system")
+                {
+                    lastSys = i;
+                    break;
+                }
+            }
+            if (lastSys >= 0)
+                messages[lastSys].content = (messages[lastSys].content ?? "") + "\n\nPlease respond in JSON format.";
+            else
+                messages.Insert(0, new MessageDto { role = "system", content = "Please respond in JSON format." });
         }
 
         private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody)

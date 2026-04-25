@@ -17,7 +17,7 @@ namespace RimMind.Core.Comps
 
     public class CompPawnAgent : ThingComp
     {
-        public PawnAgent Agent { get; private set; }
+        public PawnAgent Agent { get; private set; } = null!;
 
         private Pawn Pawn => (Pawn)parent;
 

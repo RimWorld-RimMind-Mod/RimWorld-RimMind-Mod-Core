@@ -10,7 +10,7 @@ namespace RimMind.Core.UI
     public class Window_AgentDialogue : Window
     {
         private readonly Pawn _pawn;
-        private readonly PawnAgent _agent;
+        private readonly PawnAgent? _agent;
         private readonly string _npcId;
         private string _inputText = "";
         private Vector2 _scrollPosition;
@@ -24,7 +24,7 @@ namespace RimMind.Core.UI
         {
             _pawn = pawn;
             _agent = CompPawnAgent.GetComp(pawn)?.Agent;
-            _npcId = $"NPC-{pawn.ThingID}";
+            _npcId = $"NPC-{pawn.thingIDNumber}";
             forcePause = false;
             closeOnClickedOutside = true;
             absorbInputAroundWindow = false;

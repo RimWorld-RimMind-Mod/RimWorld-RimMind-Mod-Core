@@ -13,9 +13,9 @@ namespace RimMind.Core.Context
 
     public class ScenarioMeta
     {
-        public string Id;
+        public string Id = null!;
         public int DefaultBaseRounds;
-        public string Description;
+        public string Description = null!;
         public float[]? DefaultEmbedding;
         public float DefaultBudget = 0.6f;
         public L4Mode L4Mode = L4Mode.BudgetControlled;

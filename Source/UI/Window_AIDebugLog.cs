@@ -20,7 +20,10 @@ namespace RimMind.Core.UI
 
         private AIDebugEntry? _selected;
         private Vector2 _leftScroll;
-        private Vector2 _rightScroll;
+        private Vector2 _inputScroll;
+        private Vector2 _outputScroll;
+        private float _splitRatio = 0.5f;
+        private bool _draggingSplit;
         private string _filter = string.Empty;
 
         public override Vector2 InitialSize => new Vector2(1060f, 640f);
@@ -36,13 +39,11 @@ namespace RimMind.Core.UI
 
         public override void DoWindowContents(Rect inRect)
         {
-            // 标题行
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(inRect.x, inRect.y, inRect.width - 90f, 30f),
                 "RimMind.Core.UI.DebugLog.Title".Translate());
             Text.Font = GameFont.Small;
 
-            // 工具栏
             Rect topBar = new Rect(inRect.x, inRect.y + 34f, inRect.width, 28f);
             DrawTopBar(topBar);
 
@@ -52,7 +53,6 @@ namespace RimMind.Core.UI
             Rect rightRect = new Rect(body.x + LeftWidth + Divider, body.y,
                                       body.width - LeftWidth - Divider, body.height);
 
-            // 分隔线
             Widgets.DrawLineVertical(body.x + LeftWidth + Divider * 0.5f, body.y, body.height);
 
             DrawLeftPane(leftRect);
@@ -61,7 +61,6 @@ namespace RimMind.Core.UI
 
         private void DrawTopBar(Rect r)
         {
-            // 搜索框
             Rect searchRect = new Rect(r.x, r.y, 220f, r.height);
             _filter = Widgets.TextField(searchRect, _filter);
             if (string.IsNullOrEmpty(_filter))
@@ -72,14 +71,12 @@ namespace RimMind.Core.UI
                 GUI.color = Color.white;
             }
 
-            // 条目计数
             int count = AIDebugLog.Instance?.Entries.Count ?? 0;
             GUI.color = Color.gray;
             Widgets.Label(new Rect(searchRect.xMax + 8f, r.y + 2f, 120f, r.height),
                 "RimMind.Core.UI.DebugLog.RecordCount".Translate(count));
             GUI.color = Color.white;
 
-            // Clear 按钮
             Rect clearBtn = new Rect(r.xMax - 84f, r.y, 80f, r.height);
             if (Widgets.ButtonText(clearBtn, "RimMind.Core.UI.DebugLog.Clear".Translate()))
             {
@@ -104,7 +101,6 @@ namespace RimMind.Core.UI
                 if (isSelected) Widgets.DrawHighlight(row);
                 else if (Mouse.IsOver(row)) Widgets.DrawHighlightIfMouseover(row);
 
-                // 状态色条
                 GUI.color = entry.IsError ? ColorError : ColorSuccess;
                 Widgets.DrawBox(new Rect(row.x, row.y, 4f, row.height));
                 GUI.color = Color.white;
@@ -146,23 +142,24 @@ namespace RimMind.Core.UI
                 return;
             }
 
-            // 复制按钮（复制完整显示内容，包括 Prompt + Response/Error）
             Rect copyBtn = new Rect(r.xMax - 130f, r.y, 126f, 26f);
             if (Widgets.ButtonText(copyBtn, "RimMind.Core.UI.DebugLog.CopyResponse".Translate()))
             {
                 string emptyLabel = "RimMind.Core.UI.Empty".Translate();
+                string sysP = _selected.FullSystemPrompt ?? "";
+                string usrP = _selected.FullUserPrompt ?? "";
+                string rsp = _selected.FullResponse ?? "";
                 string copyText =
                     "─── System Prompt ───\n" +
-                    (_selected.FullSystemPrompt.Length > 0 ? _selected.FullSystemPrompt : emptyLabel) +
+                    (sysP.Length > 0 ? sysP : emptyLabel) +
                     "\n\n─── User Prompt ───\n" +
-                    (_selected.FullUserPrompt.Length > 0 ? _selected.FullUserPrompt : emptyLabel) +
+                    (usrP.Length > 0 ? usrP : emptyLabel) +
                     "\n\n─── Response ───\n" +
-                    (_selected.FullResponse.Length > 0 ? _selected.FullResponse : (
-                        _selected.IsError ? $"[ERROR] {_selected.ErrorMsg}" : emptyLabel));
+                    (rsp.Length > 0 ? rsp : (
+                        _selected.IsError ? $"[ERROR] {_selected.ErrorMsg ?? ""}" : emptyLabel));
                 GUIUtility.systemCopyBuffer = copyText;
             }
 
-            // 元数据行
             GUI.color = Color.gray;
             string metaLine = $"{_selected.Source}  |  {_selected.ModelName}  |  {_selected.TokensUsed} {"RimMind.Core.UI.DebugLog.Tok".Translate()}  |  {_selected.ElapsedMs}ms  |  {_selected.Priority}";
             if (_selected.AttemptCount > 1)
@@ -175,20 +172,63 @@ namespace RimMind.Core.UI
             GUI.color = Color.white;
 
             string emptyLbl = "RimMind.Core.UI.Empty".Translate();
-            string fullText =
-                "─── System Prompt ───\n" +
-                (_selected.FullSystemPrompt.Length > 0 ? _selected.FullSystemPrompt : emptyLbl) +
-                "\n\n─── User Prompt ───\n" +
-                (_selected.FullUserPrompt.Length > 0 ? _selected.FullUserPrompt : emptyLbl) +
-                "\n\n─── Response ───\n" +
-                (_selected.FullResponse.Length > 0 ? _selected.FullResponse : (
-                    _selected.IsError ? $"[ERROR] {_selected.ErrorMsg}" : emptyLbl));
+            string sysPrompt = _selected.FullSystemPrompt ?? "";
+            string userPrompt = _selected.FullUserPrompt ?? "";
+            string response = _selected.FullResponse ?? "";
 
-            Rect textArea = new Rect(r.x, r.y + 30f, r.width, r.height - 30f);
-            float textH = Text.CalcHeight(fullText, textArea.width - 16f);
-            Rect viewRect = new Rect(0f, 0f, textArea.width - 16f, Mathf.Max(textH, textArea.height));
-            Widgets.BeginScrollView(textArea, ref _rightScroll, viewRect);
-            Widgets.TextArea(viewRect, fullText, readOnly: true);
+            string inputText =
+                "─── System Prompt ───\n" +
+                (sysPrompt.Length > 0 ? sysPrompt : emptyLbl) +
+                "\n\n─── User Prompt ───\n" +
+                (userPrompt.Length > 0 ? userPrompt : emptyLbl);
+
+            string outputText =
+                "─── Response ───\n" +
+                (response.Length > 0 ? response : (
+                    _selected.IsError ? $"[ERROR] {_selected.ErrorMsg ?? ""}" : emptyLbl));
+
+            float metaHeight = 30f;
+            float dividerH = 8f;
+            float usableH = r.height - metaHeight - dividerH;
+            float inputH = usableH * _splitRatio;
+            float outputH = usableH - inputH;
+
+            Rect inputArea = new Rect(r.x, r.y + metaHeight, r.width, inputH);
+            Rect dividerRect = new Rect(r.x, r.y + metaHeight + inputH, r.width, dividerH);
+            Rect outputArea = new Rect(r.x, r.y + metaHeight + inputH + dividerH, r.width, outputH);
+
+            float inputContentH = Text.CalcHeight(inputText, inputArea.width - 16f);
+            Rect inputView = new Rect(0f, 0f, inputArea.width - 16f, Mathf.Max(inputContentH, inputArea.height));
+            Widgets.BeginScrollView(inputArea, ref _inputScroll, inputView);
+            Widgets.TextArea(inputView, inputText, readOnly: true);
+            Widgets.EndScrollView();
+
+            Widgets.DrawHighlight(dividerRect);
+            float dividerY = dividerRect.y + dividerH * 0.5f;
+            Widgets.DrawLineHorizontal(r.x + 20f, dividerY, r.width - 40f, new Color(0.5f, 0.5f, 0.5f, 0.8f));
+            if (Event.current.type == EventType.MouseDown && dividerRect.Contains(Event.current.mousePosition))
+            {
+                _draggingSplit = true;
+                Event.current.Use();
+            }
+            if (_draggingSplit)
+            {
+                if (Event.current.type == EventType.MouseDrag)
+                {
+                    _splitRatio = Mathf.Clamp01((Event.current.mousePosition.y - r.y - metaHeight) / usableH);
+                    Event.current.Use();
+                }
+                if (Event.current.type == EventType.MouseUp)
+                {
+                    _draggingSplit = false;
+                    Event.current.Use();
+                }
+            }
+
+            float outputContentH = Text.CalcHeight(outputText, outputArea.width - 16f);
+            Rect outputView = new Rect(0f, 0f, outputArea.width - 16f, Mathf.Max(outputContentH, outputArea.height));
+            Widgets.BeginScrollView(outputArea, ref _outputScroll, outputView);
+            Widgets.TextArea(outputView, outputText, readOnly: true);
             Widgets.EndScrollView();
         }
 

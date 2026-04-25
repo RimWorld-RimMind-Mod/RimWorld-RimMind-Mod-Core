@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using RimMind.Core.Client;
 using Verse;
 
@@ -35,21 +37,40 @@ namespace RimMind.Core.Internal
 
         public void Clear() => _entries.Clear();
 
+        private static string BuildLayeredText(List<ChatMessage> messages, params string[] roles)
+        {
+            var sb = new StringBuilder();
+            foreach (var m in messages)
+            {
+                if (roles == null || roles.Length == 0 || roles.Contains(m.Role))
+                {
+                    if (sb.Length > 0)
+                        sb.AppendLine().AppendLine();
+                    string tag = !string.IsNullOrEmpty(m.LayerTag) ? $"[{m.LayerTag}] " : "";
+                    string role = m.Role == "assistant" ? "[assistant] " : "";
+                    sb.AppendLine($"{tag}{role}{m.Content}");
+                }
+            }
+            return sb.ToString();
+        }
+
         public static void Record(AIRequest request, AIResponse response, int elapsedMs)
         {
             _instance?._pendingEntries.Enqueue(new AIDebugEntry
             {
-                Source = request.RequestId,
-                ModelName = RimMindCoreMod.Settings.modelName,
-                FullSystemPrompt = request.SystemPrompt,
+                Source = request.RequestId ?? "",
+                ModelName = RimMindCoreMod.Settings.modelName ?? "",
+                FullSystemPrompt = request.Messages != null
+                    ? BuildLayeredText(request.Messages, "system")
+                    : (request.SystemPrompt ?? ""),
                 FullUserPrompt = request.Messages != null
-                    ? Newtonsoft.Json.JsonConvert.SerializeObject(request.Messages, Newtonsoft.Json.Formatting.Indented)
-                    : request.UserPrompt,
-                FullResponse = response.Content,
+                    ? BuildLayeredText(request.Messages, "user", "assistant")
+                    : (request.UserPrompt ?? ""),
+                FullResponse = response.Content ?? "",
                 ElapsedMs = elapsedMs,
                 TokensUsed = response.TokensUsed,
                 IsError = !response.Success,
-                ErrorMsg = response.Error,
+                ErrorMsg = response.Error ?? "",
                 Priority = response.Priority,
                 State = response.State,
                 AttemptCount = response.AttemptCount,

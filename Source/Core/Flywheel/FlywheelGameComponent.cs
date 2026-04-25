@@ -14,6 +14,7 @@ namespace RimMind.Core.Flywheel
         private int _lastAnalysisTick;
 
         public FlywheelGameComponent() : base() { }
+        public FlywheelGameComponent(Game game) : base() { }
 
         public override void ExposeData()
         {
@@ -57,11 +58,11 @@ namespace RimMind.Core.Flywheel
         static void Postfix(Game __instance)
         {
             if (!__instance.components.Any(c => c is FlywheelGameComponent))
-                __instance.components.Add(new FlywheelGameComponent());
+                __instance.components.Add(new FlywheelGameComponent(__instance));
 
             if (!__instance.components.Any(c => c is FlywheelParameterStore))
             {
-                var store = new FlywheelParameterStore();
+                var store = new FlywheelParameterStore(__instance);
                 __instance.components.Add(store);
                 store.FinalizeInit();
             }

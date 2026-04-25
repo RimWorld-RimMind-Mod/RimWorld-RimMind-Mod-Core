@@ -4,8 +4,8 @@ namespace RimMind.Core.Context
 {
     public class HistoryEntry : IExposable
     {
-        public string Role;
-        public string Content;
+        public string Role = null!;
+        public string Content = null!;
         public int Tick;
         public string? Scenario;
 
@@ -21,8 +21,12 @@ namespace RimMind.Core.Context
 
         public void ExposeData()
         {
+#pragma warning disable CS8601
             Scribe_Values.Look(ref Role, "role");
             Scribe_Values.Look(ref Content, "content");
+#pragma warning restore CS8601
+            Role ??= "";
+            Content ??= "";
             Scribe_Values.Look(ref Tick, "tick");
             Scribe_Values.Look(ref Scenario, "scenario");
         }

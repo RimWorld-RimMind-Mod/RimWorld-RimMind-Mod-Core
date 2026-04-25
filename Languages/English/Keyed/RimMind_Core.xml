@@ -288,6 +288,41 @@
   <RimMind.Core.UI.AgentDialogue.PlayerLabel>Player</RimMind.Core.UI.AgentDialogue.PlayerLabel>
   <RimMind.Core.UI.AgentDialogue.AgentLabel>Agent</RimMind.Core.UI.AgentDialogue.AgentLabel>
   <RimMind.Core.UI.AgentDialogue.Thinking>(thinking...)</RimMind.Core.UI.AgentDialogue.Thinking>
+  <!-- Task Instructions (npc_task_instruction) -->
+  <RimMind.Core.Prompt.TaskInstruction.Base>You are in the RimWorld game world.\n\nOutput constraints:\n- You must return valid JSON format\n- Do not wrap in markdown code blocks\n- If you cannot determine, return a default value or empty result\n\nBehavior constraints:\n- Do not break the fourth wall\n- Do not mention game mechanics, code, data structures, or the concept of "player"\n- Act naturally as your character</RimMind.Core.Prompt.TaskInstruction.Base>
+  <!-- System Instruction (system_instruction) -->
+  <RimMind.Core.Prompt.SystemInstruction.Pawn>You are {0}, a colonist in a RimWorld colony.</RimMind.Core.Prompt.SystemInstruction.Pawn>
+  <!-- Identity (npc_identity) -->
+  <RimMind.Core.Prompt.Identity.Name>Name: {0}</RimMind.Core.Prompt.Identity.Name>
+  <RimMind.Core.Prompt.Identity.ShortName>ShortName: {0}</RimMind.Core.Prompt.Identity.ShortName>
+  <RimMind.Core.Prompt.Identity.Description>Description: {0}</RimMind.Core.Prompt.Identity.Description>
+  <!-- Commands (npc_commands) -->
+  <RimMind.Core.Prompt.Commands.Available>Available commands:</RimMind.Core.Prompt.Commands.Available>
+  <RimMind.Core.Prompt.Commands.Entry>- {0}: {1}</RimMind.Core.Prompt.Commands.Entry>
+  <!-- World Rules (world_rules) -->
+  <RimMind.Core.Prompt.WorldRules.Header>Core rules:</RimMind.Core.Prompt.WorldRules.Header>
+  <RimMind.Core.Prompt.WorldRules.Survival>- Colonists must survive by managing food, shelter, and mood</RimMind.Core.Prompt.WorldRules.Survival>
+  <RimMind.Core.Prompt.WorldRules.Combat>- Combat is dangerous; avoid unnecessary fights</RimMind.Core.Prompt.WorldRules.Combat>
+  <RimMind.Core.Prompt.WorldRules.Relationships>- Relationships affect mood and productivity</RimMind.Core.Prompt.WorldRules.Relationships>
+  <RimMind.Core.Prompt.WorldRules.Weather>- Weather and seasons impact survival</RimMind.Core.Prompt.WorldRules.Weather>
+  <RimMind.Core.Prompt.WorldRules.Medical>- Medical needs must be addressed promptly</RimMind.Core.Prompt.WorldRules.Medical>
+  <!-- Pawn Description (NpcProfileBuilder) -->
+  <RimMind.Core.Prompt.PawnDesc.Name>Name: {0}</RimMind.Core.Prompt.PawnDesc.Name>
+  <RimMind.Core.Prompt.PawnDesc.Backstory>Backstory: {0}</RimMind.Core.Prompt.PawnDesc.Backstory>
+  <RimMind.Core.Prompt.PawnDesc.Traits>Traits: {0}</RimMind.Core.Prompt.PawnDesc.Traits>
+  <RimMind.Core.Prompt.PawnDesc.Skills>Skills: {0}</RimMind.Core.Prompt.PawnDesc.Skills>
+  <!-- Command Descriptions (NpcProfileBuilder) -->
+  <RimMind.Core.Prompt.Command.ExpressEmotion>Express an emotion or feeling</RimMind.Core.Prompt.Command.ExpressEmotion>
+  <RimMind.Core.Prompt.Command.ChangeRelationship>Change relationship with another pawn</RimMind.Core.Prompt.Command.ChangeRelationship>
+  <!-- L1-L3 ExtractXxx methods -->
+  <RimMind.Core.Prompt.Health.Healthy>Healthy</RimMind.Core.Prompt.Health.Healthy>
+  <RimMind.Core.Prompt.Mood.MentalBreak>Mental break: {0}</RimMind.Core.Prompt.Mood.MentalBreak>
+  <RimMind.Core.Prompt.Job.Idle>Idle</RimMind.Core.Prompt.Job.Idle>
+  <RimMind.Core.Prompt.Combat.Drafted>Drafted</RimMind.Core.Prompt.Combat.Drafted>
+  <RimMind.Core.Prompt.Combat.Fighting>Fighting: {0}</RimMind.Core.Prompt.Combat.Fighting>
+  <RimMind.Core.Prompt.Combat.NotInCombat>Not in combat</RimMind.Core.Prompt.Combat.NotInCombat>
+  <RimMind.Core.Prompt.Colony.Status>Pop: {0} Wealth: {1} Threats: {2}</RimMind.Core.Prompt.Colony.Status>
+  <RimMind.Core.Prompt.Target.Info>Target: {0}</RimMind.Core.Prompt.Target.Info>
   <!-- Agent Gizmo - Dialogue -->
   <RimMind.Core.Agent.Gizmo.Dialogue>Chat</RimMind.Core.Agent.Gizmo.Dialogue>
   <RimMind.Core.Agent.Gizmo.DialogueDesc>Chat with the AI-controlled pawn</RimMind.Core.Agent.Gizmo.DialogueDesc>

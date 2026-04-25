@@ -160,7 +160,7 @@ namespace RimMind.Core.Client.Player2
 
         private static List<Player2MessageDto> MergeConsecutiveSameRole(List<Player2MessageDto> messages)
         {
-            if (messages == null || messages.Count <= 1) return messages;
+            if (messages == null || messages.Count <= 1) return messages!;
 
             var merged = new List<Player2MessageDto>(messages.Count);
             var current = messages[0];
@@ -568,7 +568,7 @@ namespace RimMind.Core.Client.Player2
                     body["response_format"] = new
                     {
                         type = "json_schema",
-                        json_schema = new { name = "response", schema = JsonConvert.DeserializeObject(jsonSchema) },
+                        json_schema = new { name = "response", schema = JsonConvert.DeserializeObject(jsonSchema!) },
                     };
                 }
 

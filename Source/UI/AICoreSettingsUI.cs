@@ -4,13 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using RimMind.Core.Client;
+using RimMind.Core.Client.OpenAI;
 using RimMind.Core.Client.Player2;
 using RimMind.Core.Internal;
 using RimMind.Core.Settings;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using UnityEngine;
-using UnityEngine.Networking;
 using Verse;
 
 namespace RimMind.Core.UI
@@ -343,7 +341,7 @@ namespace RimMind.Core.UI
         }
 
         /// <summary>
-        /// 使用 UnityWebRequest 发请求（与实际 AI 请求一致，确保测试结果真实）。
+        /// 使用 OpenAIClient / Player2Client 发送测试请求，走正常 AI 请求管道。
         /// </summary>
         private static void RunConnectionTest(RimMindCoreSettings s)
         {
@@ -419,43 +417,52 @@ namespace RimMind.Core.UI
             _testStatus = "RimMind.Core.Settings.Status.Testing".Translate();
             _testStatusColor = Color.yellow;
 
-            string endpoint = FormatEndpoint(s.apiEndpoint);
-            string apiKey = s.apiKey;
-            string model = s.modelName;
-            Log.Message($"[RimMind] Test connection → {endpoint}  model={model}");
-
             Task.Run(async () =>
             {
                 try
                 {
-                    var body = new
+                    var client = new OpenAIClient(s);
+                    if (!client.IsConfigured())
                     {
-                        model = model,
-                        messages = new[]
+                        LongEventHandler.ExecuteWhenFinished(() =>
                         {
-                            new { role = "user", content = (string)"RimMind.Core.Settings.TestMessage".Translate() }
-                        },
-                        max_tokens = 60,
-                        temperature = 0.7f,
-                        stream = false,
-                    };
-                    string json = JsonConvert.SerializeObject(body);
+                            _testStatus = "RimMind.Core.Settings.Status.NotConfigured".Translate();
+                            _testStatusColor = Color.yellow;
+                        });
+                        return;
+                    }
 
-                    string text = await PostAsync(endpoint, json, apiKey);
-
-                    var jobj = JObject.Parse(text);
-                    string reply = jobj["choices"]?[0]?["message"]?["content"]?.ToString() ?? "RimMind.Core.UI.Empty".Translate();
-                    int tokens = jobj["usage"]?["total_tokens"]?.Value<int>() ?? 0;
-
-                    LongEventHandler.ExecuteWhenFinished(() =>
+                    var request = new AIRequest
                     {
-                        _testStatus = $"✓ {reply.Trim()} ({tokens} tok)";
-                        _testStatusColor = new Color(0.4f, 0.9f, 0.4f);
-                    });
+                        RequestId = "test",
+                        UserPrompt = "RimMind.Core.Settings.TestMessage".Translate(),
+                        MaxTokens = 60,
+                        Temperature = 0.7f,
+                        ModId = "RimMind.Test"
+                    };
+                    var response = await client.SendAsync(request);
+                    if (response.Success)
+                    {
+                        var content = response.Content.Trim();
+                        var tok = response.TokensUsed;
+                        LongEventHandler.ExecuteWhenFinished(() =>
+                        {
+                            _testStatus = $"✓ {content} ({tok} tok)";
+                            _testStatusColor = new Color(0.4f, 0.9f, 0.4f);
+                        });
+                    }
+                    else
+                    {
+                        var error = response.Error;
+                        LongEventHandler.ExecuteWhenFinished(() =>
+                        {
+                            _testStatus = $"✗ {error}";
+                            _testStatusColor = new Color(0.9f, 0.4f, 0.4f);
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {
-                    AIRequestQueue.LogFromBackground($"[RimMind] Test exception: {ex.Message}", isWarning: true);
                     var msg = ex.Message;
                     LongEventHandler.ExecuteWhenFinished(() =>
                     {
@@ -466,57 +473,7 @@ namespace RimMind.Core.UI
             });
         }
 
-        private static async Task<string> PostAsync(string url, string jsonBody, string apiKey)
-        {
-            using var webRequest = new UnityWebRequest(url, "POST");
-            webRequest.uploadHandler = new UploadHandlerRaw(
-                System.Text.Encoding.UTF8.GetBytes(jsonBody));
-            webRequest.downloadHandler = new DownloadHandlerBuffer();
-            webRequest.SetRequestHeader("Content-Type", "application/json");
-            webRequest.SetRequestHeader("Authorization", $"Bearer {apiKey}");
 
-            var asyncOp = webRequest.SendWebRequest();
-
-            float timeout = RimMindCoreMod.Settings?.requestTimeoutMs / 1000f ?? 30f;
-            float elapsed = 0f;
-
-            while (!asyncOp.isDone)
-            {
-                await Task.Delay(100);
-                elapsed += 0.1f;
-                if (elapsed > timeout)
-                {
-                    webRequest.Abort();
-                    throw new TimeoutException($"Timeout after {timeout}s");
-                }
-            }
-
-            if (webRequest.result == UnityEngine.Networking.UnityWebRequest.Result.ConnectionError ||
-                webRequest.result == UnityEngine.Networking.UnityWebRequest.Result.ProtocolError)
-            {
-                string body = webRequest.downloadHandler?.text ?? "";
-                string err = body.Length > 0 ? body : webRequest.error;
-                throw new Exception($"HTTP {webRequest.responseCode}: {err}");
-            }
-
-            return webRequest.downloadHandler.text;
-        }
-
-        private static string FormatEndpoint(string baseUrl)
-        {
-            if (string.IsNullOrEmpty(baseUrl)) return string.Empty;
-            string trimmed = baseUrl.Trim().TrimEnd('/');
-            // Already a full endpoint URL
-            if (trimmed.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
-                return trimmed;
-            var uri = new Uri(trimmed);
-            string path = uri.AbsolutePath.Trim('/');
-            // Has versioned base path (e.g. /v1) → append /chat/completions only
-            if (!string.IsNullOrEmpty(path))
-                return trimmed + "/chat/completions";
-            // Bare domain → append full path
-            return trimmed + "/v1/chat/completions";
-        }
 
         // ── 队列状态分页 ──────────────────────────────────────────────────────
 

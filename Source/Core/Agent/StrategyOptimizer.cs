@@ -38,7 +38,7 @@ namespace RimMind.Core.Agent
         public List<StructuredTool> GetWeightedTools(List<StructuredTool> tools)
         {
             if (tools == null || tools.Count <= 1)
-                return tools;
+                return tools!;
 
             var sorted = new List<StructuredTool>(tools);
             sorted.Sort((a, b) =>

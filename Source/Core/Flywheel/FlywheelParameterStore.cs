@@ -18,6 +18,11 @@ namespace RimMind.Core.Flywheel
             RegisterDefaults();
         }
 
+        public FlywheelParameterStore(Game game) : base()
+        {
+            RegisterDefaults();
+        }
+
         public int TotalBudget => (int)Get("TotalBudget");
 
         private void RegisterDefaults()

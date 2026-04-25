@@ -288,6 +288,41 @@
   <RimMind.Core.UI.AgentDialogue.PlayerLabel>玩家</RimMind.Core.UI.AgentDialogue.PlayerLabel>
   <RimMind.Core.UI.AgentDialogue.AgentLabel>Agent</RimMind.Core.UI.AgentDialogue.AgentLabel>
   <RimMind.Core.UI.AgentDialogue.Thinking>(思考中...)</RimMind.Core.UI.AgentDialogue.Thinking>
+  <!-- Task Instructions (npc_task_instruction) -->
+  <RimMind.Core.Prompt.TaskInstruction.Base>你处于 RimWorld 游戏世界中。\n\n输出约束：\n- 必须返回有效的 JSON 格式\n- 不要用 markdown 代码块包裹\n- 如果无法判断，返回默认值或空结果\n\n行为约束：\n- 不要打破第四面墙\n- 不要提及游戏机制、代码、数据结构或"玩家"概念\n- 以角色身份自然行动</RimMind.Core.Prompt.TaskInstruction.Base>
+  <!-- System Instruction (system_instruction) -->
+  <RimMind.Core.Prompt.SystemInstruction.Pawn>{0}，你是 RimWorld 殖民地的一名殖民者。</RimMind.Core.Prompt.SystemInstruction.Pawn>
+  <!-- Identity (npc_identity) -->
+  <RimMind.Core.Prompt.Identity.Name>姓名：{0}</RimMind.Core.Prompt.Identity.Name>
+  <RimMind.Core.Prompt.Identity.ShortName>简称：{0}</RimMind.Core.Prompt.Identity.ShortName>
+  <RimMind.Core.Prompt.Identity.Description>描述：{0}</RimMind.Core.Prompt.Identity.Description>
+  <!-- Commands (npc_commands) -->
+  <RimMind.Core.Prompt.Commands.Available>可用命令：</RimMind.Core.Prompt.Commands.Available>
+  <RimMind.Core.Prompt.Commands.Entry>- {0}：{1}</RimMind.Core.Prompt.Commands.Entry>
+  <!-- World Rules (world_rules) -->
+  <RimMind.Core.Prompt.WorldRules.Header>核心规则：</RimMind.Core.Prompt.WorldRules.Header>
+  <RimMind.Core.Prompt.WorldRules.Survival>- 殖民者必须通过管理食物、住所和心情来生存</RimMind.Core.Prompt.WorldRules.Survival>
+  <RimMind.Core.Prompt.WorldRules.Combat>- 战斗很危险；避免不必要的战斗</RimMind.Core.Prompt.WorldRules.Combat>
+  <RimMind.Core.Prompt.WorldRules.Relationships>- 人际关系影响心情和生产力</RimMind.Core.Prompt.WorldRules.Relationships>
+  <RimMind.Core.Prompt.WorldRules.Weather>- 天气和季节影响生存</RimMind.Core.Prompt.WorldRules.Weather>
+  <RimMind.Core.Prompt.WorldRules.Medical>- 医疗需求必须及时处理</RimMind.Core.Prompt.WorldRules.Medical>
+  <!-- Pawn Description (NpcProfileBuilder) -->
+  <RimMind.Core.Prompt.PawnDesc.Name>姓名：{0}</RimMind.Core.Prompt.PawnDesc.Name>
+  <RimMind.Core.Prompt.PawnDesc.Backstory>背景：{0}</RimMind.Core.Prompt.PawnDesc.Backstory>
+  <RimMind.Core.Prompt.PawnDesc.Traits>特性：{0}</RimMind.Core.Prompt.PawnDesc.Traits>
+  <RimMind.Core.Prompt.PawnDesc.Skills>技能：{0}</RimMind.Core.Prompt.PawnDesc.Skills>
+  <!-- Command Descriptions (NpcProfileBuilder) -->
+  <RimMind.Core.Prompt.Command.ExpressEmotion>表达情感或感受</RimMind.Core.Prompt.Command.ExpressEmotion>
+  <RimMind.Core.Prompt.Command.ChangeRelationship>改变与另一个人的关系</RimMind.Core.Prompt.Command.ChangeRelationship>
+  <!-- L1-L3 ExtractXxx methods -->
+  <RimMind.Core.Prompt.Health.Healthy>健康</RimMind.Core.Prompt.Health.Healthy>
+  <RimMind.Core.Prompt.Mood.MentalBreak>精神崩溃：{0}</RimMind.Core.Prompt.Mood.MentalBreak>
+  <RimMind.Core.Prompt.Job.Idle>闲逛</RimMind.Core.Prompt.Job.Idle>
+  <RimMind.Core.Prompt.Combat.Drafted>已征召</RimMind.Core.Prompt.Combat.Drafted>
+  <RimMind.Core.Prompt.Combat.Fighting>战斗中：{0}</RimMind.Core.Prompt.Combat.Fighting>
+  <RimMind.Core.Prompt.Combat.NotInCombat>未在战斗中</RimMind.Core.Prompt.Combat.NotInCombat>
+  <RimMind.Core.Prompt.Colony.Status>人口：{0} 财富：{1} 威胁：{2}</RimMind.Core.Prompt.Colony.Status>
+  <RimMind.Core.Prompt.Target.Info>目标：{0}</RimMind.Core.Prompt.Target.Info>
   <!-- Agent Gizmo - Dialogue -->
   <RimMind.Core.Agent.Gizmo.Dialogue>对话</RimMind.Core.Agent.Gizmo.Dialogue>
   <RimMind.Core.Agent.Gizmo.DialogueDesc>与 AI 接管的小人对话</RimMind.Core.Agent.Gizmo.DialogueDesc>

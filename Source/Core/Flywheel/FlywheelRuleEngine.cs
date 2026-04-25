@@ -8,11 +8,11 @@ namespace RimMind.Core.Flywheel
 {
     public class ParameterRecommendation
     {
-        public string Target;
+        public string Target = null!;
         public float CurrentValue;
         public float RecommendedValue;
         public float Confidence;
-        public string Reason;
+        public string Reason = null!;
     }
 
     public static class FlywheelRuleEngine
@@ -121,7 +121,7 @@ namespace RimMind.Core.Flywheel
                 GeneratedAtTicks = DateTime.Now.Ticks,
             };
 
-            ApplyAutoApplyMode(report, store);
+            ApplyAutoApplyMode(report, store!);
 
             FlywheelAnalysisReportWriter.Write(report);
 

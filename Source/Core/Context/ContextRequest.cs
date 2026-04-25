@@ -4,7 +4,7 @@ namespace RimMind.Core.Context
 {
     public class ContextRequest
     {
-        public string NpcId;
+        public string NpcId = null!;
         public string Scenario = ScenarioIds.Dialogue;
         public float Budget = 0;
         public string? CurrentQuery;

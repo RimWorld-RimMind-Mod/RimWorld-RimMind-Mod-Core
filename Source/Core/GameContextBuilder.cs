@@ -683,8 +683,8 @@ namespace RimMind.Core.Internal
             if (pawn == null || pawn.Map == null) return "";
             var room = pawn.GetRoom();
             string roomLabel = (room != null && !room.PsychologicallyOutdoors)
-                ? room.Role?.label ?? "Indoors"
-                : "Outdoors";
+                ? room.Role?.label ?? "RimMind.Core.Prompt.Room.Indoors".Translate()
+                : "RimMind.Core.Prompt.Room.Outdoors".Translate();
             int temp = Mathf.RoundToInt(pawn.Position.GetTemperature(pawn.Map));
             return $"{roomLabel}, {temp}°C";
         }
@@ -729,7 +729,7 @@ namespace RimMind.Core.Internal
             float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
             int threatCount = map.mapPawns?.AllPawns?
                 .Count(p => p.Faction != null && p.Faction.HostileTo(Faction.OfPlayer) && !p.Dead && !p.Downed) ?? 0;
-            return $"Pop:{colonists} Wealth:{wealth:F0} Threats:{threatCount}";
+            return "RimMind.Core.Prompt.Colony.Status".Translate(colonists, $"{wealth:F0}", threatCount);
         }
 
         public static string ExtractHealth(Pawn pawn)
@@ -744,7 +744,7 @@ namespace RimMind.Core.Internal
                 notable.Add(h.LabelCap);
                 if (notable.Count >= 5) break;
             }
-            return notable.Count > 0 ? string.Join(", ", notable) : "Healthy";
+            return notable.Count > 0 ? string.Join(", ", notable) : "RimMind.Core.Prompt.Health.Healthy".Translate();
         }
 
         public static string ExtractMood(Pawn pawn)
@@ -752,29 +752,29 @@ namespace RimMind.Core.Internal
             if (pawn == null || pawn.needs?.mood == null) return "";
             var mood = pawn.needs.mood;
             if (pawn.InMentalState)
-                return $"Mental break: {pawn.MentalState?.InspectLine}";
+                return "RimMind.Core.Prompt.Mood.MentalBreak".Translate(pawn.MentalState?.InspectLine ?? "");
             return $"{mood.CurLevelPercentage * 100f:F0}%";
         }
 
         public static string ExtractCurrentJob(Pawn pawn)
         {
             if (pawn == null) return "";
-            return pawn.jobs?.curDriver?.GetReport() ?? pawn.CurJob?.def?.label ?? "Idle";
+            return pawn.jobs?.curDriver?.GetReport() ?? pawn.CurJob?.def?.label ?? "RimMind.Core.Prompt.Job.Idle".Translate();
         }
 
         public static string ExtractCombatStatus(Pawn pawn)
         {
             if (pawn == null) return "";
             var parts = new List<string>();
-            if (pawn.Drafted) parts.Add("Drafted");
+            if (pawn.Drafted) parts.Add("RimMind.Core.Prompt.Combat.Drafted".Translate());
             if (pawn.mindState?.enemyTarget != null)
             {
                 string target = pawn.mindState.enemyTarget is Pawn enemy
                     ? enemy.Name?.ToStringShort ?? enemy.LabelShort
-                    : pawn.mindState.enemyTarget.Label ?? "Unknown";
-                parts.Add($"Fighting:{target}");
+                    : pawn.mindState.enemyTarget.Label ?? "RimMind.Core.Prompt.Unknown".Translate();
+                parts.Add("RimMind.Core.Prompt.Combat.Fighting".Translate(target));
             }
-            return parts.Count > 0 ? string.Join(" | ", parts) : "Not in combat";
+            return parts.Count > 0 ? string.Join(" | ", parts) : "RimMind.Core.Prompt.Combat.NotInCombat".Translate();
         }
 
         public static string ExtractTargetInfo(Pawn pawn)
@@ -782,7 +782,7 @@ namespace RimMind.Core.Internal
             if (pawn == null || pawn.mindState?.enemyTarget == null) return "";
             var target = pawn.mindState.enemyTarget;
             string label = target is Pawn p ? $"{p.Name?.ToStringShort ?? p.LabelShort} (HP:{p.health?.summaryHealth?.SummaryHealthPercent * 100f:F0}%)" : target.Label;
-            return $"Target: {label}";
+            return "RimMind.Core.Prompt.Target.Info".Translate(label);
         }
     }
 }

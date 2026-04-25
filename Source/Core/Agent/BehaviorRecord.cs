@@ -27,10 +27,15 @@ namespace RimMind.Core.Agent
 
         public void ExposeData()
         {
+#pragma warning disable CS8601
             Scribe_Values.Look(ref Action, "action");
             Scribe_Values.Look(ref Reason, "reason");
             Scribe_Values.Look(ref Success, "success", true);
             Scribe_Values.Look(ref ResultReason, "resultReason");
+#pragma warning restore CS8601
+            Action ??= "";
+            Reason ??= "";
+            ResultReason ??= "";
             Scribe_Values.Look(ref ActionEventId, "actionEventId");
             Scribe_Values.Look(ref GoalProgressDelta, "goalProgressDelta");
             Scribe_Values.Look(ref Timestamp, "timestamp");

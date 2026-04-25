@@ -10,7 +10,7 @@ namespace RimMind.Core.Prompt
         public static List<PromptSection> Reorder(List<PromptSection> sections)
         {
             if (sections == null || sections.Count <= 1)
-                return sections;
+                return sections!;
 
             return sections
                 .OrderBy(s => s.Priority)

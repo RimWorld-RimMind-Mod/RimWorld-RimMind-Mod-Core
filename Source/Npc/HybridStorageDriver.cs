@@ -122,7 +122,7 @@ namespace RimMind.Core.Npc
             var local = await _local.GetBatchAsync(keys);
             if (local != null && local.Count > 0) return local;
             try { return await _remote.GetBatchAsync(keys); }
-            catch (Exception ex) { Log.Warning($"[RimMind] HybridDriver: remote GetBatch failed: {ex.Message}"); return local; }
+            catch (Exception ex) { Log.Warning($"[RimMind] HybridDriver: remote GetBatch failed: {ex.Message}"); return local!; }
         }
 
         public async Task<List<string>> QueryMemoriesAsync(string npcId, string query, int limit = 10)
@@ -130,7 +130,7 @@ namespace RimMind.Core.Npc
             var local = await _local.QueryMemoriesAsync(npcId, query, limit);
             if (local != null && local.Count > 0) return local;
             try { return await _remote.QueryMemoriesAsync(npcId, query, limit); }
-            catch (Exception ex) { Log.Warning($"[RimMind] HybridDriver: remote QueryMemories failed: {ex.Message}"); return local; }
+            catch (Exception ex) { Log.Warning($"[RimMind] HybridDriver: remote QueryMemories failed: {ex.Message}"); return local!; }
         }
     }
 }

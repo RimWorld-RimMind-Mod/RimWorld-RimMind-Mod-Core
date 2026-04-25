@@ -29,7 +29,10 @@ namespace RimMind.Core.Agent
 
         public void ExposeData()
         {
+#pragma warning disable CS8601
             Scribe_Values.Look(ref Description, "description");
+#pragma warning restore CS8601
+            Description ??= "";
             Scribe_Values.Look(ref Category, "category");
             Scribe_Values.Look(ref Priority, "priority");
             Scribe_Values.Look(ref Status, "status");

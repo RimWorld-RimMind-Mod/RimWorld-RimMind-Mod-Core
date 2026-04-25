@@ -5,7 +5,7 @@ using Verse;
 
 namespace RimMind.Core.Patch
 {
-    [HarmonyPatch(typeof(IncidentWorker_Raid), "TryExecute")]
+    [HarmonyPatch(typeof(IncidentWorker_Raid), "TryExecuteWorker")]
     public static class PerceptionBridge_PatchRaid
     {
         static void Postfix(IncidentWorker_Raid __instance, IncidentParms parms, ref bool __result)
