@@ -263,15 +263,6 @@
   <RimMind.Core.Prompt.WorldConstraint>You are in the RimWorld game world. Do not break the fourth wall. Do not mention game mechanics, "player", or "game".</RimMind.Core.Prompt.WorldConstraint>
   <RimMind.Core.Prompt.NoFourthWall>Do not break the fourth wall. Do not mention game mechanics, code, data structures, or the concept of "player". Act naturally as your character.</RimMind.Core.Prompt.NoFourthWall>
   <RimMind.Core.Prompt.CustomHeader>[Player Custom Rules]</RimMind.Core.Prompt.CustomHeader>
-  <!-- StructuredPromptBuilder section labels -->
-  <RimMind.Core.Prompt.Section.Role>Role</RimMind.Core.Prompt.Section.Role>
-  <RimMind.Core.Prompt.Section.Goal>Goal</RimMind.Core.Prompt.Section.Goal>
-  <RimMind.Core.Prompt.Section.Process>Process</RimMind.Core.Prompt.Section.Process>
-  <RimMind.Core.Prompt.Section.Constraint>Constraint</RimMind.Core.Prompt.Section.Constraint>
-  <RimMind.Core.Prompt.Section.Example>Example</RimMind.Core.Prompt.Section.Example>
-  <RimMind.Core.Prompt.Section.Output>Output</RimMind.Core.Prompt.Section.Output>
-  <RimMind.Core.Prompt.Section.Fallback>Fallback</RimMind.Core.Prompt.Section.Fallback>
-  <RimMind.Core.Prompt.Section.Custom>Custom</RimMind.Core.Prompt.Section.Custom>
   <!-- RequestOverlay.cs -->
   <RimMind.Core.UI.RequestOverlay.Title>RimMind Requests</RimMind.Core.UI.RequestOverlay.Title>
   <RimMind.Core.UI.RequestOverlay.SystemBlocked>[System Blocked] {0}</RimMind.Core.UI.RequestOverlay.SystemBlocked>

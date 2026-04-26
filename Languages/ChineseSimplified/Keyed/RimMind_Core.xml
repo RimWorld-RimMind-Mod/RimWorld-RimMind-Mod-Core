@@ -263,15 +263,6 @@
   <RimMind.Core.Prompt.WorldConstraint>你处于 RimWorld 游戏世界中。不要打破第四面墙，不要提及游戏机制，不要提及"玩家"或"游戏"。</RimMind.Core.Prompt.WorldConstraint>
   <RimMind.Core.Prompt.NoFourthWall>不要打破第四面墙。不要提及游戏机制、代码、数据结构或"玩家"概念。以角色身份自然行动。</RimMind.Core.Prompt.NoFourthWall>
   <RimMind.Core.Prompt.CustomHeader>[玩家自定义规则]</RimMind.Core.Prompt.CustomHeader>
-  <!-- StructuredPromptBuilder section labels -->
-  <RimMind.Core.Prompt.Section.Role>角色</RimMind.Core.Prompt.Section.Role>
-  <RimMind.Core.Prompt.Section.Goal>目标</RimMind.Core.Prompt.Section.Goal>
-  <RimMind.Core.Prompt.Section.Process>流程</RimMind.Core.Prompt.Section.Process>
-  <RimMind.Core.Prompt.Section.Constraint>约束</RimMind.Core.Prompt.Section.Constraint>
-  <RimMind.Core.Prompt.Section.Example>示例</RimMind.Core.Prompt.Section.Example>
-  <RimMind.Core.Prompt.Section.Output>输出</RimMind.Core.Prompt.Section.Output>
-  <RimMind.Core.Prompt.Section.Fallback>兜底</RimMind.Core.Prompt.Section.Fallback>
-  <RimMind.Core.Prompt.Section.Custom>自定义</RimMind.Core.Prompt.Section.Custom>
   <!-- RequestOverlay.cs -->
   <RimMind.Core.UI.RequestOverlay.Title>RimMind 请求</RimMind.Core.UI.RequestOverlay.Title>
   <RimMind.Core.UI.RequestOverlay.SystemBlocked>[系统拦截] {0}</RimMind.Core.UI.RequestOverlay.SystemBlocked>
