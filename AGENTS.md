@@ -410,36 +410,43 @@ class ContextSettings : IExposable {
 }
 ```
 
-## 已知问题（审查 2026-04-26）
+## 已知问题（审查 2026-04-26 第四轮）
 
 > 详细列表见 `docs/06-problem/RimMind-Core/`
 
 ### P1 — 必须修复
 
-1. **GameComponent 未注册**: `AIRequestQueue`、`AIDebugLog`、`NpcManager`、`HistoryGameComponent` 缺少 `FinalizeInit` Patch 注册到 `Game.components`，导致 Tick 不触发、存档不持久化
-2. **RimMindAPI 静态字典非线程安全**: `_pawnProviders`、`_actionSkipChecks` 等使用普通 `Dictionary`/`List`，后台线程读取与主线程写入存在竞态
-3. **PawnAgent 硬编码请求参数**: `Budget=0.5f`、`MaxTokens=400`、`Temperature=0.7f` 不使用用户设置
-4. **autoApplyMode 无 UI**: Flywheel 可自动修改运行时参数但用户无法控制
+1. **RimMindAPI 静态字典非线程安全**: `_pawnProviders`、`_actionSkipChecks` 等使用普通 `Dictionary`/`List`，后台线程读取与主线程写入存在竞态
+2. **PawnAgent 硬编码请求参数**: `MaxTokens=400`、`Temperature=0.7f` 不使用用户设置（`Window_AgentDialogue` 已修复）
 
 ### P2 — 应修复
 
-- 13 处空 catch 块静默吞异常
+- 双路径注册导致数据不一致：`RimMindAPI._pawnProviders` 与 `ContextKeyRegistry._keys` 不同步
+- `BudgetW1`/`BudgetW2` 无 UI 控件
 - `CompressToBrief` 简单截断可能破坏 JSON/Unicode
 - `BudgetScheduler.ComputeRelevance` 硬编码 0.6/0.4 混合权重
+- `ContextDiff.DefaultLifetimeTicks=600` 过短（对低频 AI 请求）
 - `FlywheelParameterStore._parameters` 非线程安全
+
+### 已修复（本轮）
+
+- ✅ GameComponent 未注册 → 已添加 `CoreGameComponent_Register` Patch
+- ✅ 13 处空 catch 块 → 全部消除
+- ✅ `autoApplyMode` 无 UI → 已添加 Checkbox + Slider
+- ✅ `ShouldRefreshBalance` / `CheckAndUpdateThinking` 死代码 → 已删除
 
 ### 可扩展性限制
 
-- `ContextEngine`、`PawnAgent`、`GameContextBuilder`、`FlywheelRuleEngine` 均为非 virtual/static，子 mod 无法继承定制
+- `ContextEngine`、`PawnAgent`、`GameContextBuilder` 均为非 virtual/static，子 mod 无法继承定制
 - `PerceptionPipeline` Filter 链在 `PawnAgent` 构造函数中硬编码
 - `SchemaRegistry`/`ScenarioIds`/`RelevanceTable` 不可扩展
 
 ### Mod 集成注意事项
 
-- **禁止**外部 mod 直接访问 `RimMindCoreMod.Settings`，应通过 `RimMindAPI` 公共接口
-- **禁止**外部 mod 访问 `RimMind.Core.Internal` 命名空间（如 `AIRequestQueue.Instance`）
+- **禁止**外部 mod 直接访问 `RimMindCoreMod.Settings`，应使用 `RimMindAPI.GetContextBudget()`
+- **禁止**外部 mod 访问 `RimMind.Core.Internal` 命名空间（如 `AIRequestQueue.Instance`），应使用 `RimMindAPI.ClearModCooldown()`
 - **禁止**外部 mod 直接使用 `CompPawnAgent.IsAgentActive`，应使用 `RimMindAPI.IsPawnAgentControlled`
-- 外部 mod 注册 TaskInstruction 应通过 `RimMindAPI` 封装方法，而非直接调用 `ContextKeyRegistry.Register`
+- 外部 mod 注册 TaskInstruction 应通过 `RimMindAPI.RegisterTaskInstruction`（待添加），而非直接调用 `ContextKeyRegistry.Register`
 
 ## 线程安全规则
 
