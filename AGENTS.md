@@ -80,10 +80,26 @@ RimMindAPI.RegisterPendingRequest(entry)
 
 ## 已知问题
 
-1. `RimMindAPI._pawnProviders` 等静态字典非线程安全(后台读+主线程写)
-2. 双路径注册(`_pawnProviders` vs `ContextKeyRegistry._keys`)数据不同步
-3. `ContextDiff.DefaultLifetimeTicks=600` 对低频AI请求过短
-4. `FlywheelParameterStore._parameters` 非线程安全
+### P1 — 高优先级
+
+1. AICoreAPI 中 8 个 `List<T>` 非线程安全（`_settingsTabs`, `_toggleBehaviors`, `_incidentExecutedCallbacks`, `_storytellerIncidentSkipChecks`, `_parameterTuners`, `_sensorProviders`, `_agentModeProviders`, `_streamingHandlers`）
+2. ContextEngine / AIRequestQueue / ContextKeyRegistry / HistoryManager 内部 `Dictionary` 非线程安全
+3. PawnAgent.RequestToolFeedback + LocalStorageDriver + Player2StorageDriver 硬编码 `MaxTokens=400, Temperature=0.7f/0.8f`，未使用 `RimMindCoreMod.Settings`
+
+### P2 — 中等优先级
+
+4. 双路径注册（`RimMindAPI` 旧字典 vs `ContextKeyRegistry`）数据不同步
+5. `ContextSettings.BudgetW1`/`BudgetW2` 无 UI 控件
+6. `ContextDiff.DefaultLifetimeTicks=600` 对低频 AI 请求过短
+7. `CompressToBrief` 的 200 字符截断可能破坏 Unicode 代理对
+8. `FlywheelParameterStore.ExposeData` 中 Keys/Values 快照不一致
+
+### 本轮已修复
+
+- ✅ RimMindAPI 静态字典 → ConcurrentDictionary（_staticProviders, _dynamicProviders, _pawnProviders, _modCooldownGetters, _dialogueSkipChecks, _floatMenuSkipChecks, _actionSkipChecks）
+- ✅ FlywheelParameterStore._parameters → ConcurrentDictionary
+- ✅ PawnAgent.Think() 硬编码 MaxTokens/Temperature → 已改用 Settings
+- ✅ FlywheelTelemetryCollector.RecordSnapshotBuild 死代码 → 已删除
 
 ## 操作边界
 
