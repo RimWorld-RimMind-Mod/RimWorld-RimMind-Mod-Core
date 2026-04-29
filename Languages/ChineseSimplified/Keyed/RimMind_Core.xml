@@ -180,6 +180,14 @@
   <RimMind.Core.Context.IncludeThreats.Desc>将当前地图的威胁等级注入 AI 上下文。</RimMind.Core.Context.IncludeThreats.Desc>
   <RimMind.Core.Context.ContextBudget>上下文预算</RimMind.Core.Context.ContextBudget>
   <RimMind.Core.Context.ContextBudget.Desc>控制 AI 请求中包含的上下文信息量。更高的值提供更多细节，但会消耗更多 token。</RimMind.Core.Context.ContextBudget.Desc>
+  <RimMind.Core.Context.BudgetW1>小人预算权重</RimMind.Core.Context.BudgetW1>
+  <RimMind.Core.Context.BudgetW1.Desc>预算调度器中小人相关上下文的权重。值越高，分配给小人信息的 token 越多。</RimMind.Core.Context.BudgetW1.Desc>
+  <RimMind.Core.Context.BudgetW2>地图预算权重</RimMind.Core.Context.BudgetW2>
+  <RimMind.Core.Context.BudgetW2.Desc>预算调度器中地图/环境上下文的权重。值越高，分配给环境信息的 token 越多。</RimMind.Core.Context.BudgetW2.Desc>
+  <RimMind.Core.Settings.ContextDiffLifetime>上下文变更保留时长</RimMind.Core.Settings.ContextDiffLifetime>
+  <RimMind.Core.Settings.ContextDiffLifetime.Desc>上下文变更差异保留的时长（tick）。较低的值使上下文保持更及时，较高的值保留更长的变更历史。</RimMind.Core.Settings.ContextDiffLifetime.Desc>
+  <RimMind.Core.Settings.CalibrateInterval>上下文校准间隔</RimMind.Core.Settings.CalibrateInterval>
+  <RimMind.Core.Settings.CalibrateInterval.Desc>Flywheel 上下文校准间隔（tick）。较短的间隔更新更频繁但消耗更多 CPU。范围：5000-60000。</RimMind.Core.Settings.CalibrateInterval.Desc>
   <!-- GameContextBuilder.cs - Map context -->
   <RimMind.Core.Prompt.MapStatusHeader>[当前地图状态]</RimMind.Core.Prompt.MapStatusHeader>
   <RimMind.Core.Prompt.TimeFormat>时间：{0}  {1}:00</RimMind.Core.Prompt.TimeFormat>
@@ -324,6 +332,9 @@
   <!-- Flywheel autoApplyMode UI -->
   <RimMind.Core.UI.FlywheelAutoApply>自动应用参数建议</RimMind.Core.UI.FlywheelAutoApply>
   <RimMind.Core.UI.FlywheelAutoApply.Desc>开启后 Flywheel 自动应用推荐的上下文参数调整</RimMind.Core.UI.FlywheelAutoApply.Desc>
+  <RimMind.Core.UI.FlywheelAutoApply.Off>关闭</RimMind.Core.UI.FlywheelAutoApply.Off>
+  <RimMind.Core.UI.FlywheelAutoApply.LogOnly>仅记录</RimMind.Core.UI.FlywheelAutoApply.LogOnly>
+  <RimMind.Core.UI.FlywheelAutoApply.Apply>记录并应用</RimMind.Core.UI.FlywheelAutoApply.Apply>
   <RimMind.Core.UI.FlywheelConfidence>置信度阈值：{0}</RimMind.Core.UI.FlywheelConfidence>
   <RimMind.Core.UI.FlywheelConfidence.Desc>推荐信度达到此阈值时才自动应用</RimMind.Core.UI.FlywheelConfidence.Desc>
 </LanguageData>

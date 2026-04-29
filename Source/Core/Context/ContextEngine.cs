@@ -129,7 +129,7 @@ namespace RimMind.Core.Context
             var schedule = _scheduler.Schedule(filteredKeys, request.Scenario ?? ScenarioIds.Dialogue, budget, request.CurrentQuery);
 
             var allScheduledKeys = schedule.L0Keys.Concat(schedule.L1Keys)
-                .Concat(schedule.L2Keys).Concat(schedule.L3Keys)
+                .Concat(schedule.L2Keys).Concat(schedule.L3Keys).Concat(schedule.L5Keys)
                 .Select(k => k.Key).ToArray();
             var scheduledKeySet = new HashSet<string>(allScheduledKeys);
             var trimmedKeyNames = filteredKeys.Where(k => !scheduledKeySet.Contains(k.Key))
@@ -138,7 +138,7 @@ namespace RimMind.Core.Context
             snapshot.TrimmedKeys = trimmedKeyNames;
             snapshot.BudgetValue = budget;
 
-            foreach (var key in schedule.L2Keys.Concat(schedule.L3Keys))
+            foreach (var key in schedule.L2Keys.Concat(schedule.L3Keys).Concat(schedule.L5Keys))
             {
                 if (key.CurrentScore > 0)
                     snapshot.KeyScores[key.Key] = key.CurrentScore;
@@ -208,6 +208,16 @@ namespace RimMind.Core.Context
             }
             snapshot.LatencyByLayerMs["L3"] = (DateTime.Now.Ticks - l3Start) / TimeSpan.TicksPerMillisecond;
 
+            long l5Start = DateTime.Now.Ticks;
+            var l5Msg = BuildL5(schedule.L5Keys, pawn);
+            if (l5Msg != null)
+            {
+                l5Msg.LayerTag = "L5";
+                messages.Add(l5Msg);
+                snapshot.Meta.L5Tokens = EstimateTokens(l5Msg.Content);
+            }
+            snapshot.LatencyByLayerMs["L5"] = (DateTime.Now.Ticks - l5Start) / TimeSpan.TicksPerMillisecond;
+
             int maxRounds = schedule.MaxHistoryRounds;
             var history = _historyManager.GetHistory(request.NpcId, maxRounds, scenario);
             foreach (var (role, content) in history)
@@ -234,7 +244,7 @@ namespace RimMind.Core.Context
 
             snapshot.Messages = messages;
             snapshot.Meta.TotalTokens = snapshot.Meta.L0Tokens + snapshot.Meta.L1Tokens +
-                snapshot.Meta.L2Tokens + snapshot.Meta.L3Tokens + snapshot.Meta.L4Tokens;
+                snapshot.Meta.L2Tokens + snapshot.Meta.L3Tokens + snapshot.Meta.L4Tokens + snapshot.Meta.L5Tokens;
             snapshot.EstimatedTokens = snapshot.Meta.TotalTokens;
 
             ApplyBudgetTrim(snapshot);
@@ -259,14 +269,16 @@ namespace RimMind.Core.Context
             try
             {
                 var allSnapshotKeys = schedule.L0Keys.Concat(schedule.L1Keys)
-                    .Concat(schedule.L2Keys).Concat(schedule.L3Keys);
+                    .Concat(schedule.L2Keys).Concat(schedule.L3Keys).Concat(schedule.L5Keys);
                 foreach (var key in allSnapshotKeys)
                 {
                     string sourceText = "";
                     if (_keyLastValues.TryGetValue(request.NpcId, out var vals) &&
                         vals.TryGetValue(key.Key, out var val))
                     {
-                        sourceText = val.Length > 500 ? val.Substring(0, 500) : val;
+                        sourceText = val.Length > 500
+                            ? (char.IsHighSurrogate(val[499]) ? val.Substring(0, 499) : val.Substring(0, 500))
+                            : val;
                     }
                     float[]? vector = SemanticEmbedding.GetBlockEmbedding(request.NpcId, key.Key);
                     if (vector == null && key.KeyEmbedding != null)
@@ -497,6 +509,26 @@ namespace RimMind.Core.Context
             return new ChatMessage { Role = "system", Content = content };
         }
 
+        private ChatMessage? BuildL5(List<KeyMeta> keys, Pawn? pawn)
+        {
+            if (keys.Count == 0 || pawn == null) return null;
+            var sb = new StringBuilder();
+            sb.AppendLine("Perception:");
+            foreach (var key in keys)
+            {
+                var entries = key.ValueProvider(pawn);
+                if (entries == null) continue;
+                foreach (var entry in entries)
+                {
+                    if (!string.IsNullOrEmpty(entry.Content))
+                        sb.AppendLine($"  {entry.Content}");
+                }
+            }
+            string content = sb.ToString().TrimEnd();
+            if (string.IsNullOrEmpty(content)) return null;
+            return new ChatMessage { Role = "system", Content = content };
+        }
+
         private ChatMessage? BuildDiffMessage(string npcId, ContextLayer layer)
         {
             if (!_diffStore.TryGetValue(npcId, out var diffs) || diffs.Count == 0)
@@ -650,7 +682,7 @@ namespace RimMind.Core.Context
                 };
 
                 // L2/L3 system messages: add compress callback for detail->brief
-                if (msg.Role == "system" && (msg.LayerTag == "L2" || msg.LayerTag == "L3"))
+                if (msg.Role == "system" && (msg.LayerTag == "L2" || msg.LayerTag == "L3" || msg.LayerTag == "L5"))
                 {
                     section.Compress = CompressToBrief;
                 }

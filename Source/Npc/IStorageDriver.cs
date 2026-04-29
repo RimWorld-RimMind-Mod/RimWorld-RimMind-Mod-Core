@@ -24,6 +24,9 @@ namespace RimMind.Core.Npc
 
         Task<List<string>> QueryMemoriesAsync(string npcId, string query, int limit = 10);
 
+        Task<bool> SaveAllEntriesAsync(string json);
+        Task<string?> LoadAllEntriesAsync();
+
         bool IsRemote { get; }
         bool SupportsStreaming { get; }
         bool SupportsTts { get; }

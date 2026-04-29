@@ -11,7 +11,7 @@ namespace RimMind.Core.Internal
     {
         private const int MaxEntries = 200;
 
-        private readonly List<AIDebugEntry> _entries = new List<AIDebugEntry>(MaxEntries);
+        private readonly Queue<AIDebugEntry> _entries = new Queue<AIDebugEntry>(MaxEntries);
         private readonly ConcurrentQueue<AIDebugEntry> _pendingEntries = new ConcurrentQueue<AIDebugEntry>();
 
         private static AIDebugLog? _instance;
@@ -22,7 +22,7 @@ namespace RimMind.Core.Internal
             _instance = this;
         }
 
-        public IReadOnlyList<AIDebugEntry> Entries => _entries;
+        public IReadOnlyList<AIDebugEntry> Entries => _entries.ToList();
 
         public override void GameComponentTick()
         {
@@ -30,8 +30,8 @@ namespace RimMind.Core.Internal
             {
                 entry.GameTick = Find.TickManager.TicksGame;
                 if (_entries.Count >= MaxEntries)
-                    _entries.RemoveAt(0);
-                _entries.Add(entry);
+                    _entries.Dequeue();
+                _entries.Enqueue(entry);
             }
         }
 

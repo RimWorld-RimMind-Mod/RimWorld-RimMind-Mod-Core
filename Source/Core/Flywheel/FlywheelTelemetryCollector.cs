@@ -21,13 +21,13 @@ namespace RimMind.Core.Flywheel
         public string[] KeysTrimmed = null!;
         public Dictionary<string, int> LayerTokenBreakdown = null!;
         public long TimestampTicks;
-        public Dictionary<string, int> KeyChangeFreq = null!;
-        public Dictionary<string, float> CacheHitRate = null!;
-        public Dictionary<string, float> ScoreDistribution = null!;
+        public Dictionary<string, int>? KeyChangeFreq;
+        public Dictionary<string, float>? CacheHitRate;
+        public Dictionary<string, float>? ScoreDistribution;
         public int DiffCount;
         public float DiffMergeLatency;
         public bool ResponseParseSuccess;
-        public Dictionary<string, long> LatencyByLayerMs = null!;
+        public Dictionary<string, long>? LatencyByLayerMs;
         public long RequestLatencyMs;
     }
 

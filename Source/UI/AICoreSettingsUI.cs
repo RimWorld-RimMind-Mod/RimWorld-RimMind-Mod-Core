@@ -338,10 +338,19 @@ namespace RimMind.Core.UI
                 "RimMind.Core.Settings.DebugLogging.Desc".Translate());
 
             SettingsUIHelper.DrawSectionHeader(listing, "RimMind.Core.UI.FlywheelAutoApply".Translate());
-            bool autoApplyEnabled = s.autoApplyMode != FlywheelAutoApplyMode.Off;
-            listing.CheckboxLabeled("RimMind.Core.UI.FlywheelAutoApply.Desc".Translate(), ref autoApplyEnabled,
-                "RimMind.Core.UI.FlywheelAutoApply.Desc".Translate());
-            s.autoApplyMode = autoApplyEnabled ? FlywheelAutoApplyMode.ApplyWithLog : FlywheelAutoApplyMode.Off;
+            {
+                Rect row = listing.GetRect(28f);
+                if (Widgets.ButtonText(row, GetAutoApplyModeLabel(s.autoApplyMode)))
+                {
+                    var modes = new List<FloatMenuOption>();
+                    foreach (FlywheelAutoApplyMode mode in Enum.GetValues(typeof(FlywheelAutoApplyMode)))
+                    {
+                        var label = GetAutoApplyModeLabel(mode);
+                        modes.Add(new FloatMenuOption(label, () => s.autoApplyMode = mode));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(modes));
+                }
+            }
 
             listing.Label("RimMind.Core.UI.FlywheelConfidence".Translate(s.autoApplyConfidenceThreshold));
             GUI.color = Color.gray;
@@ -767,6 +776,35 @@ namespace RimMind.Core.UI
             GUI.color = Color.white;
             ctx.ContextBudget = listing.Slider(ctx.ContextBudget, 0.1f, 2.0f);
 
+            listing.Label($"{"RimMind.Core.Context.BudgetW1".Translate()}: {ctx.BudgetW1:F2}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Context.BudgetW1.Desc".Translate());
+            GUI.color = Color.white;
+            ctx.BudgetW1 = Mathf.Round(listing.Slider(ctx.BudgetW1, 0f, 1f) * 20f) / 20f;
+
+            listing.Label($"{"RimMind.Core.Context.BudgetW2".Translate()}: {ctx.BudgetW2:F2}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Context.BudgetW2.Desc".Translate());
+            GUI.color = Color.white;
+            ctx.BudgetW2 = Mathf.Round(listing.Slider(ctx.BudgetW2, 0f, 1f) * 20f) / 20f;
+
+            listing.Gap(8f);
+
+            var s = RimMindCoreMod.Settings;
+            listing.Label($"{"RimMind.Core.Settings.ContextDiffLifetime".Translate()}: {s.contextDiffLifetimeTicks / 60f:F0}s ({s.contextDiffLifetimeTicks} ticks)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Settings.ContextDiffLifetime.Desc".Translate());
+            GUI.color = Color.white;
+            s.contextDiffLifetimeTicks = (int)listing.Slider(s.contextDiffLifetimeTicks, 300f, 3000f);
+
+            listing.Gap(6f);
+            var calibrateSec = s.contextCalibrateInterval / 60f;
+            listing.Label($"{"RimMind.Core.Settings.CalibrateInterval".Translate()}: {calibrateSec:F0}s ({s.contextCalibrateInterval} ticks)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Core.Settings.CalibrateInterval.Desc".Translate());
+            GUI.color = Color.white;
+            s.contextCalibrateInterval = (int)listing.Slider(s.contextCalibrateInterval, 5000f, 60000f);
+
             if (listing.ButtonText("RimMind.Core.Context.ResetDefault".Translate()))
             {
                 RimMindCoreMod.Settings.Context = new ContextSettings();
@@ -852,6 +890,17 @@ namespace RimMind.Core.UI
                 AIProvider.OpenAI => "RimMind.Core.Settings.Provider.OpenAI".Translate(),
                 AIProvider.Player2 => "RimMind.Core.Settings.Provider.Player2".Translate(),
                 _ => p.ToString()
+            };
+        }
+
+        private static string GetAutoApplyModeLabel(FlywheelAutoApplyMode mode)
+        {
+            return mode switch
+            {
+                FlywheelAutoApplyMode.Off => "RimMind.Core.UI.FlywheelAutoApply.Off".Translate(),
+                FlywheelAutoApplyMode.LogOnly => "RimMind.Core.UI.FlywheelAutoApply.LogOnly".Translate(),
+                FlywheelAutoApplyMode.ApplyWithLog => "RimMind.Core.UI.FlywheelAutoApply.Apply".Translate(),
+                _ => mode.ToString()
             };
         }
 

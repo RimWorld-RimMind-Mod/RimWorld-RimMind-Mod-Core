@@ -4,7 +4,7 @@ namespace RimMind.Core.Context
 {
     public class ContextDiff
     {
-        public const int DefaultLifetimeTicks = 600;
+        public static int DefaultLifetimeTicks => RimMindCoreMod.Settings.contextDiffLifetimeTicks;
 
         public string Key = null!;
         public ContextLayer Layer;

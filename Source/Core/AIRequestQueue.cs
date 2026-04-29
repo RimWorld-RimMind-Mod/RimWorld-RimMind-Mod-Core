@@ -48,7 +48,7 @@ namespace RimMind.Core.Internal
         private const int QueueProcessInterval = 60;
 
         private static AIRequestQueue? _instance;
-        public static AIRequestQueue Instance => _instance!;
+        public static AIRequestQueue Instance => _instance ?? throw new InvalidOperationException("AIRequestQueue has not been initialized by GameComponent system.");
 
         public static void LogFromBackground(string msg, bool isWarning = false)
             => _instance?._pendingLogs.Enqueue((msg, isWarning));
@@ -329,7 +329,7 @@ namespace RimMind.Core.Internal
                     && tracked.AttemptCount < tracked.MaxAttempts
                     && IsTransientError(response.Error);
 
-                _instance!._pendingFireResults.Enqueue(new PendingFireResult
+                Instance._pendingFireResults.Enqueue(new PendingFireResult
                 {
                     Kind = shouldRetry ? FireResultKind.Retry : FireResultKind.Complete,
                     Tracked = tracked,

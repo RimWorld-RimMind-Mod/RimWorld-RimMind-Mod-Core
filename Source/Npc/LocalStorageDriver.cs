@@ -14,7 +14,7 @@ namespace RimMind.Core.Npc
     public class LocalStorageDriver : IStorageDriver
     {
         private readonly Dictionary<string, NpcProfile> _npcRegistry = new Dictionary<string, NpcProfile>();
-        private readonly Dictionary<string, string> _kvStore = new Dictionary<string, string>();
+        internal static readonly Dictionary<string, string> KvStore = new Dictionary<string, string>();
         private readonly HistoryManager _historyManager;
 
         public bool IsRemote => false;
@@ -138,16 +138,30 @@ namespace RimMind.Core.Npc
             return Task.FromResult(sb.ToString().TrimEnd());
         }
 
-        public Task<bool> PutAsync(string key, string value) { _kvStore[key] = value; return Task.FromResult(true); }
-        public Task<string?> GetAsync(string key) { _kvStore.TryGetValue(key, out var v); return Task.FromResult<string?>(v); }
-        public Task<bool> DeleteAsync(string key) { _kvStore.Remove(key); return Task.FromResult(true); }
+        public Task<bool> PutAsync(string key, string value) { KvStore[key] = value; return Task.FromResult(true); }
+        public Task<string?> GetAsync(string key) { KvStore.TryGetValue(key, out var v); return Task.FromResult<string?>(v); }
+        public Task<bool> DeleteAsync(string key) { KvStore.Remove(key); return Task.FromResult(true); }
         public Task<Dictionary<string, string>> GetBatchAsync(IEnumerable<string> keys)
         {
             var result = new Dictionary<string, string>();
             foreach (var k in keys)
-                if (_kvStore.TryGetValue(k, out var v))
+                if (KvStore.TryGetValue(k, out var v))
                     result[k] = v;
             return Task.FromResult(result);
+        }
+
+        private const string AllEntriesKey = "rimmind:all_memory_entries";
+
+        public Task<bool> SaveAllEntriesAsync(string json)
+        {
+            KvStore[AllEntriesKey] = json ?? string.Empty;
+            return Task.FromResult(true);
+        }
+
+        public Task<string?> LoadAllEntriesAsync()
+        {
+            KvStore.TryGetValue(AllEntriesKey, out var json);
+            return Task.FromResult<string?>(json);
         }
 
         public Task<List<string>> QueryMemoriesAsync(string npcId, string query, int limit = 10)

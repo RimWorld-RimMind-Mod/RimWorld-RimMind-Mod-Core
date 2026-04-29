@@ -9,8 +9,12 @@ namespace RimMind.Core.Context
 {
     public class HistoryManager
     {
-        private static HistoryManager? _instance;
-        public static HistoryManager Instance => _instance ??= new HistoryManager();
+        public static HistoryManager Instance { get; private set; } = null!;
+
+        static HistoryManager()
+        {
+            Instance = new HistoryManager();
+        }
 
         private readonly ConcurrentDictionary<string, List<HistoryEntry>> _histories =
             new ConcurrentDictionary<string, List<HistoryEntry>>();

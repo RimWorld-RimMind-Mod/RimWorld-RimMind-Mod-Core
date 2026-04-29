@@ -7,5 +7,6 @@ namespace RimMind.Core.Context
         L2_Environment = 2,
         L3_State = 3,
         L4_History = 4,
+        L5_Sensor = 5,
     }
 }

@@ -32,6 +32,7 @@ namespace RimMind.Core.Context
         public int L2Tokens;
         public int L3Tokens;
         public int L4Tokens;
+        public int L5Tokens;
         public int TotalTokens;
     }
 }

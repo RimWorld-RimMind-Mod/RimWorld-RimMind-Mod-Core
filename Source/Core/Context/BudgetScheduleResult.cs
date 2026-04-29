@@ -8,6 +8,7 @@ namespace RimMind.Core.Context
         public List<KeyMeta> L1Keys = new List<KeyMeta>();
         public List<KeyMeta> L2Keys = new List<KeyMeta>();
         public List<KeyMeta> L3Keys = new List<KeyMeta>();
+        public List<KeyMeta> L5Keys = new List<KeyMeta>();
         public int MaxHistoryRounds = 6;
         public int MaxRagResults = 3;
         public bool UseFullValue = true;

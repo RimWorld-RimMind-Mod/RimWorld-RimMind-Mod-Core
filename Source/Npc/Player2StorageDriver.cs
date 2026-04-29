@@ -18,6 +18,15 @@ namespace RimMind.Core.Npc
         private readonly Player2Client _client;
         private readonly string _gameId;
 
+        private readonly List<LocalMemoryEntry> _localMemoryIndex = new List<LocalMemoryEntry>();
+        private readonly object _indexLock = new object();
+
+        private struct LocalMemoryEntry
+        {
+            public string Key;
+            public string Value;
+        }
+
         public bool AutoDispatch { get; set; } = false;
 
         public bool IsRemote => true;
@@ -196,6 +205,15 @@ namespace RimMind.Core.Npc
 
         public async Task<bool> PutAsync(string key, string value)
         {
+            lock (_indexLock)
+            {
+                int idx = _localMemoryIndex.FindIndex(e => e.Key == key);
+                if (idx >= 0)
+                    _localMemoryIndex[idx] = new LocalMemoryEntry { Key = key, Value = value };
+                else
+                    _localMemoryIndex.Add(new LocalMemoryEntry { Key = key, Value = value });
+            }
+
             try
             {
                 var body = new { value = value };
@@ -240,9 +258,50 @@ namespace RimMind.Core.Npc
             catch (Exception ex) { Log.Warning($"[RimMind] Player2StorageDriver.GetBatchAsync failed: {ex.Message}"); return new Dictionary<string, string>(); }
         }
 
+        public Task<bool> SaveAllEntriesAsync(string json)
+        {
+            return PutAsync("rimmind:all_memory_entries", json ?? string.Empty);
+        }
+
+        public Task<string?> LoadAllEntriesAsync()
+        {
+            return GetAsync("rimmind:all_memory_entries");
+        }
+
         public Task<List<string>> QueryMemoriesAsync(string npcId, string query, int limit = 10)
         {
-            return Task.FromResult(new List<string>());
+            var results = new List<string>();
+            if (string.IsNullOrWhiteSpace(query)) return Task.FromResult(results);
+
+            var tokens = query.ToLowerInvariant().Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0) return Task.FromResult(results);
+
+            var scored = new List<(string value, int score)>();
+
+            lock (_indexLock)
+            {
+                foreach (var entry in _localMemoryIndex)
+                {
+                    if (string.IsNullOrEmpty(entry.Value)) continue;
+                    int score = 0;
+                    var lowerValue = entry.Value.ToLowerInvariant();
+                    foreach (var token in tokens)
+                    {
+                        if (lowerValue.Contains(token))
+                            score++;
+                    }
+                    if (score > 0)
+                        scored.Add((entry.Value, score));
+                }
+            }
+
+            results = scored
+                .OrderByDescending(s => s.score)
+                .Take(limit)
+                .Select(s => s.value)
+                .ToList();
+
+            return Task.FromResult(results);
         }
 
         private static List<object> ConvertCommands(List<NpcCommand> commands)

@@ -125,6 +125,22 @@ namespace RimMind.Core.Npc
             catch (Exception ex) { AIRequestQueue.LogFromBackground($"[RimMind] HybridDriver: remote GetBatch failed: {ex.Message}", isWarning: true); return local!; }
         }
 
+        public async Task<bool> SaveAllEntriesAsync(string json)
+        {
+            var localResult = await _local.SaveAllEntriesAsync(json);
+            try { await _remote.SaveAllEntriesAsync(json); }
+            catch (Exception ex) { AIRequestQueue.LogFromBackground($"[RimMind] HybridDriver: remote SaveAllEntries failed: {ex.Message}", isWarning: true); }
+            return localResult;
+        }
+
+        public async Task<string?> LoadAllEntriesAsync()
+        {
+            var local = await _local.LoadAllEntriesAsync();
+            if (local != null) return local;
+            try { return await _remote.LoadAllEntriesAsync(); }
+            catch (Exception ex) { AIRequestQueue.LogFromBackground($"[RimMind] HybridDriver: remote LoadAllEntries failed: {ex.Message}", isWarning: true); return null; }
+        }
+
         public async Task<List<string>> QueryMemoriesAsync(string npcId, string query, int limit = 10)
         {
             var local = await _local.QueryMemoriesAsync(npcId, query, limit);

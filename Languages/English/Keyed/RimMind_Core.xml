@@ -180,6 +180,14 @@
   <RimMind.Core.Context.IncludeThreats.Desc>Inject the current map threat level into AI context.</RimMind.Core.Context.IncludeThreats.Desc>
   <RimMind.Core.Context.ContextBudget>Context Budget</RimMind.Core.Context.ContextBudget>
   <RimMind.Core.Context.ContextBudget.Desc>Controls how much context information is included in AI requests. Higher values provide more detail but use more tokens.</RimMind.Core.Context.ContextBudget.Desc>
+  <RimMind.Core.Context.BudgetW1>Pawn Budget Weight</RimMind.Core.Context.BudgetW1>
+  <RimMind.Core.Context.BudgetW1.Desc>Weight for pawn-related context in the budget scheduler. Higher values allocate more tokens to pawn information.</RimMind.Core.Context.BudgetW1.Desc>
+  <RimMind.Core.Context.BudgetW2>Map Budget Weight</RimMind.Core.Context.BudgetW2>
+  <RimMind.Core.Context.BudgetW2.Desc>Weight for map/environment context in the budget scheduler. Higher values allocate more tokens to environmental information.</RimMind.Core.Context.BudgetW2.Desc>
+  <RimMind.Core.Settings.ContextDiffLifetime>Context Diff Lifetime</RimMind.Core.Settings.ContextDiffLifetime>
+  <RimMind.Core.Settings.ContextDiffLifetime.Desc>How long (in ticks) context change diffs remain before expiring. Lower values keep context more current; higher values preserve change history longer.</RimMind.Core.Settings.ContextDiffLifetime.Desc>
+  <RimMind.Core.Settings.CalibrateInterval>Context Calibrate Interval</RimMind.Core.Settings.CalibrateInterval>
+  <RimMind.Core.Settings.CalibrateInterval.Desc>Interval between Flywheel context calibrations (ticks). Shorter intervals update more frequently but cost more CPU. Range: 5000-60000.</RimMind.Core.Settings.CalibrateInterval.Desc>
   <!-- GameContextBuilder.cs - Map context -->
   <RimMind.Core.Prompt.MapStatusHeader>[Current Map Status]</RimMind.Core.Prompt.MapStatusHeader>
   <RimMind.Core.Prompt.TimeFormat>Time: {0} {1}:00</RimMind.Core.Prompt.TimeFormat>
@@ -324,6 +332,9 @@
   <!-- Flywheel autoApplyMode UI -->
   <RimMind.Core.UI.FlywheelAutoApply>Flywheel: auto-apply parameter recommendations</RimMind.Core.UI.FlywheelAutoApply>
   <RimMind.Core.UI.FlywheelAutoApply.Desc>When enabled, Flywheel automatically applies recommended context parameter adjustments</RimMind.Core.UI.FlywheelAutoApply.Desc>
+  <RimMind.Core.UI.FlywheelAutoApply.Off>Off</RimMind.Core.UI.FlywheelAutoApply.Off>
+  <RimMind.Core.UI.FlywheelAutoApply.LogOnly>Log Only</RimMind.Core.UI.FlywheelAutoApply.LogOnly>
+  <RimMind.Core.UI.FlywheelAutoApply.Apply>Apply with Log</RimMind.Core.UI.FlywheelAutoApply.Apply>
   <RimMind.Core.UI.FlywheelConfidence>Confidence threshold: {0}</RimMind.Core.UI.FlywheelConfidence>
   <RimMind.Core.UI.FlywheelConfidence.Desc>Auto-apply only when recommendation confidence reaches this threshold</RimMind.Core.UI.FlywheelConfidence.Desc>
 </LanguageData>

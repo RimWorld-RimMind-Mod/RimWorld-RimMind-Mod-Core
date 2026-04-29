@@ -119,6 +119,25 @@ namespace RimMind.Core.Context
                 }
             }
 
+            if (B >= 0.3f)
+            {
+                var l5Keys = keys.Where(k => k.Layer == ContextLayer.L5_Sensor);
+                foreach (var key in l5Keys)
+                {
+                    float P = key.GetEffectivePriority();
+                    float E = ComputeRelevance(scenarioId, "", key);
+                    var coreSettings = RimMind.Core.RimMindCoreMod.Settings?.Context;
+                    float w1 = coreSettings?.BudgetW1 ?? _config.W1;
+                    float w2 = coreSettings?.BudgetW2 ?? _config.W2;
+                    float score = w1 * P + w2 * E;
+                    key.CurrentScore = score;
+                    key.CurrentE = E;
+
+                    if (score >= threshold)
+                        result.L5Keys.Add(key);
+                }
+            }
+
             if (B < 0.1f && result.L3Keys.Count > 1)
             {
                 result.L3Keys = result.L3Keys.OrderByDescending(k => k.CurrentScore).Take(1).ToList();

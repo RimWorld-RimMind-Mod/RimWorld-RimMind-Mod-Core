@@ -5,6 +5,7 @@ using HarmonyLib;
 using RimMind.Core.Context;
 using RimMind.Core.Internal;
 using RimMind.Core.Npc;
+using RimMind.Core.Settings;
 using RimWorld;
 using Verse;
 
@@ -12,8 +13,10 @@ namespace RimMind.Core.Flywheel
 {
     public class FlywheelGameComponent : GameComponent
     {
-        private const int AnalysisIntervalTicks = 60000;
         private int _lastAnalysisTick;
+
+        private int AnalysisIntervalTicks =>
+            RimMindCoreMod.Settings?.contextCalibrateInterval ?? 10000;
 
         public FlywheelGameComponent() : base() { }
         public FlywheelGameComponent(Game game) : base() { }

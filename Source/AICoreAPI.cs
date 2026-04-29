@@ -42,7 +42,7 @@ namespace RimMind.Core
         private static readonly ConcurrentDictionary<string, Func<int>> _modCooldownGetters
             = new ConcurrentDictionary<string, Func<int>>();
 
-        private static Action<Pawn, string, Pawn?>? _dialogueTriggerFn;
+        private static volatile Action<Pawn, string, Pawn?>? _dialogueTriggerFn;
 
         private static readonly ConcurrentDictionary<string, Func<Pawn, string, bool>> _dialogueSkipChecks
             = new ConcurrentDictionary<string, Func<Pawn, string, bool>>();
@@ -238,15 +238,16 @@ namespace RimMind.Core
                             { "L2", snapshot.Meta.L2Tokens },
                             { "L3", snapshot.Meta.L3Tokens },
                             { "L4", snapshot.Meta.L4Tokens },
+                            { "L5", snapshot.Meta.L5Tokens },
                         },
                         KeyChangeFreq = snapshot.KeyChangeCounts.Count > 0
-                            ? new Dictionary<string, int>(snapshot.KeyChangeCounts) : null!,
+                            ? new Dictionary<string, int>(snapshot.KeyChangeCounts) : null,
                         CacheHitRate = null,
                         ScoreDistribution = snapshot.KeyScores.Count > 0
-                            ? new Dictionary<string, float>(snapshot.KeyScores) : null!,
+                            ? new Dictionary<string, float>(snapshot.KeyScores) : null,
                         DiffCount = snapshot.DiffCount,
                         LatencyByLayerMs = snapshot.LatencyByLayerMs.Count > 0
-                            ? new Dictionary<string, long>(snapshot.LatencyByLayerMs) : null!,
+                            ? new Dictionary<string, long>(snapshot.LatencyByLayerMs) : null,
                         RequestLatencyMs = snapshot.BuildStartTicks > 0
                             ? (DateTime.Now.Ticks - snapshot.BuildStartTicks) / TimeSpan.TicksPerMillisecond : 0,
                         ResponseParseSuccess = parseSuccess,
@@ -569,7 +570,7 @@ namespace RimMind.Core
 
         // ── AgentIdentity Provider API ──────────────────────────────────────
 
-        private static Func<Pawn, AgentIdentity?>? _agentIdentityProvider;
+        private static volatile Func<Pawn, AgentIdentity?>? _agentIdentityProvider;
 
         public static void RegisterAgentIdentityProvider(Func<Pawn, AgentIdentity?> provider)
             => _agentIdentityProvider = provider;
@@ -682,8 +683,8 @@ namespace RimMind.Core
         public static void UnregisterParameterTuner(string tunerId) { _parameterTuners.TryRemove(tunerId, out _); }
         public static IReadOnlyList<IParameterTuner> ParameterTuners => _parameterTuners.Values.ToList();
 
-        public static void RegisterSensorProvider(ISensorProvider provider) { _sensorProviders[provider.SensorId] = provider; }
-        public static void UnregisterSensorProvider(string sensorId) { _sensorProviders.TryRemove(sensorId, out _); }
+        public static void RegisterSensorProvider(ISensorProvider provider) { _sensorProviders[provider.SensorId] = provider; RegisterSensorContextKey(provider); }
+        public static void UnregisterSensorProvider(string sensorId) { _sensorProviders.TryRemove(sensorId, out _); ContextKeyRegistry.Unregister($"sensor_{sensorId}"); }
         public static IReadOnlyList<ISensorProvider> SensorProviders => _sensorProviders.Values.ToList();
 
         /// <summary>
@@ -707,5 +708,19 @@ namespace RimMind.Core
         public static IReadOnlyList<IStreamingResponseHandler> StreamingHandlers => _streamingHandlers.Values.ToList();
 
         public static void ClearModCooldown(string modId) => AIRequestQueue.Instance?.ClearCooldown(modId);
+
+        private static void RegisterSensorContextKey(ISensorProvider sensor)
+        {
+            string key = $"sensor_{sensor.SensorId}";
+            var captured = sensor;
+            ContextKeyRegistry.Register(key, ContextLayer.L5_Sensor, captured.Priority / 100f,
+                pawn =>
+                {
+                    string? data = captured.Sense(pawn);
+                    if (string.IsNullOrEmpty(data))
+                        return new List<ContextEntry>();
+                    return new List<ContextEntry> { new ContextEntry(data!) };
+                }, "Core");
+        }
     }
 }

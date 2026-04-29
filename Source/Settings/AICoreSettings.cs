@@ -25,6 +25,10 @@ namespace RimMind.Core.Settings
         public string customPawnPrompt = string.Empty;
         public string customMapPrompt = string.Empty;
 
+        public int contextDiffLifetimeTicks = 600;
+
+        public int contextCalibrateInterval = 10000;
+
         public bool requestOverlayEnabled = true;
         public float requestOverlayX = 20f;
         public float requestOverlayY = 20f;
@@ -67,6 +71,8 @@ namespace RimMind.Core.Settings
             Context ??= new ContextSettings();
             Scribe_Values.Look(ref customPawnPrompt, "customPawnPrompt", string.Empty);
             Scribe_Values.Look(ref customMapPrompt, "customMapPrompt", string.Empty);
+            Scribe_Values.Look(ref contextDiffLifetimeTicks, "contextDiffLifetimeTicks", 600);
+            Scribe_Values.Look(ref contextCalibrateInterval, "contextCalibrateInterval", 10000);
             Scribe_Values.Look(ref requestOverlayEnabled, "requestOverlayEnabled", true);
             Scribe_Values.Look(ref requestOverlayX, "requestOverlayX", 20f);
             Scribe_Values.Look(ref requestOverlayY, "requestOverlayY", 20f);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RimMind.Core.Context;
 using RimMind.Core.Extensions;
 using Verse;
 
@@ -25,6 +26,24 @@ namespace RimMind.Core.Sensor
         {
             base.FinalizeInit();
             Instance = this;
+            RegisterSensorContextKeys();
+        }
+
+        private void RegisterSensorContextKeys()
+        {
+            foreach (var sensor in RimMindAPI.SensorProviders)
+            {
+                string key = $"sensor_{sensor.SensorId}";
+                var captured = sensor;
+                ContextKeyRegistry.Register(key, ContextLayer.L5_Sensor, captured.Priority / 100f,
+                    pawn =>
+                    {
+                        string? data = captured.Sense(pawn);
+                        if (string.IsNullOrEmpty(data))
+                            return new List<ContextEntry>();
+                        return new List<ContextEntry> { new ContextEntry(data!) };
+                    }, "Core");
+            }
         }
 
         public override void GameComponentTick()
@@ -32,7 +51,7 @@ namespace RimMind.Core.Sensor
             base.GameComponentTick();
             int now = Find.TickManager.TicksGame;
 
-            foreach (var sensor in RimMindAPI.SensorProviders)
+            foreach (var sensor in RimMindAPI.SensorProviders.ToArray())
             {
                 if (sensor.TickInterval <= 0) continue;
                 if (now % sensor.TickInterval != 0) continue;

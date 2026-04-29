@@ -42,6 +42,7 @@ namespace RimMind.Core.Flywheel
             _defaults["DiffMergeRounds"] = 4f;
             _defaults["TotalBudget"] = 4000f;
             _defaults["ReserveForOutput"] = 800f;
+            _defaults["MaxHistoryRounds"] = 6f;
 
             foreach (var kvp in _defaults)
             {
