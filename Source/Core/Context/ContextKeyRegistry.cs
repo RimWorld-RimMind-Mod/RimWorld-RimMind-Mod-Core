@@ -76,7 +76,9 @@ namespace RimMind.Core.Context
                             "Consider colony wealth, threat level, food supply, colonist count, and recent events. " +
                             "Output must be valid JSON matching the IncidentOutput schema.");
                     if (CurrentScenario == ScenarioIds.Decision)
-                        return WrapEntry("RimMind.Core.Prompt.SystemInstruction.Advisor".Translate());
+                        return WrapEntry("");
+                    if (CurrentScenario == ScenarioIds.Dialogue)
+                        return WrapEntry("");
                     if (pawn == null) return WrapEntry("");
                     var profile = NpcManager.Instance?.GetNpc($"NPC-{pawn.thingIDNumber}");
                     return WrapEntry(profile?.SystemPrompt ?? "");
@@ -85,6 +87,8 @@ namespace RimMind.Core.Context
                 pawn =>
                 {
                     if (CurrentScenario == ScenarioIds.Decision)
+                        return WrapEntry("");
+                    if (CurrentScenario == ScenarioIds.Dialogue)
                         return WrapEntry("");
                     if (pawn == null) return WrapEntry("");
                     var profile = NpcManager.Instance?.GetNpc($"NPC-{pawn.thingIDNumber}");
@@ -101,6 +105,7 @@ namespace RimMind.Core.Context
                 pawn =>
                 {
                     if (CurrentScenario == ScenarioIds.Decision) return WrapEntry("");
+                    if (CurrentScenario == ScenarioIds.Dialogue) return WrapEntry("");
                     if (pawn == null) return WrapEntry("");
                     var profile = NpcManager.Instance?.GetNpc($"NPC-{pawn.thingIDNumber}");
                     if (profile == null || profile.Commands.Count == 0) return WrapEntry("");
@@ -139,6 +144,8 @@ namespace RimMind.Core.Context
                     if (CurrentScenario == ScenarioIds.Storyteller)
                         return WrapEntry("Select the most fitting incident for the colony's current state. Return structured JSON with defName, reason, and optional params.");
                     if (CurrentScenario == ScenarioIds.Decision)
+                        return WrapEntry("RimMind.Core.Prompt.TaskInstruction.WorldOnly".Translate());
+                    if (CurrentScenario == ScenarioIds.Dialogue)
                         return WrapEntry("RimMind.Core.Prompt.TaskInstruction.WorldOnly".Translate());
                     return WrapEntry("RimMind.Core.Prompt.TaskInstruction.Base".Translate());
                 }, "Core");

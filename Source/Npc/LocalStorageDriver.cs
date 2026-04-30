@@ -191,7 +191,7 @@ namespace RimMind.Core.Npc
             try
             {
                 var obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, object>>(content);
-                if (obj != null && obj.TryGetValue("message", out var msg) && msg != null)
+                if (obj != null && obj.TryGetValue("reply", out var msg) && msg != null)
                 {
                     string? extracted = msg.ToString();
                     if (!string.IsNullOrEmpty(extracted)) return extracted;
