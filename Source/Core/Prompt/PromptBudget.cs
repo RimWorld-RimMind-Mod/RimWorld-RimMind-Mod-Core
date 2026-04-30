@@ -1,37 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using Verse;
 
 namespace RimMind.Core.Prompt
 {
     public class PromptBudget
     {
-        public int TotalBudget { get; set; } = 4000;
-        public int ReserveForOutput { get; set; } = 800;
+        public int TotalBudget { get; }
+        public int ReserveForOutput { get; }
+        public int AvailableForInput { get; }
 
-        public int AvailableForInput => TotalBudget - ReserveForOutput;
-
-        public PromptBudget() { }
-
-        public PromptBudget(int totalBudget, int reserveForOutput = 800)
+        public PromptBudget(int totalBudget = 4000, int reserveForOutput = 800)
         {
             TotalBudget = totalBudget;
             ReserveForOutput = reserveForOutput;
+            AvailableForInput = totalBudget - reserveForOutput;
         }
 
         public List<PromptSection> Compose(List<PromptSection> sections)
         {
-            if (sections == null || sections.Count == 0) return new List<PromptSection>();
+            if (sections == null || sections.Count == 0)
+                return sections!;
 
-            var working = sections.Where(s => !string.IsNullOrEmpty(s.Content)).ToList();
+            var result = sections.Select(s => s.Clone()).ToList();
+            int totalTokens = result.Sum(s => s.EstimatedTokens);
 
-            int used = working.Sum(s => s.EstimatedTokens);
-            if (used <= AvailableForInput)
-                return ContextComposer.Reorder(working);
-
-            var result = new List<PromptSection>(working);
+            if (totalTokens <= AvailableForInput)
+                return result;
 
             var compressible = result
                 .Where(s => s.IsCompressible)
@@ -40,56 +35,39 @@ namespace RimMind.Core.Prompt
 
             foreach (var section in compressible)
             {
-                if (used <= AvailableForInput) break;
-                try
-                {
-                    string compressed = section.Compress!(section.Content);
-                    if (string.IsNullOrEmpty(compressed))
-                    {
-                        result.Remove(section);
-                        used -= section.EstimatedTokens;
-                        continue;
-                    }
-                    int oldTokens = section.EstimatedTokens;
-                    section.Content = compressed;
-                    section.EstimatedTokens = PromptSection.EstimateTokens(compressed);
-                    used -= oldTokens - section.EstimatedTokens;
-                    if (RimMindCoreMod.Settings?.debugLogging == true)
-                        Log.Message($"[RimMind] PromptBudget: compressed '{section.Tag}' (~{oldTokens}tok → ~{section.EstimatedTokens}tok)");
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"[RimMind] PromptBudget: compress failed for '{section.Tag}': {ex.Message}");
-                }
+                if (totalTokens <= AvailableForInput) break;
+
+                if (section.Compress == null) continue;
+
+                int beforeTokens = section.EstimatedTokens;
+                section.Content = section.Compress(section.Content);
+                section.EstimatedTokens = PromptSection.EstimateTokens(section.Content);
+                totalTokens -= beforeTokens - section.EstimatedTokens;
             }
 
-            if (used > AvailableForInput)
+            if (totalTokens <= AvailableForInput)
+                return result;
+
+            var trimmable = result
+                .Where(s => s.IsTrimable)
+                .OrderByDescending(s => s.Priority)
+                .ToList();
+
+            foreach (var section in trimmable)
             {
-                var trimmable = result
-                    .Where(s => s.IsTrimable)
-                    .OrderByDescending(s => s.Priority)
-                    .ToList();
+                if (totalTokens <= AvailableForInput) break;
 
-                foreach (var section in trimmable)
-                {
-                    if (used <= AvailableForInput) break;
-                    result.Remove(section);
-                    used -= section.EstimatedTokens;
-                    if (RimMindCoreMod.Settings?.debugLogging == true)
-                        Log.Message($"[RimMind] PromptBudget: trimmed '{section.Tag}' (~{section.EstimatedTokens}tok) to fit budget");
-                }
+                totalTokens -= section.EstimatedTokens;
+                result.Remove(section);
             }
 
-            return ContextComposer.Reorder(result);
+            return result;
         }
 
         public string ComposeToString(List<PromptSection> sections)
         {
-            var composed = Compose(sections);
-            var sb = new StringBuilder();
-            foreach (var section in composed)
-                sb.AppendLine(section.Content);
-            return sb.ToString().TrimEnd();
+            var trimmed = Compose(sections);
+            return string.Join("\n\n", trimmed.Select(s => s.Content));
         }
     }
 }

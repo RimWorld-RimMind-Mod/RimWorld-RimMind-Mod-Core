@@ -9,6 +9,7 @@ namespace RimMind.Core.Prompt
         public int Priority { get; set; }
         public int EstimatedTokens { get; set; }
         public Func<string, string>? Compress { get; set; }
+        public string? LayerTag { get; set; }
 
         public const int PriorityCore = 0;
         public const int PriorityCurrentInput = 1;
@@ -43,6 +44,19 @@ namespace RimMind.Core.Prompt
         public bool IsTrimable => Priority > PriorityCore;
 
         public bool IsCompressible => Compress != null && IsTrimable;
+
+        public PromptSection Clone()
+        {
+            return new PromptSection
+            {
+                Tag = Tag,
+                Content = Content,
+                Priority = Priority,
+                EstimatedTokens = EstimatedTokens,
+                Compress = Compress,
+                LayerTag = LayerTag,
+            };
+        }
 
         public override string ToString() => $"[{Tag}] P{Priority} ~{EstimatedTokens}tok";
     }

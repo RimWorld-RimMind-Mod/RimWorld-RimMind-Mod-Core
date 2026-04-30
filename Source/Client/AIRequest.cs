@@ -30,5 +30,16 @@ namespace RimMind.Core.Client
     {
         public string Role { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public string? ReasoningContent { get; set; }
+        public string? ToolCallId { get; set; }
+        public List<ChatToolCall>? ToolCalls { get; set; }
+        public string? LayerTag { get; set; }
+    }
+
+    public class ChatToolCall
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Arguments { get; set; } = string.Empty;
     }
 }

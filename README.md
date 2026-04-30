@@ -108,6 +108,27 @@ cd RimWorld-RimMind-Mod-Core
 
 通过"上下文过滤"设置页精确控制哪些游戏信息注入 Prompt，节省 Token。提供最小/标准/完整三种预设，也可自定义勾选 28+ 个选项。
 
+### Agent 认知架构
+
+每个殖民者作为独立认知主体，遵循 Perceive→Think→Act→Record 循环：
+
+- **Perceive**：5 个 Harmony Patch 将游戏事件（袭击、受伤、心情变化等）转为感知信号，经去重/优先级/冷却过滤后注入 Agent
+- **Think**：Agent 根据感知信号和当前目标，通过 ContextEngine 构建上下文，向 LLM 发送结构化请求
+- **Act**：解析 LLM 响应，执行工具调用（动作、对话、目标调整等）
+- **Record**：记录行为到历史队列，用于后续决策参考
+
+### 统一上下文引擎
+
+ContextEngine 采用 L0-L5 分层构建上下文，支持 Diff 注入与 Tick 过期合并：
+
+- L0 静态层（系统指令、身份）→ L1 基线层（地图、Pawn 信息）→ L2 环境层（天气、时间）→ L3 状态层（健康、心情）→ L4 历史层（对话记录）→ L5 感知层（Sensor 数据）
+- BudgetScheduler 按 Score = W1×优先级 + W2×相关性 调度上下文预算
+- 子模组通过 ContextKeyRegistry.Register 注入自定义上下文 Provider
+
+### 数据飞轮
+
+内置自动调优系统（Flywheel），持续分析 AI 请求效果并优化上下文参数，让 AI 输出质量随使用时间逐步提升。
+
 ### 调试工具
 
 - **AI Debug Log**：浮动窗口，查看每次 AI 调用的完整 Prompt + Response
@@ -124,6 +145,7 @@ cd RimWorld-RimMind-Mod-Core
 | 模型名称 | `deepseek-chat` | 任意模型 ID |
 | 强制 JSON 模式 | 开启 | 不支持的本地模型请关闭 |
 | 最大 Token | 800 | 响应长度上限（200-2000） |
+| 默认温度 | 0.7 | 控制输出随机性（0.0-2.0） |
 | 最大并发请求数 | 3 | 同时发送请求的上限（1-10） |
 | 最大重试次数 | 2 | 请求失败后重试次数（0-5） |
 | 请求超时 | 120秒 | 等待 AI 响应的最大时间（10-300秒） |
@@ -132,6 +154,10 @@ cd RimWorld-RimMind-Mod-Core
 | 自定义人物提示词 | 空 | 追加在人物上下文末尾 |
 | 自定义地图提示词 | 空 | 追加在地图上下文末尾 |
 | 上下文过滤器 | 标准 | 28+ 个可选项，三种预设 |
+| 上下文 Diff 生存期 | 3000 ticks | Diff 条目过期时间（300-3000） |
+| 上下文校准间隔 | 30000 ticks | 基线重算间隔（5000-60000） |
+| 飞轮自动应用 | 关闭 | Off / LogOnly / ApplyWithLog |
+| 飞轮置信度阈值 | 0.8 | 自动应用最低置信度（0.5-1.0） |
 
 ## 常见问题
 
@@ -243,6 +269,9 @@ cd RimWorld-RimMind-Mod-Core
 - **Async Request Queue**: All AI requests run on background threads, never blocking the game. Supports automatic retry for transient errors (timeout / 429 / 502 / 503 etc.), serial processing for local models
 - **Context Builder**: Automatically collects game state (colonist stats, map info, etc.) for AI prompts
 - **Context Filter**: Fine-grained control over what game info gets sent to AI, with Minimal/Standard/Full presets and 28+ configurable options
+- **Agent Cognitive Architecture**: Each colonist as an independent cognitive agent following Perceive→Think→Act→Record cycle, with perception bridge (5 Harmony Patches) converting game events into perception signals
+- **Unified Context Engine**: L0-L5 layered context building with Diff injection and tick-based expiry, BudgetScheduler scoring (W1×priority + W2×relevance), extensible via ContextKeyRegistry
+- **Data Flywheel**: Built-in auto-tuning system that continuously analyzes AI request quality and optimizes context parameters
 - **Debug Tools**: AI Debug Log window, request overlay, Dev menu actions (test connection, view context, clear cooldowns, pause/resume queue)
 
 ## FAQ

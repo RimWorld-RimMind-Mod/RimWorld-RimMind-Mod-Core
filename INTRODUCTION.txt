@@ -1,79 +1,100 @@
-[h1]RimMind - Core[/h1]
-RimMind 套件的核心基础设施，提供 LLM 客户端、异步请求队列和游戏上下文构建器，是所有 RimMind 子模组的前置依赖。
+═══════════════════════════════════════════════
+  RimMind — 你的小人有了真正的灵魂
+═══════════════════════════════════════════════
 
-[h2] RimMind 是什么 [/h2]
-RimMind 是一套 AI 驱动的 RimWorld 模组套件，通过接入大语言模型 (LLM)，让殖民者拥有人格、记忆、对话和自主决策能力。
+想象这个场景：
 
-[h2] 子模组列表与依赖关系 [/h2]
-[table][tr][td][b] 模组 [/b][/td][td][b] 职责 [/b][/td][td][b] 依赖 [/b][/td][td][b] GitHub [/b][/td][/tr][tr][td][b] RimMind-Core [/b][/td][td] API 客户端、请求调度、上下文打包 [/td][td] Harmony [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core] 链接 [/url][/td][/tr][tr][td] RimMind-Actions [/td][td] AI 控制小人的动作执行库 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions] 链接 [/url][/td][/tr][tr][td] RimMind-Advisor [/td][td] AI 扮演小人做出工作决策 [/td][td] Core, Actions [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor] 链接 [/url][/td][/tr][tr][td] RimMind-Dialogue [/td][td] AI 驱动的对话系统 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue] 链接 [/url][/td][/tr][tr][td] RimMind-Memory [/td][td] 记忆采集与上下文注入 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory] 链接 [/url][/td][/tr][tr][td] RimMind-Personality [/td][td] AI 生成人格与想法 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality] 链接 [/url][/td][/tr][tr][td] RimMind-Storyteller [/td][td] AI 叙事者，智能选择事件 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller] 链接 [/url][/td][/tr][/table]
-[code]Core ── Actions ── Advisor
-  ├── Dialogue
-  ├── Memory
-  ├── Personality
-  └── Storyteller[/code]
+  袭击刚结束。Alice 蹲在废墟旁，她的爱人倒在血泊中。
+  你点开她的思维面板——她在想：
+  "我受够了。我要离开这个鬼地方。"
 
-[h2] 核心能力 [/h2]
-[b] 智能上下文构建 [/b] - 自动采集游戏状态：殖民者心情、健康、技能、装备、地图财富、威胁等级、季节天气等，为 AI 决策提供完整情报。
-[b] 异步请求队列 [/b] - 智能管理 LLM 请求，避免阻塞游戏主线程，支持请求优先级、冷却控制、自动重试和暂停/取消。
-[b] 模块化 API 设计 [/b] - 其他 RimMind 组件通过统一接口调用，无需关心底层实现细节。
-[b] 多 Provider 支持 [/b] - 兼容 OpenAI / DeepSeek / Ollama 等 OpenAI Chat Completions 格式的 API，同时支持 Player2 服务（本地应用 + 远程 API）。
-[b] 上下文过滤器 [/b] - 28+ 个可配置选项，精确控制注入 Prompt 的信息量，节省 Token 开销。
-[b] SkipCheck 互斥机制 [/b] - 子模组可注册对话/浮菜单/动作/叙事者的跳过检查，实现跨模组互斥控制。
-[b] 调试工具集 [/b] - 内置 AI 请求日志窗口，实时查看每次 AI 调用的输入输出，方便排查问题。
+  另一边，Bob 刚被救回来。他看到 Alice 独自发抖，
+  决定走过去安慰她。不是你下的命令——是他自己想的。
 
-[h2] 技术亮点 [/h2]
-[list]
-[*] 兼容 OpenAI / DeepSeek / Ollama / Player2 等多种 AI 服务
-[*] 可配置的上下文过滤器，提供最小 / 标准 / 完整三种预设
-[*] JSON 模式支持，确保 AI 返回结构化数据
-[*] 请求悬浮窗，实时显示 AI 请求状态
-[*] 瞬态错误自动重试（timeout / 429 / 502 / 503 等）
-[*] 本地模型串行处理，避免资源竞争
-[*] Prompt Token 预算管理，自动压缩和裁剪
-[/list]
+  这不是脚本。不是随机事件表。这是 AI 在那一刻，
+  为这两个有性格、有记忆、有情感的小人做出的真实决定。
 
-[h2] 支持的 API 端点 [/h2]
-[table][tr][td][b] 服务 [/b][/td][td][b] 端点 [/b][/td][td][b] 说明 [/b][/td][/tr][tr][td] OpenAI [/td][td] https://api.openai.com/v1 [/td][td] GPT-4o-mini 等模型 [/td][/tr][tr][td] DeepSeek [/td][td] https://api.deepseek.com/v1 [/td][td] deepseek-chat 等模型 [/td][/tr][tr][td] Ollama (本地) [/td][td] http://localhost:11434/v1 [/td][td] 本地部署的模型 [/td][/tr][tr][td] Player2 [/td][td] 自动检测 / 手动配置 [/td][td] Player2 本地应用或远程 API [/td][/tr][tr][td] 其他 [/td][td] 填入 Base URL [/td][td] 任何 OpenAI 兼容接口 [/td][/tr][/table]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[h2] 核心功能 [/h2]
-[b] LLM 客户端 [/b]
-兼容 OpenAI / DeepSeek / 本地 Ollama 等所有 OpenAI Chat Completions 格式的 API，同时支持 Player2 服务（本地应用自动检测 + 远程 API）。支持 JSON 强制模式（response_format: json_object），本地模型可关闭。
+  这 Mod 到底好玩在哪？
+  ────────────────────
 
-[b] 异步请求队列 [/b]
-所有 AI 请求在后台线程执行，不阻塞游戏主线程。每个请求独立冷却，过期请求自动丢弃。支持瞬态错误自动重试（timeout / 429 / 502 / 503 等），本地模型串行处理避免资源竞争。
+  ▸ 小人真的会"想"
+    每个 Pawn 都有独立的认知循环：感知→思考→行动→记忆。
+    它们会注意到同伴的心情、殖民地的食物短缺、窗外的威胁。
+    然后做出自己的判断，甚至形成长期目标。
 
-[b] 上下文构建 [/b]
-自动采集游戏状态并打包为文本供各模块使用：
-[list]
-[*] [b]地图上下文[/b]：时间、殖民者、食物、威胁、季节、天气
-[*] [b]小人上下文[/b]：年龄、背景、心情、健康、技能、装备、工作分配、关系
-[/list]
+  ▸ 上下文引擎——AI 真正"懂"你的殖民地
+    不是把一堆数据丢给 LLM，而是用五层架构精准筛选：
+    只给 AI 此刻最相关的信息。BudgetScheduler 控制每次请求
+    都在 token 预算内。所以小人不会"失忆"或"胡说八道"。
 
-[b] 上下文过滤器 [/b]
-通过"上下文过滤"设置页精确控制哪些游戏信息注入 Prompt，节省 Token。提供最小/标准/完整三种预设，也可自定义勾选 28+ 个选项。
+  ▸ 飞轮自动调优——越用越聪明
+    不需要手动调参数。Flywheel 持续监控 AI 响应质量，
+    自动调整温度、预算、权重。用得越久，小人越"对味"。
 
-[b] 调试工具 [/b]
-[list]
-[*] [b]AI Debug Log[/b]：浮动窗口，查看每次 AI 调用的完整 Prompt + Response
-[*] [b]请求悬浮窗[/b]：右下角实时显示 AI 请求状态
-[*] [b]Dev 菜单[/b]：测试连接、查看上下文、清除冷却、暂停/恢复队列等
-[/list]
+  ▸ 感知桥接——小人不是木头人
+    5 个 Patch 把 RimWorld 的原生事件翻译成 AI 能理解的信号。
+    受伤、心情崩溃、社交冲突、袭击警报——小人会主动感知，
+    不是等你点按钮才反应。
 
-[h2] 设置项 [/h2]
-[table][tr][td][b] 设置 [/b][/td][td][b] 默认值 [/b][/td][td][b] 说明 [/b][/td][/tr][tr][td] AI Provider [/td][td] OpenAI [/td][td] 选择 OpenAI 兼容 API 或 Player2 [/td][/tr][tr][td] API Key [/td][td] - [/td][td] 你的 API 密钥（Player2 模式可选） [/td][/tr][tr][td] API 端点 [/td][td] https://api.deepseek.com/v1 [/td][td] OpenAI 兼容端点 [/td][/tr][tr][td] 模型名称 [/td][td] deepseek-chat [/td][td] 任意模型 ID [/td][/tr][tr][td] 强制 JSON 模式 [/td][td] 开启 [/td][td] 不支持的本地模型请关闭 [/td][/tr][tr][td] 最大 Token [/td][td] 800 [/td][td] 响应长度上限 [/td][/tr][tr][td] 最大并发请求数 [/td][td] 3 [/td][td] 同时等待响应的请求上限 [/td][/tr][tr][td] 最大重试次数 [/td][td] 2 [/td][td] 请求失败后重试次数 [/td][/tr][tr][td] 请求超时 [/td][td] 120 秒 [/td][td] 单次请求超时时间 [/td][/tr][tr][td] 详细日志 [/td][td] 关闭 [/td][td] 输出到 Player.log [/td][/tr][tr][td] 请求悬浮窗 [/td][td] 开启 [/td][td] 右下角显示请求状态 [/td][/tr][/table]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[h2] 常见问题 [/h2]
-[b] Q: 支持哪些大模型？ [/b]
-A: 任何兼容 OpenAI Chat Completions API 的模型均可使用，包括 OpenAI GPT 系列、DeepSeek、本地 Ollama 等。同时支持 Player2 服务（本地应用自动检测 + 远程 API）。
+  推荐怎么玩？
+  ────────────
 
-[b] Q: 会不会影响游戏帧率？ [/b]
-A: 不会。所有 AI 请求在后台线程执行，主线程只处理回调结果。
+  第一步：装 RimMind-Core
+    这是引擎。装好，填入你的 API Key，就能跑了。
+    支持任何 OpenAI 兼容的 API（OpenAI / 本地 Ollama / 其他）。
 
-[b] Q: API Key 安全吗？ [/b]
-A: API Key 仅存储在本地 RimWorld 设置文件中；发起 AI 请求时会发送给你配置的 API 端点，不会上传到 RimMind 自有服务器。
+  第二步：加 RimMind-Dialogue
+    和小人自由对话。这是最直观的体验——直接跟你的殖民者聊天，
+    问它们在想什么，听它们抱怨食物难吃。
 
-[b] Q: 不填 API Key 会怎样？ [/b]
-A: Core 本身不会报错，但所有依赖 AI 的子模组功能将无法工作。
+  第三步：加 RimMind-Personality
+    给每个小人分配大五人格特质。内向的科学家、外向的社交达人、
+    神经质的艺术家——性格不同，反应完全不同。
 
-[b] Q: 推荐用什么模型？ [/b]
-A: 推荐使用 gpt-4o-mini 或 deepseek-chat，性价比高且响应速度快。本地 Ollama 用户可使用 qwen2.5:7b 等模型。
+  第四步：加 RimMind-Memory
+    小人开始记住事情了。三个月前那次袭击，它还记得谁救了它。
+    暗记忆系统让 AI 在不知不觉中被过去的经历影响。
+
+  进阶：RimMind-Actions + RimMind-Storyteller
+    Actions 让小人自主行动——工作、社交、逃跑，全凭自己判断。
+    Storyteller 让 AI 当叙事者，动态生成故事线和事件。
+    这两个会让游戏难度和不可预测性大幅上升，建议熟悉基础后再加。
+
+  还有：RimMind-Advisor
+    AI 顾问模式。不改变小人行为，而是帮你分析殖民地状况、
+    给出建议。适合想用 AI 辅助决策但不想让小人"失控"的玩家。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  常见问题
+  ────────
+
+  Q: 贵不贵？
+  A: 默认每 500 秒思考一次，token 用量可控。
+     用本地 Ollama 的话完全免费。Flywheel 会自动优化避免浪费。
+
+  Q: 和其他 Mod 冲突吗？
+  A: 不冲突。RimMind 通过 Harmony Patch 桥接，不修改游戏原生逻辑。
+
+  Q: 可以只装 Core 吗？
+  A: 可以跑，但小人只会"想"不会"做"。
+     建议至少搭配 Dialogue，体验最完整。
+
+  Q: Player2 模式是什么？
+  A: 你自己扮演 NPC 的 AI。适合想亲自"演"角色的玩家。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  给 Mod 开发者
+
+  - 公共 API: RimMindAPI 静态类
+  - 注册上下文: ContextKeyRegistry.Register(key, layer, priority, provider, modId)
+  - 上下文架构: L0(静态)→L1(基线+Diff)→L2(环境)→L3(状态)→L4(历史)→L5(感知)
+  - 请求队列: AIRequestQueue，支持优先级、冷却、取消
+  - 详细规范: 见 AGENTS.md
+
+═══════════════════════════════════════════════

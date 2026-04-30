@@ -6,17 +6,20 @@ namespace RimMind.Core.Client
         public string Content { get; set; } = string.Empty;
         public string Error { get; set; } = string.Empty;
         public int TokensUsed { get; set; }
+        public int PromptTokens;
+        public int CompletionTokens;
+        public int CachedTokens;
         public string RequestId { get; set; } = string.Empty;
 
         public AIRequestState State { get; set; } = AIRequestState.Queued;
         public AIRequestPriority Priority { get; set; } = AIRequestPriority.Normal;
-        public int QueuePosition { get; set; }
         public int AttemptCount { get; set; } = 1;
         public long QueueWaitMs { get; set; }
         public long ProcessingMs { get; set; }
         public long HttpStatusCode { get; set; }
         public int RequestPayloadBytes { get; set; }
-        public string CancelReason { get; set; } = string.Empty;
+        public string? ToolCallsJson;
+        public string? ReasoningContent;
 
         public static AIResponse Failure(string requestId, string error) => new AIResponse
         {
@@ -40,8 +43,7 @@ namespace RimMind.Core.Client
             Success = false,
             Error = reason,
             RequestId = requestId,
-            State = AIRequestState.Cancelled,
-            CancelReason = reason
+            State = AIRequestState.Cancelled
         };
     }
 }

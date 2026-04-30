@@ -26,6 +26,15 @@ namespace RimMind.Core.Client.OpenAI
             }
         }
 
+        private static readonly Dictionary<string, string> _formatCapabilityCache = new();
+
+        internal static void InvalidateFormatCache()
+        {
+            _formatCapabilityCache.Clear();
+        }
+
+        private string BuildCacheKey() => $"{_settings.apiEndpoint}|{_settings.modelName}";
+
         private readonly RimMindCoreSettings _settings;
 
         public OpenAIClient(RimMindCoreSettings settings)
@@ -50,8 +59,43 @@ namespace RimMind.Core.Client.OpenAI
 
         public async Task<AIResponse> SendAsync(AIRequest request)
         {
+            bool wantFormat = _settings.forceJsonMode && request.UseJsonMode;
+            string cacheKey = BuildCacheKey();
+
+            if (wantFormat && _formatCapabilityCache.TryGetValue(cacheKey, out string? cached))
+            {
+                if (cached == "none")
+                    wantFormat = false;
+            }
+
+            if (!wantFormat)
+            {
+                var noFormatResp = await SendAsyncInner(request, useResponseFormat: false);
+                if (noFormatResp.Success && wantFormat != (_settings.forceJsonMode && request.UseJsonMode))
+                    AIRequestQueue.LogFromBackground($"[RimMind] Skipped json_object for {request.RequestId} (cached: endpoint doesn't support it)");
+                return noFormatResp;
+            }
+
+            var response = await SendAsyncInner(request, useResponseFormat: true);
+            if (response.Success)
+            {
+                _formatCapabilityCache[cacheKey] = "json_object";
+                return response;
+            }
+
+            if (IsResponseFormatError(response))
+            {
+                AIRequestQueue.LogFromBackground($"[RimMind] json_object not supported, retrying without response_format for {request.RequestId}", isWarning: true);
+                _formatCapabilityCache[cacheKey] = "none";
+                response = await SendAsyncInner(request, useResponseFormat: false);
+            }
+            return response;
+        }
+
+        private async Task<AIResponse> SendAsyncInner(AIRequest request, bool useResponseFormat)
+        {
             string endpoint = FormatEndpoint(_settings.apiEndpoint);
-            string json = BuildRequestJson(request);
+            string json = BuildRequestJson(request, useResponseFormat);
 
             if (_settings.debugLogging)
                 AIRequestQueue.LogFromBackground($"[RimMind] → {request.RequestId}\n{json}");
@@ -62,13 +106,21 @@ namespace RimMind.Core.Client.OpenAI
                 (string responseText, long httpStatusCode) = await PostAsync(endpoint, json);
                 var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
                 string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
+                string? reasoningContent = parsed?.choices?[0]?.message?.reasoning_content;
                 int tokens = parsed?.usage?.total_tokens ?? 0;
+                int promptTokens = parsed?.usage?.prompt_tokens ?? 0;
+                int completionTokens = parsed?.usage?.completion_tokens ?? 0;
+                int cachedTokens = parsed?.usage?.prompt_tokens_details?.cached_tokens ?? 0;
                 sw.Stop();
 
                 if (_settings.debugLogging)
                     AIRequestQueue.LogFromBackground($"[RimMind] ← {request.RequestId} ({tokens} tok)\n{content}");
 
                 var response = AIResponse.Ok(request.RequestId, content, tokens);
+                response.ReasoningContent = reasoningContent;
+                response.PromptTokens = promptTokens;
+                response.CompletionTokens = completionTokens;
+                response.CachedTokens = cachedTokens;
                 response.ProcessingMs = sw.ElapsedMilliseconds;
                 response.HttpStatusCode = httpStatusCode;
                 response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
@@ -101,23 +153,160 @@ namespace RimMind.Core.Client.OpenAI
             }
         }
 
-        private string BuildRequestJson(AIRequest request)
+        public async Task<AIResponse> SendStructuredAsync(AIRequest request, string? jsonSchema, List<StructuredTool>? tools)
         {
-            List<MessageDto> messages;
+            string endpoint = FormatEndpoint(_settings.apiEndpoint);
+            string cacheKey = BuildCacheKey();
 
-            if (request.Messages != null && request.Messages.Count > 0)
+            string[] formatModes = { "json_schema", "json_object", "none" };
+            int startIndex = 0;
+
+            if (_formatCapabilityCache.TryGetValue(cacheKey, out string? cachedBest))
             {
-                messages = request.Messages
-                    .Select(m => new MessageDto { role = m.Role, content = m.Content })
-                    .ToList();
+                for (int i = 0; i < formatModes.Length; i++)
+                {
+                    if (formatModes[i] == cachedBest)
+                    {
+                        startIndex = i;
+                        break;
+                    }
+                }
+                if (startIndex > 0)
+                    AIRequestQueue.LogFromBackground($"[RimMind] Using cached format '{cachedBest}' for {request.RequestId} (skipping {startIndex} unsupported mode(s))");
             }
-            else
+
+            for (int i = startIndex; i < formatModes.Length; i++)
             {
-                messages = new List<MessageDto>();
-                if (!string.IsNullOrEmpty(request.SystemPrompt))
-                    messages.Add(new MessageDto { role = "system", content = request.SystemPrompt });
-                messages.Add(new MessageDto { role = "user", content = request.UserPrompt });
+                string mode = formatModes[i];
+                string? schema = mode == "json_schema" ? jsonSchema : null;
+
+                var response = await TrySendStructuredAsync(request, endpoint, schema, tools, mode);
+
+                if (response.Success)
+                {
+                    if (i > 0 || mode != "json_schema")
+                        _formatCapabilityCache[cacheKey] = mode;
+                    else
+                        _formatCapabilityCache[cacheKey] = "json_schema";
+                    return response;
+                }
+
+                if (IsResponseFormatError(response))
+                {
+                    AIRequestQueue.LogFromBackground($"[RimMind] Format '{mode}' not supported for {request.RequestId}, downgrading", isWarning: true);
+                    continue;
+                }
+
+                return response;
             }
+
+            _formatCapabilityCache[cacheKey] = "none";
+            return AIResponse.Failure(request.RequestId, "All response_format modes failed");
+        }
+
+        public static bool IsResponseFormatError(AIResponse response)
+        {
+            if (response.HttpStatusCode != 400 && response.HttpStatusCode != 422) return false;
+            string err = response.Error ?? "";
+            return err.Contains("response_format") || err.Contains("json_schema") || err.Contains("json_object");
+        }
+
+        private async Task<AIResponse> TrySendStructuredAsync(AIRequest request, string endpoint, string? jsonSchema, List<StructuredTool>? tools, string formatMode)
+        {
+            string json = BuildStructuredRequestJson(request, jsonSchema, tools, formatMode);
+
+            if (_settings.debugLogging)
+                AIRequestQueue.LogFromBackground($"[RimMind] → Structured {request.RequestId} (format={formatMode})\n{json}");
+
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                (string responseText, long httpStatusCode) = await PostAsync(endpoint, json);
+                var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
+                string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
+                string? reasoningContent = parsed?.choices?[0]?.message?.reasoning_content;
+                int tokens = parsed?.usage?.total_tokens ?? 0;
+                int promptTokens = parsed?.usage?.prompt_tokens ?? 0;
+                int completionTokens = parsed?.usage?.completion_tokens ?? 0;
+                int cachedTokens = parsed?.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+                var toolCallsDto = parsed?.choices?[0]?.message?.tool_calls;
+                sw.Stop();
+
+                if (_settings.debugLogging)
+                    AIRequestQueue.LogFromBackground($"[RimMind] ← Structured {request.RequestId} ({tokens} tok)\n{content}");
+
+                var response = new AIResponse
+                {
+                    Success = true,
+                    Content = content,
+                    ReasoningContent = reasoningContent,
+                    RequestId = request.RequestId,
+                    TokensUsed = tokens,
+                    PromptTokens = promptTokens,
+                    CompletionTokens = completionTokens,
+                    CachedTokens = cachedTokens,
+                    State = AIRequestState.Completed,
+                };
+                response.ProcessingMs = sw.ElapsedMilliseconds;
+                response.HttpStatusCode = httpStatusCode;
+                response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
+                response.Priority = request.Priority;
+
+                if (toolCallsDto != null && toolCallsDto.Count > 0)
+                {
+                    var converted = toolCallsDto.Select(tc => new
+                    {
+                        id = tc.Id,
+                        type = tc.Type,
+                        function = new
+                        {
+                            name = tc.Function?.Name,
+                            arguments = tc.Function?.Arguments,
+                        }
+                    }).ToList();
+                    response.ToolCallsJson = JsonConvert.SerializeObject(converted);
+                }
+                else if (tools != null && tools.Count > 0 && !string.IsNullOrEmpty(content))
+                {
+                    AIRequestQueue.LogFromBackground($"[RimMind] No tool_calls in response (format={formatMode}), content length={content.Length} for {request.RequestId}");
+                    if (_settings.debugLogging && content.Length > 0)
+                        AIRequestQueue.LogFromBackground($"[RimMind] Response content (no tool_calls): {content}");
+                }
+
+                AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
+                return response;
+            }
+            catch (AIHttpException ex)
+            {
+                sw.Stop();
+                AIRequestQueue.LogFromBackground($"[RimMind] Structured request failed ({request.RequestId}): {ex.Message}", isWarning: true);
+                var response = AIResponse.Failure(request.RequestId, ex.Message);
+                response.ProcessingMs = sw.ElapsedMilliseconds;
+                response.HttpStatusCode = ex.StatusCode;
+                response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
+                response.Priority = request.Priority;
+                AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                AIRequestQueue.LogFromBackground($"[RimMind] Structured request failed ({request.RequestId}): {ex.Message}", isWarning: true);
+                var response = AIResponse.Failure(request.RequestId, ex.Message);
+                response.ProcessingMs = sw.ElapsedMilliseconds;
+                response.RequestPayloadBytes = Encoding.UTF8.GetByteCount(json);
+                response.Priority = request.Priority;
+                AIDebugLog.Record(request, response, (int)sw.ElapsedMilliseconds);
+                return response;
+            }
+        }
+
+        private string BuildRequestJson(AIRequest request, bool useResponseFormat = true)
+        {
+            List<MessageDto> messages = BuildMessages(request);
+
+            if (useResponseFormat)
+                EnsureJsonKeyword(messages);
 
             var body = new OpenAIRequestDto
             {
@@ -128,11 +317,128 @@ namespace RimMind.Core.Client.OpenAI
                 stream = false,
             };
 
-            if (_settings.forceJsonMode && request.UseJsonMode)
+            if (useResponseFormat)
                 body.response_format = new ResponseFormatDto { type = "json_object" };
 
             return JsonConvert.SerializeObject(body, Formatting.None,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+        }
+
+        private string BuildStructuredRequestJson(AIRequest request, string? jsonSchema, List<StructuredTool>? tools, string formatMode = "json_schema")
+        {
+            List<MessageDto> messages = BuildMessages(request);
+
+            if (formatMode == "json_object")
+                EnsureJsonKeyword(messages);
+
+            var body = new OpenAIRequestDto
+            {
+                model = _settings.modelName,
+                messages = messages,
+                max_tokens = request.MaxTokens > 0 ? request.MaxTokens : _settings.maxTokens,
+                temperature = request.Temperature,
+                stream = false,
+            };
+
+            if (formatMode == "json_schema" && !string.IsNullOrEmpty(jsonSchema))
+            {
+                body.response_format = new ResponseFormatDto
+                {
+                    type = "json_schema",
+                    json_schema = new { name = "response", schema = JsonConvert.DeserializeObject(jsonSchema!) },
+                };
+            }
+            else if (formatMode == "json_object" && (_settings.forceJsonMode || request.UseJsonMode))
+            {
+                body.response_format = new ResponseFormatDto { type = "json_object" };
+            }
+
+            if (tools != null && tools.Count > 0)
+            {
+                body.tools = new List<ToolDto>();
+                foreach (var t in tools)
+                {
+                    body.tools.Add(new ToolDto
+                    {
+                        Function = new ToolFunctionDto
+                        {
+                            Name = t.Name,
+                            Description = t.Description,
+                            Parameters = t.Parameters != null
+                                ? JsonConvert.DeserializeObject(t.Parameters)
+                                : new { type = "object", properties = new { } },
+                        },
+                    });
+                }
+                if (tools.Any(t => t.ToolChoice == "required"))
+                    body.tool_choice = "required";
+                else
+                    body.tool_choice = "auto";
+            }
+
+            return JsonConvert.SerializeObject(body, Formatting.None,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+        }
+
+        private List<MessageDto> BuildMessages(AIRequest request)
+        {
+            var messages = new List<MessageDto>();
+
+            if (request.Messages != null && request.Messages.Count > 0)
+            {
+                foreach (var m in request.Messages)
+                {
+                    var dto = new MessageDto { role = m.Role, content = m.Content };
+                    if (m.Role == "assistant" && !string.IsNullOrEmpty(m.ReasoningContent))
+                        dto.reasoning_content = m.ReasoningContent;
+                    if (!string.IsNullOrEmpty(m.ToolCallId))
+                        dto.tool_call_id = m.ToolCallId;
+                    if (m.ToolCalls != null && m.ToolCalls.Count > 0)
+                    {
+                        dto.tool_calls = m.ToolCalls.Select(tc => new ToolCallDto
+                        {
+                            Id = tc.Id,
+                            Type = "function",
+                            Function = new ToolCallFunctionDto
+                            {
+                                Name = tc.Name,
+                                Arguments = tc.Arguments,
+                            },
+                        }).ToList();
+                    }
+                    messages.Add(dto);
+                }
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(request.SystemPrompt))
+                    messages.Add(new MessageDto { role = "system", content = request.SystemPrompt });
+                messages.Add(new MessageDto { role = "user", content = request.UserPrompt });
+            }
+
+            return messages;
+        }
+
+        private static void EnsureJsonKeyword(List<MessageDto> messages)
+        {
+            foreach (var m in messages)
+            {
+                if (m.content != null && m.content.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return;
+            }
+            int lastSys = -1;
+            for (int i = messages.Count - 1; i >= 0; i--)
+            {
+                if (messages[i].role == "system")
+                {
+                    lastSys = i;
+                    break;
+                }
+            }
+            if (lastSys >= 0)
+                messages[lastSys].content = (messages[lastSys].content ?? "") + "\n\nPlease respond in JSON format.";
+            else
+                messages.Insert(0, new MessageDto { role = "system", content = "Please respond in JSON format." });
         }
 
         private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody)
@@ -179,9 +485,9 @@ namespace RimMind.Core.Client.OpenAI
             if (webRequest.result == UnityWebRequest.Result.ConnectionError ||
                 webRequest.result == UnityWebRequest.Result.ProtocolError)
             {
-                string body    = webRequest.downloadHandler.text;
+                string body = webRequest.downloadHandler.text;
                 string unityErr = webRequest.error ?? "";
-                string detail  = body.Length > 0 ? body : unityErr;
+                string detail = body.Length > 0 ? body : unityErr;
                 throw new AIHttpException(webRequest.responseCode, $"HTTP {webRequest.responseCode}: {detail}");
             }
 

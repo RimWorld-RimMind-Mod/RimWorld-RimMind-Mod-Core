@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using RimMind.Core.Npc;
 using RimMind.Core.Prompt;
 using RimWorld;
 using RimWorld.Planet;
@@ -114,7 +115,7 @@ namespace RimMind.Core.Internal
 
         /// <summary>
         /// 构建小人客观游戏状态（不含扩展 mod 注入内容）。
-        /// 完整上下文请用 RimMindAPI.BuildFullPawnPrompt。
+        /// 完整上下文请用 ContextEngine.BuildSnapshot。
         /// </summary>
         public static string BuildPawnContext(Pawn pawn)
         {
@@ -125,7 +126,7 @@ namespace RimMind.Core.Internal
             sb.Append("RimMind.Core.Prompt.PawnStatusHeader".Translate(pawn.Name.ToStringShort) + "  ");
 
             var basics = new List<string>();
-            if (ctx.IncludeAge)    basics.Add("RimMind.Core.Prompt.AgeFormat".Translate(pawn.ageTracker.AgeBiologicalYears));
+            if (ctx.IncludeAge) basics.Add("RimMind.Core.Prompt.AgeFormat".Translate(pawn.ageTracker.AgeBiologicalYears));
             if (ctx.IncludeGender) basics.Add(pawn.gender.GetLabel());
             if (ctx.IncludeRace)
             {
@@ -134,8 +135,8 @@ namespace RimMind.Core.Internal
                 else
                     basics.Add(pawn.def.label);
             }
-            if (basics.Count > 0)  sb.AppendLine(string.Join("  ", basics));
-            else                   sb.AppendLine();
+            if (basics.Count > 0) sb.AppendLine(string.Join("  ", basics));
+            else sb.AppendLine();
 
             // 基因（需要 Biotech DLC）
             if (ctx.IncludeGenes && ModsConfig.BiotechActive && pawn.genes?.GenesListForReading != null)
@@ -397,14 +398,6 @@ namespace RimMind.Core.Internal
         /// 从 WorldComponent 获取最近 N 条 AIStoryteller 历史记录。
         /// AIStoryteller 未安装时返回空字符串。
         /// </summary>
-        public static string BuildHistoryContext(int maxEntries = 10)
-        {
-            // AIStoryteller 通过 RegisterStaticProvider 注入，此处为空实现。
-            return string.Empty;
-        }
-
-        // ── 辅助 ──────────────────────────────────────────────────────────────
-
         private static string BuildSurroundings(Pawn pawn, int radius = 5, int maxItems = 8)
         {
             var map = pawn.Map;
@@ -480,8 +473,35 @@ namespace RimMind.Core.Internal
         {
             return wealth > 200000 ? "RimMind.Core.Prompt.Threat.Extreme".Translate()
                  : wealth > 100000 ? "RimMind.Core.Prompt.Threat.High".Translate()
-                 : wealth > 50000  ? "RimMind.Core.Prompt.Threat.Medium".Translate()
-                 :                   "RimMind.Core.Prompt.Threat.Low".Translate();
+                 : wealth > 50000 ? "RimMind.Core.Prompt.Threat.Medium".Translate()
+                 : "RimMind.Core.Prompt.Threat.Low".Translate();
+        }
+
+        // ── 基础游戏状态收集（回退路径） ────────────────────────────────────
+
+        /// <summary>
+        /// 收集基础游戏状态文本，用于 ContextEngine 不可用时回退填充 game_state_info。
+        /// 按 npcId 查找对应 Pawn，拼接地图上下文 + Pawn 上下文。
+        /// </summary>
+        public static string CollectBasicGameState(string npcId)
+        {
+            var sb = new StringBuilder();
+            var pawn = NpcManager.FindPawnByNpcId(npcId);
+
+            if (pawn != null)
+            {
+                if (pawn.Map != null)
+                    sb.AppendLine(BuildMapContext(pawn.Map));
+                sb.AppendLine(BuildPawnContext(pawn));
+            }
+            else
+            {
+                var map = Find.CurrentMap;
+                if (map != null)
+                    sb.AppendLine(BuildMapContext(map));
+            }
+
+            return sb.ToString().TrimEnd();
         }
 
         // ── PromptSection 版本 ──────────────────────────────────────────────
@@ -573,6 +593,177 @@ namespace RimMind.Core.Internal
             }
 
             return sb.ToString().TrimEnd();
+        }
+
+        // ── Per-Key 提取方法（供 ContextKeyRegistry 使用） ──────────────────
+
+        public static string ExtractPawnBaseInfo(Pawn pawn)
+        {
+            if (pawn == null) return "";
+            var parts = new List<string>();
+            parts.Add(pawn.Name?.ToStringShort ?? pawn.LabelShort);
+            parts.Add($"{pawn.ageTracker.AgeBiologicalYears}yo");
+            parts.Add(pawn.gender.GetLabel());
+            if (ModsConfig.BiotechActive && pawn.genes?.Xenotype != null)
+                parts.Add(pawn.genes.XenotypeLabel);
+            else
+                parts.Add(pawn.def.label);
+            if (pawn.story?.Childhood != null)
+                parts.Add(pawn.story.Childhood.TitleCapFor(pawn.gender));
+            if (pawn.story?.Adulthood != null)
+                parts.Add(pawn.story.Adulthood.TitleCapFor(pawn.gender));
+            if (pawn.story?.traits != null)
+            {
+                var traits = new List<string>();
+                foreach (var t in pawn.story.traits.allTraits)
+                {
+                    traits.Add(t.LabelCap);
+                    if (traits.Count >= 5) break;
+                }
+                if (traits.Count > 0) parts.Add($"Traits: {string.Join(", ", traits)}");
+            }
+            return string.Join(" | ", parts);
+        }
+
+        public static string ExtractFixedRelations(Pawn pawn)
+        {
+            if (pawn == null || pawn.relations?.DirectRelations == null) return "";
+            var parts = new List<string>();
+            foreach (var rel in pawn.relations.DirectRelations)
+            {
+                if (rel.otherPawn == null || rel.def == null) continue;
+                string otherName = rel.otherPawn.Name?.ToStringShort ?? rel.otherPawn.LabelShort;
+                parts.Add($"{rel.def.label}({otherName})");
+                if (parts.Count >= 6) break;
+            }
+            return parts.Count > 0 ? string.Join(", ", parts) : "";
+        }
+
+        public static string ExtractIdeology(Pawn pawn)
+        {
+            if (pawn == null || !ModsConfig.IdeologyActive || pawn.ideo?.Ideo == null) return "";
+            var ideo = pawn.ideo.Ideo;
+            var memes = ideo.memes?.Where(m => m != null).Select(m => m.LabelCap.Resolve())
+                .Where(s => !string.IsNullOrEmpty(s)).ToList();
+            string memeStr = memes?.Count > 0 ? $" [{string.Join(", ", memes)}]" : "";
+            return $"{ideo.name}{memeStr}";
+        }
+
+        public static string ExtractSkillsSummary(Pawn pawn)
+        {
+            if (pawn == null || pawn.skills == null) return "";
+            var top = pawn.skills.skills
+                .OrderByDescending(s => s.Level)
+                .Take(5)
+                .Select(s => $"{s.def.label}({s.Level})");
+            return string.Join("  ", top);
+        }
+
+        public static string ExtractCurrentArea(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map == null) return "";
+            var room = pawn.GetRoom();
+            string roomLabel = (room != null && !room.PsychologicallyOutdoors)
+                ? room.Role?.label ?? "RimMind.Core.Prompt.Room.Indoors".Translate()
+                : "RimMind.Core.Prompt.Room.Outdoors".Translate();
+            int temp = Mathf.RoundToInt(pawn.Position.GetTemperature(pawn.Map));
+            return $"{roomLabel}, {temp}°C";
+        }
+
+        public static string ExtractWeather(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map == null) return "";
+            return pawn.Map.weatherManager?.curWeather?.LabelCap ?? "Clear";
+        }
+
+        public static string ExtractTimeOfDay(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map == null) return "";
+            long ticks = Find.TickManager.TicksAbs;
+            Vector2 longLat = Find.WorldGrid.LongLatOf(pawn.Map.Tile);
+            int hour = GenDate.HourOfDay(ticks, longLat.x);
+            string dateStr = GenDate.DateFullStringAt(ticks, longLat);
+            return $"{dateStr} {hour:D2}:00";
+        }
+
+        public static string ExtractNearbyPawns(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map == null) return "";
+            var nearby = pawn.Map.mapPawns?.FreeColonistsSpawned?
+                .Where(p => p != pawn && p.Position.DistanceTo(pawn.Position) < 15f)
+                .Select(p => p.Name?.ToStringShort ?? p.LabelShort)
+                .Take(5);
+            return nearby != null && nearby.Any() ? string.Join(", ", nearby) : "";
+        }
+
+        public static string ExtractSeason(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map == null) return "";
+            return GenLocalDate.Season(pawn.Map).Label();
+        }
+
+        public static string ExtractColonyStatus(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map == null) return "";
+            var map = pawn.Map;
+            int colonists = map.mapPawns?.FreeColonistsCount ?? 0;
+            float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
+            int threatCount = map.mapPawns?.AllPawns?
+                .Count(p => p.Faction != null && p.Faction.HostileTo(Faction.OfPlayer) && !p.Dead && !p.Downed) ?? 0;
+            return "RimMind.Core.Prompt.Colony.Status".Translate(colonists, $"{wealth:F0}", threatCount);
+        }
+
+        public static string ExtractHealth(Pawn pawn)
+        {
+            if (pawn == null) return "";
+            var hediffs = pawn.health?.hediffSet?.hediffs;
+            if (hediffs == null) return "";
+            var notable = new List<string>();
+            foreach (var h in hediffs)
+            {
+                if (!h.Visible) continue;
+                notable.Add(h.LabelCap);
+                if (notable.Count >= 5) break;
+            }
+            return notable.Count > 0 ? string.Join(", ", notable) : "RimMind.Core.Prompt.Health.Healthy".Translate();
+        }
+
+        public static string ExtractMood(Pawn pawn)
+        {
+            if (pawn == null || pawn.needs?.mood == null) return "";
+            var mood = pawn.needs.mood;
+            if (pawn.InMentalState)
+                return "RimMind.Core.Prompt.Mood.MentalBreak".Translate(pawn.MentalState?.InspectLine ?? "");
+            return $"{mood.CurLevelPercentage * 100f:F0}%";
+        }
+
+        public static string ExtractCurrentJob(Pawn pawn)
+        {
+            if (pawn == null) return "";
+            return pawn.jobs?.curDriver?.GetReport() ?? pawn.CurJob?.def?.label ?? "RimMind.Core.Prompt.Job.Idle".Translate();
+        }
+
+        public static string ExtractCombatStatus(Pawn pawn)
+        {
+            if (pawn == null) return "";
+            var parts = new List<string>();
+            if (pawn.Drafted) parts.Add("RimMind.Core.Prompt.Combat.Drafted".Translate());
+            if (pawn.mindState?.enemyTarget != null)
+            {
+                string target = pawn.mindState.enemyTarget is Pawn enemy
+                    ? enemy.Name?.ToStringShort ?? enemy.LabelShort
+                    : pawn.mindState.enemyTarget.Label ?? "RimMind.Core.Prompt.Unknown".Translate();
+                parts.Add("RimMind.Core.Prompt.Combat.Fighting".Translate(target));
+            }
+            return parts.Count > 0 ? string.Join(" | ", parts) : "RimMind.Core.Prompt.Combat.NotInCombat".Translate();
+        }
+
+        public static string ExtractTargetInfo(Pawn pawn)
+        {
+            if (pawn == null || pawn.mindState?.enemyTarget == null) return "";
+            var target = pawn.mindState.enemyTarget;
+            string label = target is Pawn p ? $"{p.Name?.ToStringShort ?? p.LabelShort} (HP:{p.health?.summaryHealth?.SummaryHealthPercent * 100f:F0}%)" : target.Label;
+            return "RimMind.Core.Prompt.Target.Info".Translate(label);
         }
     }
 }

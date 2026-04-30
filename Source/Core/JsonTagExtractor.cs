@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
@@ -10,6 +11,13 @@ namespace RimMind.Core.Internal
     /// </summary>
     public static class JsonTagExtractor
     {
+        public static Action<string>? OnWarning;
+
+        private static void Warn(string message)
+        {
+            OnWarning?.Invoke(message);
+        }
+
         /// <summary>
         /// 提取并反序列化第一个匹配的标签内容。失败时返回 null（不抛出异常）。
         /// </summary>
@@ -22,8 +30,9 @@ namespace RimMind.Core.Internal
             {
                 return JsonConvert.DeserializeObject<T>(raw);
             }
-            catch
+            catch (Exception ex)
             {
+                Warn($"[RimMind] JsonTagExtractor.Extract deserialization failed: {ex.Message}");
                 return null;
             }
         }
@@ -41,7 +50,7 @@ namespace RimMind.Core.Internal
                     var item = JsonConvert.DeserializeObject<T>(raw);
                     if (item != null) result.Add(item);
                 }
-                catch { }
+                catch (Exception ex) { Warn($"[RimMind] JsonTagExtractor.ExtractAll deserialization failed: {ex.Message}"); }
             }
             return result;
         }

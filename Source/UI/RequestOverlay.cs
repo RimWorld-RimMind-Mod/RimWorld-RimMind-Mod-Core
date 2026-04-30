@@ -13,6 +13,8 @@ namespace RimMind.Core.UI
         private static Vector2 _dragStartOffset;
         private static Rect _windowRect;
         private static bool _positionLoaded;
+        private static bool _temporarilyClosed;
+        private static bool _lastEnabledState;
 
         private const float OptionsBarHeight = 24f;
         private const float ResizeHandleSize = 24f;
@@ -45,7 +47,14 @@ namespace RimMind.Core.UI
             if (Current.ProgramState != ProgramState.Playing) return;
 
             var settings = RimMindCoreMod.Settings;
-            if (settings == null || !settings.requestOverlayEnabled) return;
+            if (settings == null) return;
+
+            bool currentlyEnabled = settings.requestOverlayEnabled;
+            if (currentlyEnabled && !_lastEnabledState)
+                _temporarilyClosed = false;
+            _lastEnabledState = currentlyEnabled;
+
+            if (!currentlyEnabled || _temporarilyClosed) return;
 
             if (!_positionLoaded)
             {
@@ -181,6 +190,11 @@ namespace RimMind.Core.UI
             Text.Anchor = TextAnchor.UpperLeft;
 
             var openBtnRect = new Rect(barRect.xMax - 60f, barRect.y + 2f, 56f, barRect.height - 4f);
+            var closeBtnRect = new Rect(barRect.xMax - 82f, barRect.y + 2f, 20f, barRect.height - 4f);
+            if (Widgets.ButtonText(closeBtnRect, "X"))
+            {
+                _temporarilyClosed = true;
+            }
             if (Widgets.ButtonText(openBtnRect, "RimMind.Core.UI.RequestOverlay.Details".Translate()))
             {
                 Find.WindowStack.Add(new Window_RequestLog());
@@ -196,6 +210,9 @@ namespace RimMind.Core.UI
                 var openBtnScreenRect = new Rect(
                     _windowRect.xMax - 60f, _windowRect.y + 2f, 56f, OptionsBarHeight - 4f);
 
+                var closeBtnScreenRect = new Rect(
+                    _windowRect.xMax - 82f, _windowRect.y + 2f, 20f, OptionsBarHeight - 4f);
+
                 var resizeScreenRect = new Rect(
                     _windowRect.xMax - ResizeHandleSize, _windowRect.yMax - ResizeHandleSize,
                     ResizeHandleSize, ResizeHandleSize);
@@ -205,7 +222,8 @@ namespace RimMind.Core.UI
                     _isResizing = true;
                     currentEvent.Use();
                 }
-                else if (!openBtnScreenRect.Contains(currentEvent.mousePosition))
+                else if (!openBtnScreenRect.Contains(currentEvent.mousePosition)
+                    && !closeBtnScreenRect.Contains(currentEvent.mousePosition))
                 {
                     var dragRect = new Rect(_windowRect.x, _windowRect.y, _windowRect.width, OptionsBarHeight);
                     if (dragRect.Contains(currentEvent.mousePosition))

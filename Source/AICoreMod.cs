@@ -1,4 +1,6 @@
 using HarmonyLib;
+using RimMind.Core.Flywheel;
+using RimMind.Core.Internal;
 using RimMind.Core.Settings;
 using RimMind.Core.UI;
 using UnityEngine;
@@ -16,6 +18,7 @@ namespace RimMind.Core
         public RimMindCoreMod(ModContentPack content) : base(content)
         {
             Settings = GetSettings<RimMindCoreSettings>();
+            JsonTagExtractor.OnWarning = Log.Warning;
             new Harmony("mcocdaa.RimMindCore").PatchAll();
 
             RimMindAPI.RegisterToggleBehavior("request_overlay",
@@ -25,6 +28,8 @@ namespace RimMind.Core
                     Settings.requestOverlayEnabled = !Settings.requestOverlayEnabled;
                     Settings.Write();
                 });
+
+            RimMindAPI.RegisterParameterTuner(new FlywheelBuiltinTuner());
         }
 
         public override string SettingsCategory() => "RimMind";

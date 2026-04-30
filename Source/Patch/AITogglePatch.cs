@@ -30,7 +30,7 @@ namespace RimMind.Core.Patch
 
             if (_iconState == prev) return;
 
-            bool shift   = Event.current.shift;
+            bool shift = Event.current.shift;
             bool control = Event.current.control;
 
             if (shift)
