@@ -43,6 +43,8 @@ RimMindAPI.Request
 
 子模组使用 `RimMind.Presentation.Api.RimMindAPI`、Domain 模型和明确公开的 Application 合同。不要访问 `RimMind.Core.Internal`、`RimMindCoreMod.Settings`、组合根或具体队列实现。
 
+跨子模组的同步字符串数据通过 `RimMindAPI.Providers` 注册和读取；Provider 必须声明稳定 owner ID，并保持 Verse 读取在主线程。
+
 ## Local invariants
 
 - AI 请求异步执行；Verse/Unity 副作用仅在主线程发生。

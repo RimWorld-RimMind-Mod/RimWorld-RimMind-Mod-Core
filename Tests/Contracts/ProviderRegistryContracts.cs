@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -77,10 +78,38 @@ namespace RimMind.Tests.Contracts
         }
 
         [Fact]
-        public void Public_facade_exposes_symmetric_owner_unregistration()
+        public void Public_facade_exposes_registration_reads_and_owner_unregistration()
         {
             var providersFacade = ReadSource("Presentation/Api/RimMindAPI.Providers.cs");
             var rootFacade = ReadSource("RimMindAPI.cs");
+            Assert.Contains(
+                "public static void RegisterPawnProvider(",
+                providersFacade,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "Func<Pawn, string?> provider",
+                providersFacade,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "Registries.Value.RegisterPawnProvider(",
+                providersFacade,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "public static void RegisterStaticProvider(",
+                providersFacade,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "Registries.Value.RegisterStaticProvider(",
+                providersFacade,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "RegisterPawnProvider(",
+                rootFacade,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "RegisterStaticProvider(",
+                rootFacade,
+                StringComparison.Ordinal);
             var composition = ReadSource("Presentation/Runtime/Composition/ContextComposition.cs");
 
             Assert.Contains("public static int UnregisterByOwner(string ownerModId)", providersFacade);

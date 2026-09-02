@@ -1,3 +1,4 @@
+using System;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Runtime;
@@ -13,6 +14,40 @@ namespace RimMind.Presentation.Api
         {
             private static readonly RuntimeServiceRef<IProviderRegistry> Registries =
                 RuntimeServiceRef<IProviderRegistry>.Required();
+
+            public static void RegisterPawnProvider(
+                string category,
+                string ownerModId,
+                Func<Pawn, string?> provider,
+                int priority = 0,
+                bool overrideExisting = false)
+            {
+                if (provider == null)
+                    throw new ArgumentNullException(nameof(provider));
+
+                Registries.Value.RegisterPawnProvider(
+                    category,
+                    ownerModId,
+                    value => value is Pawn pawn ? provider(pawn) : null,
+                    priority,
+                    overrideExisting);
+            }
+
+            public static void RegisterStaticProvider(
+                string category,
+                string ownerModId,
+                Func<string?> provider,
+                int priority = 0)
+            {
+                if (provider == null)
+                    throw new ArgumentNullException(nameof(provider));
+
+                Registries.Value.RegisterStaticProvider(
+                    category,
+                    ownerModId,
+                    provider,
+                    priority);
+            }
 
             public static Result<string?, RimMindError> GetProviderData(string category, Pawn pawn)
                 => Registries.Value.GetProviderData(category, pawn);
