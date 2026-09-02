@@ -82,6 +82,7 @@ namespace RimMind.Tests.Contracts
         {
             var providersFacade = ReadSource("Presentation/Api/RimMindAPI.Providers.cs");
             var rootFacade = ReadSource("RimMindAPI.cs");
+            var normalizedProvidersFacade = providersFacade.Replace("\r\n", "\n");
             Assert.Contains(
                 "public static void RegisterPawnProvider(",
                 providersFacade,
@@ -91,16 +92,25 @@ namespace RimMind.Tests.Contracts
                 providersFacade,
                 StringComparison.Ordinal);
             Assert.Contains(
-                "Registries.Value.RegisterPawnProvider(",
-                providersFacade,
+                "Registries.Value.RegisterPawnProvider(\n" +
+                "                    category,\n" +
+                "                    ownerModId,\n" +
+                "                    value => value is Pawn pawn ? provider(pawn) : null,\n" +
+                "                    priority,\n" +
+                "                    overrideExisting);",
+                normalizedProvidersFacade,
                 StringComparison.Ordinal);
             Assert.Contains(
                 "public static void RegisterStaticProvider(",
                 providersFacade,
                 StringComparison.Ordinal);
             Assert.Contains(
-                "Registries.Value.RegisterStaticProvider(",
-                providersFacade,
+                "Registries.Value.RegisterStaticProvider(\n" +
+                "                    category,\n" +
+                "                    ownerModId,\n" +
+                "                    provider,\n" +
+                "                    priority);",
+                normalizedProvidersFacade,
                 StringComparison.Ordinal);
             Assert.DoesNotContain(
                 "RegisterPawnProvider(",

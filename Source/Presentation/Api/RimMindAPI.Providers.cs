@@ -15,6 +15,10 @@ namespace RimMind.Presentation.Api
             private static readonly RuntimeServiceRef<IProviderRegistry> Registries =
                 RuntimeServiceRef<IProviderRegistry>.Required();
 
+            /// <summary>
+            /// Registers a Pawn string-provider candidate. Callers must provide a stable owner ID; candidates are
+            /// selected by priority, and <paramref name="overrideExisting"/> replaces only the same owner's candidate.
+            /// </summary>
             public static void RegisterPawnProvider(
                 string category,
                 string ownerModId,
@@ -33,6 +37,10 @@ namespace RimMind.Presentation.Api
                     overrideExisting);
             }
 
+            /// <summary>
+            /// Registers a static string-provider candidate. Callers must provide a stable owner ID; candidates are
+            /// selected by priority.
+            /// </summary>
             public static void RegisterStaticProvider(
                 string category,
                 string ownerModId,
