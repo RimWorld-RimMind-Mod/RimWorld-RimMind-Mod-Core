@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Domain.ValueObjects;
 
@@ -11,47 +10,6 @@ namespace RimMind.Presentation.Runtime
     {
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, OwnedProvider<Func<object, string?>>>> _pawnProviders = new ConcurrentDictionary<string, ConcurrentDictionary<string, OwnedProvider<Func<object, string?>>>>();
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, OwnedProvider<Func<string?>>>> _staticProviders = new ConcurrentDictionary<string, ConcurrentDictionary<string, OwnedProvider<Func<string?>>>>();
-        private readonly ConcurrentDictionary<Type, object> _typedProviders = new ConcurrentDictionary<Type, object>();
-        private readonly ILogSink? _logSink;
-
-        public ProviderRegistry(ILogSink? logSink = null)
-        {
-            _logSink = logSink;
-        }
-
-        public T? GetProvider<T>() where T : class
-        {
-            return _typedProviders.TryGetValue(typeof(T), out var provider) ? provider as T : null;
-        }
-
-        public void RegisterProvider<T>(T provider) where T : class
-        {
-            if (provider == null) return;
-
-            var serviceType = typeof(T);
-            while (true)
-            {
-                if (_typedProviders.TryAdd(serviceType, provider)) return;
-                if (!_typedProviders.TryGetValue(serviceType, out var previous)) continue;
-                if (!_typedProviders.TryUpdate(serviceType, provider, previous)) continue;
-
-                _logSink?.Warning(
-                    $"[ProviderRegistry] event=typed_provider_replaced " +
-                    $"service_type={serviceType.FullName ?? serviceType.Name} " +
-                    $"previous_type={previous.GetType().FullName ?? previous.GetType().Name} " +
-                    $"replacement_type={provider.GetType().FullName ?? provider.GetType().Name}");
-                return;
-            }
-        }
-
-        public IReadOnlyList<string> GetRegisteredProviderNames()
-        {
-            var names = new List<string>();
-            foreach (var kv in _typedProviders)
-                names.Add(kv.Key.Name);
-            return names;
-        }
-
         public void RegisterPawnProvider(string category, string modId, Func<object, string?> provider, int priority, bool overrideExisting)
         {
             ValidateOwnerModId(modId, nameof(modId));
@@ -160,7 +118,6 @@ namespace RimMind.Presentation.Runtime
         {
             _pawnProviders.Clear();
             _staticProviders.Clear();
-            _typedProviders.Clear();
         }
 
         private static bool TrySelectProvider<TProvider>(

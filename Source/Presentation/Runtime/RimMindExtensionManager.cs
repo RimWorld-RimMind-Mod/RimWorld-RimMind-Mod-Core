@@ -6,7 +6,6 @@ using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Interfaces.Agent.Psychology;
-using RimMind.Application.Common.Interfaces.Agent.Social;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Pipeline;
@@ -14,8 +13,6 @@ using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Defaults;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Features.Agent.Modes;
-using RimMind.Application.Features.Agent.Reflection;
-using RimMind.Application.Features.Agent.Planning;
 using Verse;
 using RimMind.Presentation.Runtime.Services;
 
@@ -32,8 +29,6 @@ namespace RimMind.Presentation.Runtime
         private readonly IAgentBus _agentBus;
         private readonly AgentActionBridgeSlot _actionBridge;
         private readonly IPsychologyWatcher? _psychologyWatcher;
-        private readonly ISocialEventOrganizer? _socialEventOrganizer;
-        private readonly ITraitEvolutionEngine? _traitEvolutionEngine;
         private readonly object _parameterTunerSync = new object();
         private readonly Dictionary<string, IParameterTuner> _parameterTuners =
             new Dictionary<string, IParameterTuner>(StringComparer.Ordinal);
@@ -51,33 +46,23 @@ namespace RimMind.Presentation.Runtime
             ITickProvider? tickProvider,
             IAgentBus agentBus,
             AgentActionBridgeSlot actionBridge,
-            IPsychologyWatcher? psychologyWatcher = null,
-            ISocialEventOrganizer? socialEventOrganizer = null,
-            ITraitEvolutionEngine? traitEvolutionEngine = null)
+            IPsychologyWatcher? psychologyWatcher = null)
         {
             _logSink = logSink;
             _tickProvider = tickProvider;
             _agentBus = agentBus;
             _actionBridge = actionBridge ?? throw new ArgumentNullException(nameof(actionBridge));
             _psychologyWatcher = psychologyWatcher;
-            _socialEventOrganizer = socialEventOrganizer;
-            _traitEvolutionEngine = traitEvolutionEngine;
         }
 
         public void RegisterBuiltinModes(IExtensionRegistry<IAgentMode> modeRegistry)
         {
             var tickProvider = _tickProvider
                 ?? throw new InvalidOperationException("ITickProvider not registered");
-            var reflectionStrategy = new DefaultReflectionStrategy(tickProvider);
-            var dailyPlanner = new DefaultDailyPlanner(tickProvider);
             modeRegistry.Register(new ReactiveAgentMode());
             modeRegistry.Register(new ProactiveAgentMode(
                 tickProvider,
-                reflectionStrategy,
-                dailyPlanner,
-                _psychologyWatcher,
-                _socialEventOrganizer,
-                _traitEvolutionEngine));
+                psychologyWatcher: _psychologyWatcher));
         }
 
         public void RegisterCoreSubscribers()

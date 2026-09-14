@@ -28,8 +28,6 @@ namespace RimMind.Presentation.Runtime.Composition
         public IPawnAgentFactoryVerse PawnAgentFactory { get; init; } = null!;
         public IGameContextBuilder GameContextBuilder { get; init; } = null!;
         public IResponseDispatcher ResponseDispatcher { get; init; } = null!;
-        public ISocialEventOrganizer SocialEventOrganizer { get; init; } = null!;
-        public ITraitEvolutionEngine TraitEvolutionEngine { get; init; } = null!;
     }
 
     internal static class AgentComposition
@@ -54,18 +52,6 @@ namespace RimMind.Presentation.Runtime.Composition
             var informationDiffuser = new DefaultInformationDiffuser(agentBus, tickProvider);
             services.Bind<IInformationDiffuser>(informationDiffuser);
 
-            var socialEventOrganizer = new DefaultSocialEventOrganizer(tickProvider, agentBus);
-            services.Bind<ISocialEventOrganizer>(socialEventOrganizer);
-
-            var traitEvolutionEngine = new DefaultTraitEvolutionEngine(tickProvider, psychologyWatcher, agentBus);
-            services.Bind<ITraitEvolutionEngine>(traitEvolutionEngine);
-
-            var sleepDetector = new RimMind.Infrastructure.Social.VersePawnSleepDetector();
-            services.Bind<ISleepDetector>(sleepDetector);
-
-            var dreamGenerator = new DefaultDreamGenerator(tickProvider, sleepDetector, agentBus);
-            services.Bind<IDreamGenerator>(dreamGenerator);
-
             var traitEvolver = new RimMind.Infrastructure.Social.VerseTraitEvolver();
             services.Bind<ITraitEvolver>(traitEvolver);
 
@@ -85,7 +71,7 @@ namespace RimMind.Presentation.Runtime.Composition
             var pawnAgentFactory = new PawnAgentFactory(
                 tickSettings, agentBus, actionExecutor,
                 innerVoiceHandler, psychologyWatcher, tickProvider,
-                dreamGenerator, dreamThoughtInjector, traitEvolver,
+                dreamThoughtInjector, traitEvolver,
                 logSink, extensions.GetExtensionRegistry<IPerceptionSource>(),
                 completionFence);
             services.Bind<IPawnAgentFactoryVerse>(pawnAgentFactory);
@@ -115,9 +101,7 @@ namespace RimMind.Presentation.Runtime.Composition
             {
                 PawnAgentFactory = pawnAgentFactory,
                 GameContextBuilder = gameContextBuilder,
-                ResponseDispatcher = responseDispatcher,
-                SocialEventOrganizer = socialEventOrganizer,
-                TraitEvolutionEngine = traitEvolutionEngine
+                ResponseDispatcher = responseDispatcher
             };
         }
 

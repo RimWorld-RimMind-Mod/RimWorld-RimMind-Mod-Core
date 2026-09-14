@@ -12,7 +12,7 @@ namespace RimMind.Presentation.Agent
     internal sealed class ProactiveBehaviorExecutor
     {
         private readonly IAgentBus _agentBus;
-        private readonly IDreamGenerator _dreamGenerator;
+        private readonly IDreamGenerator? _dreamGenerator;
         private readonly IDreamThoughtInjector? _dreamThoughtInjector;
         private readonly ITraitEvolver _traitEvolver;
         private readonly ILogSink? _log;
@@ -20,14 +20,14 @@ namespace RimMind.Presentation.Agent
 
         public ProactiveBehaviorExecutor(
             IAgentBus agentBus,
-            IDreamGenerator dreamGenerator,
+            IDreamGenerator? dreamGenerator,
             IDreamThoughtInjector? dreamThoughtInjector,
             ITraitEvolver traitEvolver,
             ILogSink? log,
             ICompletionFence completionFence)
         {
             _agentBus = agentBus ?? throw new ArgumentNullException(nameof(agentBus));
-            _dreamGenerator = dreamGenerator ?? throw new ArgumentNullException(nameof(dreamGenerator));
+            _dreamGenerator = dreamGenerator;
             _dreamThoughtInjector = dreamThoughtInjector;
             _traitEvolver = traitEvolver ?? throw new ArgumentNullException(nameof(traitEvolver));
             _log = log;

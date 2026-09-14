@@ -42,7 +42,7 @@ namespace RimMind.Presentation.Runtime.Composition
             IFlywheelParameterStore flywheelParameterStore,
             IEmbedCache embedCache)
         {
-            var providerRegistry = new ProviderRegistry(logSink);
+            var providerRegistry = new ProviderRegistry();
             services.Bind<IProviderRegistry>(providerRegistry);
 
             var historyManager = new HistoryManager(tickProvider);
@@ -55,7 +55,7 @@ namespace RimMind.Presentation.Runtime.Composition
             var cacheManager = new ContextCacheManager(logSink, embedCache);
             var diffTracker = new ContextDiffTracker(logSink);
             var keyProvider = new DefaultContextKeyProvider();
-            var layerBuilder = new ContextLayerBuilder(keyProvider, logSink);
+            var layerBuilder = new ContextLayerBuilder();
             var providerCache = new ProviderCache(agentBus, logSink, tickProvider);
             var keyRegistryImpl = new ContextKeyRegistryImpl(logSink, providerCache);
             CoreContextProviders.RegisterAll(

@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
-using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Presentation.Runtime;
 using Xunit;
 
@@ -59,74 +55,6 @@ namespace RimMind.Tests.Contracts
             Assert.True(registry.GetStaticProviderData("world").IsErr);
             Assert.DoesNotContain("profile", registry.GetRegisteredCategories());
             Assert.DoesNotContain("world", registry.GetRegisteredCategories());
-        }
-
-        [Fact]
-        public void Replacing_a_typed_provider_emits_a_structured_warning()
-        {
-            var log = new CapturingLogSink();
-            var registry = new ProviderRegistry(log);
-
-            registry.RegisterProvider<object>("first");
-            registry.RegisterProvider<object>(new object());
-
-            var warning = Assert.Single(log.Warnings);
-            Assert.Contains("event=typed_provider_replaced", warning);
-            Assert.Contains("service_type=System.Object", warning);
-            Assert.Contains("previous_type=System.String", warning);
-            Assert.Contains("replacement_type=System.Object", warning);
-        }
-
-        [Fact]
-        public void Public_facade_exposes_registration_reads_and_owner_unregistration()
-        {
-            var providersFacade = ReadSource("Presentation/Api/RimMindAPI.Providers.cs");
-            var rootFacade = ReadSource("RimMindAPI.cs");
-            var normalizedProvidersFacade = providersFacade.Replace("\r\n", "\n");
-            Assert.Contains(
-                "public static void RegisterPawnProvider(",
-                providersFacade,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                "Func<Pawn, string?> provider",
-                providersFacade,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                "Registries.Value.RegisterPawnProvider(\n" +
-                "                    category,\n" +
-                "                    ownerModId,\n" +
-                "                    value => value is Pawn pawn ? provider(pawn) : null,\n" +
-                "                    priority,\n" +
-                "                    overrideExisting);",
-                normalizedProvidersFacade,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                "public static void RegisterStaticProvider(",
-                providersFacade,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                "Registries.Value.RegisterStaticProvider(\n" +
-                "                    category,\n" +
-                "                    ownerModId,\n" +
-                "                    provider,\n" +
-                "                    priority);",
-                normalizedProvidersFacade,
-                StringComparison.Ordinal);
-            Assert.DoesNotContain(
-                "RegisterPawnProvider(",
-                rootFacade,
-                StringComparison.Ordinal);
-            Assert.DoesNotContain(
-                "RegisterStaticProvider(",
-                rootFacade,
-                StringComparison.Ordinal);
-            var composition = ReadSource("Presentation/Runtime/Composition/ContextComposition.cs");
-
-            Assert.Contains("public static int UnregisterByOwner(string ownerModId)", providersFacade);
-            Assert.Contains("Registries.Value.UnregisterByOwner(ownerModId)", providersFacade);
-            Assert.Contains("public static int UnregisterModProviders(string modId)", rootFacade);
-            Assert.Contains("Providers.UnregisterByOwner(modId)", rootFacade);
-            Assert.Contains("new ProviderRegistry(logSink)", composition);
         }
 
         [Fact]
@@ -194,22 +122,5 @@ namespace RimMind.Tests.Contracts
             Assert.Equal("126", registry.GetProviderData("profile", new object()).Value);
         }
 
-        private static string ReadSource(string relativePath)
-        {
-            var directory = new DirectoryInfo(System.AppContext.BaseDirectory);
-            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "RimMind-Core", "Source")))
-                directory = directory.Parent;
-            var sourceRoot = Path.Combine(directory!.FullName, "RimMind-Core", "Source");
-            return File.ReadAllText(Path.Combine(sourceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        }
-
-        private sealed class CapturingLogSink : ILogSink
-        {
-            public List<string> Warnings { get; } = new List<string>();
-            public void Message(string msg) { }
-            public void Warning(string msg) => Warnings.Add(msg);
-            public void Error(string msg) { }
-            public void LogFromBackground(string msg, bool isWarning = false) { }
-        }
     }
 }

@@ -256,9 +256,7 @@ namespace RimMind.Presentation.Runtime
                     result.LogSink,
                     result.TickProvider,
                     result.AgentBus,
-                    actionBridge,
-                    socialEventOrganizer: agentServices.SocialEventOrganizer,
-                    traitEvolutionEngine: agentServices.TraitEvolutionEngine);
+                    actionBridge);
                 runtime = new RimMindRuntime(result, lifecycle, extensionManager, extensions);
                 var modeRegistry = extensions.GetExtensionRegistry<Application.Common.Interfaces.Agent.Modes.IAgentMode>();
                 extensionManager.RegisterBuiltinModes(modeRegistry);

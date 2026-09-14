@@ -38,9 +38,6 @@ namespace RimMind.Presentation.Agent
         private readonly InnerVoiceHandler? _innerVoiceHandler;
         private readonly IPsychologyWatcher? _psychologyWatcher;
         private readonly ITickProvider _tickProvider;
-        private readonly IDreamGenerator _dreamGenerator;
-        private readonly IDreamThoughtInjector? _dreamThoughtInjector;
-        private readonly ITraitEvolver _traitEvolver;
         private readonly ICompletionFence _completionFence;
         private int _lastThinkTick;
         private int ThinkCooldownTicks => _tickSettings?.ThinkCooldownTicks ?? DefaultThinkCooldownTicks;
@@ -64,7 +61,7 @@ namespace RimMind.Presentation.Agent
             InnerVoiceHandler? innerVoiceHandler,
             IPsychologyWatcher? psychologyWatcher,
             ITickProvider tickProvider,
-            IDreamGenerator dreamGenerator,
+            IDreamGenerator? dreamGenerator,
             IDreamThoughtInjector? dreamThoughtInjector,
             ITraitEvolver traitEvolver,
             ILogSink? log,
@@ -76,16 +73,13 @@ namespace RimMind.Presentation.Agent
             _innerVoiceHandler = innerVoiceHandler;
             _psychologyWatcher = psychologyWatcher;
             _tickProvider = tickProvider ?? throw new ArgumentNullException(nameof(tickProvider));
-            _dreamGenerator = dreamGenerator ?? throw new ArgumentNullException(nameof(dreamGenerator));
-            _dreamThoughtInjector = dreamThoughtInjector;
-            _traitEvolver = traitEvolver ?? throw new ArgumentNullException(nameof(traitEvolver));
             _log = log;
             _completionFence = completionFence ?? throw new ArgumentNullException(nameof(completionFence));
             _proactiveExecutor = new ProactiveBehaviorExecutor(
                 agentBus,
-                _dreamGenerator,
-                _dreamThoughtInjector,
-                _traitEvolver,
+                dreamGenerator,
+                dreamThoughtInjector,
+                traitEvolver,
                 log,
                 _completionFence);
             _contextEnricher = new ThinkContextEnricher(

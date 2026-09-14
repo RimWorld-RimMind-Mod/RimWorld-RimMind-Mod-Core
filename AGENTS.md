@@ -7,7 +7,7 @@ RimMind 的运行时与公共 API 前置。Core 负责 LLM 请求、上下文、
 先按变更类型选择入口，不要从全仓搜索开始：
 
 - AI 请求：`Source/Application/Features/Requests/README.md`
-- 上下文：`Source/Presentation/Context/ContextOrchestrator.cs`
+- 上下文：`Source/Presentation/Context/README.md`
 - Agent：`Source/Presentation/Agent/PawnAgent.cs`
 - ToolCall：`Source/Application/Features/Pipeline/Unified/ToolCallDispatchMiddleware.cs`
 - 组合与生命周期：`Source/Presentation/Runtime/RimMindCompositionRoot.cs`
@@ -45,6 +45,8 @@ RimMindAPI.Request
 
 跨子模组的同步字符串数据通过 `RimMindAPI.Providers` 注册和读取；Provider 必须声明稳定 owner ID，并保持 Verse 读取在主线程。
 
+上下文快照统一使用 `IContextBuilder.BuildSnapshotFromEnvelopeAsync`；不要另建同步快照管线或阻塞等待异步 Provider。默认 Agent 保留 Reactive / Proactive 模式、周期与感知触发；反思、日规划、梦境、社交组织、性格演化不装配占位实现，仅通过明确可选的策略扩展接入。
+
 ## Local invariants
 
 - AI 请求异步执行；Verse/Unity 副作用仅在主线程发生。
@@ -52,7 +54,8 @@ RimMindAPI.Request
 - 请求入口只转发；客户端选择、追踪和取消属于 Application。
 - 调度、活动请求和断路状态共享转移规则，不任意拆成接口层级。
 - API 密钥和玩家数据不得写入日志。
-- 每个测试项目最终少于 100 个测试；优先扩展聚合契约。
+- Core 全部测试项目累计少于 1000 个发现用例；参数化测试每个数据行计数。
+- 测试覆盖真实行为、失败边界和模块协作；替身仅隔离外部依赖，不锁定私有实现形状，不为压低数量合并无关场景。
 
 ## Smallest useful verification
 

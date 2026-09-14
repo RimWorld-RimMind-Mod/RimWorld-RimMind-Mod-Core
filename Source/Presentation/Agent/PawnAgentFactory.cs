@@ -23,7 +23,7 @@ namespace RimMind.Presentation.Agent
         private readonly InnerVoiceHandler? _innerVoiceHandler;
         private readonly IPsychologyWatcher? _psychologyWatcher;
         private readonly ITickProvider _tickProvider;
-        private readonly IDreamGenerator _dreamGenerator;
+        private readonly IDreamGenerator? _dreamGenerator;
         private readonly IDreamThoughtInjector? _dreamThoughtInjector;
         private readonly ITraitEvolver _traitEvolver;
         private readonly ICompletionFence _completionFence;
@@ -35,7 +35,7 @@ namespace RimMind.Presentation.Agent
         internal InnerVoiceHandler? InnerVoiceHandler => _innerVoiceHandler;
         internal IPsychologyWatcher? PsychologyWatcher => _psychologyWatcher;
         internal ITickProvider TickProvider => _tickProvider;
-        internal IDreamGenerator DreamGenerator => _dreamGenerator;
+        internal IDreamGenerator? DreamGenerator => _dreamGenerator;
         internal IDreamThoughtInjector? DreamThoughtInjector => _dreamThoughtInjector;
         internal ITraitEvolver TraitEvolver => _traitEvolver;
         internal ICompletionFence CompletionFence => _completionFence;
@@ -47,12 +47,12 @@ namespace RimMind.Presentation.Agent
             InnerVoiceHandler? innerVoiceHandler,
             IPsychologyWatcher? psychologyWatcher,
             ITickProvider tickProvider,
-            IDreamGenerator dreamGenerator,
             IDreamThoughtInjector? dreamThoughtInjector,
             ITraitEvolver traitEvolver,
             ILogSink? log,
             IExtensionRegistry<IPerceptionSource>? perceptionSourceRegistry,
-            ICompletionFence completionFence)
+            ICompletionFence completionFence,
+            IDreamGenerator? dreamGenerator = null)
         {
             _tickSettings = tickSettings;
             _agentBus = agentBus;
@@ -60,7 +60,7 @@ namespace RimMind.Presentation.Agent
             _innerVoiceHandler = innerVoiceHandler;
             _psychologyWatcher = psychologyWatcher;
             _tickProvider = tickProvider ?? throw new ArgumentNullException(nameof(tickProvider));
-            _dreamGenerator = dreamGenerator ?? throw new ArgumentNullException(nameof(dreamGenerator));
+            _dreamGenerator = dreamGenerator;
             _dreamThoughtInjector = dreamThoughtInjector;
             _traitEvolver = traitEvolver ?? throw new ArgumentNullException(nameof(traitEvolver));
             _log = log;

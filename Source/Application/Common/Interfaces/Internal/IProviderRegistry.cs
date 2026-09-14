@@ -6,9 +6,6 @@ namespace RimMind.Application.Common.Interfaces.Internal
 {
     public interface IProviderRegistry
     {
-        T? GetProvider<T>() where T : class;
-        void RegisterProvider<T>(T provider) where T : class;
-        IReadOnlyList<string> GetRegisteredProviderNames();
         void RegisterStaticProvider(string category, string modId, Func<string?> provider, int priority);
         /// <summary>
         /// Registers one pawn provider per owner/category pair. When <paramref name="overrideExisting"/> is false,

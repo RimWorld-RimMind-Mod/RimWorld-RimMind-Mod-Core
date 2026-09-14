@@ -5,8 +5,16 @@ using System.IO;
 using System.Reflection;
 using RimMind.Application.Common.Defaults;
 using RimMind.Application.Common.Interfaces.Abstractions;
+using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Interfaces.Extension;
+using RimMind.Application.Common.Models;
+using RimMind.Application.Common.Models.Agent;
+using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Features.AgentBus;
+using RimMind.Application.Features.Registry;
+using RimMind.Domain.Agent.Modes;
+using RimMind.Domain.Enums;
 using RimMind.Presentation.Runtime;
 using RimMind.Presentation.Runtime.Services;
 using Xunit;
@@ -15,6 +23,34 @@ namespace RimMind.Tests.Contracts
 {
     public sealed class ExtensionRegistrationContracts
     {
+        [Fact]
+        public void Builtin_modes_think_for_real_triggers_without_placeholder_capabilities()
+        {
+            var ticks = new ManualTickProvider { TicksGame = 15000 };
+            var manager = new RimMindExtensionManager(
+                null, ticks, new AgentBusImpl(), new AgentActionBridgeSlot());
+            var registry = new ExtensionRegistry<IAgentMode>();
+            manager.RegisterBuiltinModes(registry);
+            var mode = registry.FindById(AgentModeId.Proactive.Value)!;
+            var agent = new AgentInfo();
+            var perceptions = Array.Empty<PerceptionBufferEntry>();
+
+            Assert.True(mode.ShouldThink(agent, perceptions));
+            agent.LastThinkTick = ticks.TicksGame - 1;
+            Assert.False(mode.ShouldThink(agent, perceptions));
+            ticks.TicksGame = agent.LastThinkTick.Value + RimMindDefaults.ProactiveTickInterval;
+            Assert.True(mode.ShouldThink(agent, perceptions));
+            agent.LastThinkTick = ticks.TicksGame;
+            Assert.True(mode.ShouldThink(agent, new[] { new PerceptionBufferEntry() }));
+
+            var extensions = Assert.IsAssignableFrom<IProactiveExtensions>(mode);
+            Assert.Null(extensions.ReflectionStrategy);
+            Assert.Null(extensions.DailyPlanner);
+            Assert.Null(extensions.SocialEventOrganizer);
+            Assert.Null(extensions.TraitEvolutionEngine);
+            Assert.NotNull(registry.FindById(AgentModeId.Reactive.Value));
+        }
+
         [Fact]
         public void Replacing_single_instance_registrations_emits_structured_warnings()
         {
@@ -126,6 +162,22 @@ namespace RimMind.Tests.Contracts
             public void Warning(string msg) => Warnings.Add(msg);
             public void Error(string msg) { }
             public void LogFromBackground(string msg, bool isWarning = false) { }
+        }
+
+        private sealed class ManualTickProvider : ITickProvider
+        {
+            public int TicksGame { get; set; }
+        }
+
+        private sealed class AgentInfo : IAgentInfo
+        {
+            public AgentState State => AgentState.Active;
+            public string NpcId => "colonist";
+            public string Label => "Colonist";
+            public int? LastThinkTick { get; set; }
+            public int GoalCount => 0;
+            public IReadOnlyList<BehaviorRecordDto> GetRecentHistory(int count = 10) => Array.Empty<BehaviorRecordDto>();
+            public float GetRecentSuccessRate(int count = 10) => 0;
         }
 
         private sealed class TestActionBridge : IAgentActionBridge

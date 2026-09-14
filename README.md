@@ -89,6 +89,8 @@ cd RimWorld-RimMind-Mod-Core
 
 ## 核心功能
 
+开发入口见 [AGENTS.md](AGENTS.md)；上下文构建、缓存与测试地图见 [Context README](Source/Presentation/Context/README.md)。Core 全部测试项目累计少于 1000 个发现用例（参数化数据行逐个计数），以真实行为、失败边界和模块协作为准。
+
 ### LLM 客户端
 
 兼容 OpenAI / DeepSeek / 本地 Ollama 等所有 OpenAI Chat Completions 格式的 API，同时支持 Player2 服务（本地应用自动检测 + 远程 API）。支持 JSON 强制模式（`response_format: json_object`），本地模型可关闭。
@@ -117,6 +119,8 @@ cd RimWorld-RimMind-Mod-Core
 - **Act**：解析 LLM 响应，执行工具调用（动作、对话、目标调整等）
 - **Record**：记录行为到历史队列，用于后续决策参考
 
+默认装配 Reactive / Proactive 模式，保留主动周期和感知触发。反思、日规划、梦境、社交组织与性格演化没有内置可用策略，不以空实现制造触发；其可选策略合同及 Verse 执行/生命周期完成检查仍保留。
+
 ### 统一上下文引擎
 
 ContextEngine 采用 L0-L5 分层构建上下文，支持 Diff 注入与 Tick 过期合并：
@@ -124,6 +128,8 @@ ContextEngine 采用 L0-L5 分层构建上下文，支持 Diff 注入与 Tick �
 - L0 静态层（系统指令、身份）→ L1 基线层（地图、Pawn 信息）→ L2 环境层（天气、时间）→ L3 状态层（健康、心情）→ L4 历史层（对话记录）→ L5 感知层（Sensor 数据）
 - BudgetScheduler 按 Score = W1×优先级 + W2×相关性 调度上下文预算
 - 子模组通过 ContextKeyRegistry.Register 注入自定义上下文 Provider
+
+快照构建统一走 `BuildSnapshotFromEnvelopeAsync`，支持异步 Provider、取消、缓存失效和历史/预算处理；不再提供只执行同步 Provider 的平行构建入口。
 
 ### 数据飞轮
 
