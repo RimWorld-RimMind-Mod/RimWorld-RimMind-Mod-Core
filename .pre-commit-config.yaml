@@ -12,6 +12,8 @@ repos:
       - id: check-yaml
       - id: debug-statements
       - id: end-of-file-fixer
+        # Windows represents Git symlinks as target text; a newline changes the target.
+        exclude: '(^|/)CLAUDE\.md$'
       - id: mixed-line-ending
       - id: requirements-txt-fixer
       - id: trailing-whitespace
