@@ -176,8 +176,8 @@
   <RimMind.Context.IncludeWeather.Desc>Inject the current weather conditions into AI context.</RimMind.Context.IncludeWeather.Desc>
   <RimMind.Context.IncludeThreats>Threat Level</RimMind.Context.IncludeThreats>
   <RimMind.Context.IncludeThreats.Desc>Inject the current map threat level into AI context.</RimMind.Context.IncludeThreats.Desc>
-  <RimMind.Context.ContextBudget>Context Budget</RimMind.Context.ContextBudget>
-  <RimMind.Context.ContextBudget.Desc>Controls how much context information is included in AI requests. Higher values provide more detail but use more tokens.</RimMind.Context.ContextBudget.Desc>
+  <RimMind.Context.ContextBudget>Context Budget Ratio</RimMind.Context.ContextBudget>
+  <RimMind.Context.ContextBudget.Desc>Controls the maximum ratio of the model's context window allocated for prompt context (recommended: 0.8, leaving a 20% margin for thinking and generation; values above 1.0 are only intended for high-capacity models).</RimMind.Context.ContextBudget.Desc>
   <RimMind.Settings.ContextDiffLifetime>Context Diff Lifetime</RimMind.Settings.ContextDiffLifetime>
   <RimMind.Settings.ContextDiffLifetime.Desc>How long (in ticks) context change diffs remain before expiring. Lower values keep context more current; higher values preserve change history longer.</RimMind.Settings.ContextDiffLifetime.Desc>
   <RimMind.Settings.CalibrateInterval>Context Calibrate Interval</RimMind.Settings.CalibrateInterval>
@@ -652,4 +652,10 @@
   <RimMind.UI.Lifecycle.Failed>Failed</RimMind.UI.Lifecycle.Failed>
   <RimMind.UI.Lifecycle.NeverPublished>Never published</RimMind.UI.Lifecycle.NeverPublished>
   <RimMind.UI.Lifecycle.StaleCompletion>Discarded because the runtime changed.</RimMind.UI.Lifecycle.StaleCompletion>
+  <RimMind.Agent.Request.Approve>Approve</RimMind.Agent.Request.Approve>
+  <RimMind.Agent.Request.Reject>Reject</RimMind.Agent.Request.Reject>
+  <RimMind.Agent.Request.RiskAction>[{0}] {1} requests execution: {2}</RimMind.Agent.Request.RiskAction>
+  <!-- API Key Missing Startup Notification Letter -->
+  <RimMind.Notification.ApiKeyMissing.Title>RimMind: API Key Required</RimMind.Notification.ApiKeyMissing.Title>
+  <RimMind.Notification.ApiKeyMissing.Desc>RimMind detected that the selected AI provider has not been configured with an API key. Please enter your API key in Options -&gt; Mod Settings -&gt; RimMind to activate AI colonist decisions, dialogue, and storytelling features.</RimMind.Notification.ApiKeyMissing.Desc>
 </LanguageData>

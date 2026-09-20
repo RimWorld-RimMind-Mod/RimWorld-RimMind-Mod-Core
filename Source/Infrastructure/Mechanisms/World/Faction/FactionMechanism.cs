@@ -44,15 +44,17 @@ namespace RimMind.Infrastructure.Mechanisms.World.Faction
 
         public override Task<Result<string, RimMindError>> ExecuteQueryAsync(MechanismReadArgs args, CancellationToken ct)
         {
+            var playerFaction = global::RimWorld.Faction.OfPlayer;
             var factions = Find.FactionManager?.AllFactions?
-                .Where(f => !f.def.hidden)
+                .Where(f => f?.def != null && !f.def.hidden && !f.IsPlayer)
                 .Select(f => new
                 {
                     def = f.def.defName,
-                    name = f.Name,
+                    name = f.Name ?? f.def.label ?? f.def.defName,
                     factionId = f.loadID,
-                    goodwill = f.GoodwillWith(global::RimWorld.Faction.OfPlayer),
-                    kind = f.def.categoryTag
+                    goodwill = (playerFaction != null && f.HasGoodwill) ? f.PlayerGoodwill : 0,
+                    relation = playerFaction != null ? f.PlayerRelationKind.ToString() : "None",
+                    kind = f.def.categoryTag ?? ""
                 })
                 .ToList();
 
@@ -84,11 +86,11 @@ namespace RimMind.Infrastructure.Mechanisms.World.Faction
         public override Task<Result<IReadOnlyList<MechanismEnumResult>, RimMindError>> ExecuteListAsync(int? pawnId, CancellationToken ct)
         {
             var results = Find.FactionManager?.AllFactions?
-                .Where(f => !f.def.hidden)
+                .Where(f => f?.def != null && !f.def.hidden && !f.IsPlayer)
                 .Select(f => new MechanismEnumResult
                 {
                     DefName = f.def.defName,
-                    Label = f.Name ?? f.def.defName,
+                    Label = f.Name ?? f.def.label ?? f.def.defName,
                     Description = f.def.description
                 })
                 .ToList() ?? new List<MechanismEnumResult>();

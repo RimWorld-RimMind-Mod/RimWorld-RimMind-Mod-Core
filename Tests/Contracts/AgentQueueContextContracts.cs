@@ -354,6 +354,21 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(0, queue.TotalQueuedCount);
                     Assert.Equal(0, queue.ActiveRequestCount);
                     return Task.CompletedTask;
+                }),
+                ("queue reset clears pending callbacks and does not deliver them on next tick", async () =>
+                {
+                    var queue = new RequestQueue();
+                    int callbacks = 0;
+                    queue.Enqueue(
+                        Envelope("reset-test"),
+                        _ => Interlocked.Increment(ref callbacks),
+                        _ => Task.FromResult(Success()));
+                    await WaitUntilAsync(() => queue.PendingCallbackCount > 0);
+                    Assert.True(queue.PendingCallbackCount > 0);
+                    queue.Reset();
+                    Assert.Equal(0, queue.PendingCallbackCount);
+                    queue.Tick();
+                    Assert.Equal(0, callbacks);
                 }));
         }
 

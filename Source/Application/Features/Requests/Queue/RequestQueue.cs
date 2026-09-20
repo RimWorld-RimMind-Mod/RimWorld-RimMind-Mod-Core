@@ -78,18 +78,13 @@ namespace RimMind.Application.Features.Requests.Queue
             CancelAllRequests();
             lock (_queueLock)
             {
-                foreach (var kvp in _activeRequests)
-                {
-                    var errResult = Result<LlmResponse, RimMindError>.Err(
-                        new RimMindError(RimMindErrorCode.Cancelled, "Queue reset"));
-                    EnqueueCompletion(kvp.Value, errResult);
-                }
                 ClearAllQueues();
                 _activeRequests.Clear();
                 _requestIdToActive.Clear();
                 _isProcessingLocalRequest = false;
                 _isPaused = false;
             }
+            _completionInbox.Clear();
             _circuitBreaker.ClearAllCooldowns();
         }
 

@@ -144,7 +144,7 @@ namespace RimMind.Presentation.UI
         private static void DrawBudgetSection(Listing_Standard listing, ISettingsProvider s, IContextSettings ctx)
         {
             SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Context.Budget".Translate());
-            listing.Label($"{"RimMind.Context.ContextBudget".Translate()}: {ctx.ContextBudget:F1}");
+            listing.Label($"{"RimMind.Context.ContextBudget".Translate()}: {ctx.ContextBudget:F2} ({(int)(ctx.ContextBudget * 100)}%)");
             GUI.color = Color.gray;
             listing.Label("  " + "RimMind.Context.ContextBudget.Desc".Translate());
             GUI.color = Color.white;

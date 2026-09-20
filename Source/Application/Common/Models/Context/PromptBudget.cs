@@ -9,7 +9,9 @@ namespace RimMind.Application.Common.Models.Context
     {
         public int TotalTokens { get; set; }
         public int ReserveForOutput { get; set; }
-        public int RemainingTokens => TotalTokens;
+        public int UsedTokens { get; private set; }
+        public int AvailableTokens => Math.Max(0, TotalTokens - ReserveForOutput);
+        public int RemainingTokens => Math.Max(0, AvailableTokens - UsedTokens);
 
         public PromptBudget(int totalTokens, int reserveForOutput = 0)
         {
@@ -20,19 +22,20 @@ namespace RimMind.Application.Common.Models.Context
         public List<PromptSection>? Compose(List<PromptSection> sections)
         {
             if (sections == null) return null;
-            var sorted = sections.OrderByDescending(s => s.Priority).ToList();
+            var sorted = sections.OrderBy(s => s.Priority).ToList();
             var result = new List<PromptSection>();
             int used = 0;
+            int maxAllowed = AvailableTokens;
             foreach (var sec in sorted)
             {
-                if (used + sec.EstimatedTokens > TotalTokens - ReserveForOutput)
+                if (used + sec.EstimatedTokens > maxAllowed)
                 {
                     if (sec.IsCompressible && sec.Compress != null)
                     {
                         var compressed = sec.Clone();
                         compressed.Content = sec.Compress(sec.Content);
                         compressed.EstimatedTokens = PromptSection.EstimateTokens(compressed.Content);
-                        if (used + compressed.EstimatedTokens <= TotalTokens - ReserveForOutput)
+                        if (used + compressed.EstimatedTokens <= maxAllowed)
                         {
                             result.Add(compressed);
                             used += compressed.EstimatedTokens;
@@ -44,6 +47,7 @@ namespace RimMind.Application.Common.Models.Context
                 result.Add(sec);
                 used += sec.EstimatedTokens;
             }
+            UsedTokens = used;
             return result.OrderBy(s => s.Priority).ToList();
         }
     }

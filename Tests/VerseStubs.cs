@@ -91,6 +91,12 @@ namespace RimWorld
         public static MessageTypeDef PositiveEvent = new();
     }
 
+    public class LetterDef { }
+    public static class LetterDefOf
+    {
+        public static LetterDef NeutralEvent = new();
+    }
+
     /// <summary>Stub for RimWorld.ITab used in UI base class tests.</summary>
     public abstract class ITab
     {
@@ -249,6 +255,16 @@ namespace Verse
         public FloatMenu(List<FloatMenuOption> options, string title = "") { Options = options; }
     }
 
+    public static class LongEventHandler
+    {
+        public static void ExecuteWhenFinished(Action action) => action?.Invoke();
+    }
+
+    public class LetterStack
+    {
+        public void ReceiveLetter(string label, string text, RimWorld.LetterDef textLetterDef) { }
+    }
+
     /// <summary>Stub for Verse.Find used in Gizmo tests.</summary>
     public static class Find
     {
@@ -256,6 +272,7 @@ namespace Verse
         public static WindowStack WindowStack = new();
         public static Map? CurrentMap;
         public static Selector Selector = new();
+        public static LetterStack? LetterStack = new();
     }
 
     public class Selector

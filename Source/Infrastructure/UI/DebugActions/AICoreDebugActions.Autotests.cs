@@ -389,6 +389,12 @@ namespace RimMind.Infrastructure.UI
             });
         }
 
+        [DebugAction("Autotests", "Run Full Behavior Autotest Suite", actionType = DebugActionType.Action)]
+        public static void RunFullBehaviorAutotests()
+        {
+            BehaviorAutotestRunner.StartSuite(null, isHeadless: false);
+        }
+
         private static void ReportAutotest(string caseId, int pass, int fail, int skip = 0)
         {
             string outcome = fail > 0 ? "FAIL" : "PASS";

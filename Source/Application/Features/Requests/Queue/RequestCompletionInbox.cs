@@ -27,6 +27,12 @@ namespace RimMind.Application.Features.Requests.Queue
                 fence,
                 fence.CancellationToken));
 
+        public void Clear()
+        {
+            while (_results.TryDequeue(out _)) { }
+            while (_logs.TryDequeue(out _)) { }
+        }
+
         public void Drain(Action<string, bool>? logHandler)
         {
             while (_logs.TryDequeue(out var log))

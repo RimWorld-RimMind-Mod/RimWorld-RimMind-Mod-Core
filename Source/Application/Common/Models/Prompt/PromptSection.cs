@@ -13,7 +13,12 @@ namespace RimMind.Application.Common.Models.Prompt
         public string Content { get; set; } = "";
         public int Priority { get; set; }
         public int EstimatedTokens { get; set; }
-        public bool IsCompressible { get; set; }
+        private bool? _isCompressible;
+        public bool IsCompressible
+        {
+            get => _isCompressible ?? (Compress != null);
+            set => _isCompressible = value;
+        }
         public Func<string, string>? Compress { get; set; }
         public string? LayerTag { get; set; }
 
@@ -35,7 +40,7 @@ namespace RimMind.Application.Common.Models.Prompt
                 Content = Content,
                 Priority = Priority,
                 EstimatedTokens = EstimatedTokens,
-                IsCompressible = IsCompressible,
+                _isCompressible = _isCompressible,
                 Compress = Compress,
                 LayerTag = LayerTag
             };

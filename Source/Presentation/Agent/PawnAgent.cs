@@ -18,6 +18,7 @@ using RimMind.Application.Common.Interfaces.Internal;
 using RimWorld;
 using Verse;
 using Verse.AI;
+using RimMind.Application.Common.Models.UI;
 
 namespace RimMind.Presentation.Agent
 {
@@ -239,11 +240,59 @@ namespace RimMind.Presentation.Agent
             if (_tickSettings != null && !_tickSettings.ShouldApproveAction(riskLevel))
             {
                 _log?.Message($"[RimMind.Agent] action=ActionPendingApproval npcId={Identity.NpcId} risk={riskLevel} intent={decision.ActionIntent}");
-                // Queue for player approval (future: approval UI). For now, log and skip execution.
+                SubmitDecisionForApproval(decision, riskLevel);
                 return Result<Unit, RimMindError>.Ok(Unit.Value);
             }
 
             return _actor.ExecuteDecision(decision);
+        }
+
+        private void SubmitDecisionForApproval(AgentDecision decision, RiskLevel riskLevel)
+        {
+            string approveLabel = "RimMind.Agent.Request.Approve".Translate();
+            string rejectLabel = "RimMind.Agent.Request.Reject".Translate();
+            string pawnLabel = Pawn?.LabelShort ?? Identity?.DisplayName ?? "Pawn";
+            string intent = decision.ActionIntent ?? "action";
+            string reason = decision.Reason ?? intent;
+
+            var entry = new RequestEntry
+            {
+                source = "agent",
+                pawn = Pawn,
+                title = "RimMind.Agent.Request.RiskAction".Translate(riskLevel.ToString(), pawnLabel, intent),
+                description = reason,
+                systemBlocked = true,
+                expireTicks = 30000,
+                options = new[] { approveLabel, rejectLabel },
+                callback = choice =>
+                {
+                    if (choice == approveLabel)
+                    {
+                        _log?.Message($"[RimMind.Agent] action=ApprovedActionExecuting npcId={Identity.NpcId} intent={intent}");
+                        _actor.ExecuteDecision(decision);
+                    }
+                    else
+                    {
+                        _log?.Message($"[RimMind.Agent] action=RejectedAction npcId={Identity.NpcId} intent={intent}");
+                    }
+                },
+                completionCallback = completionReason =>
+                {
+                    if (completionReason == RequestCompletionReason.Selected)
+                        return;
+
+                    _log?.Message($"[RimMind.Agent] action=ApprovalDismissedOrExpired npcId={Identity.NpcId} intent={intent} reason={completionReason}");
+                }
+            };
+
+            try
+            {
+                RimMindAPI.RegisterPendingRequest(entry);
+            }
+            catch (Exception ex)
+            {
+                _log?.Warning($"[RimMind.Agent] Failed to register pending request for {Identity.NpcId}: {ex.Message}");
+            }
         }
 
         /// <summary>

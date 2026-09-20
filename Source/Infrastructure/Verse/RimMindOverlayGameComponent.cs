@@ -8,7 +8,11 @@ namespace RimMind.Infrastructure.Verse
     {
         public RimMindOverlayGameComponent(Game game) : base() { }
 
-        public override void GameComponentUpdate() => RimMind.Infrastructure.UI.Layout.UiCaptureRunner.CheckStartup();
+        public override void GameComponentUpdate()
+        {
+            RimMind.Infrastructure.UI.Layout.UiCaptureRunner.CheckStartup();
+            RimMind.Infrastructure.UI.BehaviorAutotestRunner.CheckStartup();
+        }
 
         public override void GameComponentOnGUI()
         {

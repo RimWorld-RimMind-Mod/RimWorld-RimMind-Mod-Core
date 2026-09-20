@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
 using RimMind.Presentation.Runtime.Services;
+using RimWorld;
 using Verse;
 
 namespace RimMind.Presentation.Runtime
@@ -47,12 +49,15 @@ namespace RimMind.Presentation.Runtime
             _overlayService?.Tick();
         }
 
+        private static bool _apiKeyMissingNotified;
+
         public override void StartedNewGame()
         {
             base.StartedNewGame();
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
+            CheckMissingApiKeyNotification();
         }
 
         public override void LoadedGame()
@@ -61,6 +66,31 @@ namespace RimMind.Presentation.Runtime
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
+            CheckMissingApiKeyNotification();
+        }
+
+        private void CheckMissingApiKeyNotification()
+        {
+            if (_apiKeyMissingNotified) return;
+
+            var scope = RuntimeServiceHub.Shared.Capture();
+            var settings = scope.GetOptional<ISettingsProvider>();
+            if (settings == null) return;
+
+            if (AIProviderRegistry.RequiresApiKey(settings.Provider) && string.IsNullOrWhiteSpace(settings.ApiKey))
+            {
+                _apiKeyMissingNotified = true;
+                LongEventHandler.ExecuteWhenFinished(() =>
+                {
+                    if (Find.LetterStack != null)
+                    {
+                        Find.LetterStack.ReceiveLetter(
+                            "RimMind.Notification.ApiKeyMissing.Title".Translate(),
+                            "RimMind.Notification.ApiKeyMissing.Desc".Translate(),
+                            LetterDefOf.NeutralEvent);
+                    }
+                });
+            }
         }
 
         private void PublishGameServices()

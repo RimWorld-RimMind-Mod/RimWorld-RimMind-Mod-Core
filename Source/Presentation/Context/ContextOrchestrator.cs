@@ -245,6 +245,7 @@ namespace RimMind.Presentation.Context
                         ?? $"[{ctx.SpeakerName}]: {PromptSanitizer.SanitizeUserInput(ctx.CurrentQuery!)}"
                     : PromptSanitizer.SanitizeUserInput(ctx.CurrentQuery!);
                 messages.Add(new ChatMessage { Role = "user", Content = queryContent, LayerTag = "L4" });
+                snapshot.Meta.L4Tokens += EstimateTokens(queryContent);
             }
 
             bool hasUserMessage = messages.Any(m => m.Role == "user");
@@ -255,7 +256,8 @@ namespace RimMind.Presentation.Context
                 var translationService = _translationService;
                 string autoAwaitContent = translationService?.Translate("RimMind.Prompt.AutoAwait", scenarioLabel)
                     ?? $"[AutoAwait: {scenarioLabel}]";
-                messages.Add(new ChatMessage { Role = "user", Content = autoAwaitContent });
+                messages.Add(new ChatMessage { Role = "user", Content = autoAwaitContent, LayerTag = "L4" });
+                snapshot.Meta.L4Tokens += EstimateTokens(autoAwaitContent);
             }
         }
 
@@ -323,8 +325,13 @@ namespace RimMind.Presentation.Context
                 ? _settingsProvider!.MaxTokens
                 : DefaultReserveForOutput;
             float budgetRatio = _settingsProvider?.Context?.ContextBudget ?? DefaultContextBudget;
-            int available = (int)(totalBudget * budgetRatio) - reserveForOutput;
-            if (available <= 0) available = totalBudget - reserveForOutput;
+            int allowedBudget = (int)(totalBudget * budgetRatio);
+            int available = allowedBudget - reserveForOutput;
+            if (available <= 0)
+            {
+                allowedBudget = totalBudget;
+                available = totalBudget - reserveForOutput;
+            }
 
             if (snapshot.EstimatedTokens <= available) return;
 
@@ -346,12 +353,15 @@ namespace RimMind.Presentation.Context
                 };
 
                 if (msg.Role == "system" && (msg.LayerTag == "L2" || msg.LayerTag == "L3" || msg.LayerTag == "L5"))
+                {
                     section.Compress = CompressToBrief;
+                    section.IsCompressible = true;
+                }
 
                 sections.Add(section);
             }
 
-            var budget = new PromptBudget(totalBudget, reserveForOutput);
+            var budget = new PromptBudget(allowedBudget, reserveForOutput);
             var trimmed = budget.Compose(sections) ?? new List<PromptSection>();
 
             snapshot.ClearMessages();

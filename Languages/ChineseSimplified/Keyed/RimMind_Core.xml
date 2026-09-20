@@ -176,8 +176,8 @@
   <RimMind.Context.IncludeWeather.Desc>将当前天气状况注入 AI 上下文。</RimMind.Context.IncludeWeather.Desc>
   <RimMind.Context.IncludeThreats>威胁等级</RimMind.Context.IncludeThreats>
   <RimMind.Context.IncludeThreats.Desc>将当前地图的威胁等级注入 AI 上下文。</RimMind.Context.IncludeThreats.Desc>
-  <RimMind.Context.ContextBudget>上下文预算</RimMind.Context.ContextBudget>
-  <RimMind.Context.ContextBudget.Desc>控制 AI 请求中包含的上下文信息量。更高的值提供更多细节，但会消耗更多 token。</RimMind.Context.ContextBudget.Desc>
+  <RimMind.Context.ContextBudget>上下文预算比例</RimMind.Context.ContextBudget>
+  <RimMind.Context.ContextBudget.Desc>控制 AI 请求中上下文占用总窗口的最大比例（推荐 0.8，即保留 20% 空间供模型思考与输出；超过 1.0 时仅允许在超大窗口模型下放宽限制）。</RimMind.Context.ContextBudget.Desc>
   <RimMind.Settings.ContextDiffLifetime>上下文变更保留时长</RimMind.Settings.ContextDiffLifetime>
   <RimMind.Settings.ContextDiffLifetime.Desc>上下文变更差异保留的时长（tick）。较低的值使上下文保持更及时，较高的值保留更长的变更历史。</RimMind.Settings.ContextDiffLifetime.Desc>
   <RimMind.Settings.CalibrateInterval>上下文校准间隔</RimMind.Settings.CalibrateInterval>
@@ -652,4 +652,10 @@
   <RimMind.UI.Lifecycle.Failed>失败</RimMind.UI.Lifecycle.Failed>
   <RimMind.UI.Lifecycle.NeverPublished>从未发布</RimMind.UI.Lifecycle.NeverPublished>
   <RimMind.UI.Lifecycle.StaleCompletion>运行时已切换，过期结果已丢弃。</RimMind.UI.Lifecycle.StaleCompletion>
+  <RimMind.Agent.Request.Approve>批准</RimMind.Agent.Request.Approve>
+  <RimMind.Agent.Request.Reject>拒绝</RimMind.Agent.Request.Reject>
+  <RimMind.Agent.Request.RiskAction>[{0}] {1} 申请执行：{2}</RimMind.Agent.Request.RiskAction>
+  <!-- API Key 缺失启动通知信件 -->
+  <RimMind.Notification.ApiKeyMissing.Title>RimMind: 需要配置 API 密钥</RimMind.Notification.ApiKeyMissing.Title>
+  <RimMind.Notification.ApiKeyMissing.Desc>RimMind 检测到当前选中的 AI 提供商尚未配置 API 密钥。请在“选项 -> Mod 设置 -> RimMind”中输入您的 API 密钥，以激活殖民者智能体决策、AI 对话与叙事者等功能。</RimMind.Notification.ApiKeyMissing.Desc>
 </LanguageData>
