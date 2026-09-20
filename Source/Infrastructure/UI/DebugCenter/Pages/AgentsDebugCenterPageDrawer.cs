@@ -9,6 +9,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
     public sealed class AgentsDebugCenterPageDrawer : IRuntimeBoundDebugCenterPageDrawer
     {
         private readonly AgentsPageDrawer _drawer = new();
+        internal void ScrollToBottom() => _drawer.ScrollToBottom();
 
         public IDisposable? Bind(RuntimeServiceScope scope) => null;
 

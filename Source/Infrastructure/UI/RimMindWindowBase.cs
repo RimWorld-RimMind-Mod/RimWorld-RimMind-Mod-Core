@@ -13,6 +13,9 @@ namespace RimMind.Infrastructure.UI
     /// </summary>
     public abstract class RimMindWindowBase : Window
     {
+        internal bool CaptureReadOnly { get; set; }
+        internal int LastRepaintFrame { get; private set; } = -1;
+
         public override sealed void DoWindowContents(Rect inRect)
         {
             // RimWorld draws a snapshot of WindowStack. A window closed earlier in the
@@ -20,7 +23,13 @@ namespace RimMind.Infrastructure.UI
             if (!IsOpen)
                 return;
 
+            // Ignore interaction events rather than disabling GUI: disabled controls
+            // tint Repaint output and would make captures unlike the normal window.
+            if (CaptureReadOnly && Event.current?.type != EventType.Layout && Event.current?.type != EventType.Repaint)
+                return;
+
             Color previousColor = GUI.color;
+            bool previousEnabled = GUI.enabled;
             GameFont previousFont = Text.Font;
             TextAnchor previousAnchor = Text.Anchor;
             try
@@ -32,10 +41,13 @@ namespace RimMind.Infrastructure.UI
                 {
                     DrawContents(inRect, scope);
                 }
+                if (Event.current != null && Event.current.type == EventType.Repaint)
+                    LastRepaintFrame = Time.frameCount;
             }
             finally
             {
                 GUI.color = previousColor;
+                GUI.enabled = previousEnabled;
                 Text.Font = previousFont;
                 Text.Anchor = previousAnchor;
             }

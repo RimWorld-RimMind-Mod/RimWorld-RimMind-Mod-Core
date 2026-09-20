@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
+using RimMind.Infrastructure.UI.Framework;
 using RimMind.Presentation.UI.Framework;
 using RimMind.Presentation.UI.Layout;
 using RimMind.Presentation.Runtime;
@@ -20,6 +21,24 @@ namespace RimMind.Presentation.UI
             RuntimeServiceRef<IExtensionRegistry<ISettingsTab>>.Optional();
 
         private static string _curTab = "api";
+        private static readonly RimMindTabbedPageHostDrawer TabHost = new();
+
+        internal static void DrawQueueReference(Rect rect, RimMindLayoutScope scope, bool bottom)
+        {
+            string savedTab = _curTab;
+            Vector2 savedScroll = QueueTabDrawer.ScrollPosition;
+            try
+            {
+                _curTab = "queue";
+                QueueTabDrawer.ScrollPosition = new Vector2(0, bottom ? 100000f : 0);
+                Draw(rect, scope);
+            }
+            finally
+            {
+                _curTab = savedTab;
+                QueueTabDrawer.ScrollPosition = savedScroll;
+            }
+        }
 
         public static void Draw(Rect inRect, RimMindLayoutScope? scope = null)
         {
@@ -29,9 +48,7 @@ namespace RimMind.Presentation.UI
             EnsureCurrentTab(settingsTabRegistry);
             var tabs = CollectTabs(settingsTabRegistry);
             var layout = TabbedPageLayout.Calculate(inRect, tabs);
-            scope?.Record(layout.TabBar, "Settings:TabBar");
-            scope?.Record(layout.Content, "Settings:Content");
-            DrawTabBar(layout, tabs, scope);
+            _curTab = TabHost.DrawTabs(layout, tabs, _curTab, scope);
             DrawCurrentSettingsPage(layout.Content, settings, settingsTabRegistry, runtimeScope, scope);
         }
 
@@ -99,23 +116,6 @@ namespace RimMind.Presentation.UI
         private static TabbedPageTabModel CreateTab(string id, string labelKey)
             => new(id, labelKey.Translate(), labelKey, _curTab == id, true, null);
 
-        private static void DrawTabBar(TabbedPageLayoutResult layout, IReadOnlyList<TabbedPageTabModel> tabs, RimMindLayoutScope? scope)
-        {
-            if (tabs.Count == 0)
-                return;
-
-            for (int i = 0; i < layout.TabRects.Count; i++)
-            {
-                var tabRect = layout.TabRects[i];
-                var tab = tabs[i];
-                scope?.Record(tabRect.Rect, "Settings:Tab:" + tab.Id);
-
-                GUI.color = tabRect.Selected ? Color.white : Color.gray;
-                if (Widgets.ButtonText(tabRect.Rect, tab.Label) && tab.Enabled)
-                    _curTab = tab.Id;
-            }
-            GUI.color = Color.white;
-        }
     }
 
     internal interface IRuntimeScopedSettingsTab

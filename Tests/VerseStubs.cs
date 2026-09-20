@@ -7,6 +7,17 @@ namespace UnityEngine
     /// <summary>Stub for Unity Texture2D used in test compilation.</summary>
     public class Texture2D { }
 
+    public enum EventType { Repaint, Layout, MouseDown, MouseUp, KeyDown, ScrollWheel }
+    public class Event
+    {
+        public static Event? current;
+        public EventType type;
+    }
+    public static class Time
+    {
+        public static int frameCount;
+    }
+
     public struct Vector2
     {
         public float x, y;
@@ -46,6 +57,7 @@ namespace UnityEngine
         public float r, g, b, a;
         public Color(float r, float g, float b, float a = 1f) { this.r = r; this.g = g; this.b = b; this.a = a; }
         public static Color white => new(1f, 1f, 1f, 1f);
+        public static Color gray => new(0.5f, 0.5f, 0.5f, 1f);
         public static Color red => new(1f, 0f, 0f, 1f);
         public static bool operator ==(Color lhs, Color rhs) =>
             System.Math.Abs(lhs.r - rhs.r) < 1e-6f && System.Math.Abs(lhs.g - rhs.g) < 1e-6f &&
@@ -59,6 +71,9 @@ namespace UnityEngine
     public static class GUI
     {
         public static Color color { get; set; } = Color.white;
+        public static bool enabled { get; set; } = true;
+        public static void BeginGroup(Rect rect) { }
+        public static void EndGroup() { }
     }
 }
 
@@ -118,6 +133,8 @@ namespace Verse
         public Map? Map { get; set; }
         public Pawn_Name Name => new Pawn_Name();
         public string LabelShort => "TestPawn";
+        public string LabelShortCap => LabelShort;
+        public string ThingID => "Pawn_" + thingIDNumber;
         public object jobs = new();
 
         public T? GetComp<T>() where T : ThingComp
@@ -143,6 +160,12 @@ namespace Verse
     public class Map
     {
         public int uniqueID;
+        public MapPawns mapPawns = new();
+    }
+
+    public class MapPawns
+    {
+        public List<Pawn> AllPawnsSpawned = new();
     }
 
     /// <summary>Stub for Verse.ThingWithComps base class.</summary>
@@ -231,6 +254,13 @@ namespace Verse
     {
         public static TickManager TickManager = new();
         public static WindowStack WindowStack = new();
+        public static Map? CurrentMap;
+        public static Selector Selector = new();
+    }
+
+    public class Selector
+    {
+        public void Select(Pawn pawn, bool playSound, bool forceDesignatorDeselect) { }
     }
 
     /// <summary>Stub for Verse.TickManager used in Gizmo tests.</summary>
@@ -269,12 +299,72 @@ namespace Verse
     {
         public static GameFont Font { get; set; } = GameFont.Small;
         public static TextAnchor Anchor { get; set; } = TextAnchor.UpperLeft;
+        public static UnityEngine.Vector2 CalcSize(string text) => new(text.Length * 6f, 22f);
+        public static float CalcHeight(string text, float width)
+            => Math.Max(1f, (float)Math.Ceiling(text.Length * 6f / Math.Max(1f, width))) * 22f;
     }
+
+    public sealed record WidgetDraw(string Kind, UnityEngine.Rect Rect, string Label, UnityEngine.Color Color, bool Enabled);
 
     /// <summary>Stub for Verse.Widgets used in UI overlay tests.</summary>
     public static class Widgets
     {
+        public static readonly List<WidgetDraw> Draws = new();
+        public static string? ClickLabel;
+        private static readonly Stack<UnityEngine.Vector2> ScrollOffsets = new();
+
+        public static void ResetDrawing()
+        {
+            Draws.Clear();
+            ScrollOffsets.Clear();
+            ClickLabel = null;
+            TooltipHandler.Tips.Clear();
+        }
+
+        private static void Record(string kind, UnityEngine.Rect rect, string label = "")
+        {
+            foreach (var offset in ScrollOffsets)
+            {
+                rect.x += offset.x;
+                rect.y += offset.y;
+            }
+            Draws.Add(new WidgetDraw(kind, rect, label, UnityEngine.GUI.color, UnityEngine.GUI.enabled));
+        }
+
         public static void DrawBox(UnityEngine.Rect rect, int borderSize = 1) { }
+        public static void DrawBoxSolid(UnityEngine.Rect rect, UnityEngine.Color color) { }
+        public static void DrawLine(UnityEngine.Vector2 start, UnityEngine.Vector2 end, UnityEngine.Color color, float width) { }
+        public static void Label(UnityEngine.Rect rect, string label) => Record("Label", rect, label);
+        public static void LabelEllipses(UnityEngine.Rect rect, string label) => Record("LabelEllipses", rect, label);
+        public static void DrawHighlight(UnityEngine.Rect rect) { }
+        public static bool ButtonText(UnityEngine.Rect rect, string label)
+        {
+            Record("ButtonText", rect, label);
+            return UnityEngine.GUI.enabled && ClickLabel == label;
+        }
+        public static bool ButtonInvisible(UnityEngine.Rect rect) => false;
+        public static void BeginScrollView(UnityEngine.Rect viewport, ref UnityEngine.Vector2 scroll, UnityEngine.Rect content)
+            => ScrollOffsets.Push(new UnityEngine.Vector2(viewport.x - content.x - scroll.x, viewport.y - content.y - scroll.y));
+        public static void EndScrollView() => ScrollOffsets.Pop();
+    }
+
+    public static class Mouse
+    {
+        public static bool IsOver(UnityEngine.Rect rect) => false;
+    }
+
+    public static class TooltipHandler
+    {
+        public static readonly List<(UnityEngine.Rect Rect, string Text)> Tips = new();
+        public static void TipRegion(UnityEngine.Rect rect, string tip) => Tips.Add((rect, tip));
+    }
+
+    public static class UiExtensions
+    {
+        public static UnityEngine.Rect ContractedBy(this UnityEngine.Rect rect, float amount)
+            => new(rect.x + amount, rect.y + amount, rect.width - amount * 2f, rect.height - amount * 2f);
+        public static bool NullOrEmpty([System.Diagnostics.CodeAnalysis.NotNullWhen(false)] this string? text)
+            => string.IsNullOrEmpty(text);
     }
 
     /// <summary>Stub for Verse.Translate extension method.</summary>

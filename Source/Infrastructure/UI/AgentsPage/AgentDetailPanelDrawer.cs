@@ -95,7 +95,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             var (textColor, bgColor) = state.HasValue
                 ? RimMindUI.GetStateBadgeColors(state.Value)
                 : RimMindUI.GetStateBadgeColors(AgentState.Dormant, isPendingCreation: true);
-            RimMindUI.DrawStatusBadge(inner, inner.y + RimMindUI.LineHeight + RimMindUI.Padding - inner.y,
+            RimMindUI.DrawStatusBadge(inner, inner.y + RimMindUI.LineHeight + RimMindUI.Padding,
                 "RimMind.UI.AgentsPage.State".Translate() + ": " + stateLabel, textColor, bgColor);
         }
 

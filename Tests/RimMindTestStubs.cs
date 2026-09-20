@@ -45,6 +45,16 @@ namespace RimMind.Tests
     }
 }
 
+namespace RimMind.Infrastructure.UI
+{
+    public sealed class Window_RimMindSettings : global::Verse.Window { }
+
+    public static class RequestOverlay
+    {
+        public static IReadOnlyList<object> Pending { get; } = Array.Empty<object>();
+    }
+}
+
 namespace RimMind.Presentation.Runtime
 {
     internal static class RimMindRuntime

@@ -24,6 +24,15 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
         private DebugTableModel? _cachedModel;
         private Vector2 _tableScrollPosition;
         private Vector2 _detailScrollPosition;
+        private IReadOnlyList<AIRequestTraceEntry>? _displaySnapshot;
+
+        // Local display-only data: never published to the live trace log or request queue.
+        internal void UseDisplaySnapshot(IReadOnlyList<AIRequestTraceEntry> entries) => _displaySnapshot = entries;
+        internal void ScrollToBottom()
+        {
+            _tableScrollPosition = new Vector2(0, 100000f);
+            _detailScrollPosition = new Vector2(0, 100000f);
+        }
 
         private sealed record DetailSection(string Title, string Body);
 
@@ -49,7 +58,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 
         public void Draw(Rect rect, DebugCenterPageContext context, RimMindLayoutScope scope)
         {
-            if (_log == null)
+            if (_log == null && _displaySnapshot == null)
             {
                 DrawEmptyTable(rect, "RimMind.UI.AIRequestsPage.TraceUnavailable".Translate(), scope);
                 return;
@@ -80,6 +89,15 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 
         private void RefreshSnapshot()
         {
+            if (_displaySnapshot != null)
+            {
+                if (!ReferenceEquals(_cachedEntries, _displaySnapshot) || _cachedModel == null)
+                {
+                    _cachedEntries = _displaySnapshot;
+                    _cachedModel = AIRequestsDebugTableModelBuilder.Build(_cachedEntries);
+                }
+                return;
+            }
             if (_log == null)
                 return;
 

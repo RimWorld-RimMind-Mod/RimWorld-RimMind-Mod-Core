@@ -12,26 +12,42 @@ namespace RimMind.Infrastructure.UI.Framework
             Rect root,
             IReadOnlyList<TabbedPageTabModel> tabs,
             string selectedId,
-            RimMindLayoutScope scope)
+            RimMindLayoutScope? scope)
+            => DrawTabs(TabbedPageLayout.Calculate(root, tabs), tabs, selectedId, scope);
+
+        public string DrawTabs(
+            TabbedPageLayoutResult layout,
+            IReadOnlyList<TabbedPageTabModel> tabs,
+            string selectedId,
+            RimMindLayoutScope? scope)
         {
-            var layout = TabbedPageLayout.Calculate(root, tabs);
-            scope.Record(layout.TabBar, "TabbedPage:TabBar");
-            scope.Record(layout.Content, "TabbedPage:Content");
+            scope?.Record(layout.TabBar, "TabbedPage:TabBar");
+            scope?.Record(layout.Content, "TabbedPage:Content");
 
             string nextSelected = selectedId;
-            for (int i = 0; i < layout.TabRects.Count; i++)
+            Color previousColor = GUI.color;
+            bool previousEnabled = GUI.enabled;
+            try
             {
-                var tabRect = layout.TabRects[i];
-                var tab = tabs[i];
-                scope.Record(tabRect.Rect, "TabbedPage:Tab:" + tab.Id);
+                for (int i = 0; i < layout.TabRects.Count; i++)
+                {
+                    var tabRect = layout.TabRects[i];
+                    var tab = tabs[i];
+                    scope?.Record(tabRect.Rect, "TabbedPage:Tab:" + tab.Id);
 
-                GUI.color = tab.Enabled ? Color.white : Color.gray;
-                if (RimMindUI.DrawTabButton(tabRect.Rect, tab.Label, tabRect.Selected) && tab.Enabled)
-                    nextSelected = tab.Id;
-                GUI.color = Color.white;
+                    GUI.enabled = previousEnabled && tab.Enabled;
+                    GUI.color = tabRect.Selected ? Color.white : Color.gray;
+                    if (Widgets.ButtonText(tabRect.Rect, tab.Label) && GUI.enabled)
+                        nextSelected = tab.Id;
 
-                if (!string.IsNullOrEmpty(tab.TooltipKey))
-                    TooltipHandler.TipRegion(tabRect.Rect, tab.TooltipKey.Translate());
+                    if (!string.IsNullOrEmpty(tab.TooltipKey))
+                        TooltipHandler.TipRegion(tabRect.Rect, tab.TooltipKey.Translate());
+                }
+            }
+            finally
+            {
+                GUI.color = previousColor;
+                GUI.enabled = previousEnabled;
             }
 
             return nextSelected;

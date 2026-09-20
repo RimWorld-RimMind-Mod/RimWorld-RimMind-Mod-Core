@@ -8,6 +8,7 @@ Start at `../AICoreDebugActions.cs`. It keeps the stable class entry; responsibi
 - `AICoreDebugActions.ContextAndAgents.cs`: context, registries, learning state, AgentBus, history, and NPC diagnostics.
 - `AICoreDebugActions.Windows.cs`: window entry points and UI layout inspection.
 - `AICoreDebugActions.Autotests.cs`: game-side H2, P, K, L, and layout checks.
+- `AICoreDebugActions.UiCapture.cs`: opt-in real-game page captures. `../Layout/UiCaptureRunner.cs` owns the temporary windows, `UiCaptureScenes.cs` selects production drawers, and `UiCaptureSequence.cs` gates frame evidence. Workflow: root `docs/02-how-to/ui-capture.md`.
 
 ## Flow
 

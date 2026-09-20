@@ -17,6 +17,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
         private IAgentLoopScheduler? _agentLoopScheduler;
         private IRequestQueue? _requestQueue;
         private Vector2 _scrollPosition;
+        internal void ScrollToBottom() => _scrollPosition = new Vector2(0, 100000f);
 
         public IDisposable? Bind(RuntimeServiceScope scope)
         {

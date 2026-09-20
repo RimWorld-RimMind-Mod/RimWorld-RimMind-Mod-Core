@@ -12,6 +12,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
         private readonly RimMindTableDrawer _tableDrawer = new();
         private readonly IDebugTableModelBuilder _modelBuilder;
         private Vector2 _scrollPosition;
+        internal void ScrollToBottom() => _scrollPosition = new Vector2(0, 100000f);
 
         protected DebugTablePageBase(IDebugTableModelBuilder modelBuilder)
         {

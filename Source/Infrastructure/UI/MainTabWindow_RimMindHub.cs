@@ -28,7 +28,7 @@ namespace RimMind.Infrastructure.UI
         {
         }
 
-        private Window_RimMindHub(string initialPageId, Pawn? selectedPawn)
+        internal Window_RimMindHub(string initialPageId, Pawn? selectedPawn)
         {
             _pages = DebugCenterPageRegistry.CreateAllRegistrations();
             foreach (DebugCenterPageRegistration page in _pages)
@@ -46,6 +46,9 @@ namespace RimMind.Infrastructure.UI
 
         public static Window_RimMindHub OpenAIRequests()
             => new Window_RimMindHub("ai_requests", selectedPawn: null);
+
+        internal string CurrentPageId => _pageId;
+        internal IDebugCenterPageDrawer CurrentDrawer => _drawerCache[_pageId];
 
         protected override void DrawContents(Rect inRect, RimMindLayoutScope scope)
         {

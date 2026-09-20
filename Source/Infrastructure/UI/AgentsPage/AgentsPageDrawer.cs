@@ -13,6 +13,12 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         private string _chatDraft = string.Empty;
         private string? _listSelectedPawnId;
 
+        internal void ScrollToBottom()
+        {
+            _listDrawer.ScrollToBottom();
+            _activityDrawer.ScrollToBottom();
+        }
+
         public void Draw(Rect rect, Pawn? hubSelectedPawn, RimMindLayoutScope scope)
         {
             AgentPageRects layout = AgentPageLayout.Calculate(rect);

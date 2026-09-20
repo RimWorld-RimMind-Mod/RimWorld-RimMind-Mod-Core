@@ -88,7 +88,7 @@ namespace RimMind.Infrastructure.UI
         {
             // Section header
             float y = rect.y;
-            y = RimMindUI.DrawSectionHeader(rect, y - rect.y, "RimMind.UI.AgentModeDebug.PawnList".Translate()) + rect.y;
+            y = RimMindUI.DrawSectionHeader(rect, y, "RimMind.UI.AgentModeDebug.PawnList".Translate());
 
             Rect listRect = new Rect(rect.x, y, rect.width, rect.height - (y - rect.y));
 
@@ -169,17 +169,17 @@ namespace RimMind.Infrastructure.UI
             float y = viewRect.y;
 
             // ── Section: Agent Info ──
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, pawn.Name?.ToStringShort ?? pawn.LabelShort) + viewRect.y;
+            y = RimMindUI.DrawSectionHeader(viewRect, y, pawn.Name?.ToStringShort ?? pawn.LabelShort);
 
             var (stateTextColor, stateBgColor) = RimMindUI.GetStateBadgeColors(agent.IsActive, agent.State == Domain.Enums.AgentState.Paused);
             string stateKey = $"RimMind.Agent.State.{agent.State}";
-            y = RimMindUI.DrawStatusBadge(viewRect, y - viewRect.y, stateKey.Translate(), stateTextColor, stateBgColor) + viewRect.y;
+            y = RimMindUI.DrawStatusBadge(viewRect, y, stateKey.Translate(), stateTextColor, stateBgColor);
 
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.Mode".Translate(), (string)agent.CurrentModeId) + viewRect.y;
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentModeDebug.Mode".Translate(), (string)agent.CurrentModeId);
 
             // ── Section: Mode Details ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.ModeDetails".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentModeDebug.ModeDetails".Translate());
 
             if (currentMode != null)
             {
@@ -188,25 +188,25 @@ namespace RimMind.Infrastructure.UI
                     ? currentMode.AllowedToolIds(toolRegistry)
                     : Array.Empty<string>();
                 string toolsStr = allowedTools.Count > 0 ? string.Join(", ", allowedTools) : "-";
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.AllowedTools".Translate(), toolsStr) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentModeDebug.AllowedTools".Translate(), toolsStr);
 
                 bool shouldThink = currentMode.ShouldThink(agent, Array.Empty<PerceptionBufferEntry>());
                 string thinkLabel = shouldThink.ToString();
                 Color thinkColor = shouldThink ? RimMindUI.ColorActive : RimMindUI.ColorMuted;
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.ShouldThink".Translate(), thinkLabel) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentModeDebug.ShouldThink".Translate(), thinkLabel);
             }
 
             // ── Section: Mode Switch ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.SwitchTo".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentModeDebug.SwitchTo".Translate());
             y = DrawModeSwitchButtons(viewRect, y, agent);
 
             // ── Section: Registered Modes ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
             y = DrawRegisteredModesSection(viewRect, y);
 
             // ── Section: History ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
             y = DrawHistorySection(viewRect, y);
 
             Widgets.EndScrollView();
@@ -264,25 +264,25 @@ namespace RimMind.Infrastructure.UI
 
         private float DrawRegisteredModesSection(Rect viewRect, float y)
         {
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.RegisteredModes".Translate()) + viewRect.y;
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentModeDebug.RegisteredModes".Translate());
 
             IReadOnlyList<IAgentMode>? modes = RimMindAPI.Modes?.All;
             if (modes == null)
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.NoModes".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, "RimMind.UI.AgentModeDebug.NoModes".Translate(), RimMindUI.ColorMuted);
                 return y;
             }
 
             if (modes.Count == 0)
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.NoModes".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, "RimMind.UI.AgentModeDebug.NoModes".Translate(), RimMindUI.ColorMuted);
                 return y;
             }
 
             foreach (var mode in modes)
             {
                 string entry = "RimMind.UI.AgentModeDebug.ModeEntry".Translate((string)mode.ModeId, mode.DisplayName);
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, (string)mode.ModeId, mode.DisplayName) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, (string)mode.ModeId, mode.DisplayName);
             }
 
             return y;
@@ -290,11 +290,11 @@ namespace RimMind.Infrastructure.UI
 
         private float DrawHistorySection(Rect viewRect, float y)
         {
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.History".Translate()) + viewRect.y;
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentModeDebug.History".Translate());
 
             if (_modeChangeHistory.Count == 0)
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, "RimMind.UI.AgentModeDebug.NoHistory".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, "RimMind.UI.AgentModeDebug.NoHistory".Translate(), RimMindUI.ColorMuted);
                 return y;
             }
 
@@ -304,7 +304,7 @@ namespace RimMind.Infrastructure.UI
                 AgentModeChangedEvent evt = _modeChangeHistory[i];
                 string entry = "RimMind.UI.AgentModeDebug.ModeChange".Translate(
                     evt.NpcId, evt.OldMode, evt.NewMode) + $" [T:{evt.Timestamp}]";
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, entry, RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, entry, RimMindUI.ColorMuted);
             }
             Text.Font = GameFont.Small;
 

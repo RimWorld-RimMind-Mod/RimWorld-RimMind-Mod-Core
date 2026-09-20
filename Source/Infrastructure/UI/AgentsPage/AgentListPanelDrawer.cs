@@ -12,6 +12,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         private readonly List<AgentListItem> _agents = new();
         private readonly Dictionary<string, Pawn> _pawnById = new();
         private Vector2 _listScrollPos;
+        internal void ScrollToBottom() => _listScrollPos = new Vector2(0, 100000f);
 
         public Pawn? Draw(Rect rect, Pawn? hubSelectedPawn, ref string? listSelectedPawnId, RimMindLayoutScope scope)
         {
@@ -48,7 +49,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             float contentH = Mathf.Max(innerRect.height + 1f, CalcListHeight(groups));
             var (bodyRect, _) = RimMindUI.BeginScrollView(innerRect, ref _listScrollPos, contentH);
 
-            float y = 0f;
+            float y = bodyRect.y;
 
             y = RimMindUI.DrawSectionHeader(bodyRect, y,
                 "RimMind.UI.AgentsPage.Active".Translate() + $" ({groups.Active.Count})");

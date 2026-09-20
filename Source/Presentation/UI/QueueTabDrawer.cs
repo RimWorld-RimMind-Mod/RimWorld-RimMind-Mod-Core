@@ -15,6 +15,7 @@ namespace RimMind.Presentation.UI
     internal static class QueueTabDrawer
     {
         private static Vector2 _queueScroll;
+        internal static Vector2 ScrollPosition { get => _queueScroll; set => _queueScroll = value; }
 
         private static readonly RuntimeServiceRef<IRequestQueue> RequestQueue =
             RuntimeServiceRef<IRequestQueue>.Optional();

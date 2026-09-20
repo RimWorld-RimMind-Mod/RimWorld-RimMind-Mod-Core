@@ -44,6 +44,9 @@
     <Compile Include="../Source/Presentation/Runtime/Services/*.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentListBuilder.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentListItem.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentListPanelDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentDetailPanelDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentActivityStreamDrawer.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentState/AgentContextPreviewCoordinator.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentFlow/AgentFlowAsyncCoordinator.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentFlow/AgentFlowStepTracker.cs" />
@@ -52,9 +55,13 @@
     <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentPageViewModel.cs" Link="Infrastructure\UI\AgentsPage\AgentPageViewModel.cs" />
     <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentRequestTraceRowBuilder.cs" Link="Infrastructure\UI\AgentsPage\AgentRequestTraceRowBuilder.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugCenter/*.cs" />
+    <Compile Include="../Source/Infrastructure/UI/DebugCenter/Pages/SettingsEntryDebugCenterPageDrawer.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugCenter/Overview/*.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugTables/*.cs" />
     <Compile Include="../Source/Infrastructure/UI/RimMindUITheme.cs" />
+    <Compile Include="../Source/Infrastructure/UI/RimMindUI.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Framework/RimMindTabbedPageHostDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Framework/RimMindTableDrawer.cs" />
     <Compile Include="../Source/Infrastructure/UI/NpcSyncStateStore.cs" />
     <Compile Include="../Source/Presentation/UI/Framework/*.cs" />
     <Compile Include="../Source/Presentation/Context/AsyncContextLayerBatchBuilder.cs" />
@@ -67,6 +74,8 @@
     <Compile Include="../Source/Presentation/UI/Layout/LayoutConflictStore.cs" />
     <Compile Include="../Source/Presentation/UI/Layout/RimMindLayoutScope.cs" />
     <Compile Include="../Source/Infrastructure/UI/Layout/LayoutAutotestEvaluator.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Layout/UiCaptureSequence.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Layout/UiCaptureArtifacts.cs" />
     <Compile Include="../Source/Infrastructure/UI/RimMindWindowBase.cs" />
     <Compile Include="../Source/Infrastructure/UI/RimMindITabBase.cs" />
     <Compile Include="../Source/Infrastructure/UI/RimMindMainTabWindowBase.cs" />

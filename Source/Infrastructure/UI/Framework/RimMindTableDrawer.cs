@@ -276,8 +276,8 @@ namespace RimMind.Infrastructure.UI.Framework
                 requestCell.width = Mathf.Max(0f, requestCell.width - StatusStripWidth);
                 Rect summaryCell = TablePageLayout.CalculateColumnRect(
                     layout.ViewRect.width, 1, CompactListColumnCount, rowRect.y, rowRect.height, 0f, CellPadding);
-                Widgets.Label(requestCell, DebugTableText.Preview(row.Id, 15));
-                Widgets.Label(summaryCell, DebugTableText.Preview(row.Summary, 15));
+                DrawCell(requestCell, row.Id);
+                DrawCell(summaryCell, row.Summary);
 
                 if (Widgets.ButtonInvisible(rowRect))
                     selectedRowId = row.Id;
@@ -352,10 +352,20 @@ namespace RimMind.Infrastructure.UI.Framework
                     cell.x += StatusStripWidth;
                     cell.width = Mathf.Max(0f, cell.width - StatusStripWidth);
                 }
-                Widgets.Label(cell, cells[c] ?? string.Empty);
+                DrawCell(cell, cells[c]);
             }
 
             GUI.color = oldColor;
+        }
+
+        private static void DrawCell(Rect rect, string? value)
+        {
+            // Row height is fixed; let Verse measure the current font/scale instead
+            // of truncating by character count. Keep the full value discoverable.
+            string text = DebugTableText.Preview(value, int.MaxValue);
+            Widgets.LabelEllipses(rect, text);
+            if (text.Length > 0)
+                TooltipHandler.TipRegion(rect, text);
         }
 
         private static string StatusLabelFor(DebugTableStatus status)

@@ -35,10 +35,6 @@ internal sealed class ContextKeysDebugCenterPageDrawer : TestDebugCenterPageDraw
     public ContextKeysDebugCenterPageDrawer(ContextKeysDebugTableModelBuilder modelBuilder) { }
 }
 
-internal sealed class SettingsEntryDebugCenterPageDrawer : TestDebugCenterPageDrawer
-{
-}
-
 internal abstract class TestDebugCenterPageDrawer : IDebugCenterPageDrawer
 {
     public void Draw(Rect rect, DebugCenterPageContext context, RimMindLayoutScope scope)

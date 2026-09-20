@@ -8,6 +8,8 @@ namespace RimMind.Infrastructure.UI
     /// <summary>
     /// Unified UI drawing utilities for RimMind windows.
     /// Delegates constants and color logic to <see cref="RimMindUITheme"/>.
+    /// Every y argument and returned next Y is absolute in the current GUI coordinate system,
+    /// not an offset from canvas.y. Scroll-view callers use the content rect's coordinates.
     /// </summary>
     public static class RimMindUI
     {
@@ -222,13 +224,13 @@ namespace RimMind.Infrastructure.UI
         // ── Wrapped Label ────────────────────────────────────────
 
         /// <summary>
-        /// Draw a word-wrapped label and return the height consumed.
+        /// Draw a word-wrapped label and return the next Y, including bottom spacing.
         /// </summary>
         public static float DrawWrappedLabel(Rect canvas, float y, string text, Color color)
             => DrawWrappedLabel(canvas, y, text, color, null);
 
         /// <summary>
-        /// Draw a word-wrapped label and return the height consumed.
+        /// Draw a word-wrapped label and return the next Y, including bottom spacing.
         /// When <paramref name="recorder"/> is non-null, the label rect is recorded for layout diagnostics.
         /// </summary>
         public static float DrawWrappedLabel(Rect canvas, float y, string text, Color color, LayoutTraceRecorder? recorder)

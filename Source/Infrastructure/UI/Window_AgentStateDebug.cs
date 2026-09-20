@@ -101,50 +101,50 @@ namespace RimMind.Infrastructure.UI
             float labelW = viewRect.width - RimMindUI.Padding * 2;
 
             // ── Section: Identity ──
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.SectionIdentity".Translate()) + viewRect.y;
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.ScopeType".Translate(), scopedAgent.ScopeType.ToString()) + viewRect.y;
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.ScopeId".Translate(), scopedAgent.ScopeId) + viewRect.y;
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.SectionIdentity".Translate());
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.ScopeType".Translate(), scopedAgent.ScopeType.ToString());
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.ScopeId".Translate(), scopedAgent.ScopeId);
 
             if (scopedAgent.MapId.HasValue)
             {
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.MapId".Translate(), scopedAgent.MapId.Value.ToString()) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.MapId".Translate(), scopedAgent.MapId.Value.ToString());
             }
 
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.NpcId".Translate(), scopedAgent.NpcId ?? "-") + viewRect.y;
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.NpcId".Translate(), scopedAgent.NpcId ?? "-");
 
             // ── Section: State ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.SectionState".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.SectionState".Translate());
 
             string stateKey = $"RimMind.Agent.State.{scopedAgent.State}";
             string stateLabel = stateKey.Translate();
             var (stateTextColor, stateBgColor) = RimMindUI.GetStateBadgeColors(
                 scopedAgent.State == AgentState.Active,
                 scopedAgent.State == AgentState.Paused);
-            y = RimMindUI.DrawStatusBadge(viewRect, y - viewRect.y, stateLabel, stateTextColor, stateBgColor) + viewRect.y;
+            y = RimMindUI.DrawStatusBadge(viewRect, y, stateLabel, stateTextColor, stateBgColor);
 
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.Mode".Translate(), (string)scopedAgent.CurrentModeId) + viewRect.y;
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.Mode".Translate(), (string)scopedAgent.CurrentModeId);
 
             int? lastThinkTick = scopedAgent.LastThinkTick;
             if (lastThinkTick.HasValue && lastThinkTick.Value > 0)
             {
                 int elapsed = Find.TickManager.TicksGame - lastThinkTick.Value;
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), elapsed.ToString()) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), elapsed.ToString());
             }
             else
             {
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), "RimMind.UI.AgentStateDebug.NoData".Translate()) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), "RimMind.UI.AgentStateDebug.NoData".Translate());
             }
 
             float successRate = scopedAgent.GetRecentSuccessRate();
             string rateLabel = successRate.ToString("P0");
             Color rateColor = successRate > 0.5f ? RimMindUI.ColorActive : RimMindUI.ColorPaused;
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.SuccessRate".Translate(), rateLabel) + viewRect.y;
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.SuccessRate".Translate(), rateLabel);
 
             // ── Section: Behavior History ──
             var recentHistory = scopedAgent.GetRecentHistory(5);
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.RecentBehavior".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.RecentBehavior".Translate());
 
             if (recentHistory.Count > 0)
             {
@@ -154,27 +154,27 @@ namespace RimMind.Infrastructure.UI
                     string marker = record.Success ? "OK" : "FAIL";
                     Color markerColor = record.Success ? RimMindUI.ColorActive : RimMindUI.ColorError;
                     string recordStr = $"[{marker}] {record.Action}";
-                    y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, recordStr, markerColor) + viewRect.y;
+                    y = RimMindUI.DrawWrappedLabel(viewRect, y, recordStr, markerColor);
                 }
                 Text.Font = GameFont.Small;
             }
             else
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.NoBehaviorHistory".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, "RimMind.UI.AgentStateDebug.NoBehaviorHistory".Translate(), RimMindUI.ColorMuted);
             }
 
             // ── Debug Info ──
             string debugInfo = scopedAgent.GetDebugInfo();
             if (!string.IsNullOrEmpty(debugInfo))
             {
-                y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
+                y = RimMindUI.DrawDivider(viewRect, y);
                 Text.Font = GameFont.Tiny;
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, debugInfo, RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, debugInfo, RimMindUI.ColorMuted);
                 Text.Font = GameFont.Small;
             }
 
             // ── Action Buttons ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
             y = DrawScopedAgentButtons(x, y, labelW, scopedAgent, scope);
 
             Widgets.EndScrollView();
@@ -311,17 +311,17 @@ namespace RimMind.Infrastructure.UI
             float y = viewRect.y + RimMindUI.Padding;
 
             // ── Section: Pawn Info ──
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.SectionPawnInfo".Translate()) + viewRect.y;
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.SectionPawnInfo".Translate());
 
             string pawnLabel = pawn.Name?.ToStringShort ?? pawn.LabelShort;
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.PawnInfo".Translate(pawnLabel, pawn.thingIDNumber), "") + viewRect.y;
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.PawnInfo".Translate(pawnLabel, pawn.thingIDNumber), "");
 
             string npcId = $"NPC-{pawn.thingIDNumber}";
-            y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.NpcId".Translate(), npcId) + viewRect.y;
+            y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.NpcId".Translate(), npcId);
 
             // ── Section: Agent State ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.SectionAgentState".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.SectionAgentState".Translate());
 
             if (agent != null)
             {
@@ -330,68 +330,68 @@ namespace RimMind.Infrastructure.UI
                     agent.State == AgentState.Paused);
                 string stateKey = $"RimMind.Agent.State.{agent.State}";
                 string stateLabel = stateKey.Translate();
-                y = RimMindUI.DrawStatusBadge(viewRect, y - viewRect.y, stateLabel, stateTextColor, stateBgColor) + viewRect.y;
+                y = RimMindUI.DrawStatusBadge(viewRect, y, stateLabel, stateTextColor, stateBgColor);
 
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.Mode".Translate(), (string)agent.CurrentModeId) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.Mode".Translate(), (string)agent.CurrentModeId);
 
                 bool isThinking = agent.WorkflowPhase == AgentWorkflowPhase.Thinking;
                 string thinkingLabel = isThinking.ToString();
                 Color thinkingColor = isThinking ? RimMindUI.ColorActive : RimMindUI.ColorMuted;
-                y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.Thinking".Translate(), thinkingLabel) + viewRect.y;
+                y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.Thinking".Translate(), thinkingLabel);
 
                 int? lastThinkTick = agent.LastThinkTick;
                 if (lastThinkTick.HasValue && lastThinkTick.Value > 0)
                 {
                     int elapsed = Find.TickManager.TicksGame - lastThinkTick.Value;
-                    y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), elapsed.ToString()) + viewRect.y;
+                    y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), elapsed.ToString());
                 }
                 else
                 {
-                    y = RimMindUI.DrawKeyValueRow(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), "RimMind.UI.AgentStateDebug.NoData".Translate()) + viewRect.y;
+                    y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.LastThinkTick".Translate(), "RimMind.UI.AgentStateDebug.NoData".Translate());
                 }
             }
             else
             {
-                y = RimMindUI.DrawStatusBadge(viewRect, y - viewRect.y,
+                y = RimMindUI.DrawStatusBadge(viewRect, y,
                     "RimMind.UI.AgentStateDebug.AgentMissing".Translate(),
-                    RimMindUI.ColorError, new Color(0.35f, 0.15f, 0.1f, 0.6f)) + viewRect.y;
+                    RimMindUI.ColorError, new Color(0.35f, 0.15f, 0.1f, 0.6f));
 
                 Text.Font = GameFont.Tiny;
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y,
-                    "RimMind.UI.AgentStateDebug.AgentMissingHint".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y,
+                    "RimMind.UI.AgentStateDebug.AgentMissingHint".Translate(), RimMindUI.ColorMuted);
                 Text.Font = GameFont.Small;
             }
 
             // ── Section: Queue State ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.QueueState".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.QueueState".Translate());
 
             var queue = RuntimeServiceHub.Shared.Capture().GetOptional<IRequestQueue>();
             if (queue != null)
             {
                 string qSummary = $"Paused={queue.IsPaused} Active={queue.ActiveRequestCount} Queued={queue.TotalQueuedCount}";
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, qSummary, RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, qSummary, RimMindUI.ColorMuted);
             }
             else
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.NoData".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, "RimMind.UI.AgentStateDebug.NoData".Translate(), RimMindUI.ColorMuted);
             }
 
             // ── Section: Context Snapshot ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
-            y = RimMindUI.DrawSectionHeader(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.ContextSnapshot".Translate()) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
+            y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.ContextSnapshot".Translate());
 
             if (!_contextPreview.Summary.NullOrEmpty())
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, _contextPreview.Summary, RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, _contextPreview.Summary, RimMindUI.ColorMuted);
             }
             else
             {
-                y = RimMindUI.DrawWrappedLabel(viewRect, y - viewRect.y, "RimMind.UI.AgentStateDebug.NoData".Translate(), RimMindUI.ColorMuted) + viewRect.y;
+                y = RimMindUI.DrawWrappedLabel(viewRect, y, "RimMind.UI.AgentStateDebug.NoData".Translate(), RimMindUI.ColorMuted);
             }
 
             // ── Action Buttons ──
-            y = RimMindUI.DrawDivider(viewRect, y - viewRect.y) + viewRect.y;
+            y = RimMindUI.DrawDivider(viewRect, y);
             float x = viewRect.x + RimMindUI.Padding;
             float labelW = viewRect.width - RimMindUI.Padding * 2;
             y = DrawButtons(x, y, labelW, pawn, scope);

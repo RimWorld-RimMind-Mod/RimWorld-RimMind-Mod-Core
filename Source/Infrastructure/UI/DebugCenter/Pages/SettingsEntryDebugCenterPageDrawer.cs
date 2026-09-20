@@ -12,13 +12,13 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             scope.Record(rect, "Hub:SettingsEntry");
 
             float y = rect.y;
-            y = RimMindUI.DrawSectionHeader(rect, y - rect.y, "RimMind.UI.Hub.SettingsEntryTitle".Translate()) + rect.y;
+            y = RimMindUI.DrawSectionHeader(rect, y, "RimMind.UI.Hub.SettingsEntryTitle".Translate());
             y = RimMindUI.DrawWrappedLabel(
                 rect,
-                y - rect.y,
+                y,
                 "RimMind.UI.Hub.SettingsEntryDescription".Translate(),
                 RimMindUI.ColorValue,
-                scope.Recorder) + rect.y;
+                scope.Recorder);
 
             y += RimMindUI.SectionGap;
             Rect buttonRect = new Rect(rect.x + RimMindUI.Padding, y, 180f, RimMindUI.BtnHeight);

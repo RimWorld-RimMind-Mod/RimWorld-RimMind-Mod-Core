@@ -16,6 +16,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             new ReadOnlyCollection<AgentRequestTraceRow>(new List<AgentRequestTraceRow>());
 
         private Vector2 _activityScrollPos;
+        internal void ScrollToBottom() => _activityScrollPos = new Vector2(0, 100000f);
 
         public void Draw(Rect rect, AgentState state, int pendingRequests, RimMindLayoutScope scope)
         {
@@ -56,7 +57,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             var (bodyRect, _) = RimMindUI.BeginScrollView(inner, ref _activityScrollPos,
                 Mathf.Max(inner.height + 1f, contentHeight));
 
-            float y = RimMindUI.DrawSectionHeader(bodyRect, 0f,
+            float y = RimMindUI.DrawSectionHeader(bodyRect, bodyRect.y,
                 "RimMind.UI.AgentsPage.Activity".Translate());
             y = RimMindUI.DrawKeyValueRow(bodyRect, y,
                 "RimMind.UI.AgentsPage.State".Translate(), stateLabel);

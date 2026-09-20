@@ -9,6 +9,8 @@ namespace RimMind.Infrastructure.UI
 {
     public class Window_RimMindSettings : RimMindWindowBase
     {
+        private readonly bool _queueReference;
+        private readonly bool _bottom;
         private readonly RuntimeServiceRef<ISettingsProvider> _settingsProvider =
             RuntimeServiceRef<ISettingsProvider>.Required();
 
@@ -22,15 +24,25 @@ namespace RimMind.Infrastructure.UI
             doCloseX = true;
         }
 
+        internal Window_RimMindSettings(bool bottom) : this()
+        {
+            _queueReference = true;
+            _bottom = bottom;
+        }
+
         protected override void DrawContents(Rect inRect, RimMindLayoutScope scope)
         {
             scope.Record(inRect, "Settings:Body");
-            RimMindCoreSettingsUI.Draw(inRect, scope);
+            if (_queueReference)
+                RimMindCoreSettingsUI.DrawQueueReference(inRect, scope, _bottom);
+            else
+                RimMindCoreSettingsUI.Draw(inRect, scope);
         }
 
         public override void PreClose()
         {
-            _settingsProvider.Value.Persist();
+            if (!_queueReference)
+                _settingsProvider.Value.Persist();
             base.PreClose();
         }
     }
