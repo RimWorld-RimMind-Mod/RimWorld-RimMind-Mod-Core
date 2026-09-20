@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces.Abstractions;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 
 namespace RimMind.Application.Features.Requests.Queue
@@ -12,11 +13,13 @@ namespace RimMind.Application.Features.Requests.Queue
     {
         private readonly CooldownTable _cooldowns;
         private readonly ISettingsProvider _settings;
+        public IExtensionRegistry<IModCooldown>? ModCooldowns { get; set; }
 
-        public QueueCircuitBreaker(ISettingsProvider settings, ILogSink? logSink = null)
+        public QueueCircuitBreaker(ISettingsProvider settings, ILogSink? logSink = null, IExtensionRegistry<IModCooldown>? modCooldowns = null)
         {
             _settings = settings;
             _cooldowns = new CooldownTable(logSink);
+            ModCooldowns = modCooldowns;
         }
 
         public CooldownTable Cooldowns => _cooldowns;
@@ -28,7 +31,15 @@ namespace RimMind.Application.Features.Requests.Queue
             => _cooldowns.GetCooldownTicksLeft(modId, currentTick);
 
         public int GetModCooldownTicks(string modId)
-            => _cooldowns.GetModCooldownTicks(modId);
+        {
+            if (ModCooldowns != null)
+            {
+                var registered = ModCooldowns.FindById(modId);
+                if (registered != null && registered.CooldownTicks > 0)
+                    return registered.CooldownTicks;
+            }
+            return _cooldowns.GetModCooldownTicks(modId);
+        }
 
         public void SetCooldown(string modId, int ticksRemaining)
             => _cooldowns.Set(modId, ticksRemaining);

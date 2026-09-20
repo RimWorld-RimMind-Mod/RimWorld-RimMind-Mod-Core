@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Client;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Models.Client;
 using RimMind.Domain.Common;
 using RimMind.Domain.Llm;
@@ -12,6 +13,7 @@ namespace RimMind.Application.Features.Requests.Queue
 {
     public interface IRequestQueue
     {
+        IExtensionRegistry<IModCooldown>? ModCooldowns { get; set; }
         [ThreadAffinity(ThreadAffinityKind.Any)]
         void Enqueue(LlmRequestEnvelope envelope, Action<Result<LlmResponse, RimMindError>> callback, IAIClient client);
         [ThreadAffinity(ThreadAffinityKind.Any)]

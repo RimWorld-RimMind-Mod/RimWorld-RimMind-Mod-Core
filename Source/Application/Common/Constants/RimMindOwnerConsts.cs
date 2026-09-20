@@ -13,7 +13,31 @@ namespace RimMind.Application.Common.Constants
     /// </remarks>
     public static class RimMindOwnerConsts
     {
-        /// <summary>Core 模组的 OwnerModId 标识（多数派写法）。</summary>
+        /// <summary>Core 模组的 OwnerModId 标识。</summary>
         public const string CoreModId = "RimMindCore";
+
+        /// <summary>Actions 模组的 OwnerModId 标识。</summary>
+        public const string ActionsModId = "RimMindActions";
+
+        /// <summary>Advisor 模组的 OwnerModId 标识。</summary>
+        public const string AdvisorModId = "RimMindAdvisor";
+
+        /// <summary>Dialogue 模组的 OwnerModId 标识。</summary>
+        public const string DialogueModId = "RimMindDialogue";
+
+        /// <summary>Memory 模组的 OwnerModId 标识。</summary>
+        public const string MemoryModId = "RimMindMemory";
+
+        /// <summary>Personality 模组的 OwnerModId 标识。</summary>
+        public const string PersonalityModId = "RimMindPersonality";
+
+        /// <summary>Storyteller 模组的 OwnerModId 标识。</summary>
+        public const string StorytellerModId = "RimMindStoryteller";
+
+        /// <summary>Bridge-RimTalk 模组的 OwnerModId 标识。</summary>
+        public const string BridgeRimTalkModId = "RimMindBridgeRimTalk";
+
+        /// <summary>Bridge-RimChat 模组的 OwnerModId 标识。</summary>
+        public const string BridgeRimChatModId = "RimMindBridgeRimChat";
     }
 }

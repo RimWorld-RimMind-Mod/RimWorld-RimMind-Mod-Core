@@ -19,5 +19,15 @@ namespace RimMind.Presentation.Api
                 return builder.BuildMapContextInstance(map, brief);
             }
         }
+
+        public static class Chat
+        {
+            public static System.Func<int, int?>? ActiveDialogueRecipientResolver { get; set; }
+
+            public static int? GetActiveDialogueRecipient(int pawnId)
+            {
+                return ActiveDialogueRecipientResolver?.Invoke(pawnId);
+            }
+        }
     }
 }

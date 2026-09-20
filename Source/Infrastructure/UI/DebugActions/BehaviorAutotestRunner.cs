@@ -189,6 +189,9 @@ namespace RimMind.Infrastructure.UI
             // Suite 6: Full In-Game Tools Execution
             yield return RunSuiteAllToolsExecution();
 
+            // Suite 7+: Discovered Submodule Behavior Suites
+            yield return RunDiscoveredModSuites();
+
             // Finalize and report
             FinalizeReport();
         }
@@ -924,6 +927,87 @@ namespace RimMind.Infrastructure.UI
 
             string outcome = result.Status;
             Log.Message($"[RIMTEST][Behavior][{result.SuiteId}][{outcome}] pass={result.PassCount} fail={result.FailCount} duration={result.DurationMs}ms msg={result.Message}");
+        }
+
+        private IEnumerator RunDiscoveredModSuites()
+        {
+            List<IInGameBehaviorSuite> suites = new();
+            try
+            {
+                var suiteTypes = GenTypes.AllTypes
+                    .Where(t => t.IsClass && !t.IsAbstract && typeof(IInGameBehaviorSuite).IsAssignableFrom(t));
+
+                foreach (var type in suiteTypes)
+                {
+                    try
+                    {
+                        if (Activator.CreateInstance(type) is IInGameBehaviorSuite suite)
+                        {
+                            suites.Add(suite);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"[RimMind-Core] Failed to instantiate behavior suite {type.FullName}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Core] Failed to discover behavior suites: {ex.Message}");
+            }
+
+            Log.Message($"[RimMind-Core] Discovered {suites.Count} submodule behavior autotest suites.");
+
+            Pawn? colonist = Find.CurrentMap?.mapPawns?.FreeColonists?.FirstOrDefault();
+            VerseMap? map = Find.CurrentMap;
+
+            foreach (var suite in suites)
+            {
+                var sw = Stopwatch.StartNew();
+                var result = new BehaviorAutotestResult
+                {
+                    SuiteId = $"{suite.ModId}.{suite.SuiteId}"
+                };
+
+                var ctx = new InGameBehaviorSuiteContext(colonist, map);
+
+                try
+                {
+                    suite.RunSuite(ctx);
+                    result.PassCount = ctx.PassCount;
+                    result.FailCount = ctx.FailCount;
+                    result.Details.AddRange(ctx.Details);
+
+                    if (ctx.FailCount == 0 && ctx.PassCount > 0)
+                    {
+                        result.Status = "PASS";
+                        result.Message = $"All {ctx.PassCount} checks passed for {suite.SuiteId}.";
+                    }
+                    else if (ctx.FailCount > 0)
+                    {
+                        result.Status = "FAIL";
+                        result.Message = $"{ctx.FailCount} checks failed out of {ctx.PassCount + ctx.FailCount}.";
+                    }
+                    else
+                    {
+                        result.Status = "PASS";
+                        result.Message = $"Suite {suite.SuiteId} executed with no checks failed.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.FailCount = Math.Max(1, ctx.FailCount);
+                    result.Status = "FAIL";
+                    result.Message = $"Exception in {suite.SuiteId}: {ex.Message}";
+                    result.Details.Add(ex.ToString());
+                }
+
+                sw.Stop();
+                result.DurationMs = sw.ElapsedMilliseconds;
+                RecordSuiteResult(result);
+                yield return null;
+            }
         }
 
         private void FinalizeReport()

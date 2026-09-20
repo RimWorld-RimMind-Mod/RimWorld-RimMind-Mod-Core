@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Async;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Models.Client;
@@ -48,6 +49,11 @@ namespace RimMind.Application.Features.Requests.Queue
 
         public int CurrentTick { get; set; }
         public Action<string, bool>? LogHandler { get; set; }
+        public IExtensionRegistry<IModCooldown>? ModCooldowns
+        {
+            get => _circuitBreaker.ModCooldowns;
+            set => _circuitBreaker.ModCooldowns = value;
+        }
         internal int PendingCallbackCount => _completionInbox.PendingCallbackCount;
 
         private ISettingsProvider Settings => _settingsFactory?.Invoke() ?? new DefaultSettingsProvider();
@@ -57,12 +63,13 @@ namespace RimMind.Application.Features.Requests.Queue
         public RequestQueue(
             Func<ISettingsProvider?>? settingsFactory = null,
             ILogSink? logSink = null,
-            ICompletionFence? completionFence = null)
+            ICompletionFence? completionFence = null,
+            IExtensionRegistry<IModCooldown>? modCooldowns = null)
         {
             _settingsFactory = settingsFactory;
             _logSink = logSink;
             _completionFence = completionFence ?? UnboundedCompletionFence.Instance;
-            _circuitBreaker = new QueueCircuitBreaker(Settings, logSink);
+            _circuitBreaker = new QueueCircuitBreaker(Settings, logSink, modCooldowns);
         }
 
         public void Tick()

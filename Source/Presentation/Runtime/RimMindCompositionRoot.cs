@@ -197,6 +197,7 @@ namespace RimMind.Presentation.Runtime
                     pawn => runtime?.GetAgentIdentity(pawn));
 
                 SettingsComposition.ComposeDefaultExtensionRegistries(services, extensions);
+                appBag.Queue.ModCooldowns = extensions.GetExtensionRegistry<IModCooldown>();
                 ClientComposition.RegisterBuiltinClientFactories(
                     clientServices.ClientFactoryRegistry,
                     logSink,

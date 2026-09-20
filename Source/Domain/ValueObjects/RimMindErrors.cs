@@ -127,6 +127,16 @@ namespace RimMind.Domain.ValueObjects
             TraceId = TraceContext.Current,
         };
 
+        /// <summary>
+        /// Global hook for routing domain warnings to the game engine or test log sinks.
+        /// </summary>
+        public static Action<string, Exception?>? OnWarn { get; set; }
+
+        /// <summary>
+        /// Global hook for routing domain errors to the game engine or test log sinks.
+        /// </summary>
+        public static Action<string, Exception?>? OnError { get; set; }
+
         public static RimMindError Warn(string message, Exception? inner = null)
         {
             var error = new RimMindError(RimMindErrorCode.InternalError, message)
@@ -135,6 +145,7 @@ namespace RimMind.Domain.ValueObjects
                 TraceId = TraceContext.Current,
             };
             System.Diagnostics.Debug.WriteLine($"[WARN] {error}");
+            OnWarn?.Invoke(message, inner);
             return error;
         }
 
@@ -146,6 +157,7 @@ namespace RimMind.Domain.ValueObjects
                 TraceId = TraceContext.Current,
             };
             System.Diagnostics.Debug.WriteLine($"[ERROR] {error}");
+            OnError?.Invoke(message, inner);
             return error;
         }
     }
