@@ -64,6 +64,9 @@ namespace RimMind.Infrastructure.UI
             Pawn? pawn = Find.Selector.SingleSelectedThing as Pawn;
             Find.WindowStack.Add(new Window_ContextPayloadInspector(pawn));
         }
+
+        [DebugAction("RimMind", "Test Live AI Request (Payload Inspector)", actionType = DebugActionType.Action)]
+        public static void OpenContextPayloadInspectorTest() => OpenContextPayloadInspector();
         [DebugAction("RimMind", "Dump UI Layout Conflicts", actionType = DebugActionType.Action)]
         public static void DumpUiLayoutConflicts()
         {
