@@ -29,6 +29,8 @@ namespace RimMind.Presentation.Agent
         private const int MaxSkillDisplay = 5;
         private const int MaxHealthTagDisplay = 5;
 
+        private static readonly IContextSettings DefaultFallbackSettings = new RimMind.Presentation.Settings.ContextSettings();
+
         private readonly IContextSettings? _contextSettings;
         private readonly ILogSink? _logSink;
 
@@ -38,7 +40,7 @@ namespace RimMind.Presentation.Agent
             _logSink = logSink;
         }
 
-        private IPawnIncludeSettings? PawnSettings => _contextSettings;
+        private IPawnIncludeSettings PawnSettings => _contextSettings ?? DefaultFallbackSettings;
 
         public string BuildPawnContext(Pawn pawn)
         {

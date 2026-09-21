@@ -23,6 +23,12 @@ namespace RimMind.Presentation.UI
         private static string _curTab = "api";
         private static readonly RimMindTabbedPageHostDrawer TabHost = new();
 
+        internal static string CurrentTab
+        {
+            get => _curTab;
+            set => _curTab = value;
+        }
+
         internal static void DrawQueueReference(Rect rect, RimMindLayoutScope scope, bool bottom)
         {
             string savedTab = _curTab;

@@ -50,19 +50,19 @@ namespace RimMind.Infrastructure.UI
 
         private static readonly string[] ScenarioLabels = new[]
         {
-            "Decision (决策与行动)",
-            "Dialogue (社交对话)",
-            "Personality (心理评估)",
-            "DarkMemory (记忆提炼)"
+            "Decision",
+            "Dialogue",
+            "Personality",
+            "DarkMemory"
         };
 
         private static readonly string[] Tabs = new[]
         {
-            "System Prompt (系统提示)",
-            "Context Layers (L1-L5 分层)",
-            "Tool Schemas (工具定义)",
-            "Token & Redundancy (冗余分析)",
-            "Live Test (实机测试)"
+            "Prompt",
+            "Layers",
+            "Tools",
+            "Analysis",
+            "Live Test"
         };
 
         // Cache for generated envelope
@@ -152,11 +152,11 @@ namespace RimMind.Infrastructure.UI
             Text.Font = GameFont.Small;
 
             // Scenario dropdown / toggle
-            float selX = rect.xMax - 360f;
-            Rect scenLabelRect = new Rect(selX, rect.y + 10f, 60f, 22f);
-            Widgets.Label(scenLabelRect, "场景:");
+            float selX = rect.xMax - 340f;
+            Rect scenLabelRect = new Rect(selX, rect.y + 10f, 75f, 22f);
+            Widgets.Label(scenLabelRect, "RimMind.Inspector.ScenarioLabel".Translate());
 
-            Rect scenBtnRect = new Rect(selX + 45f, rect.y + 6f, 300f, 26f);
+            Rect scenBtnRect = new Rect(selX + 80f, rect.y + 6f, 250f, 26f);
             if (Widgets.ButtonText(scenBtnRect, ScenarioLabels[_selectedScenarioIndex]))
             {
                 var options = new List<FloatMenuOption>();
@@ -180,7 +180,7 @@ namespace RimMind.Infrastructure.UI
 
             Rect titleRect = new Rect(rect.x + 6f, rect.y + 6f, rect.width - 12f, 24f);
             GUI.color = Color.gray;
-            Widgets.Label(titleRect, "殖民者列表 (Colonists)");
+            Widgets.Label(titleRect, "RimMind.Inspector.ColonistsList".Translate());
             GUI.color = Color.white;
 
             var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList() ?? new List<Pawn>();
@@ -343,7 +343,7 @@ namespace RimMind.Infrastructure.UI
         private void DrawBottomBar(Rect rect)
         {
             Widgets.DrawBoxSolid(rect, new Color(0.12f, 0.12f, 0.14f, 0.9f));
-            float btnWidth = 170f;
+            float btnWidth = 190f;
             float curX = rect.x + 10f;
 
             // 1. Copy full payload
@@ -356,17 +356,17 @@ namespace RimMind.Infrastructure.UI
             curX += btnWidth + 10f;
 
             // 2. Re-evaluate / Refresh
-            Rect refreshBtn = new Rect(curX, rect.y + 8f, 130f, 28f);
-            if (Widgets.ButtonText(refreshBtn, "刷新快照 (Refresh)"))
+            Rect refreshBtn = new Rect(curX, rect.y + 8f, 140f, 28f);
+            if (Widgets.ButtonText(refreshBtn, "RimMind.Inspector.RefreshSnapshot".Translate()))
             {
                 RebuildEnvelope();
             }
-            curX += 130f + 10f;
+            curX += 140f + 10f;
 
             // 3. Test Live Request
             Rect testBtn = new Rect(curX, rect.y + 8f, 180f, 28f);
             GUI.enabled = !_isTesting;
-            if (Widgets.ButtonText(testBtn, _isTesting ? "发送中..." : "RimMind.Inspector.TestRun".Translate()))
+            if (Widgets.ButtonText(testBtn, _isTesting ? "RimMind.Inspector.Testing".Translate() : "RimMind.Inspector.TestRun".Translate()))
             {
                 ExecuteLiveTest();
             }

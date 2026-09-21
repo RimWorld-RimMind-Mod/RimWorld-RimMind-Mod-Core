@@ -84,6 +84,7 @@ namespace RimMind.Infrastructure.UI
         internal static bool IsExpanded => _isExpanded;
         internal static void SetExpandedForTest(bool expanded) => _isExpanded = expanded;
         internal static Rect WindowRect => _windowRect;
+        internal static void SetWindowRectForTest(Rect rect) => _windowRect = rect;
         internal static Rect PillRect => new Rect(_windowRect.x, _windowRect.y, MiniPillWidth, MiniPillHeight);
 
         public static void OnGUI()

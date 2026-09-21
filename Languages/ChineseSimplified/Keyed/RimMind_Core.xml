@@ -655,8 +655,12 @@
   <RimMind.Settings.ShowAgentProgressFloat>显示浮动心智监视窗 (Agent Progress Float)</RimMind.Settings.ShowAgentProgressFloat>
   <RimMind.Settings.ShowAgentProgressFloat.Desc>在屏幕上显示所有活动殖民者的实时思考与工作流状态条（默认关闭）。</RimMind.Settings.ShowAgentProgressFloat.Desc>
   <RimMind.Inspector.Title>AI 报文与上下文检查器</RimMind.Inspector.Title>
-  <RimMind.Inspector.CopyClipboard>复制完整报文到剪贴板</RimMind.Inspector.CopyClipboard>
-  <RimMind.Inspector.TestRun>发送实机测试请求</RimMind.Inspector.TestRun>
+  <RimMind.Inspector.CopyClipboard>复制完整报文</RimMind.Inspector.CopyClipboard>
+  <RimMind.Inspector.RefreshSnapshot>刷新快照</RimMind.Inspector.RefreshSnapshot>
+  <RimMind.Inspector.TestRun>发送实机测试</RimMind.Inspector.TestRun>
+  <RimMind.Inspector.Testing>发送中...</RimMind.Inspector.Testing>
+  <RimMind.Inspector.ColonistsList>殖民者列表</RimMind.Inspector.ColonistsList>
+  <RimMind.Inspector.ScenarioLabel>场景:</RimMind.Inspector.ScenarioLabel>
   <RimMind.Inspector.Copied>已成功复制完整 AI 请求报文到剪贴板！</RimMind.Inspector.Copied>
   <RimMind.Inspector.OpenButton>检查报文 (Payload)</RimMind.Inspector.OpenButton>
   <RimMind.UI.ResetToDefaults>恢复默认</RimMind.UI.ResetToDefaults>
