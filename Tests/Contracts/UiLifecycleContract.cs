@@ -332,6 +332,8 @@ namespace RimMind.Tests.Contracts
                     Assert.DoesNotContain("Color.gray", prompts, StringComparison.Ordinal);
                     Assert.Contains("Widgets.TextArea(rect, value ?? string.Empty)", drawer, StringComparison.Ordinal);
                     Assert.DoesNotContain("value = listing.TextEntry(value, (int)height)", drawer, StringComparison.Ordinal);
+                    Assert.DoesNotContain("Widgets.DrawBoxSolid(bottomBar", drawer, StringComparison.Ordinal);
+                    Assert.Contains("(bottomBar.width - btnWidth) / 2f", drawer, StringComparison.Ordinal);
                 }),
                 ("settings window follows the current settings provider", () =>
                 {

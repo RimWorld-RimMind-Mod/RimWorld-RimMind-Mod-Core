@@ -40,7 +40,12 @@ namespace RimMind.Presentation.UI
 
             DrawBudgetSection(listing, s, ctx);
 
-            if (listing.ButtonText("RimMind.Context.ResetDefault".Translate()))
+            listing.Gap(12f);
+            float btnW = 160f;
+            float btnH = 30f;
+            Rect btnRow = listing.GetRect(btnH);
+            Rect centerBtn = new Rect(btnRow.x + (btnRow.width - btnW) / 2f, btnRow.y, btnW, btnH);
+            if (Widgets.ButtonText(centerBtn, "RimMind.Context.ResetDefault".Translate()))
             {
                 s.Context.ResetToDefault();
                 _selectedPreset = ContextPreset.Standard;

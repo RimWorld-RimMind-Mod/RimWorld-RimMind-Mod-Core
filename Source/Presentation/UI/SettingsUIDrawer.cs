@@ -85,8 +85,13 @@ namespace RimMind.Presentation.UI
 
         public static void DrawBottomBar(Rect bottomBar, Action resetAction)
         {
-            Widgets.DrawBoxSolid(bottomBar, new Color(0.15f, 0.15f, 0.15f, 0.8f));
-            if (Widgets.ButtonText(new Rect(bottomBar.x + 10f, bottomBar.y + 6f, 120f, 28f), "RimMind.UI.ResetToDefaults".Translate()))
+            float btnWidth = 160f;
+            float btnHeight = 30f;
+            float btnX = bottomBar.x + (bottomBar.width - btnWidth) / 2f;
+            float btnY = bottomBar.y + (bottomBar.height - btnHeight) / 2f;
+            Rect resetRect = new Rect(btnX, btnY, btnWidth, btnHeight);
+
+            if (Widgets.ButtonText(resetRect, "RimMind.UI.ResetToDefaults".Translate()))
             {
                 resetAction?.Invoke();
             }
