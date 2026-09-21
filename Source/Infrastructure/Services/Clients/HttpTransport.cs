@@ -27,8 +27,6 @@ namespace RimMind.Infrastructure.Services.Clients
                 request.Headers.TryAddWithoutValidation("Authorization", authHeader);
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
-            if (!string.IsNullOrEmpty(url) && (url.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0 || (authHeader != null && authHeader.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)))
-                request.Headers.TryAddWithoutValidation("x-opencode-session", "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12));
 
             using var response = await _http.SendAsync(request);
             string body = await response.Content.ReadAsStringAsync();
@@ -50,8 +48,6 @@ namespace RimMind.Infrastructure.Services.Clients
                 request.Headers.TryAddWithoutValidation("Authorization", authHeader);
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
-            if (!string.IsNullOrEmpty(url) && (url.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0 || (authHeader != null && authHeader.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)))
-                request.Headers.TryAddWithoutValidation("x-opencode-session", "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12));
 
             using var response = await _http.SendAsync(request);
             string body = await response.Content.ReadAsStringAsync();

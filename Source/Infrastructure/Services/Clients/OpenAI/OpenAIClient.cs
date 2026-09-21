@@ -157,8 +157,6 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, endpoint);
                 request.Content = new System.Net.Http.StringContent(json, Encoding.UTF8, "application/json");
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_settings.ApiKey}");
-                if (!string.IsNullOrEmpty(endpoint) && (endpoint.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0 || (_settings.ApiKey != null && _settings.ApiKey.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)))
-                    request.Headers.TryAddWithoutValidation("x-opencode-session", "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12));
 
                 using var httpClient = new System.Net.Http.HttpClient();
                 using var response = await httpClient.SendAsync(request, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, ct);
