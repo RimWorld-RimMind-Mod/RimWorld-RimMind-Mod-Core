@@ -70,9 +70,11 @@ namespace RimMind.Infrastructure.Verse
                 return;
             }
 
+            // Fast path: avoid allocating Scope if already registered with the current hub generation
             // Fast path: avoid allocating Scope if already registered with the current hub and scheduler generation
             if (_registeredLoopScheduler != null
                 && _registeredPawnId == pawn.thingIDNumber
+                && _registeredLoopGeneration == RuntimeServiceHub.Shared.Generation)
                 && _registeredHubGeneration == RuntimeServiceHub.Shared.Generation
                 && _registeredLoopGeneration == _registeredLoopScheduler.Generation)
             {
