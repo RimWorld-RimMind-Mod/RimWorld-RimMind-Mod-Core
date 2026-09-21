@@ -37,22 +37,14 @@ namespace RimMind.Infrastructure.UI.Framework
 
                     GUI.enabled = previousEnabled && tab.Enabled;
                     bool isSelected = tabRect.Selected;
-                    bool isOver = Mouse.IsOver(tabRect.Rect);
-
-                    if (isSelected)
-                    {
-                        Widgets.DrawBoxSolid(tabRect.Rect, new Color(0.2f, 0.25f, 0.35f, 0.6f));
-                        Rect accentLine = new Rect(tabRect.Rect.x, tabRect.Rect.yMax - 2f, tabRect.Rect.width, 2f);
-                        Widgets.DrawBoxSolid(accentLine, new Color(0.4f, 0.7f, 1.0f, 0.9f));
-                    }
-
-                    GUI.color = isSelected ? Color.white : new Color(0.75f, 0.75f, 0.75f, 1.0f);
-                    if (Widgets.ButtonText(tabRect.Rect, tab.Label, drawBackground: !isSelected) && GUI.enabled)
+                    // Standard RimWorld button with standard background and centered text
+                    if (Widgets.ButtonText(tabRect.Rect, tab.Label) && GUI.enabled)
                         nextSelected = tab.Id;
 
-                    if (isOver && tab.Enabled)
+                    // Default RimWorld yellow/amber highlight outline & tint for active tab
+                    if (isSelected)
                     {
-                        Widgets.DrawBoxSolid(tabRect.Rect, new Color(1f, 1f, 1f, 0.08f));
+                        Widgets.DrawHighlightSelected(tabRect.Rect);
                     }
 
                     if (!string.IsNullOrEmpty(tab.TooltipKey))
