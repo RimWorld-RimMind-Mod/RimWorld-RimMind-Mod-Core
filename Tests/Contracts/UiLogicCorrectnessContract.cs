@@ -219,5 +219,18 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(180f, expandedRect.height);
                 }));
         }
+
+        [Fact]
+        public void ProviderRegistry_RequiresApiKey_handles_player2_and_extended_service_safely()
+        {
+            ContractCaseRunner.Run(
+                ("AIProviderRegistry RequiresApiKey respects player2 and extended_service defaults", () =>
+                {
+                    Assert.False(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("player2", null));
+                    Assert.False(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("extended_service", null));
+                    Assert.True(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("openai", null));
+                    Assert.True(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("custom_provider", null));
+                }));
+        }
     }
 }

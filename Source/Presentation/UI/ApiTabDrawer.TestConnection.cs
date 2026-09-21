@@ -39,6 +39,7 @@ namespace RimMind.Presentation.UI
             Log.Message(BuildConnectionDebugLine("start", s, providerRegistry, null, null));
 
             if (!AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry))
+            if (s.Provider == "player2")
             {
                 ConnectionTestOperation operation = BeginConnectionTest(runtimeScope.Token);
 
@@ -56,6 +57,79 @@ namespace RimMind.Presentation.UI
                                     operation,
                                     "RimMind.Settings.Player2.NotAvailable".Translate(),
                                     new Color(0.9f, 0.4f, 0.4f));
+                            });
+                            return;
+                        }
+
+                        var envelope = new LlmRequestEnvelope
+                        {
+                            RequestId = "test",
+                            ScenarioId = "RimMind.Test",
+                            ModId = "RimMind.Test",
+                            Messages = new List<DomainChatMessage> { new DomainChatMessage { Role = "user", Content = "RimMind.Settings.TestMessage".Translate() } },
+                            MaxTokens = RimMindDefaults.TestConnectionMaxTokens,
+                            Temperature = 0.7f,
+                        };
+                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                        var result = await client.SendAsync(envelope);
+                        stopwatch.Stop();
+                        long rttMs = stopwatch.ElapsedMilliseconds;
+                        if (result.TryGetValue(out var response))
+                        {
+                            var content = response.Content.Trim();
+                            var tok = response.TokensUsed;
+                            LongEventHandler.ExecuteWhenFinished(() =>
+                            {
+                                TryPublishConnectionTest(
+                                    operation,
+                                    $"OK ({rttMs}ms) {content} ({tok} tok)",
+                                    new Color(0.4f, 0.9f, 0.4f));
+                            });
+                        }
+                        else
+                        {
+                            var error = result.Error.Message;
+                            LongEventHandler.ExecuteWhenFinished(() =>
+                            {
+                                TryPublishConnectionTest(
+                                    operation,
+                                    $"FAIL ({rttMs}ms) {error}",
+                                    new Color(0.9f, 0.4f, 0.4f));
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var msg = ex.Message;
+                        LongEventHandler.ExecuteWhenFinished(() =>
+                        {
+                            TryPublishConnectionTest(
+                                operation,
+                                $"FAIL {msg}",
+                                new Color(0.9f, 0.4f, 0.4f));
+                        });
+                    }
+                });
+                return;
+            }
+            else if (s.Provider == "extended_service")
+            {
+                ConnectionTestOperation operation = BeginConnectionTest(runtimeScope.Token);
+
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var client = clientManager?.GetClient();
+                        LogFromBackground(BuildConnectionDebugLine("modelservice-client", s, providerRegistry, client, client?.IsConfigured()));
+                        if (client == null || !client.IsConfigured())
+                        {
+                            LongEventHandler.ExecuteWhenFinished(() =>
+                            {
+                                TryPublishConnectionTest(
+                                    operation,
+                                    "RimMind.Settings.ModelService.NoActiveNodes".Translate(),
+                                    Color.yellow);
                             });
                             return;
                         }
@@ -289,6 +363,7 @@ namespace RimMind.Presentation.UI
             {
                 "openai" => "OpenAI",
                 "player2" => "Player2",
+                "extended_service" => "ExtendedService",
                 _ => providerId ?? string.Empty
             };
         }

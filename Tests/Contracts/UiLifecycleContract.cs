@@ -307,6 +307,18 @@ namespace RimMind.Tests.Contracts
                         "AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry)",
                         api,
                         StringComparison.Ordinal);
+                    Assert.Contains(
+                        "QuickApplyOpenCodeGo",
+                        api,
+                        StringComparison.Ordinal);
+                    Assert.Contains(
+                        "DrawExtendedServiceSection(listing, s, scope)",
+                        api,
+                        StringComparison.Ordinal);
+                    Assert.Contains(
+                        "OpenProviderSelectionMenu(s, providerRegistry, player2Lifecycle)",
+                        api,
+                        StringComparison.Ordinal);
                 }),
                 ("settings window follows the current settings provider", () =>
                 {

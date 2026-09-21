@@ -11,6 +11,31 @@
   <RimMind.Settings.Provider.Desc>选择 AI 服务提供商。Player2 可自动检测本地桌面应用，无需手动配置。</RimMind.Settings.Provider.Desc>
   <RimMind.Settings.Provider.OpenAI>OpenAI 兼容</RimMind.Settings.Provider.OpenAI>
   <RimMind.Settings.Provider.Player2>Player2</RimMind.Settings.Provider.Player2>
+  <RimMind.Settings.ProviderPresetBtn>⚡ 服务商预设</RimMind.Settings.ProviderPresetBtn>
+  <RimMind.Settings.ProviderPresetBtn.Desc>一键切换常用 AI 服务商（OpenCode Go、DeepSeek、SiliconFlow、Moonshot、Ollama 等）的标准端点与推荐模型配置。</RimMind.Settings.ProviderPresetBtn.Desc>
+  <RimMind.Settings.QuickApplyOpenCodeGo>⚡ 一键配置 OpenCode Go 订阅端点</RimMind.Settings.QuickApplyOpenCodeGo>
+  <RimMind.Settings.Provider.SelectTip>点击切换 AI 服务商或选用主流预设模板。</RimMind.Settings.Provider.SelectTip>
+  <RimMind.Settings.Provider.Custom>自定义端点</RimMind.Settings.Provider.Custom>
+  <RimMind.Settings.Provider.OpenCodeGo>⚡ OpenCode Go (订阅直连 / sub2api)</RimMind.Settings.Provider.OpenCodeGo>
+  <RimMind.Settings.Provider.DeepSeek>🌟 DeepSeek (深度求索)</RimMind.Settings.Provider.DeepSeek>
+  <RimMind.Settings.Provider.SiliconFlow>🚀 SiliconFlow (硅基流动)</RimMind.Settings.Provider.SiliconFlow>
+  <RimMind.Settings.Provider.Moonshot>🌙 Moonshot AI (月之暗面 Kimi)</RimMind.Settings.Provider.Moonshot>
+  <RimMind.Settings.Provider.Ollama>🦙 Ollama (本地私有化部署)</RimMind.Settings.Provider.Ollama>
+  <RimMind.Settings.Provider.OpenAIOfficial>🤖 OpenAI 官方接口</RimMind.Settings.Provider.OpenAIOfficial>
+  <RimMind.Settings.Provider.OpenAICustom>🌐 自定义 OpenAI 兼容端点</RimMind.Settings.Provider.OpenAICustom>
+  <RimMind.Settings.Provider.ExtendedService>🛡️ 扩展模型服务 (ModelService 负载均衡/订阅代理)</RimMind.Settings.Provider.ExtendedService>
+  <RimMind.Settings.Provider.ExtendedServiceNotInstalled>🛡️ 扩展模型服务 (未安装 - 支持 OpenCode Go / Codex 代理)</RimMind.Settings.Provider.ExtendedServiceNotInstalled>
+  <RimMind.Settings.ProviderApplied>已应用 {0} 服务商模版。请填入对应的 API Key 并点击测试连接。</RimMind.Settings.ProviderApplied>
+  <RimMind.Settings.ProviderSwitched>已切换至服务商: {0}</RimMind.Settings.ProviderSwitched>
+  <RimMind.Settings.ModelService.ActiveTitle>扩展模型服务已激活 (RimMind-Extension-ModelService)</RimMind.Settings.ModelService.ActiveTitle>
+  <RimMind.Settings.ModelService.ActiveDesc>AI 请求将由 ModelService 调度器接管，支持 OpenCode Go 订阅、Codex 本地网关以及多端点自动容灾重试与负载均衡。</RimMind.Settings.ModelService.ActiveDesc>
+  <RimMind.Settings.ModelService.ConfiguredNodes>已配置端点</RimMind.Settings.ModelService.ConfiguredNodes>
+  <RimMind.Settings.ModelService.ActiveNodes>启用</RimMind.Settings.ModelService.ActiveNodes>
+  <RimMind.Settings.ModelService.Strategy>调度策略</RimMind.Settings.ModelService.Strategy>
+  <RimMind.Settings.ModelService.PrimaryEndpoint>首选端点</RimMind.Settings.ModelService.PrimaryEndpoint>
+  <RimMind.Settings.ModelService.OpenTab>⚙️ 前往「模型服务」配置端点池 (OpenCode Go / Codex / 多节点)</RimMind.Settings.ModelService.OpenTab>
+  <RimMind.Settings.ModelService.OpenTab.Desc>切换到模型服务设置标签页，管理多个 API 端点、配置权重与优先级容灾。</RimMind.Settings.ModelService.OpenTab.Desc>
+  <RimMind.Settings.ModelService.NoActiveNodes>⚠ 扩展模型服务未配置可用端点，请在「模型服务」标签页添加节点</RimMind.Settings.ModelService.NoActiveNodes>
   <RimMind.Settings.ApiKey>API 密钥</RimMind.Settings.ApiKey>
   <RimMind.Settings.ApiKey.Desc>你的 AI 服务商提供的 API Key，用于身份验证。</RimMind.Settings.ApiKey.Desc>
   <RimMind.Settings.ApiKey.Saved>已保存（{0} 字符）。点击显示后可编辑。</RimMind.Settings.ApiKey.Saved>

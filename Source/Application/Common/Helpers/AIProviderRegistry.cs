@@ -32,8 +32,14 @@ namespace RimMind.Application.Common.Helpers
         public static bool RequiresApiKey(string providerId, IExtensionRegistry<IAIClientFactory>? registry = null)
         {
             if (string.IsNullOrEmpty(providerId)) return true;
-            var factory = registry?.FindById(providerId);
-            return factory?.RequiresApiKey ?? true;
+            if (registry != null)
+            {
+                var factory = registry.FindById(providerId);
+                if (factory != null) return factory.RequiresApiKey;
+            }
+            if (providerId == "player2" || providerId == "extended_service")
+                return false;
+            return true;
         }
     }
 }

@@ -204,38 +204,45 @@ namespace RimMind.Presentation.UI
             GUI.color = Color.gray;
             listing.Label("  " + "RimMind.Settings.Provider.Desc".Translate());
             GUI.color = Color.white;
+
+            // Row with Main Provider Display and Quick Presets Button
             {
                 Rect row = listing.GetRect(28f);
-                if (Widgets.ButtonText(row, GetProviderLabel(s.Provider)))
+                float presetBtnW = 144f;
+                Rect provRect = new Rect(row.x, row.y, row.width - presetBtnW - 6f, row.height);
+                Rect presetBtnRect = new Rect(provRect.xMax + 6f, row.y, presetBtnW, row.height);
+
+                if (Widgets.ButtonText(provRect, GetActiveProviderDisplayLabel(s)))
                 {
-                    var options = new List<FloatMenuOption>();
-                    var allProviders = AIProviderRegistry.GetAllProviderIds(providerRegistry);
-                    foreach (var p in allProviders)
-                    {
-                        var label = GetProviderLabel(p);
-                        options.Add(new FloatMenuOption(label, () =>
-                        {
-                            RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
-                            var currentSettings = SettingsProvider.Resolve(operationScope);
-                            var currentRegistry = ProviderRegistry.Resolve(operationScope);
-                            var currentPlayer2Lifecycle = Player2Lifecycle.ResolveOptional(operationScope);
-                            var currentClientManager = ClientManager.ResolveOptional(operationScope);
-                            var prev = currentSettings.Provider;
-                            currentSettings.Provider = p;
-                            currentSettings.Persist();
-                            if (!AIProviderRegistry.RequiresApiKey(p, currentRegistry))
-                                currentPlayer2Lifecycle?.CheckStatusAndNotify();
-                            if (prev != p)
-                                currentClientManager?.InvalidateCache();
-                        }));
-                    }
-                    Find.WindowStack.Add(new FloatMenu(options));
+                    OpenProviderSelectionMenu(s, providerRegistry, player2Lifecycle);
                 }
+                TooltipHandler.TipRegion(provRect, "RimMind.Settings.Provider.SelectTip".Translate());
+
+                if (Widgets.ButtonText(presetBtnRect, "RimMind.Settings.ProviderPresetBtn".Translate()))
+                {
+                    OpenProviderSelectionMenu(s, providerRegistry, player2Lifecycle);
+                }
+                TooltipHandler.TipRegion(presetBtnRect, "RimMind.Settings.ProviderPresetBtn.Desc".Translate());
             }
 
             listing.Gap(6f);
 
-            if (AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry))
+            // One-click quick button for OpenCode Go if not currently active
+            if (!IsOpenCodeGoActive(s))
+            {
+                Rect opencodeBar = listing.GetRect(26f);
+                if (Widgets.ButtonText(opencodeBar, "RimMind.Settings.QuickApplyOpenCodeGo".Translate()))
+                {
+                    ApplyProviderPreset(s, "openai", "https://opencode.ai/zen/go/v1", "deepseek-v4.1-flash", "OpenCode Go");
+                }
+                listing.Gap(4f);
+            }
+
+            if (s.Provider == "extended_service")
+            {
+                DrawExtendedServiceSection(listing, s, scope);
+            }
+            else if (AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry))
             {
                 DrawApiKeySection(listing, s, scope);
             }
@@ -261,6 +268,279 @@ namespace RimMind.Presentation.UI
                 GUI.color = Color.gray;
                 listing.Label("RimMind.Settings.ModelServiceNotInstalledNote".Translate());
                 GUI.color = Color.white;
+            }
+        }
+
+        internal static bool IsOpenCodeGoActive(ISettingsProvider s)
+        {
+            if (s.Provider == "openai")
+            {
+                string ep = s.ApiEndpoint ?? string.Empty;
+                return ep.IndexOf("opencode.ai", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            return false;
+        }
+
+        internal static string GetActiveProviderDisplayLabel(ISettingsProvider s)
+        {
+            if (s.Provider == "player2")
+                return "RimMind.Settings.Provider.Player2".Translate();
+
+            if (s.Provider == "extended_service")
+                return "RimMind.Settings.Provider.ExtendedService".Translate();
+
+            if (s.Provider == "openai")
+            {
+                string ep = (s.ApiEndpoint ?? string.Empty).ToLowerInvariant();
+                if (ep.Contains("opencode.ai"))
+                    return "OpenCode Go (" + "RimMind.Settings.Provider.OpenAI".Translate() + ")";
+                if (ep.Contains("deepseek.com"))
+                    return "DeepSeek (" + "RimMind.Settings.Provider.OpenAI".Translate() + ")";
+                if (ep.Contains("siliconflow.cn"))
+                    return "SiliconFlow (" + "RimMind.Settings.Provider.OpenAI".Translate() + ")";
+                if (ep.Contains("moonshot.cn"))
+                    return "Moonshot (" + "RimMind.Settings.Provider.OpenAI".Translate() + ")";
+                if (ep.Contains("localhost:11434") || ep.Contains("127.0.0.1:11434"))
+                    return "Ollama (" + "RimMind.Settings.Provider.OpenAI".Translate() + ")";
+                if (ep.Contains("api.openai.com"))
+                    return "RimMind.Settings.Provider.OpenAIOfficial".Translate();
+                return "RimMind.Settings.Provider.OpenAI".Translate() + " (" + "RimMind.Settings.Provider.Custom".Translate() + ")";
+            }
+
+            return GetProviderLabel(s.Provider);
+        }
+
+        private static void OpenProviderSelectionMenu(
+            ISettingsProvider s,
+            IExtensionRegistry<IAIClientFactory> providerRegistry,
+            IPlayer2Lifecycle? player2Lifecycle)
+        {
+            var options = new List<FloatMenuOption>();
+
+            // 1. OpenCode Go (订阅直连 / sub2api)
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.OpenCodeGo".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", "https://opencode.ai/zen/go/v1", "deepseek-v4.1-flash", "OpenCode Go");
+            }));
+
+            // 2. DeepSeek (深度求索)
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.DeepSeek".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", "https://api.deepseek.com/v1", "deepseek-chat", "DeepSeek");
+            }));
+
+            // 3. SiliconFlow (硅基流动)
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.SiliconFlow".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V3", "SiliconFlow");
+            }));
+
+            // 4. Moonshot AI (月之暗面 Kimi)
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.Moonshot".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", "https://api.moonshot.cn/v1", "moonshot-v1-8k", "Moonshot AI");
+            }));
+
+            // 5. Ollama (本地私有化部署)
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.Ollama".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", "http://localhost:11434/v1", "llama3", "Ollama");
+            }));
+
+            // 6. OpenAI 官方
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.OpenAIOfficial".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", "https://api.openai.com/v1", "gpt-4o-mini", "OpenAI");
+            }));
+
+            // 7. 自定义 OpenAI 兼容端点
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.OpenAICustom".Translate(), () =>
+            {
+                ApplyProviderPreset(s, "openai", s.ApiEndpoint, s.ModelName, "OpenAI Compatible");
+            }));
+
+            // 8. 扩展模型服务 (ModelService)
+            string extLabel = IsModelServiceInstalled()
+                ? "RimMind.Settings.Provider.ExtendedService".Translate()
+                : "RimMind.Settings.Provider.ExtendedServiceNotInstalled".Translate();
+            options.Add(new FloatMenuOption(extLabel, () =>
+            {
+                SwitchToProvider(s, "extended_service", player2Lifecycle);
+            }));
+
+            // 9. Player2 桌面应用
+            options.Add(new FloatMenuOption("RimMind.Settings.Provider.Player2".Translate(), () =>
+            {
+                SwitchToProvider(s, "player2", player2Lifecycle);
+            }));
+
+            // 10. Any other registered custom providers from other mods
+            var allProviders = AIProviderRegistry.GetAllProviderIds(providerRegistry);
+            foreach (var p in allProviders)
+            {
+                if (p == "openai" || p == "player2" || p == "extended_service")
+                    continue;
+                var label = GetProviderLabel(p);
+                options.Add(new FloatMenuOption(label, () =>
+                {
+                    SwitchToProvider(s, p, player2Lifecycle);
+                }));
+            }
+
+            Find.WindowStack.Add(new FloatMenu(options));
+        }
+
+        internal static void ApplyProviderPreset(
+            ISettingsProvider s,
+            string providerId,
+            string endpoint,
+            string modelName,
+            string presetName)
+        {
+            RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
+            var currentSettings = SettingsProvider.Resolve(operationScope);
+            var currentClientManager = ClientManager.ResolveOptional(operationScope);
+
+            currentSettings.Provider = providerId;
+            if (!string.IsNullOrEmpty(endpoint))
+                currentSettings.ApiEndpoint = endpoint;
+            if (!string.IsNullOrEmpty(modelName))
+                currentSettings.ModelName = modelName;
+            currentSettings.Persist();
+            currentClientManager?.InvalidateCache();
+
+            string msg = "RimMind.Settings.ProviderApplied".Translate(presetName);
+            _presetAppliedMessage = msg;
+            _presetAppliedUntilTick = Environment.TickCount + 4000;
+        }
+
+        internal static void SwitchToProvider(
+            ISettingsProvider s,
+            string providerId,
+            IPlayer2Lifecycle? player2Lifecycle)
+        {
+            RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
+            var currentSettings = SettingsProvider.Resolve(operationScope);
+            var currentRegistry = ProviderRegistry.Resolve(operationScope);
+            var currentPlayer2Lifecycle = player2Lifecycle ?? Player2Lifecycle.ResolveOptional(operationScope);
+            var currentClientManager = ClientManager.ResolveOptional(operationScope);
+            var prev = currentSettings.Provider;
+            currentSettings.Provider = providerId;
+            currentSettings.Persist();
+            if (!AIProviderRegistry.RequiresApiKey(providerId, currentRegistry))
+                currentPlayer2Lifecycle?.CheckStatusAndNotify();
+            if (prev != providerId)
+                currentClientManager?.InvalidateCache();
+
+            string label = GetProviderLabel(providerId);
+            _presetAppliedMessage = "RimMind.Settings.ProviderSwitched".Translate(label);
+            _presetAppliedUntilTick = Environment.TickCount + 4000;
+        }
+
+        private static void DrawExtendedServiceSection(
+            Listing_Standard listing,
+            ISettingsProvider s,
+            RimMindLayoutScope? scope = null)
+        {
+            GUI.color = new Color(0.5f, 0.9f, 0.6f);
+            listing.Label("RimMind.Settings.ModelService.ActiveTitle".Translate());
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.ModelService.ActiveDesc".Translate());
+            GUI.color = Color.white;
+            listing.Gap(4f);
+
+            bool isInstalled = IsModelServiceInstalled();
+            if (isInstalled)
+            {
+                var (nodeCount, activeCount, strategyDesc, primaryDesc) = GetModelServiceStatusSummary();
+
+                Rect infoCard = listing.GetRect(48f);
+                Widgets.DrawBoxSolid(infoCard, new Color(0.12f, 0.16f, 0.22f, 0.7f));
+                Widgets.DrawHighlightIfMouseover(infoCard);
+
+                Rect text1 = new Rect(infoCard.x + 8f, infoCard.y + 4f, infoCard.width - 16f, 20f);
+                Widgets.Label(text1, $"{"RimMind.Settings.ModelService.ConfiguredNodes".Translate()}: {nodeCount} ({"RimMind.Settings.ModelService.ActiveNodes".Translate()}: {activeCount}) | {"RimMind.Settings.ModelService.Strategy".Translate()}: {strategyDesc}");
+
+                Rect text2 = new Rect(infoCard.x + 8f, infoCard.y + 24f, infoCard.width - 16f, 20f);
+                GUI.color = Color.gray;
+                Widgets.Label(text2, $"{"RimMind.Settings.ModelService.PrimaryEndpoint".Translate()}: {primaryDesc}");
+                GUI.color = Color.white;
+
+                listing.Gap(6f);
+                Rect btnRow = listing.GetRect(28f);
+                if (Widgets.ButtonText(btnRow, "RimMind.Settings.ModelService.OpenTab".Translate()))
+                {
+                    RimMindCoreSettingsUI.CurrentTab = "model_service";
+                }
+                TooltipHandler.TipRegion(btnRow, "RimMind.Settings.ModelService.OpenTab.Desc".Translate());
+            }
+            else
+            {
+                GUI.color = new Color(1f, 0.7f, 0.3f);
+                listing.Label("RimMind.Settings.ModelServiceNotInstalledNote".Translate());
+                GUI.color = Color.white;
+            }
+        }
+
+        private static (int nodeCount, int activeCount, string strategy, string primaryDesc) GetModelServiceStatusSummary()
+        {
+            try
+            {
+                var modType = GenTypes.GetTypeInAnyAssembly("RimMind.ModelService.RimMindModelServiceMod");
+                if (modType == null) return (0, 0, "N/A", "N/A");
+
+                var settingsProp = modType.GetProperty("Settings", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                var settings = settingsProp?.GetValue(null);
+                if (settings == null) return (0, 0, "N/A", "N/A");
+
+                var endpointsProp = settings.GetType().GetProperty("endpoints") ?? settings.GetType().GetField("endpoints") as System.Reflection.MemberInfo;
+                System.Collections.IEnumerable? endpoints = null;
+                if (endpointsProp is System.Reflection.PropertyInfo epi)
+                    endpoints = epi.GetValue(settings) as System.Collections.IEnumerable;
+                else if (endpointsProp is System.Reflection.FieldInfo efi)
+                    endpoints = efi.GetValue(settings) as System.Collections.IEnumerable;
+
+                int count = 0;
+                int active = 0;
+                string primary = "None";
+
+                if (endpoints != null)
+                {
+                    foreach (var ep in endpoints)
+                    {
+                        count++;
+                        var enabledProp = ep.GetType().GetProperty("isEnabled") ?? ep.GetType().GetField("isEnabled") as System.Reflection.MemberInfo;
+                        bool isEnabled = false;
+                        if (enabledProp is System.Reflection.PropertyInfo pi)
+                            isEnabled = (bool)(pi.GetValue(ep) ?? false);
+                        else if (enabledProp is System.Reflection.FieldInfo fi)
+                            isEnabled = (bool)(fi.GetValue(ep) ?? false);
+
+                        if (isEnabled)
+                        {
+                            active++;
+                            if (primary == "None")
+                            {
+                                var nameField = ep.GetType().GetField("name");
+                                var urlField = ep.GetType().GetField("endpoint");
+                                primary = $"{nameField?.GetValue(ep)} ({urlField?.GetValue(ep)})";
+                            }
+                        }
+                    }
+                }
+
+                var stratProp = settings.GetType().GetField("balancingStrategy") ?? settings.GetType().GetProperty("balancingStrategy") as System.Reflection.MemberInfo;
+                string strategy = "PriorityFailover";
+                if (stratProp is System.Reflection.FieldInfo sfi)
+                    strategy = sfi.GetValue(settings)?.ToString() ?? strategy;
+                else if (stratProp is System.Reflection.PropertyInfo spi)
+                    strategy = spi.GetValue(settings)?.ToString() ?? strategy;
+
+                return (count, active, strategy, primary);
+            }
+            catch
+            {
+                return (0, 0, "Unknown", "Unknown");
             }
         }
 

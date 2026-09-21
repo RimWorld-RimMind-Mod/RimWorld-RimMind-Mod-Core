@@ -11,6 +11,31 @@
   <RimMind.Settings.Provider.Desc>Select an AI service provider. Player2 can auto-detect the local desktop app, no manual configuration needed.</RimMind.Settings.Provider.Desc>
   <RimMind.Settings.Provider.OpenAI>OpenAI Compatible</RimMind.Settings.Provider.OpenAI>
   <RimMind.Settings.Provider.Player2>Player2</RimMind.Settings.Provider.Player2>
+  <RimMind.Settings.ProviderPresetBtn>⚡ Provider Presets</RimMind.Settings.ProviderPresetBtn>
+  <RimMind.Settings.ProviderPresetBtn.Desc>Quickly apply standard endpoints and recommended models for popular AI providers (OpenCode Go, DeepSeek, SiliconFlow, Moonshot, Ollama, etc.).</RimMind.Settings.ProviderPresetBtn.Desc>
+  <RimMind.Settings.QuickApplyOpenCodeGo>⚡ Quick Setup: OpenCode Go Subscription</RimMind.Settings.QuickApplyOpenCodeGo>
+  <RimMind.Settings.Provider.SelectTip>Click to switch AI provider or select from popular presets.</RimMind.Settings.Provider.SelectTip>
+  <RimMind.Settings.Provider.Custom>Custom Endpoint</RimMind.Settings.Provider.Custom>
+  <RimMind.Settings.Provider.OpenCodeGo>⚡ OpenCode Go (Subscription / sub2api)</RimMind.Settings.Provider.OpenCodeGo>
+  <RimMind.Settings.Provider.DeepSeek>🌟 DeepSeek</RimMind.Settings.Provider.DeepSeek>
+  <RimMind.Settings.Provider.SiliconFlow>🚀 SiliconFlow</RimMind.Settings.Provider.SiliconFlow>
+  <RimMind.Settings.Provider.Moonshot>🌙 Moonshot AI (Kimi)</RimMind.Settings.Provider.Moonshot>
+  <RimMind.Settings.Provider.Ollama>🦙 Ollama (Local Deployment)</RimMind.Settings.Provider.Ollama>
+  <RimMind.Settings.Provider.OpenAIOfficial>🤖 OpenAI Official</RimMind.Settings.Provider.OpenAIOfficial>
+  <RimMind.Settings.Provider.OpenAICustom>🌐 Custom OpenAI Compatible</RimMind.Settings.Provider.OpenAICustom>
+  <RimMind.Settings.Provider.ExtendedService>🛡️ Extended Model Service (ModelService Load Balancer / Proxy)</RimMind.Settings.Provider.ExtendedService>
+  <RimMind.Settings.Provider.ExtendedServiceNotInstalled>🛡️ Extended Model Service (Not Installed - OpenCode / Codex Proxy)</RimMind.Settings.Provider.ExtendedServiceNotInstalled>
+  <RimMind.Settings.ProviderApplied>Applied preset for {0}. Please enter your API Key and test the connection.</RimMind.Settings.ProviderApplied>
+  <RimMind.Settings.ProviderSwitched>Switched to provider: {0}</RimMind.Settings.ProviderSwitched>
+  <RimMind.Settings.ModelService.ActiveTitle>Extended Model Service Active (RimMind-Extension-ModelService)</RimMind.Settings.ModelService.ActiveTitle>
+  <RimMind.Settings.ModelService.ActiveDesc>AI requests are managed by the ModelService dispatcher, supporting OpenCode Go subscriptions, Codex local gateway, and multi-endpoint failover / load balancing.</RimMind.Settings.ModelService.ActiveDesc>
+  <RimMind.Settings.ModelService.ConfiguredNodes>Configured Endpoints</RimMind.Settings.ModelService.ConfiguredNodes>
+  <RimMind.Settings.ModelService.ActiveNodes>Enabled</RimMind.Settings.ModelService.ActiveNodes>
+  <RimMind.Settings.ModelService.Strategy>Strategy</RimMind.Settings.ModelService.Strategy>
+  <RimMind.Settings.ModelService.PrimaryEndpoint>Primary Endpoint</RimMind.Settings.ModelService.PrimaryEndpoint>
+  <RimMind.Settings.ModelService.OpenTab>⚙️ Configure Endpoints in Model Service Tab (OpenCode Go / Codex / Nodes)</RimMind.Settings.ModelService.OpenTab>
+  <RimMind.Settings.ModelService.OpenTab.Desc>Switch to the Model Service settings tab to manage endpoints, weights, and failover priorities.</RimMind.Settings.ModelService.OpenTab.Desc>
+  <RimMind.Settings.ModelService.NoActiveNodes>⚠ No active endpoints in Model Service. Please add an endpoint in the Model Service tab.</RimMind.Settings.ModelService.NoActiveNodes>
   <RimMind.Settings.ApiKey>API Key</RimMind.Settings.ApiKey>
   <RimMind.Settings.ApiKey.Desc>Your AI provider's API key for authentication.</RimMind.Settings.ApiKey.Desc>
   <RimMind.Settings.ApiKey.Saved>Saved ({0} chars). Click Show to edit.</RimMind.Settings.ApiKey.Saved>
