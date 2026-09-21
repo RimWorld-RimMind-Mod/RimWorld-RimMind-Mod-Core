@@ -15,6 +15,7 @@ using RimMind.Presentation.Runtime;
 using RimMind.Presentation.Runtime.Services;
 using RimMind.Presentation.Settings;
 using RimMind.Infrastructure.UI;
+using RimMind.Presentation.Api;
 using UnityEngine;
 using Verse;
 
@@ -57,6 +58,7 @@ namespace RimMind.Presentation.UI
                 _testStatus = string.Empty;
                 _testStatusColor = Color.white;
                 _presetAppliedMessage = string.Empty;
+                GenerationState.MarkDerivedState();
             }
 
             FormPageLayoutResult formLayout = FormPageLayout.Calculate(inRect, sectionCount: 5, rowsPerSection: 4);
@@ -85,11 +87,11 @@ namespace RimMind.Presentation.UI
         private static void DrawPresetsBar(Listing_Standard listing, ISettingsProvider s)
         {
             listing.Label("RimMind.Settings.PresetsBarTitle".Translate());
-            Rect barRect = listing.GetRect(30f);
+            Rect barRect = listing.GetRect(28f);
             float gap = 6f;
             float btnW = (barRect.width - gap * 2f) / 3f;
 
-            // Preset 1: Responsive
+            // Preset 1: High Responsive
             Rect btn1 = new Rect(barRect.x, barRect.y, btnW, barRect.height);
             string label1 = "RimMind.Settings.Preset.Responsive".Translate();
             if (Widgets.ButtonText(btn1, label1))
@@ -136,10 +138,17 @@ namespace RimMind.Presentation.UI
 
             if (!string.IsNullOrEmpty(_presetAppliedMessage) && Environment.TickCount < _presetAppliedUntilTick)
             {
-                listing.Gap(2f);
-                GUI.color = new Color(0.4f, 0.9f, 0.4f);
-                listing.Label(_presetAppliedMessage);
-                GUI.color = Color.white;
+                Color prevColor = GUI.color;
+                try
+                {
+                    listing.Gap(2f);
+                    GUI.color = new Color(0.4f, 0.9f, 0.4f);
+                    listing.Label(_presetAppliedMessage);
+                }
+                finally
+                {
+                    GUI.color = prevColor;
+                }
             }
             listing.Gap(6f);
         }
@@ -192,6 +201,7 @@ namespace RimMind.Presentation.UI
                             var currentClientManager = ClientManager.ResolveOptional(operationScope);
                             var prev = currentSettings.Provider;
                             currentSettings.Provider = p;
+                            currentSettings.Persist();
                             if (!AIProviderRegistry.RequiresApiKey(p, currentRegistry))
                                 currentPlayer2Lifecycle?.CheckStatusAndNotify();
                             if (prev != p)
@@ -237,7 +247,8 @@ namespace RimMind.Presentation.UI
         {
             try
             {
-                return ModsConfig.IsActive("mcocdaa.RimMindModelService");
+                var tabs = RimMindAPI.Ext.Get<ISettingsTab>();
+                return tabs?.FindById("model_service") != null || ModsConfig.IsActive("mcocdaa.RimMindModelService");
             }
             catch
             {

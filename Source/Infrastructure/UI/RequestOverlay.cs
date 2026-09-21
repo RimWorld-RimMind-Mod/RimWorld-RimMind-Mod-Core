@@ -32,6 +32,14 @@ namespace RimMind.Infrastructure.UI
         private static bool _isExpanded;
         private static Vector2 _dragMouseDownPos;
         private static bool _hasMovedSignificantly;
+        private static bool _needsPersistOnInteractionEnd;
+        private static string? _cachedPendingCount0;
+        private static string? _cachedMiniPillTooltip;
+        private static readonly List<float> CachedHeights = new List<float>();
+
+        private static string PendingCount0Label => _cachedPendingCount0 ??= "RimMind.UI.RequestOverlay.PendingCount".Translate(0).ToString();
+        private static string MiniPillTooltipLabel => _cachedMiniPillTooltip ??= "RimMind.UI.RequestOverlay.MiniPillTooltip".Translate().ToString();
+
         private static readonly GenerationUiState GenerationState = new GenerationUiState();
 
         private const float MiniPillWidth = 120f;
@@ -134,7 +142,7 @@ namespace RimMind.Infrastructure.UI
                 _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Mathf.Max(0f, global::Verse.UI.screenHeight - _windowRect.height));
             }
 
-            HandleInput(isCollapsed, pillRect);
+            HandleInput(isCollapsed, pillRect, settings);
 
             if (isCollapsed)
             {
@@ -144,46 +152,56 @@ namespace RimMind.Infrastructure.UI
             {
                 bool isMouseOver = Mouse.IsOver(_windowRect);
                 GUI.BeginGroup(_windowRect);
-                var inRect = new Rect(Vector2.zero, _windowRect.size);
-
-                Widgets.DrawBoxSolid(inRect, new Color(0.08f, 0.08f, 0.12f, 0.85f));
-
-                DrawEntries(inRect, pending, overlayService, operation);
-
-                if (isMouseOver)
+                try
                 {
-                    DrawOptionsBar(inRect, windowService);
+                    var inRect = new Rect(Vector2.zero, _windowRect.size);
+                    Widgets.DrawBoxSolid(inRect, new Color(0.08f, 0.08f, 0.12f, 0.85f));
 
-                    var resizeRect = new Rect(inRect.width - ResizeHandleSize, inRect.height - ResizeHandleSize,
-                        ResizeHandleSize, ResizeHandleSize);
-                    GUI.DrawTexture(resizeRect, TexUI.WinExpandWidget);
-                    TooltipHandler.TipRegion(resizeRect, "RimMind.UI.RequestOverlay.DragResize".Translate());
+                    DrawEntries(inRect, pending, overlayService, operation);
+
+                    if (isMouseOver)
+                    {
+                        DrawOptionsBar(inRect, windowService);
+
+                        var resizeRect = new Rect(inRect.width - ResizeHandleSize, inRect.height - ResizeHandleSize,
+                            ResizeHandleSize, ResizeHandleSize);
+                        GUI.DrawTexture(resizeRect, TexUI.WinExpandWidget);
+                        TooltipHandler.TipRegion(resizeRect, "RimMind.UI.RequestOverlay.DragResize".Translate());
+                    }
                 }
-
-                GUI.EndGroup();
+                finally
+                {
+                    GUI.EndGroup();
+                }
             }
-
-            SavePositionToSettings(settings);
         }
 
         private static void DrawMiniPill(Rect pillRect)
         {
             GUI.BeginGroup(pillRect);
-            var inPill = new Rect(Vector2.zero, pillRect.size);
-            Widgets.DrawBoxSolid(inPill, new Color(0.08f, 0.08f, 0.12f, 0.85f));
-            Widgets.DrawHighlightIfMouseover(inPill);
-            Widgets.DrawBoxSolid(new Rect(0f, 0f, 3f, inPill.height), new Color(0.4f, 0.7f, 1.0f, 0.7f));
+            Color prevColor = GUI.color;
+            GameFont prevFont = Text.Font;
+            TextAnchor prevAnchor = Text.Anchor;
+            try
+            {
+                var inPill = new Rect(Vector2.zero, pillRect.size);
+                Widgets.DrawBoxSolid(inPill, new Color(0.08f, 0.08f, 0.12f, 0.85f));
+                Widgets.DrawHighlightIfMouseover(inPill);
+                Widgets.DrawBoxSolid(new Rect(0f, 0f, 3f, inPill.height), new Color(0.4f, 0.7f, 1.0f, 0.7f));
 
-            Text.Font = GameFont.Tiny;
-            Text.Anchor = TextAnchor.MiddleCenter;
-            GUI.color = new Color(0.7f, 0.7f, 0.7f, 0.85f);
-            Widgets.Label(inPill, "RimMind.UI.RequestOverlay.PendingCount".Translate(0));
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            Text.Anchor = TextAnchor.UpperLeft;
-
-            TooltipHandler.TipRegion(inPill, "RimMind.UI.RequestOverlay.MiniPillTooltip".Translate());
-            GUI.EndGroup();
+                Text.Font = GameFont.Tiny;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                GUI.color = new Color(0.7f, 0.7f, 0.7f, 0.85f);
+                Widgets.Label(inPill, PendingCount0Label);
+                TooltipHandler.TipRegion(inPill, MiniPillTooltipLabel);
+            }
+            finally
+            {
+                GUI.color = prevColor;
+                Text.Font = prevFont;
+                Text.Anchor = prevAnchor;
+                GUI.EndGroup();
+            }
         }
 
         private static void LoadPositionFromSettings(IOverlaySettings settings)
@@ -206,96 +224,107 @@ namespace RimMind.Infrastructure.UI
             var contentRect = inRect.ContractedBy(TextPadding);
             contentRect.yMin += OptionsBarHeight;
 
-            Text.Font = GameFont.Small;
-            Text.Anchor = TextAnchor.UpperLeft;
-
-            if (pending.Count == 0)
+            Color prevColor = GUI.color;
+            GameFont prevFont = Text.Font;
+            TextAnchor prevAnchor = Text.Anchor;
+            try
             {
-                GUI.color = Color.grey;
-                Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(contentRect, "RimMind.UI.RequestOverlay.Empty".Translate());
+                Text.Font = GameFont.Small;
                 Text.Anchor = TextAnchor.UpperLeft;
-                GUI.color = Color.white;
-                return;
-            }
 
-            float contentH = 0f;
-            float[] heights = new float[pending.Count];
-            for (int i = 0; i < pending.Count; i++)
-            {
-                float h = EntryLineH;
-                if (!pending[i].description.NullOrEmpty())
-                    h += EntryLineH;
-                h += BtnHeight + BtnPadding * 2f;
-                heights[i] = h;
-                contentH += h;
-            }
-
-            Rect viewRect = new Rect(contentRect.x, contentRect.y, contentRect.width - 16f, contentH);
-            Widgets.BeginScrollView(contentRect, ref _scrollPos, viewRect);
-
-            float y = viewRect.y;
-            for (int i = 0; i < pending.Count; i++)
-            {
-                var entry = pending[i];
-                float entryH = heights[i];
-
-                var entryRect = new Rect(viewRect.x, y, viewRect.width, entryH);
-                Widgets.DrawBoxSolid(entryRect, new Color(0.12f, 0.12f, 0.16f, 0.7f));
-
-                string header = entry.systemBlocked
-                    ? "RimMind.UI.RequestOverlay.SystemBlocked".Translate(entry.title)
-                    : entry.pawn is Pawn p
-                        ? $"[{p.Name.ToStringShort}] {entry.title}"
-                        : entry.title;
-
-                GUI.color = entry.systemBlocked ? new Color(1f, 0.6f, 0.4f) : new Color(0.85f, 0.9f, 1f);
-                Widgets.Label(new Rect(entryRect.x + TextPadding, entryRect.y + 2f, entryRect.width - TextPadding * 2, EntryLineH), header);
-                GUI.color = Color.white;
-
-                float descY = entryRect.y + EntryLineH;
-                if (!entry.description.NullOrEmpty())
+                if (pending.Count == 0)
                 {
-                    GUI.color = new Color(0.7f, 0.7f, 0.7f);
-                    Widgets.Label(new Rect(entryRect.x + TextPadding, descY, entryRect.width - TextPadding * 2, EntryLineH), entry.description);
-                    GUI.color = Color.white;
-                    descY += EntryLineH;
+                    GUI.color = Color.grey;
+                    Text.Anchor = TextAnchor.MiddleCenter;
+                    Widgets.Label(contentRect, "RimMind.UI.RequestOverlay.Empty".Translate());
+                    return;
                 }
 
-                float btnY = descY + BtnPadding;
-                float totalBtnW = entryRect.width - TextPadding * 2;
-                float btnW = (totalBtnW - (entry.options.Length - 1) * BtnPadding) / entry.options.Length;
-                for (int j = 0; j < entry.options.Length; j++)
+                float contentH = 0f;
+                CachedHeights.Clear();
+                for (int i = 0; i < pending.Count; i++)
                 {
-                    Rect btnRect = new Rect(entryRect.x + TextPadding + j * (btnW + BtnPadding), btnY, btnW, BtnHeight);
-                    if (Widgets.ButtonText(btnRect, entry.options[j]))
+                    float h = EntryLineH;
+                    if (!pending[i].description.NullOrEmpty())
+                        h += EntryLineH;
+                    h += BtnHeight + BtnPadding * 2f;
+                    CachedHeights.Add(h);
+                    contentH += h;
+                }
+
+                Rect viewRect = new Rect(contentRect.x, contentRect.y, contentRect.width - 16f, contentH);
+                Widgets.BeginScrollView(contentRect, ref _scrollPos, viewRect);
+                try
+                {
+                    float y = viewRect.y;
+                    for (int i = 0; i < pending.Count; i++)
                     {
-                        if (operation.CanPublish())
-                            overlayService?.TryResolve(entry, entry.options[j]);
-                        break;
+                        var entry = pending[i];
+                        float entryH = CachedHeights[i];
+                        var entryRect = new Rect(viewRect.x, y, viewRect.width, entryH);
+                        Widgets.DrawBoxSolid(entryRect, new Color(0.12f, 0.12f, 0.16f, 0.7f));
+
+                        string header = entry.systemBlocked
+                            ? "RimMind.UI.RequestOverlay.SystemBlocked".Translate(entry.title)
+                            : entry.pawn is Pawn p
+                                ? $"[{p.Name.ToStringShort}] {entry.title}"
+                                : entry.title;
+
+                        GUI.color = entry.systemBlocked ? new Color(1f, 0.6f, 0.4f) : new Color(0.85f, 0.9f, 1f);
+                        Widgets.Label(new Rect(entryRect.x + TextPadding, entryRect.y + 2f, entryRect.width - TextPadding * 2, EntryLineH), header);
+                        GUI.color = Color.white;
+
+                        float descY = entryRect.y + EntryLineH;
+                        if (!entry.description.NullOrEmpty())
+                        {
+                            GUI.color = new Color(0.7f, 0.7f, 0.7f);
+                            Widgets.Label(new Rect(entryRect.x + TextPadding, descY, entryRect.width - TextPadding * 2, EntryLineH), entry.description);
+                            GUI.color = Color.white;
+                            descY += EntryLineH;
+                        }
+
+                        float btnY = descY + BtnPadding;
+                        float totalBtnW = entryRect.width - TextPadding * 2;
+                        float btnW = (totalBtnW - (entry.options.Length - 1) * BtnPadding) / entry.options.Length;
+                        for (int j = 0; j < entry.options.Length; j++)
+                        {
+                            Rect btnRect = new Rect(entryRect.x + TextPadding + j * (btnW + BtnPadding), btnY, btnW, BtnHeight);
+                            if (Widgets.ButtonText(btnRect, entry.options[j]))
+                            {
+                                if (operation.CanPublish())
+                                    overlayService?.TryResolve(entry, entry.options[j]);
+                                break;
+                            }
+                            if (entry.optionTooltips != null && j < entry.optionTooltips.Length && !entry.optionTooltips[j].NullOrEmpty())
+                                TooltipHandler.TipRegion(btnRect, entry.optionTooltips[j]);
+                        }
+
+                        y += entryH;
                     }
-                    if (entry.optionTooltips != null && j < entry.optionTooltips.Length && !entry.optionTooltips[j].NullOrEmpty())
-                        TooltipHandler.TipRegion(btnRect, entry.optionTooltips[j]);
                 }
-
-                y += entryH;
+                finally
+                {
+                    Widgets.EndScrollView();
+                }
             }
-
-            Widgets.EndScrollView();
-
-            Text.Anchor = TextAnchor.UpperLeft;
+            finally
+            {
+                GUI.color = prevColor;
+                Text.Font = prevFont;
+                Text.Anchor = prevAnchor;
+            }
         }
 
         private static void DrawOptionsBar(Rect inRect, IWindowService? windowService)
         {
             var barRect = new Rect(inRect.x, inRect.y, inRect.width, OptionsBarHeight);
-            Widgets.DrawBoxSolid(barRect, new Color(0.05f, 0.05f, 0.08f, 0.8f));
+            Widgets.DrawBoxSolid(barRect, new Color(0.06f, 0.06f, 0.09f, 0.9f));
 
-            var titleRect = new Rect(barRect.x + 4f, barRect.y, 100f, barRect.height);
             Text.Font = GameFont.Tiny;
             Text.Anchor = TextAnchor.MiddleLeft;
-            GUI.color = new Color(0.7f, 0.8f, 1f);
-            Widgets.Label(titleRect, "RimMind.UI.RequestOverlay.Title".Translate());
+            GUI.color = new Color(0.6f, 0.65f, 0.75f);
+            Widgets.Label(new Rect(barRect.x + TextPadding + 2f, barRect.y, barRect.width - 90f, barRect.height),
+                "RimMind.UI.RequestOverlay.Title".Translate());
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
             Text.Anchor = TextAnchor.UpperLeft;
@@ -312,7 +341,7 @@ namespace RimMind.Infrastructure.UI
             }
         }
 
-        private static void HandleInput(bool isCollapsed, Rect pillRect)
+        private static void HandleInput(bool isCollapsed, Rect pillRect, IOverlaySettings settings)
         {
             Event currentEvent = Event.current;
 
@@ -363,6 +392,7 @@ namespace RimMind.Infrastructure.UI
             }
             else if (currentEvent.type == EventType.MouseUp && currentEvent.button == 0)
             {
+                bool wasInteracting = _isDragging || _isResizing;
                 if (isCollapsed && _isDragging)
                 {
                     if (!_hasMovedSignificantly && pillRect.Contains(currentEvent.mousePosition))
@@ -374,6 +404,17 @@ namespace RimMind.Infrastructure.UI
                 _isResizing = false;
                 _hasMovedSignificantly = false;
                 GenerationState.ClearInteraction();
+
+                if (wasInteracting && _needsPersistOnInteractionEnd)
+                {
+                    SavePositionToSettings(settings);
+                    _needsPersistOnInteractionEnd = false;
+                }
+
+                if (wasInteracting)
+                {
+                    currentEvent.Use();
+                }
             }
             else if (currentEvent.type == EventType.MouseDrag)
             {
@@ -387,6 +428,7 @@ namespace RimMind.Infrastructure.UI
 
                     _windowRect.width = Mathf.Clamp(desiredWidth, MinWidth, maxWidth);
                     _windowRect.height = Mathf.Clamp(desiredHeight, MinHeight, maxHeight);
+                    _needsPersistOnInteractionEnd = true;
                     currentEvent.Use();
                 }
                 else if (_isDragging)
@@ -400,6 +442,7 @@ namespace RimMind.Infrastructure.UI
                     float curH = isCollapsed ? MiniPillHeight : _windowRect.height;
                     _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Mathf.Max(0f, global::Verse.UI.screenWidth - curW));
                     _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Mathf.Max(0f, global::Verse.UI.screenHeight - curH));
+                    _needsPersistOnInteractionEnd = true;
                     currentEvent.Use();
                 }
             }

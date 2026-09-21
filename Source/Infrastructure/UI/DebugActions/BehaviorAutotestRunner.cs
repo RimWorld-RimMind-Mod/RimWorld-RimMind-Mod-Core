@@ -844,6 +844,11 @@ namespace RimMind.Infrastructure.UI
                 case "actions.stabilize_rest":
                     dict["reason"] = "Autotest stabilization";
                     break;
+
+                case "actions.triage_patient":
+                    dict["patient_id"] = pawnId;
+                    dict["reason"] = "Autotest triage";
+                    break;
             }
 
             return new ToolCallArgs
