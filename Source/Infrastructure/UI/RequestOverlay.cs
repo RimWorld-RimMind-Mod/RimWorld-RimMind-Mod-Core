@@ -80,6 +80,12 @@ namespace RimMind.Infrastructure.UI
             return OverlayService.ResolveOptional(scope)?.TryResolve(entry, choice) == true;
         }
 
+        internal static bool IsCollapsed => !_isExpanded;
+        internal static bool IsExpanded => _isExpanded;
+        internal static void SetExpandedForTest(bool expanded) => _isExpanded = expanded;
+        internal static Rect WindowRect => _windowRect;
+        internal static Rect PillRect => new Rect(_windowRect.x, _windowRect.y, MiniPillWidth, MiniPillHeight);
+
         public static void OnGUI()
         {
             if (Current.ProgramState != ProgramState.Playing) return;
@@ -117,29 +123,28 @@ namespace RimMind.Infrastructure.UI
 
             var pending = overlayService?.GetPendingRequests() ?? EmptyPending;
             bool autoHide = settings.RequestOverlayAutoHideWhenEmpty;
-            bool isEmpty = pending.Count == 0;
 
-            if (!isEmpty || !autoHide)
-            {
-                _isExpanded = true;
-            }
-            else
-            {
-                // When empty and autoHide is on:
-                // Keep expanded while mouse is over window or currently dragging/resizing, collapse when mouse leaves.
-                if (_isExpanded && !Mouse.IsOver(_windowRect) && !_isDragging && !_isResizing)
-                {
-                    _isExpanded = false;
-                }
-            }
+            bool shouldCollapse = RequestOverlayLayoutEvaluator.ShouldCollapse(
+                pending.Count,
+                autoHide,
+                _isExpanded,
+                Mouse.IsOver(_windowRect),
+                _isDragging,
+                _isResizing);
+            _isExpanded = !shouldCollapse;
 
             bool isCollapsed = !_isExpanded;
-            Rect pillRect = new Rect(_windowRect.x, _windowRect.y, MiniPillWidth, MiniPillHeight);
+            Rect pillRect = new Rect(_windowRect.x, _windowRect.y, RequestOverlayLayoutEvaluator.MiniPillWidth, RequestOverlayLayoutEvaluator.MiniPillHeight);
 
             if (!isCollapsed)
             {
-                _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Mathf.Max(0f, global::Verse.UI.screenWidth - _windowRect.width));
-                _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Mathf.Max(0f, global::Verse.UI.screenHeight - _windowRect.height));
+                Vector2 clamped = RequestOverlayLayoutEvaluator.ClampPosition(
+                    _windowRect.position,
+                    _windowRect.size,
+                    global::Verse.UI.screenWidth,
+                    global::Verse.UI.screenHeight);
+                _windowRect.x = clamped.x;
+                _windowRect.y = clamped.y;
             }
 
             HandleInput(isCollapsed, pillRect, settings);
@@ -155,6 +160,7 @@ namespace RimMind.Infrastructure.UI
                 try
                 {
                     var inRect = new Rect(Vector2.zero, _windowRect.size);
+
                     Widgets.DrawBoxSolid(inRect, new Color(0.08f, 0.08f, 0.12f, 0.85f));
 
                     DrawEntries(inRect, pending, overlayService, operation);
@@ -261,6 +267,7 @@ namespace RimMind.Infrastructure.UI
                     {
                         var entry = pending[i];
                         float entryH = CachedHeights[i];
+
                         var entryRect = new Rect(viewRect.x, y, viewRect.width, entryH);
                         Widgets.DrawBoxSolid(entryRect, new Color(0.12f, 0.12f, 0.16f, 0.7f));
 
@@ -433,15 +440,20 @@ namespace RimMind.Infrastructure.UI
                 }
                 else if (_isDragging)
                 {
-                    if (Vector2.Distance(currentEvent.mousePosition, _dragMouseDownPos) > 4f)
+                    if (RequestOverlayLayoutEvaluator.IsDragExceeded(_dragMouseDownPos, currentEvent.mousePosition))
                     {
                         _hasMovedSignificantly = true;
                     }
                     _windowRect.position = currentEvent.mousePosition - _dragStartOffset;
-                    float curW = isCollapsed ? MiniPillWidth : _windowRect.width;
-                    float curH = isCollapsed ? MiniPillHeight : _windowRect.height;
-                    _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Mathf.Max(0f, global::Verse.UI.screenWidth - curW));
-                    _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Mathf.Max(0f, global::Verse.UI.screenHeight - curH));
+                    float curW = isCollapsed ? RequestOverlayLayoutEvaluator.MiniPillWidth : _windowRect.width;
+                    float curH = isCollapsed ? RequestOverlayLayoutEvaluator.MiniPillHeight : _windowRect.height;
+                    Vector2 clamped = RequestOverlayLayoutEvaluator.ClampPosition(
+                        _windowRect.position,
+                        new Vector2(curW, curH),
+                        global::Verse.UI.screenWidth,
+                        global::Verse.UI.screenHeight);
+                    _windowRect.x = clamped.x;
+                    _windowRect.y = clamped.y;
                     _needsPersistOnInteractionEnd = true;
                     currentEvent.Use();
                 }

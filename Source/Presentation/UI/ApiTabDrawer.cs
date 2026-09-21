@@ -96,13 +96,7 @@ namespace RimMind.Presentation.UI
             string label1 = "RimMind.Settings.Preset.Responsive".Translate();
             if (Widgets.ButtonText(btn1, label1))
             {
-                s.MaxTokens = 600;
-                s.MaxConcurrentRequests = 3;
-                s.RequestTimeoutMs = 25000;
-                s.DefaultModCooldownTicks = 15 * 60;
-                s.Persist();
-                _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label1);
-                _presetAppliedUntilTick = Environment.TickCount + 3500;
+                ApplyPresetResponsive(s);
             }
             TooltipHandler.TipRegion(btn1, "RimMind.Settings.Preset.Responsive.Desc".Translate());
 
@@ -111,13 +105,7 @@ namespace RimMind.Presentation.UI
             string label2 = "RimMind.Settings.Preset.Balanced".Translate();
             if (Widgets.ButtonText(btn2, label2))
             {
-                s.MaxTokens = 800;
-                s.MaxConcurrentRequests = 2;
-                s.RequestTimeoutMs = 45000;
-                s.DefaultModCooldownTicks = 30 * 60;
-                s.Persist();
-                _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label2);
-                _presetAppliedUntilTick = Environment.TickCount + 3500;
+                ApplyPresetBalanced(s);
             }
             TooltipHandler.TipRegion(btn2, "RimMind.Settings.Preset.Balanced.Desc".Translate());
 
@@ -126,13 +114,7 @@ namespace RimMind.Presentation.UI
             string label3 = "RimMind.Settings.Preset.Eco".Translate();
             if (Widgets.ButtonText(btn3, label3))
             {
-                s.MaxTokens = 400;
-                s.MaxConcurrentRequests = 1;
-                s.RequestTimeoutMs = 60000;
-                s.DefaultModCooldownTicks = 60 * 60;
-                s.Persist();
-                _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label3);
-                _presetAppliedUntilTick = Environment.TickCount + 3500;
+                ApplyPresetEco(s);
             }
             TooltipHandler.TipRegion(btn3, "RimMind.Settings.Preset.Eco.Desc".Translate());
 
@@ -152,6 +134,45 @@ namespace RimMind.Presentation.UI
             }
             listing.Gap(6f);
         }
+
+        internal static void ApplyPresetResponsive(ISettingsProvider s)
+        {
+            s.MaxTokens = 600;
+            s.MaxConcurrentRequests = 3;
+            s.RequestTimeoutMs = 25000;
+            s.DefaultModCooldownTicks = 15 * 60;
+            s.Persist();
+            string label = "RimMind.Settings.Preset.Responsive".Translate();
+            _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label);
+            _presetAppliedUntilTick = Environment.TickCount + 3500;
+        }
+
+        internal static void ApplyPresetBalanced(ISettingsProvider s)
+        {
+            s.MaxTokens = 800;
+            s.MaxConcurrentRequests = 2;
+            s.RequestTimeoutMs = 45000;
+            s.DefaultModCooldownTicks = 30 * 60;
+            s.Persist();
+            string label = "RimMind.Settings.Preset.Balanced".Translate();
+            _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label);
+            _presetAppliedUntilTick = Environment.TickCount + 3500;
+        }
+
+        internal static void ApplyPresetEco(ISettingsProvider s)
+        {
+            s.MaxTokens = 400;
+            s.MaxConcurrentRequests = 1;
+            s.RequestTimeoutMs = 60000;
+            s.DefaultModCooldownTicks = 60 * 60;
+            s.Persist();
+            string label = "RimMind.Settings.Preset.Eco".Translate();
+            _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label);
+            _presetAppliedUntilTick = Environment.TickCount + 3500;
+        }
+
+        internal static string? CurrentPresetFeedback => _presetAppliedMessage;
+
 
         private static void DrawCardHeader(Listing_Standard listing, string title)
         {

@@ -125,18 +125,19 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             y = cardRect.yMax + RimMindUI.SectionGap;
             y = RimMindUI.DrawSectionHeader(rect, y, "RimMind.UI.Hub.ShortcutsTitle".Translate());
 
-            float btnW = 200f;
             float btnH = RimMindUI.BtnHeight;
             float btnGap = 12f;
+            float btn1W = 180f;
+            float btn2W = 260f;
 
-            Rect btnOpenSettings = new Rect(rect.x + RimMindUI.Padding, y, btnW, btnH);
+            Rect btnOpenSettings = new Rect(rect.x + RimMindUI.Padding, y, btn1W, btnH);
             scope.Record(btnOpenSettings, "Hub:SettingsEntry:OpenSettings");
             if (Widgets.ButtonText(btnOpenSettings, "RimMind.UI.Hub.OpenSettings".Translate()))
             {
                 OpenSettings();
             }
 
-            Rect btnOpenInspector = new Rect(btnOpenSettings.xMax + btnGap, y, btnW, btnH);
+            Rect btnOpenInspector = new Rect(btnOpenSettings.xMax + btnGap, y, btn2W, btnH);
             scope.Record(btnOpenInspector, "Hub:SettingsEntry:OpenContextInspector");
             if (Widgets.ButtonText(btnOpenInspector, "RimMind.Settings.OpenContextPayloadInspector".Translate()))
             {

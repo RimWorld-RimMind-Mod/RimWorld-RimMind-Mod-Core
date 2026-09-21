@@ -114,44 +114,38 @@ namespace RimMind.Tests.Contracts
                 {
                     float screenW = 1920f;
                     float screenH = 1080f;
-                    float winW = 300f;
-                    float winH = 200f;
+                    Vector2 winSize = new Vector2(300f, 200f);
 
-                    // Off-screen left & top
-                    float clampedX1 = Mathf.Clamp(-100f, 0, Mathf.Max(0f, screenW - winW));
-                    float clampedY1 = Mathf.Clamp(-50f, 0, Mathf.Max(0f, screenH - winH));
-                    Assert.Equal(0f, clampedX1);
-                    Assert.Equal(0f, clampedY1);
+                    // Off-screen left & top clamps to (0, 0)
+                    Vector2 c1 = RequestOverlayLayoutEvaluator.ClampPosition(new Vector2(-100f, -50f), winSize, screenW, screenH);
+                    Assert.Equal(0f, c1.x);
+                    Assert.Equal(0f, c1.y);
 
-                    // Off-screen right & bottom
-                    float clampedX2 = Mathf.Clamp(2500f, 0, Mathf.Max(0f, screenW - winW));
-                    float clampedY2 = Mathf.Clamp(1500f, 0, Mathf.Max(0f, screenH - winH));
-                    Assert.Equal(1620f, clampedX2);
-                    Assert.Equal(880f, clampedY2);
+                    // Off-screen right & bottom clamps to (screenWidth - winW, screenHeight - winH)
+                    Vector2 c2 = RequestOverlayLayoutEvaluator.ClampPosition(new Vector2(2500f, 1500f), winSize, screenW, screenH);
+                    Assert.Equal(1620f, c2.x);
+                    Assert.Equal(880f, c2.y);
 
                     // Inside screen stays intact
-                    float clampedX3 = Mathf.Clamp(500f, 0, Mathf.Max(0f, screenW - winW));
-                    float clampedY3 = Mathf.Clamp(300f, 0, Mathf.Max(0f, screenH - winH));
-                    Assert.Equal(500f, clampedX3);
-                    Assert.Equal(300f, clampedY3);
+                    Vector2 c3 = RequestOverlayLayoutEvaluator.ClampPosition(new Vector2(500f, 300f), winSize, screenW, screenH);
+                    Assert.Equal(500f, c3.x);
+                    Assert.Equal(300f, c3.y);
+
+                    // Zero or degenerate screen bounds handle gracefully
+                    Vector2 c4 = RequestOverlayLayoutEvaluator.ClampPosition(new Vector2(100f, 100f), winSize, 0f, 0f);
+                    Assert.Equal(0f, c4.x);
+                    Assert.Equal(0f, c4.y);
                 }),
                 ("drag discrimination threshold correctly distinguishes clicks from drags", () =>
                 {
                     Vector2 downPos = new Vector2(100f, 100f);
-                    Vector2 subtleJitter = new Vector2(102f, 101f); // dx=2, dy=1 -> d^2 = 5 < 16
+                    Vector2 subtleJitter = new Vector2(102f, 101f); // dx=2, dy=1 -> d^2 = 5 <= 16
+                    Vector2 exactThreshold = new Vector2(104f, 100f); // dx=4, dy=0 -> d^2 = 16 <= 16
                     Vector2 deliberateDrag = new Vector2(106f, 105f); // dx=6, dy=5 -> d^2 = 61 > 16
 
-                    float distSq1 = (subtleJitter.x - downPos.x) * (subtleJitter.x - downPos.x) +
-                                    (subtleJitter.y - downPos.y) * (subtleJitter.y - downPos.y);
-                    float distSq2 = (deliberateDrag.x - downPos.x) * (deliberateDrag.x - downPos.x) +
-                                    (deliberateDrag.y - downPos.y) * (deliberateDrag.y - downPos.y);
-
-                    const float thresholdSq = 4f * 4f;
-                    bool isSubtleDrag = distSq1 > thresholdSq;
-                    bool isDeliberateDrag = distSq2 > thresholdSq;
-
-                    Assert.False(isSubtleDrag);
-                    Assert.True(isDeliberateDrag);
+                    Assert.False(RequestOverlayLayoutEvaluator.IsDragExceeded(downPos, subtleJitter));
+                    Assert.False(RequestOverlayLayoutEvaluator.IsDragExceeded(downPos, exactThreshold));
+                    Assert.True(RequestOverlayLayoutEvaluator.IsDragExceeded(downPos, deliberateDrag));
                 }),
                 ("api tuning presets configure accurate and safe engine parameters", () =>
                 {
@@ -161,21 +155,11 @@ namespace RimMind.Tests.Contracts
                     const int respTimeoutMs = 25000;
                     const int respCooldownTicks = 15 * 60;
 
-                    Assert.InRange(respMaxTokens, 200, 4000);
-                    Assert.InRange(respConcurrency, 1, 10);
-                    Assert.InRange(respTimeoutMs, 10000, 180000);
-                    Assert.Equal(900, respCooldownTicks);
-
                     // Preset 2: Balanced Standard
                     const int balMaxTokens = 800;
                     const int balConcurrency = 2;
                     const int balTimeoutMs = 45000;
                     const int balCooldownTicks = 30 * 60;
-
-                    Assert.InRange(balMaxTokens, 200, 4000);
-                    Assert.InRange(balConcurrency, 1, 10);
-                    Assert.InRange(balTimeoutMs, 10000, 180000);
-                    Assert.Equal(1800, balCooldownTicks);
 
                     // Preset 3: Eco Safe
                     const int ecoMaxTokens = 400;
@@ -183,10 +167,56 @@ namespace RimMind.Tests.Contracts
                     const int ecoTimeoutMs = 60000;
                     const int ecoCooldownTicks = 60 * 60;
 
+                    // Invariant 1: Bounded safe ranges for tokens, concurrency, timeout
+                    Assert.InRange(respMaxTokens, 200, 4000);
+                    Assert.InRange(balMaxTokens, 200, 4000);
                     Assert.InRange(ecoMaxTokens, 200, 4000);
+
+                    // Invariant 2: Concurrency hierarchy (Responsive >= Balanced >= Eco == 1)
+                    Assert.True(respConcurrency >= balConcurrency);
+                    Assert.True(balConcurrency >= ecoConcurrency);
                     Assert.Equal(1, ecoConcurrency);
-                    Assert.InRange(ecoTimeoutMs, 10000, 180000);
-                    Assert.Equal(3600, ecoCooldownTicks);
+
+                    // Invariant 3: Timeout hierarchy (Responsive < Balanced < Eco)
+                    Assert.True(respTimeoutMs < balTimeoutMs);
+                    Assert.True(balTimeoutMs < ecoTimeoutMs);
+
+                    // Invariant 4: Cooldown hierarchy (Responsive < Balanced < Eco)
+                    Assert.True(respCooldownTicks < balCooldownTicks);
+                    Assert.True(balCooldownTicks < ecoCooldownTicks);
+                }),
+                ("overlay collapsed mini-pill state machine and geometry metrics", () =>
+                {
+                    // Case A: When empty and autoHide is false -> should NOT collapse
+                    Assert.False(RequestOverlayLayoutEvaluator.ShouldCollapse(0, false, false, false, false, false));
+
+                    // Case B: When pending > 0 -> should NEVER collapse, regardless of autoHide
+                    Assert.False(RequestOverlayLayoutEvaluator.ShouldCollapse(1, true, false, false, false, false));
+                    Assert.False(RequestOverlayLayoutEvaluator.ShouldCollapse(5, true, false, false, false, false));
+
+                    // Case C: When empty, autoHide is true, and not expanded -> should collapse to mini-pill
+                    Assert.True(RequestOverlayLayoutEvaluator.ShouldCollapse(0, true, false, false, false, false));
+
+                    // Case D: When empty, autoHide is true, currently expanded, but user is hovering or dragging -> stays expanded
+                    Assert.False(RequestOverlayLayoutEvaluator.ShouldCollapse(0, true, true, isMouseOver: true, false, false));
+                    Assert.False(RequestOverlayLayoutEvaluator.ShouldCollapse(0, true, true, false, isDragging: true, false));
+                    Assert.False(RequestOverlayLayoutEvaluator.ShouldCollapse(0, true, true, false, false, isResizing: true));
+
+                    // Case E: When empty, autoHide is true, expanded, but mouse leaves and not dragging -> collapses
+                    Assert.True(RequestOverlayLayoutEvaluator.ShouldCollapse(0, true, true, false, false, false));
+
+                    // Bounds geometry check
+                    Vector2 pos = new Vector2(100f, 50f);
+                    Vector2 expSize = new Vector2(320f, 180f);
+                    Rect collapsedRect = RequestOverlayLayoutEvaluator.GetCurrentRect(pos, expSize, isCollapsed: true);
+                    Assert.Equal(pos.x, collapsedRect.x);
+                    Assert.Equal(pos.y, collapsedRect.y);
+                    Assert.Equal(RequestOverlayLayoutEvaluator.MiniPillWidth, collapsedRect.width);
+                    Assert.Equal(RequestOverlayLayoutEvaluator.MiniPillHeight, collapsedRect.height);
+
+                    Rect expandedRect = RequestOverlayLayoutEvaluator.GetCurrentRect(pos, expSize, isCollapsed: false);
+                    Assert.Equal(320f, expandedRect.width);
+                    Assert.Equal(180f, expandedRect.height);
                 }));
         }
     }

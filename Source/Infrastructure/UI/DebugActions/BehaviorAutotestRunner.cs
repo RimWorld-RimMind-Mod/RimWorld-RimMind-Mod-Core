@@ -934,6 +934,8 @@ namespace RimMind.Infrastructure.UI
             var sw = Stopwatch.StartNew();
             var result = new BehaviorAutotestResult { SuiteId = "UI.InteractionAndClicks" };
             int checksPassed = 0;
+            string outputDir = Path.Combine(GenFilePaths.SaveDataFolderPath, "RimMind", "BehaviorTests", _runId);
+            yield return UiInteractionDriver.RunInteractionSuite(outputDir, result);
 
             try
             {
