@@ -199,7 +199,6 @@ namespace RimMind.Presentation.UI
         {
             DrawCardHeader(listing, "RimMind.Settings.Section.Connection".Translate());
             scope?.Record(listing.GetRect(0f), "Section:Connection");
-
             listing.LabelWithTooltip("RimMind.Settings.Provider".Translate(), "RimMind.Settings.Provider.Desc".Translate());
 
             // Row with Main Provider Display and Quick Presets Button
@@ -213,6 +212,7 @@ namespace RimMind.Presentation.UI
                 {
                     OpenProviderSelectionMenu(s, providerRegistry, player2Lifecycle);
                 }
+                TooltipHandler.TipRegion(provRect, "RimMind.Settings.Provider.SelectTip".Translate());
                 TooltipHandler.TipRegion(provRect, "RimMind.Settings.Provider.Desc".Translate() + "\n\n" + "RimMind.Settings.Provider.SelectTip".Translate());
 
                 if (Widgets.ButtonText(presetBtnRect, "RimMind.Settings.ProviderPresetBtn".Translate()))
@@ -439,6 +439,11 @@ namespace RimMind.Presentation.UI
             ISettingsProvider s,
             RimMindLayoutScope? scope = null)
         {
+            GUI.color = new Color(0.5f, 0.9f, 0.6f);
+            listing.Label("RimMind.Settings.ModelService.ActiveTitle".Translate());
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.ModelService.ActiveDesc".Translate());
+            GUI.color = Color.white;
             listing.LabelWithTooltip(
                 "RimMind.Settings.ModelService.ActiveTitle".Translate(),
                 "RimMind.Settings.ModelService.ActiveDesc".Translate(),
@@ -559,9 +564,19 @@ namespace RimMind.Presentation.UI
             DrawCardHeader(listing, "RimMind.Settings.Section.Generation".Translate());
             scope?.Record(listing.GetRect(0f), "Section:Generation");
 
+            listing.Label($"{"RimMind.Settings.MaxTokens".Translate()}: {s.MaxTokens}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.MaxTokens.Desc".Translate());
+            GUI.color = Color.white;
+            s.MaxTokens = (int)listing.Slider(s.MaxTokens, 200f, 2000f);
             listing.LabelWithTooltip($"{"RimMind.Settings.MaxTokens".Translate()}: {s.MaxTokens}", "RimMind.Settings.MaxTokens.Desc".Translate());
             s.MaxTokens = (int)listing.SliderWithTooltip(s.MaxTokens, 200f, 2000f, "RimMind.Settings.MaxTokens.Desc".Translate());
 
+            listing.Label($"{"RimMind.Settings.Temperature".Translate()}: {s.DefaultTemperature:F2}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.Temperature.Desc".Translate());
+            GUI.color = Color.white;
+            s.DefaultTemperature = listing.Slider(s.DefaultTemperature, 0f, 2f);
             listing.LabelWithTooltip($"{"RimMind.Settings.Temperature".Translate()}: {s.DefaultTemperature:F2}", "RimMind.Settings.Temperature.Desc".Translate());
             s.DefaultTemperature = listing.SliderWithTooltip(s.DefaultTemperature, 0f, 2f, "RimMind.Settings.Temperature.Desc".Translate());
 
@@ -574,6 +589,7 @@ namespace RimMind.Presentation.UI
             s.ForceJsonMode = forceJsonMode;
 
             listing.Gap(6f);
+            listing.Label("RimMind.UI.FlywheelAutoApply".Translate());
             listing.LabelWithTooltip("RimMind.UI.FlywheelAutoApply".Translate(), "RimMind.UI.FlywheelAutoApply.Desc".Translate());
             {
                 Rect row = listing.GetRect(28f);
@@ -590,6 +606,11 @@ namespace RimMind.Presentation.UI
                 TooltipHandler.TipRegion(row, "RimMind.UI.FlywheelAutoApply.Desc".Translate());
             }
 
+            listing.Label("RimMind.UI.FlywheelConfidence".Translate(s.AutoApplyConfidenceThreshold));
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.UI.FlywheelConfidence.Desc".Translate());
+            GUI.color = Color.white;
+            s.AutoApplyConfidenceThreshold = listing.Slider(s.AutoApplyConfidenceThreshold, 0.5f, 1.0f);
             listing.LabelWithTooltip("RimMind.UI.FlywheelConfidence".Translate(s.AutoApplyConfidenceThreshold), "RimMind.UI.FlywheelConfidence.Desc".Translate());
             s.AutoApplyConfidenceThreshold = listing.SliderWithTooltip(s.AutoApplyConfidenceThreshold, 0.5f, 1.0f, "RimMind.UI.FlywheelConfidence.Desc".Translate());
         }
@@ -603,24 +624,59 @@ namespace RimMind.Presentation.UI
             DrawCardHeader(listing, "RimMind.Settings.Section.Performance".Translate());
             scope?.Record(listing.GetRect(0f), "Section:Performance");
 
+            listing.Label($"{"RimMind.Settings.MaxConcurrent".Translate()}: {s.MaxConcurrentRequests}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.MaxConcurrent.Desc".Translate());
+            GUI.color = Color.white;
+            s.MaxConcurrentRequests = (int)listing.Slider(s.MaxConcurrentRequests, 1f, 10f);
             listing.LabelWithTooltip($"{"RimMind.Settings.MaxConcurrent".Translate()}: {s.MaxConcurrentRequests}", "RimMind.Settings.MaxConcurrent.Desc".Translate());
             s.MaxConcurrentRequests = (int)listing.SliderWithTooltip(s.MaxConcurrentRequests, 1f, 10f, "RimMind.Settings.MaxConcurrent.Desc".Translate());
 
+            listing.Label($"{"RimMind.Settings.MaxRetry".Translate()}: {s.MaxRetryCount}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.MaxRetry.Desc".Translate());
+            GUI.color = Color.white;
+            s.MaxRetryCount = (int)listing.Slider(s.MaxRetryCount, 0f, 5f);
             listing.LabelWithTooltip($"{"RimMind.Settings.MaxRetry".Translate()}: {s.MaxRetryCount}", "RimMind.Settings.MaxRetry.Desc".Translate());
             s.MaxRetryCount = (int)listing.SliderWithTooltip(s.MaxRetryCount, 0f, 5f, "RimMind.Settings.MaxRetry.Desc".Translate());
 
+            listing.Label($"{"RimMind.Settings.RequestTimeout".Translate()}: {s.RequestTimeoutMs / 1000}s");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.RequestTimeout.Desc".Translate());
+            GUI.color = Color.white;
+            s.RequestTimeoutMs = (int)listing.Slider(s.RequestTimeoutMs / 1000f, 10f, 300f) * 1000;
             listing.LabelWithTooltip($"{"RimMind.Settings.RequestTimeout".Translate()}: {s.RequestTimeoutMs / 1000}s", "RimMind.Settings.RequestTimeout.Desc".Translate());
             s.RequestTimeoutMs = (int)listing.SliderWithTooltip(s.RequestTimeoutMs / 1000f, 10f, 300f, "RimMind.Settings.RequestTimeout.Desc".Translate()) * 1000;
 
+            listing.Label($"{"RimMind.Settings.RequestExpireTicks".Translate()}: {s.RequestExpireTicks / 60f:F0}s ({s.RequestExpireTicks} ticks)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.RequestExpireTicks.Desc".Translate());
+            GUI.color = Color.white;
+            s.RequestExpireTicks = (int)listing.Slider(s.RequestExpireTicks, 6000f, 120000f);
             listing.LabelWithTooltip($"{"RimMind.Settings.RequestExpireTicks".Translate()}: {s.RequestExpireTicks / 60f:F0}s ({s.RequestExpireTicks} ticks)", "RimMind.Settings.RequestExpireTicks.Desc".Translate());
             s.RequestExpireTicks = (int)listing.SliderWithTooltip(s.RequestExpireTicks, 6000f, 120000f, "RimMind.Settings.RequestExpireTicks.Desc".Translate());
 
+            listing.Label($"{"RimMind.Settings.BehaviorHistoryMax".Translate()}: {s.BehaviorHistoryMax}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.BehaviorHistoryMax.Desc".Translate());
+            GUI.color = Color.white;
+            s.BehaviorHistoryMax = (int)listing.Slider(s.BehaviorHistoryMax, 10f, 500f);
             listing.LabelWithTooltip($"{"RimMind.Settings.BehaviorHistoryMax".Translate()}: {s.BehaviorHistoryMax}", "RimMind.Settings.BehaviorHistoryMax.Desc".Translate());
             s.BehaviorHistoryMax = (int)listing.SliderWithTooltip(s.BehaviorHistoryMax, 10f, 500f, "RimMind.Settings.BehaviorHistoryMax.Desc".Translate());
 
+            listing.Label($"{"RimMind.Settings.QueueProcessInterval".Translate()}: {s.QueueProcessInterval} ticks ({s.QueueProcessInterval / 60f:F1}s)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.QueueProcessInterval.Desc".Translate());
+            GUI.color = Color.white;
+            s.QueueProcessInterval = (int)listing.Slider(s.QueueProcessInterval, 10f, 300f);
             listing.LabelWithTooltip($"{"RimMind.Settings.QueueProcessInterval".Translate()}: {s.QueueProcessInterval} ticks ({s.QueueProcessInterval / 60f:F1}s)", "RimMind.Settings.QueueProcessInterval.Desc".Translate());
             s.QueueProcessInterval = (int)listing.SliderWithTooltip(s.QueueProcessInterval, 10f, 300f, "RimMind.Settings.QueueProcessInterval.Desc".Translate());
 
+            listing.Label($"{"RimMind.Settings.DefaultModCooldown".Translate()}: {s.DefaultModCooldownTicks / 60f:F0}s ({s.DefaultModCooldownTicks} ticks)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.DefaultModCooldown.Desc".Translate());
+            GUI.color = Color.white;
+            s.DefaultModCooldownTicks = (int)listing.Slider(s.DefaultModCooldownTicks, 600f, 36000f);
             listing.LabelWithTooltip($"{"RimMind.Settings.DefaultModCooldown".Translate()}: {s.DefaultModCooldownTicks / 60f:F0}s ({s.DefaultModCooldownTicks} ticks)", "RimMind.Settings.DefaultModCooldown.Desc".Translate());
             s.DefaultModCooldownTicks = (int)listing.SliderWithTooltip(s.DefaultModCooldownTicks, 600f, 36000f, "RimMind.Settings.DefaultModCooldown.Desc".Translate());
 
@@ -628,6 +684,9 @@ namespace RimMind.Presentation.UI
             if (queue != null)
             {
                 listing.Gap(4f);
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Settings.QueueSeeTab".Translate());
+                GUI.color = Color.white;
                 listing.LabelWithTooltip("RimMind.Settings.QueueSeeTab".Translate(), "RimMind.Settings.QueueSeeTab".Translate(), Color.gray);
             }
         }
@@ -677,6 +736,10 @@ namespace RimMind.Presentation.UI
 
         private static void DrawApiKeySection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
         {
+            listing.Label("RimMind.Settings.ApiKey".Translate());
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.ApiKey.Desc".Translate());
+            GUI.color = Color.white;
             listing.LabelWithTooltip("RimMind.Settings.ApiKey".Translate(), "RimMind.Settings.ApiKey.Desc".Translate());
             {
                 Rect row = listing.GetRect(26f);
@@ -702,10 +765,20 @@ namespace RimMind.Presentation.UI
             }
 
             listing.Gap(4f);
+            listing.Label("RimMind.Settings.ApiEndpoint".Translate());
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.ApiEndpoint.Desc".Translate());
+            GUI.color = Color.white;
+            s.ApiEndpoint = listing.TextEntry(s.ApiEndpoint);
             listing.LabelWithTooltip("RimMind.Settings.ApiEndpoint".Translate(), "RimMind.Settings.ApiEndpoint.Desc".Translate());
             s.ApiEndpoint = listing.TextEntryWithTooltip(s.ApiEndpoint, "RimMind.Settings.ApiEndpoint.Desc".Translate());
 
             listing.Gap(4f);
+            listing.Label("RimMind.Settings.ModelName".Translate());
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.ModelName.Desc".Translate());
+            GUI.color = Color.white;
+            s.ModelName = listing.TextEntry(s.ModelName);
             listing.LabelWithTooltip("RimMind.Settings.ModelName".Translate(), "RimMind.Settings.ModelName.Desc".Translate());
             s.ModelName = listing.TextEntryWithTooltip(s.ModelName, "RimMind.Settings.ModelName.Desc".Translate());
         }
@@ -716,9 +789,16 @@ namespace RimMind.Presentation.UI
             IPlayer2Lifecycle? player2Lifecycle,
             RimMindLayoutScope? scope = null)
         {
+            GUI.color = Color.gray;
+            listing.Label("RimMind.Settings.Player2.Desc".Translate());
+            GUI.color = Color.white;
             listing.LabelWithTooltip("RimMind.Settings.Provider.Player2".Translate(), "RimMind.Settings.Player2.Desc".Translate());
             listing.Gap(4f);
 
+            listing.Label("RimMind.Settings.ApiKey".Translate() + " (" + "RimMind.Settings.Player2.ApiKeyOptional".Translate() + ")");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.Player2.ApiKeyDesc".Translate());
+            GUI.color = Color.white;
             listing.LabelWithTooltip("RimMind.Settings.ApiKey".Translate() + " (" + "RimMind.Settings.Player2.ApiKeyOptional".Translate() + ")", "RimMind.Settings.Player2.ApiKeyDesc".Translate());
             {
                 Rect row = listing.GetRect(26f);
@@ -751,6 +831,11 @@ namespace RimMind.Presentation.UI
             }
 
             listing.Gap(4f);
+            listing.Label("RimMind.Settings.Player2.RemoteUrl".Translate());
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.Player2.RemoteUrl.Desc".Translate());
+            GUI.color = Color.white;
+            s.Player2RemoteUrl = listing.TextEntry(s.Player2RemoteUrl);
             listing.LabelWithTooltip("RimMind.Settings.Player2.RemoteUrl".Translate(), "RimMind.Settings.Player2.RemoteUrl.Desc".Translate());
             s.Player2RemoteUrl = listing.TextEntryWithTooltip(s.Player2RemoteUrl, "RimMind.Settings.Player2.RemoteUrl.Desc".Translate());
 

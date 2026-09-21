@@ -323,6 +323,16 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("SliderWithTooltip", api, StringComparison.Ordinal);
                     Assert.DoesNotContain("listing.Label(\"  \" + \"RimMind.Settings.Provider.Desc\".Translate())", api, StringComparison.Ordinal);
                 }),
+                ("prompts tab drawer uses custom prompt sections and auto persists changes", () =>
+                {
+                    var prompts = ReadSource("Presentation/UI/PromptsTabDrawer.cs");
+                    var drawer = ReadSource("Presentation/UI/SettingsUIDrawer.cs");
+                    Assert.Contains("DrawCustomPromptSection", prompts, StringComparison.Ordinal);
+                    Assert.Contains("s.Persist()", prompts, StringComparison.Ordinal);
+                    Assert.DoesNotContain("Color.gray", prompts, StringComparison.Ordinal);
+                    Assert.Contains("Widgets.TextArea(rect, value ?? string.Empty)", drawer, StringComparison.Ordinal);
+                    Assert.DoesNotContain("value = listing.TextEntry(value, (int)height)", drawer, StringComparison.Ordinal);
+                }),
                 ("settings window follows the current settings provider", () =>
                 {
                     var window = ReadSource("Infrastructure/UI/Window_RimMindSettings.cs");

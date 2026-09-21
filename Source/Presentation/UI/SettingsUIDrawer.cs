@@ -56,14 +56,21 @@ namespace RimMind.Presentation.UI
             return Widgets.TextField(rect, text ?? string.Empty);
         }
 
-        public static void DrawCustomPromptSection(Listing_Standard listing, string label, ref string value, float height, string? tooltip = null)
+        public static void DrawCustomPromptSection(
+            Listing_Standard listing,
+            string label,
+            ref string value,
+            float pixelHeight,
+            string? tooltip = null)
         {
             if (!string.IsNullOrEmpty(tooltip))
                 listing.LabelWithTooltip(label, tooltip);
             else
                 listing.Label(label);
-            value = listing.TextEntry(value, (int)height);
-            listing.Gap(4f);
+
+            Rect rect = listing.GetRect(pixelHeight);
+            value = Widgets.TextArea(rect, value ?? string.Empty);
+            listing.Gap(6f);
         }
 
         public static Rect SplitContentArea(Rect inRect)

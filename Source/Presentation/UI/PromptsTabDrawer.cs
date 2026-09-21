@@ -1,4 +1,3 @@
-using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Presentation.UI.Framework;
 using RimMind.Presentation.UI.Layout;
@@ -13,34 +12,53 @@ namespace RimMind.Presentation.UI
 
         public static void Draw(Rect inRect, ISettingsProvider s, RimMindLayoutScope? scope = null)
         {
-            FormPageLayoutResult formLayout = FormPageLayout.Calculate(inRect, sectionCount: 2, rowsPerSection: 3);
+            float totalContentHeight = 360f;
             Rect viewRect = new Rect(
                 0f,
                 0f,
-                formLayout.Viewport.width - RimMindUiMetrics.ScrollBarWidth,
-                Mathf.Max(460f, formLayout.ContentHeight));
+                Mathf.Max(0f, inRect.width - RimMindUiMetrics.ScrollBarWidth),
+                Mathf.Max(inRect.height, totalContentHeight));
             Widgets.BeginScrollView(inRect, ref _promptsScroll, viewRect);
-            scope?.Record(formLayout.Viewport, "Settings:Prompts:Viewport");
+            scope?.Record(inRect, "Settings:Prompts:Viewport");
             scope?.Record(viewRect, "Settings:Prompts:Content");
 
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            var customPawnPrompt = s.CustomPawnPrompt;
-            SettingsUIDrawer.DrawCustomPromptSection(listing,
-                "RimMind.Prompts.PawnPromptLabel".Translate(),
-                ref customPawnPrompt, 100f,
+            SettingsUIDrawer.DrawSectionHeader(
+                listing,
+                "RimMind.Settings.Tab.Prompts".Translate(),
                 "RimMind.Prompts.Desc".Translate());
-            s.CustomPawnPrompt = customPawnPrompt;
+
+            var prevPawn = s.CustomPawnPrompt;
+            var customPawnPrompt = prevPawn;
+            SettingsUIDrawer.DrawCustomPromptSection(
+                listing,
+                "RimMind.Prompts.PawnPromptLabel".Translate(),
+                ref customPawnPrompt,
+                130f,
+                "RimMind.Prompts.Desc".Translate());
+            if (customPawnPrompt != prevPawn)
+            {
+                s.CustomPawnPrompt = customPawnPrompt;
+                s.Persist();
+            }
 
             listing.Gap(12f);
 
-            var customMapPrompt = s.CustomMapPrompt;
-            SettingsUIDrawer.DrawCustomPromptSection(listing,
+            var prevMap = s.CustomMapPrompt;
+            var customMapPrompt = prevMap;
+            SettingsUIDrawer.DrawCustomPromptSection(
+                listing,
                 "RimMind.Prompts.MapPromptLabel".Translate(),
-                ref customMapPrompt, 100f,
+                ref customMapPrompt,
+                130f,
                 "RimMind.Prompts.Desc".Translate());
-            s.CustomMapPrompt = customMapPrompt;
+            if (customMapPrompt != prevMap)
+            {
+                s.CustomMapPrompt = customMapPrompt;
+                s.Persist();
+            }
 
             listing.End();
             Widgets.EndScrollView();
