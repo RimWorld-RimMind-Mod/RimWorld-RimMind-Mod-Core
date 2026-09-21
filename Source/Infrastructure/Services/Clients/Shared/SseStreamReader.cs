@@ -18,7 +18,7 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
         /// <summary>
         /// Reads SSE data lines and invokes <paramref name="onData"/> for each payload.
         /// Skips empty lines and non-data lines. Stops when "[DONE]" is received,
-        /// the stream ends, or cancellation is requested.
+        /// or throws <see cref="OperationCanceledException"/> if cancellation is requested.
         /// </summary>
         public static async Task ReadDataLinesAsync(
             StreamReader reader,
@@ -26,8 +26,10 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
             CancellationToken ct)
         {
             string? line;
-            while ((line = await reader.ReadLineAsync()) != null && !ct.IsCancellationRequested)
+            while ((line = await reader.ReadLineAsync()) != null)
             {
+                ct.ThrowIfCancellationRequested();
+
                 if (string.IsNullOrEmpty(line)) continue;
                 if (!line.StartsWith(DataPrefix)) continue;
 
@@ -36,6 +38,7 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
 
                 await onData(data);
             }
+            ct.ThrowIfCancellationRequested();
         }
     }
 }

@@ -38,6 +38,12 @@ namespace RimMind.Presentation.Runtime.Services
                 throw new ArgumentNullException(nameof(bind));
             }
 
+            // Fast-path: avoid Scope allocation if generation hasn't advanced
+            if (_boundGeneration >= _hub.Generation)
+            {
+                return;
+            }
+
             var scope = _hub.Capture();
             lock (_bindingLock)
             {

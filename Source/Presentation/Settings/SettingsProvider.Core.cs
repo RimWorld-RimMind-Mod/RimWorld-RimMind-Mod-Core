@@ -147,6 +147,11 @@ namespace RimMind.Presentation.Settings
             get => _settings.requestOverlayH;
             set => _settings.requestOverlayH = value;
         }
+        public bool ShowAgentProgressFloat
+        {
+            get => _settings.showAgentProgressFloat;
+            set => _settings.showAgentProgressFloat = value;
+        }
 
         public void Persist() => RimMindCoreMod.Settings.Write();
 

@@ -15,20 +15,11 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
         /// <summary>
         /// Maps an exception to a Result error using the standard client error hierarchy:
         /// <list type="bullet">
-        /// <item><see cref="TaskCanceledException"/> → <see cref="RimMindErrors.Cancelled"/></item>
-        /// <item><see cref="HttpTransport.HttpException"/> → <see cref="RimMindErrors.ClientTransient"/></item>
+        /// <item><see cref="OperationCanceledException"/> → <see cref="RimMindErrors.Cancelled"/></item>
+        /// <item><see cref="HttpTransport.HttpException"/> → <see cref="RimMindErrors.ClientTransient"/> or <see cref="RimMindErrors.ClientPermanent"/> based on StatusCode</item>
         /// <item>Other exceptions → <see cref="RimMindErrors.Internal"/> (or ClientTransient if <paramref name="useClientTransientForGeneric"/> is true)</item>
         /// </list>
         /// </summary>
-        /// <param name="ex">The caught exception.</param>
-        /// <param name="clientName">Client identifier for error messages (e.g. "OpenAI", "Player2").</param>
-        /// <param name="requestId">Request identifier for log correlation.</param>
-        /// <param name="operationLabel">Operation label for logs (e.g. "request", "stream").</param>
-        /// <param name="logSink">Optional log sink for warning messages.</param>
-        /// <param name="useClientTransientForGeneric">
-        /// When true, generic exceptions use <see cref="RimMindErrors.ClientTransient"/> instead of
-        /// <see cref="RimMindErrors.Internal"/>. Preserves legacy Player2 streaming behavior.
-        /// </param>
         public static Result<LlmResponse, RimMindError> MapException(
             Exception ex,
             string clientName,
@@ -39,7 +30,7 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
         {
             string logPrefix = $"{clientName} {operationLabel}";
 
-            if (ex is TaskCanceledException)
+            if (ex is OperationCanceledException)
             {
                 logSink?.LogFromBackground($"[RimMind-Core] {logPrefix} cancelled ({requestId})", isWarning: true);
                 return Result<LlmResponse, RimMindError>.Err(RimMindErrors.Cancelled());
@@ -48,7 +39,11 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
             if (ex is HttpTransport.HttpException httpEx)
             {
                 logSink?.LogFromBackground($"[RimMind-Core] {logPrefix} failed ({requestId}): {httpEx.Message}", isWarning: true);
-                return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientTransient(httpEx.Message, httpEx));
+                bool isTransient = httpEx.StatusCode == 408 || httpEx.StatusCode == 429 || httpEx.StatusCode >= 500;
+                return Result<LlmResponse, RimMindError>.Err(
+                    isTransient
+                        ? RimMindErrors.ClientTransient(httpEx.Message, httpEx)
+                        : RimMindErrors.ClientPermanent(httpEx.Message, httpEx));
             }
 
             logSink?.LogFromBackground($"[RimMind-Core] {logPrefix} failed ({requestId}): {ex.Message}", isWarning: true);

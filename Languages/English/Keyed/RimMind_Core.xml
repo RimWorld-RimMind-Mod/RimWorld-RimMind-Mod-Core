@@ -658,4 +658,13 @@
   <!-- API Key Missing Startup Notification Letter -->
   <RimMind.Notification.ApiKeyMissing.Title>RimMind: API Key Required</RimMind.Notification.ApiKeyMissing.Title>
   <RimMind.Notification.ApiKeyMissing.Desc>RimMind detected that the selected AI provider has not been configured with an API key. Please enter your API key in Options -&gt; Mod Settings -&gt; RimMind to activate AI colonist decisions, dialogue, and storytelling features.</RimMind.Notification.ApiKeyMissing.Desc>
+  <!-- Context Inspector & Display Settings -->
+  <RimMind.Settings.ShowAgentProgressFloat>Show Agent Progress Float Window</RimMind.Settings.ShowAgentProgressFloat>
+  <RimMind.Settings.ShowAgentProgressFloat.Desc>Display real-time thinking and workflow progress bars for all active colonists on screen (disabled by default).</RimMind.Settings.ShowAgentProgressFloat.Desc>
+  <RimMind.Inspector.Title>AI Context Payload Inspector</RimMind.Inspector.Title>
+  <RimMind.Inspector.CopyClipboard>Copy Full Payload to Clipboard</RimMind.Inspector.CopyClipboard>
+  <RimMind.Inspector.TestRun>Send Live Test Request</RimMind.Inspector.TestRun>
+  <RimMind.Inspector.Copied>Full AI request payload successfully copied to clipboard!</RimMind.Inspector.Copied>
+  <RimMind.Inspector.OpenButton>Inspect Payload</RimMind.Inspector.OpenButton>
+  <RimMind.UI.ResetToDefaults>Reset to Defaults</RimMind.UI.ResetToDefaults>
 </LanguageData>

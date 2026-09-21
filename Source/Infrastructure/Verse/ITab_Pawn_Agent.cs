@@ -131,6 +131,17 @@ namespace RimMind.Infrastructure.Verse
                 Text.Font = GameFont.Small;
             }
 
+            if (Prefs.DevMode)
+            {
+                curY = RimMindUI.DrawDivider(contentRect, curY);
+                Rect inspectBtn = new Rect(contentRect.x, curY, 180f, 26f);
+                if (Widgets.ButtonText(inspectBtn, "RimMind.Inspector.OpenButton".Translate()))
+                {
+                    Find.WindowStack.Add(new Window_ContextPayloadInspector(agent.Pawn));
+                }
+                curY += 30f;
+            }
+
             Widgets.EndScrollView();
         }
 
@@ -223,6 +234,11 @@ namespace RimMind.Infrastructure.Verse
                     h += Text.CalcHeight(recordText, width - RimMindUI.Padding * 4) + RimMindUI.Padding * 0.5f;
                 }
                 Text.Font = GameFont.Small;
+            }
+
+            if (Prefs.DevMode)
+            {
+                h += 36f;
             }
 
             return h + RimMindUI.Padding;

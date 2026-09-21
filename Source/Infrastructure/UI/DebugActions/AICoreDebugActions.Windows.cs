@@ -57,6 +57,13 @@ namespace RimMind.Infrastructure.UI
         {
             Find.WindowStack.Add(new Window_AgentProgressFloat());
         }
+
+        [DebugAction("RimMind", "Context Payload Inspector", actionType = DebugActionType.Action)]
+        public static void OpenContextPayloadInspector()
+        {
+            Pawn? pawn = Find.Selector.SingleSelectedThing as Pawn;
+            Find.WindowStack.Add(new Window_ContextPayloadInspector(pawn));
+        }
         [DebugAction("RimMind", "Dump UI Layout Conflicts", actionType = DebugActionType.Action)]
         public static void DumpUiLayoutConflicts()
         {

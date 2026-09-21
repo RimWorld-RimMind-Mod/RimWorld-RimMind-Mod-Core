@@ -44,6 +44,7 @@ namespace RimMind.Presentation.Settings
         public float requestOverlayY = 20f;
         public float requestOverlayW = 300f;
         public float requestOverlayH = 200f;
+        public bool showAgentProgressFloat = false;
 
         public int maxConcurrentRequests = 3;
         public int maxRetryCount = 2;
@@ -112,6 +113,7 @@ namespace RimMind.Presentation.Settings
             Scribe_Values.Look(ref requestOverlayY, "requestOverlayY", 20f);
             Scribe_Values.Look(ref requestOverlayW, "requestOverlayW", 300f);
             Scribe_Values.Look(ref requestOverlayH, "requestOverlayH", 200f);
+            Scribe_Values.Look(ref showAgentProgressFloat, "showAgentProgressFloat", false);
             Scribe_Values.Look(ref maxConcurrentRequests, "maxConcurrentRequests", 3);
             Scribe_Values.Look(ref maxRetryCount, "maxRetryCount", 2);
             Scribe_Values.Look(ref requestTimeoutMs, "requestTimeoutMs", RimMindDefaults.DefaultRequestTimeoutMs);

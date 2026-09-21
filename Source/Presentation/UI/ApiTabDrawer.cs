@@ -263,6 +263,13 @@ namespace RimMind.Presentation.UI
                 ref forceJsonMode,
                 "RimMind.Settings.ForceJsonModeDesc".Translate());
             s.ForceJsonMode = forceJsonMode;
+
+            var showProgress = s.ShowAgentProgressFloat;
+            listing.CheckboxLabeled(
+                "RimMind.Settings.ShowAgentProgressFloat".Translate(),
+                ref showProgress,
+                "RimMind.Settings.ShowAgentProgressFloat.Desc".Translate());
+            s.ShowAgentProgressFloat = showProgress;
         }
 
         private static void DrawRequestSection(

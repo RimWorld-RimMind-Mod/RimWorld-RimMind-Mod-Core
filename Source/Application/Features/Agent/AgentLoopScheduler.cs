@@ -12,6 +12,8 @@ namespace RimMind.Application.Features.Agent
     {
         private readonly object _syncRoot = new();
         private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+        private Entry[] _cachedEntries = Array.Empty<Entry>();
+        private bool _entriesDirty = true;
         private readonly ILogSink? _logSink;
         private long _generation;
         private int _lastTick = -1;
@@ -48,6 +50,7 @@ namespace RimMind.Application.Features.Agent
                 }
 
                 _entries[key] = new Entry(key, kind, agent);
+                _entriesDirty = true;
                 return true;
             }
         }
@@ -56,7 +59,12 @@ namespace RimMind.Application.Features.Agent
         {
             lock (_syncRoot)
             {
-                return _entries.Remove(key);
+                if (_entries.Remove(key))
+                {
+                    _entriesDirty = true;
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -111,10 +119,16 @@ namespace RimMind.Application.Features.Agent
             {
                 while (true)
                 {
-                    List<Entry> tickEntries;
+                    Entry[] tickEntries;
                     lock (_syncRoot)
                     {
-                        tickEntries = new List<Entry>(_entries.Values);
+                        if (_entriesDirty)
+                        {
+                            _cachedEntries = new Entry[_entries.Count];
+                            _entries.Values.CopyTo(_cachedEntries, 0);
+                            _entriesDirty = false;
+                        }
+                        tickEntries = _cachedEntries;
                     }
 
                     var tickedAgents = 0;
@@ -210,6 +224,8 @@ namespace RimMind.Application.Features.Agent
             lock (_syncRoot)
             {
                 _entries.Clear();
+                _entriesDirty = true;
+                _cachedEntries = Array.Empty<Entry>();
                 Interlocked.Increment(ref _generation);
                 _lastTick = -1;
                 _tickedAgents = 0;

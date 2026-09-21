@@ -9,6 +9,7 @@ using RimMind.Domain.Events;
 using RimMind.Presentation.UI.Layout;
 using RimMind.Infrastructure.Verse;
 using RimMind.Presentation.Runtime.Services;
+using RimMind.Presentation;
 using UnityEngine;
 using Verse;
 
@@ -39,6 +40,18 @@ namespace RimMind.Infrastructure.UI
             closeOnClickedOutside = true;
             absorbInputAroundWindow = false;
             doCloseX = true;
+        }
+
+        public static void TryOpen()
+        {
+            var settings = RimMindCoreMod.Settings;
+            if (settings != null && settings.showAgentProgressFloat)
+            {
+                if (!Find.WindowStack.IsOpen<Window_AgentProgressFloat>())
+                {
+                    Find.WindowStack.Add(new Window_AgentProgressFloat());
+                }
+            }
         }
 
         public override void PostOpen()

@@ -27,6 +27,7 @@ namespace RimMind.Infrastructure.Verse
         private string? _registeredLoopKey;
         private int? _registeredPawnId;
         private long? _registeredLoopGeneration;
+        private long? _registeredHubGeneration;
         private long _agentRuntimeGeneration = -1;
 
         public IPawnAgentVerse? Agent
@@ -69,6 +70,15 @@ namespace RimMind.Infrastructure.Verse
                 return;
             }
 
+            // Fast path: avoid allocating Scope if already registered with the current hub and scheduler generation
+            if (_registeredLoopScheduler != null
+                && _registeredPawnId == pawn.thingIDNumber
+                && _registeredHubGeneration == RuntimeServiceHub.Shared.Generation
+                && _registeredLoopGeneration == _registeredLoopScheduler.Generation)
+            {
+                return;
+            }
+
             var scheduler = RuntimeServiceHub.Shared.Capture().GetOptional<IAgentLoopScheduler>();
             if (scheduler == null)
             {
@@ -100,6 +110,7 @@ namespace RimMind.Infrastructure.Verse
             _registeredLoopKey = loopKey;
             _registeredPawnId = pawnId;
             _registeredLoopGeneration = schedulerGeneration;
+            _registeredHubGeneration = RuntimeServiceHub.Shared.Generation;
         }
 
         private void UnregisterFromAgentLoop()
@@ -113,6 +124,7 @@ namespace RimMind.Infrastructure.Verse
             _registeredLoopKey = null;
             _registeredPawnId = null;
             _registeredLoopGeneration = null;
+            _registeredHubGeneration = null;
         }
 
         public override void PostDestroy(DestroyMode mode, Map previousMap)

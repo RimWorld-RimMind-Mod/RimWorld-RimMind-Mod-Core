@@ -35,7 +35,7 @@ namespace RimMind.Presentation.UI
         public static void DrawBottomBar(Rect bottomBar, Action resetAction)
         {
             Widgets.DrawBoxSolid(bottomBar, new Color(0.15f, 0.15f, 0.15f, 0.8f));
-            if (Widgets.ButtonText(new Rect(bottomBar.x + 10f, bottomBar.y + 6f, 120f, 28f), "Reset to Defaults"))
+            if (Widgets.ButtonText(new Rect(bottomBar.x + 10f, bottomBar.y + 6f, 120f, 28f), "RimMind.UI.ResetToDefaults".Translate()))
             {
                 resetAction?.Invoke();
             }

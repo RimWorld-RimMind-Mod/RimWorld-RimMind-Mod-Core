@@ -44,6 +44,7 @@ namespace RimMind.Application.Features.Requests.Queue
         public float RequestOverlayY { get => 20f; set { } }
         public float RequestOverlayW { get => 300f; set { } }
         public float RequestOverlayH { get => 200f; set { } }
+        public bool ShowAgentProgressFloat { get => false; set { } }
         public string CustomPawnPrompt { get => ""; set { } }
         public string CustomMapPrompt { get => ""; set { } }
         public FlywheelAutoApplyMode AutoApplyMode { get => FlywheelAutoApplyMode.Off; set { } }

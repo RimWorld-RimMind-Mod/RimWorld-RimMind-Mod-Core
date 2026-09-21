@@ -7,6 +7,7 @@ using RimMind.Application.Common.Interfaces.Pipeline;
 using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Domain.Llm;
+using RimMind.Domain.ValueObjects;
 
 namespace RimMind.Application.Features.Pipeline.Unified
 {
@@ -37,6 +38,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 {
                     await next(context);
                     if (context.Result?.IsOk == true)
+                        return;
+                    if (context.Result.HasValue && context.Result.Value.IsErr && context.Result.Value.Error.Code == RimMindErrorCode.ClientPermanentFailure)
                         return;
                     if (context.IsShortCircuited && context.ShortCircuitReason != "transient_error")
                         return;

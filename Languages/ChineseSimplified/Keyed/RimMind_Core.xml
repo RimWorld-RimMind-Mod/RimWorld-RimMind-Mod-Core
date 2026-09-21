@@ -657,5 +657,14 @@
   <RimMind.Agent.Request.RiskAction>[{0}] {1} 申请执行：{2}</RimMind.Agent.Request.RiskAction>
   <!-- API Key 缺失启动通知信件 -->
   <RimMind.Notification.ApiKeyMissing.Title>RimMind: 需要配置 API 密钥</RimMind.Notification.ApiKeyMissing.Title>
-  <RimMind.Notification.ApiKeyMissing.Desc>RimMind 检测到当前选中的 AI 提供商尚未配置 API 密钥。请在“选项 -> Mod 设置 -> RimMind”中输入您的 API 密钥，以激活殖民者智能体决策、AI 对话与叙事者等功能。</RimMind.Notification.ApiKeyMissing.Desc>
+  <RimMind.Notification.ApiKeyMissing.Desc>RimMind 检测到当前选中的 AI 提供商尚未配置 API 密钥。请在“选项 -&gt; Mod 设置 -&gt; RimMind”中输入您的 API 密钥，以激活殖民者智能体决策、AI 对话与叙事者等功能。</RimMind.Notification.ApiKeyMissing.Desc>
+  <!-- Context Inspector & Display Settings -->
+  <RimMind.Settings.ShowAgentProgressFloat>显示浮动心智监视窗 (Agent Progress Float)</RimMind.Settings.ShowAgentProgressFloat>
+  <RimMind.Settings.ShowAgentProgressFloat.Desc>在屏幕上显示所有活动殖民者的实时思考与工作流状态条（默认关闭）。</RimMind.Settings.ShowAgentProgressFloat.Desc>
+  <RimMind.Inspector.Title>AI 报文与上下文检查器</RimMind.Inspector.Title>
+  <RimMind.Inspector.CopyClipboard>复制完整报文到剪贴板</RimMind.Inspector.CopyClipboard>
+  <RimMind.Inspector.TestRun>发送实机测试请求</RimMind.Inspector.TestRun>
+  <RimMind.Inspector.Copied>已成功复制完整 AI 请求报文到剪贴板！</RimMind.Inspector.Copied>
+  <RimMind.Inspector.OpenButton>检查报文 (Payload)</RimMind.Inspector.OpenButton>
+  <RimMind.UI.ResetToDefaults>恢复默认</RimMind.UI.ResetToDefaults>
 </LanguageData>
