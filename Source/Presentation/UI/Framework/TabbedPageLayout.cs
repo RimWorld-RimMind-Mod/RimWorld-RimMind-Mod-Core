@@ -45,7 +45,6 @@ namespace RimMind.Presentation.UI.Framework
             int count = tabs.Count;
             int maxPerRow = CalculateMaxPerRow(body.width, count);
             int rows = count == 0 ? 1 : (int)System.Math.Ceiling((float)count / maxPerRow);
-            int perRow = count == 0 ? 1 : (int)System.Math.Ceiling((float)count / rows);
             float idealTabBarHeight = rows * RimMindUiMetrics.TabHeight + (rows - 1) * RimMindUiMetrics.TabGap;
             float tabBarHeight = Mathf.Min(Mathf.Max(0f, idealTabBarHeight), body.height);
             float rowGap = rows <= 1 ? 0f : Mathf.Min(RimMindUiMetrics.TabGap, tabBarHeight / (rows - 1));
@@ -59,20 +58,35 @@ namespace RimMind.Presentation.UI.Framework
                 body.width,
                 Mathf.Max(0f, body.yMax - contentY));
 
-            var tabRects = new List<TabbedPageTabRect>(count);
-            for (int i = 0; i < count; i++)
+            int[] rowTabCounts = new int[rows];
+            int baseTabsPerRow = count / rows;
+            int remainder = count % rows;
+            for (int r = 0; r < rows; r++)
             {
-                int row = i / perRow;
-                int col = i % perRow;
+                rowTabCounts[r] = baseTabsPerRow + (r < remainder ? 1 : 0);
+            }
+
+            var tabRects = new List<TabbedPageTabRect>(count);
+            int tabIndex = 0;
+            for (int r = 0; r < rows; r++)
+            {
+                int perRow = rowTabCounts[r];
+                if (perRow <= 0)
+                    continue;
+
                 float colGap = perRow <= 1 ? 0f : Mathf.Min(RimMindUiMetrics.TabGap, body.width / (perRow - 1));
                 float tabWidth = Mathf.Max(0f, (body.width - (perRow - 1) * colGap) / perRow);
-                Rect tabRect = new Rect(
-                    body.x + col * (tabWidth + colGap),
-                    body.y + row * (rowHeight + rowGap),
-                    tabWidth,
-                    rowHeight);
-                TabbedPageTabModel tab = tabs[i];
-                tabRects.Add(new TabbedPageTabRect(tab.Id, tabRect, tab.Selected, tab.Enabled));
+
+                for (int col = 0; col < perRow && tabIndex < count; col++)
+                {
+                    Rect tabRect = new Rect(
+                        body.x + col * (tabWidth + colGap),
+                        body.y + r * (rowHeight + rowGap),
+                        tabWidth,
+                        rowHeight);
+                    TabbedPageTabModel tab = tabs[tabIndex++];
+                    tabRects.Add(new TabbedPageTabRect(tab.Id, tabRect, tab.Selected, tab.Enabled));
+                }
             }
 
             return new TabbedPageLayoutResult(body, tabBar, content, rows, tabRects);

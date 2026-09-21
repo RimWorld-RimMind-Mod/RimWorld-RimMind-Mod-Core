@@ -1,3 +1,9 @@
+using System;
+using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Internal;
+using RimMind.Application.Common.Models.Agent;
+using RimMind.Application.Features.Requests.Queue;
+using RimMind.Presentation.Runtime.Services;
 using RimMind.Presentation.UI.Layout;
 using RimMind.Infrastructure.Verse;
 using UnityEngine;
@@ -5,8 +11,20 @@ using Verse;
 
 namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 {
-    public sealed class SettingsEntryDebugCenterPageDrawer : IDebugCenterPageDrawer
+    public sealed class SettingsEntryDebugCenterPageDrawer : IRuntimeBoundDebugCenterPageDrawer
     {
+        private ISettingsProvider? _settings;
+        private IRequestQueue? _requestQueue;
+        private IAgentLoopScheduler? _agentLoopScheduler;
+
+        public IDisposable? Bind(RuntimeServiceScope scope)
+        {
+            _settings = scope.GetOptional<ISettingsProvider>();
+            _requestQueue = scope.GetOptional<IRequestQueue>();
+            _agentLoopScheduler = scope.GetOptional<IAgentLoopScheduler>();
+            return null;
+        }
+
         public void Draw(Rect rect, DebugCenterPageContext context, RimMindLayoutScope scope)
         {
             scope.Record(rect, "Hub:SettingsEntry");
@@ -21,17 +39,130 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 scope.Recorder);
 
             y += RimMindUI.SectionGap;
-            Rect buttonRect = new Rect(rect.x + RimMindUI.Padding, y, 180f, RimMindUI.BtnHeight);
-            scope.Record(buttonRect, "Hub:SettingsEntry:OpenSettings");
-            if (Widgets.ButtonText(buttonRect, "RimMind.UI.Hub.OpenSettings".Translate()))
+
+            ISettingsProvider? settings = _settings ?? RuntimeServiceHub.Shared.Capture().GetOptional<ISettingsProvider>();
+            IRequestQueue? queue = _requestQueue ?? RuntimeServiceHub.Shared.Capture().GetOptional<IRequestQueue>();
+            IAgentLoopScheduler? scheduler = _agentLoopScheduler ?? RuntimeServiceHub.Shared.Capture().GetOptional<IAgentLoopScheduler>();
+
+            string providerName = FormatProvider(settings?.Provider);
+
+            AgentLoopSnapshot loop = scheduler?.GetSnapshot() ?? AgentLoopSnapshot.Empty;
+            string healthText;
+            Color healthColor;
+            if (loop.FaultedAgents > 0)
+            {
+                healthText = $"{loop.FaultedAgents} {"RimMind.UI.AgentsPage.Trace.Error".Translate()}";
+                healthColor = RimMindUI.ColorError;
+            }
+            else if (loop.PausedAgents > 0)
+            {
+                healthText = $"{loop.PausedAgents} {"RimMind.Agent.State.Paused".Translate()}";
+                healthColor = RimMindUI.ColorPaused;
+            }
+            else if (loop.ActiveAgents > 0)
+            {
+                healthText = "RimMind.Agent.State.Active".Translate();
+                healthColor = RimMindUI.ColorActive;
+            }
+            else
+            {
+                healthText = "RimMind.Prompt.Health.Healthy".Translate();
+                healthColor = RimMindUI.ColorActive;
+            }
+
+            int queued = queue?.TotalQueuedCount ?? 0;
+            int active = queue?.ActiveRequestCount ?? 0;
+            string queueText = $"{queued} ({"RimMind.UI.Hub.ActiveRequests".Translate()}: {active})";
+
+            // Status Card
+            Rect cardRect = new Rect(rect.x + RimMindUI.Padding, y, rect.width - RimMindUI.Padding * 2f, 96f);
+            Widgets.DrawBoxSolid(cardRect, RimMindUI.ColorCardBg);
+            Widgets.DrawBoxSolid(new Rect(cardRect.x, cardRect.y, 3f, cardRect.height), new Color(0.4f, 0.7f, 1.0f, 0.85f));
+            scope.Record(cardRect, "Hub:SettingsEntry:StatusCard");
+
+            float cardInnerY = cardRect.y + 8f;
+            float labelX = cardRect.x + 12f;
+            float cardContentW = cardRect.width - 24f;
+
+            Text.Font = GameFont.Small;
+            GUI.color = new Color(0.85f, 0.92f, 1.0f);
+            Widgets.Label(new Rect(labelX, cardInnerY, cardContentW, 20f), "RimMind.UI.Hub.StatusSummaryTitle".Translate());
+            GUI.color = Color.white;
+            cardInnerY += 24f;
+
+            float colW = (cardContentW - 16f) / 3f;
+
+            // Col 1: Provider
+            Rect col1 = new Rect(labelX, cardInnerY, colW, 40f);
+            Text.Font = GameFont.Tiny;
+            GUI.color = RimMindUI.ColorSectionTitle;
+            Widgets.Label(new Rect(col1.x, col1.y, col1.width, 18f), "RimMind.Settings.Provider".Translate());
+            Text.Font = GameFont.Small;
+            GUI.color = RimMindUI.ColorValue;
+            Widgets.Label(new Rect(col1.x, col1.y + 18f, col1.width, 22f), providerName);
+
+            // Col 2: Health
+            Rect col2 = new Rect(col1.xMax + 8f, cardInnerY, colW, 40f);
+            Text.Font = GameFont.Tiny;
+            GUI.color = RimMindUI.ColorSectionTitle;
+            Widgets.Label(new Rect(col2.x, col2.y, col2.width, 18f), "RimMind.Context.IncludeHealth".Translate());
+            Text.Font = GameFont.Small;
+            GUI.color = healthColor;
+            Widgets.Label(new Rect(col2.x, col2.y + 18f, col2.width, 22f), healthText);
+
+            // Col 3: Queue Count
+            Rect col3 = new Rect(col2.xMax + 8f, cardInnerY, colW, 40f);
+            Text.Font = GameFont.Tiny;
+            GUI.color = RimMindUI.ColorSectionTitle;
+            Widgets.Label(new Rect(col3.x, col3.y, col3.width, 18f), "RimMind.UI.Hub.QueueCountLabel".Translate());
+            Text.Font = GameFont.Small;
+            GUI.color = queued > 0 ? RimMindUI.ColorActive : RimMindUI.ColorMuted;
+            Widgets.Label(new Rect(col3.x, col3.y + 18f, col3.width, 22f), queueText);
+
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+
+            y = cardRect.yMax + RimMindUI.SectionGap;
+            y = RimMindUI.DrawSectionHeader(rect, y, "RimMind.UI.Hub.ShortcutsTitle".Translate());
+
+            float btnW = 200f;
+            float btnH = RimMindUI.BtnHeight;
+            float btnGap = 12f;
+
+            Rect btnOpenSettings = new Rect(rect.x + RimMindUI.Padding, y, btnW, btnH);
+            scope.Record(btnOpenSettings, "Hub:SettingsEntry:OpenSettings");
+            if (Widgets.ButtonText(btnOpenSettings, "RimMind.UI.Hub.OpenSettings".Translate()))
             {
                 OpenSettings();
+            }
+
+            Rect btnOpenInspector = new Rect(btnOpenSettings.xMax + btnGap, y, btnW, btnH);
+            scope.Record(btnOpenInspector, "Hub:SettingsEntry:OpenContextInspector");
+            if (Widgets.ButtonText(btnOpenInspector, "RimMind.Settings.OpenContextPayloadInspector".Translate()))
+            {
+                Find.WindowStack.Add(new Window_ContextPayloadInspector());
             }
         }
 
         private void OpenSettings()
         {
             Find.WindowStack.Add(new Window_RimMindSettings());
+        }
+
+        private static string FormatProvider(string? providerId)
+        {
+            if (string.IsNullOrEmpty(providerId))
+                return "Unknown";
+
+            string normalized = providerId.ToLowerInvariant() switch
+            {
+                "openai" => "OpenAI",
+                "player2" => "Player2",
+                _ => providerId
+            };
+            string key = $"RimMind.Settings.Provider.{normalized}";
+            var translation = key.Translate();
+            return translation == key ? providerId : translation;
         }
     }
 }

@@ -354,7 +354,7 @@ namespace Verse
         public static void Label(UnityEngine.Rect rect, string label) => Record("Label", rect, label);
         public static void LabelEllipses(UnityEngine.Rect rect, string label) => Record("LabelEllipses", rect, label);
         public static void DrawHighlight(UnityEngine.Rect rect) { }
-        public static bool ButtonText(UnityEngine.Rect rect, string label)
+        public static bool ButtonText(UnityEngine.Rect rect, string label, bool drawBackground = true, bool doMouseoverSound = true, bool active = true, TextAnchor? overrideTextAnchor = null)
         {
             Record("ButtonText", rect, label);
             return UnityEngine.GUI.enabled && ClickLabel == label;

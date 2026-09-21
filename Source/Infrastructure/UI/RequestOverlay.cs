@@ -29,8 +29,13 @@ namespace RimMind.Infrastructure.UI
         private static bool _positionLoaded;
         private static bool _temporarilyClosed;
         private static bool _lastEnabledState;
+        private static bool _isExpanded;
+        private static Vector2 _dragMouseDownPos;
+        private static bool _hasMovedSignificantly;
         private static readonly GenerationUiState GenerationState = new GenerationUiState();
 
+        private const float MiniPillWidth = 120f;
+        private const float MiniPillHeight = 24f;
         private const float OptionsBarHeight = 24f;
         private const float ResizeHandleSize = 24f;
         private const float TextPadding = 4f;
@@ -102,31 +107,83 @@ namespace RimMind.Infrastructure.UI
                 _positionLoaded = true;
             }
 
-            HandleInput();
-
-            bool isMouseOver = Mouse.IsOver(_windowRect);
             var pending = overlayService?.GetPendingRequests() ?? EmptyPending;
+            bool autoHide = settings.RequestOverlayAutoHideWhenEmpty;
+            bool isEmpty = pending.Count == 0;
 
-            GUI.BeginGroup(_windowRect);
-            var inRect = new Rect(Vector2.zero, _windowRect.size);
-
-            Widgets.DrawBoxSolid(inRect, new Color(0.08f, 0.08f, 0.12f, 0.85f));
-
-            DrawEntries(inRect, pending, overlayService, operation);
-
-            if (isMouseOver)
+            if (!isEmpty || !autoHide)
             {
-                DrawOptionsBar(inRect, windowService);
-
-                var resizeRect = new Rect(inRect.width - ResizeHandleSize, inRect.height - ResizeHandleSize,
-                    ResizeHandleSize, ResizeHandleSize);
-                GUI.DrawTexture(resizeRect, TexUI.WinExpandWidget);
-                TooltipHandler.TipRegion(resizeRect, "RimMind.UI.RequestOverlay.DragResize".Translate());
+                _isExpanded = true;
+            }
+            else
+            {
+                // When empty and autoHide is on:
+                // Keep expanded while mouse is over window or currently dragging/resizing, collapse when mouse leaves.
+                if (_isExpanded && !Mouse.IsOver(_windowRect) && !_isDragging && !_isResizing)
+                {
+                    _isExpanded = false;
+                }
             }
 
-            GUI.EndGroup();
+            bool isCollapsed = !_isExpanded;
+            Rect pillRect = new Rect(_windowRect.x, _windowRect.y, MiniPillWidth, MiniPillHeight);
+
+            if (!isCollapsed)
+            {
+                _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Mathf.Max(0f, global::Verse.UI.screenWidth - _windowRect.width));
+                _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Mathf.Max(0f, global::Verse.UI.screenHeight - _windowRect.height));
+            }
+
+            HandleInput(isCollapsed, pillRect);
+
+            if (isCollapsed)
+            {
+                DrawMiniPill(pillRect);
+            }
+            else
+            {
+                bool isMouseOver = Mouse.IsOver(_windowRect);
+                GUI.BeginGroup(_windowRect);
+                var inRect = new Rect(Vector2.zero, _windowRect.size);
+
+                Widgets.DrawBoxSolid(inRect, new Color(0.08f, 0.08f, 0.12f, 0.85f));
+
+                DrawEntries(inRect, pending, overlayService, operation);
+
+                if (isMouseOver)
+                {
+                    DrawOptionsBar(inRect, windowService);
+
+                    var resizeRect = new Rect(inRect.width - ResizeHandleSize, inRect.height - ResizeHandleSize,
+                        ResizeHandleSize, ResizeHandleSize);
+                    GUI.DrawTexture(resizeRect, TexUI.WinExpandWidget);
+                    TooltipHandler.TipRegion(resizeRect, "RimMind.UI.RequestOverlay.DragResize".Translate());
+                }
+
+                GUI.EndGroup();
+            }
 
             SavePositionToSettings(settings);
+        }
+
+        private static void DrawMiniPill(Rect pillRect)
+        {
+            GUI.BeginGroup(pillRect);
+            var inPill = new Rect(Vector2.zero, pillRect.size);
+            Widgets.DrawBoxSolid(inPill, new Color(0.08f, 0.08f, 0.12f, 0.85f));
+            Widgets.DrawHighlightIfMouseover(inPill);
+            Widgets.DrawBoxSolid(new Rect(0f, 0f, 3f, inPill.height), new Color(0.4f, 0.7f, 1.0f, 0.7f));
+
+            Text.Font = GameFont.Tiny;
+            Text.Anchor = TextAnchor.MiddleCenter;
+            GUI.color = new Color(0.7f, 0.7f, 0.7f, 0.85f);
+            Widgets.Label(inPill, "RimMind.UI.RequestOverlay.PendingCount".Translate(0));
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+            Text.Anchor = TextAnchor.UpperLeft;
+
+            TooltipHandler.TipRegion(inPill, "RimMind.UI.RequestOverlay.MiniPillTooltip".Translate());
+            GUI.EndGroup();
         }
 
         private static void LoadPositionFromSettings(IOverlaySettings settings)
@@ -255,12 +312,26 @@ namespace RimMind.Infrastructure.UI
             }
         }
 
-        private static void HandleInput()
+        private static void HandleInput(bool isCollapsed, Rect pillRect)
         {
             Event currentEvent = Event.current;
 
             if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
             {
+                if (isCollapsed)
+                {
+                    if (pillRect.Contains(currentEvent.mousePosition))
+                    {
+                        _isDragging = true;
+                        _dragMouseDownPos = currentEvent.mousePosition;
+                        _hasMovedSignificantly = false;
+                        GenerationState.MarkInteractionActive();
+                        _dragStartOffset = currentEvent.mousePosition - _windowRect.position;
+                        currentEvent.Use();
+                    }
+                    return;
+                }
+
                 var openBtnScreenRect = new Rect(
                     _windowRect.xMax - 60f, _windowRect.y + 2f, 56f, OptionsBarHeight - 4f);
 
@@ -292,13 +363,21 @@ namespace RimMind.Infrastructure.UI
             }
             else if (currentEvent.type == EventType.MouseUp && currentEvent.button == 0)
             {
+                if (isCollapsed && _isDragging)
+                {
+                    if (!_hasMovedSignificantly && pillRect.Contains(currentEvent.mousePosition))
+                    {
+                        _isExpanded = true;
+                    }
+                }
                 _isDragging = false;
                 _isResizing = false;
+                _hasMovedSignificantly = false;
                 GenerationState.ClearInteraction();
             }
             else if (currentEvent.type == EventType.MouseDrag)
             {
-                if (_isResizing)
+                if (_isResizing && !isCollapsed)
                 {
                     float desiredWidth = currentEvent.mousePosition.x - _windowRect.x;
                     float desiredHeight = currentEvent.mousePosition.y - _windowRect.y;
@@ -312,9 +391,15 @@ namespace RimMind.Infrastructure.UI
                 }
                 else if (_isDragging)
                 {
+                    if (Vector2.Distance(currentEvent.mousePosition, _dragMouseDownPos) > 4f)
+                    {
+                        _hasMovedSignificantly = true;
+                    }
                     _windowRect.position = currentEvent.mousePosition - _dragStartOffset;
-                    _windowRect.x = Mathf.Clamp(_windowRect.x, 0, global::Verse.UI.screenWidth - _windowRect.width);
-                    _windowRect.y = Mathf.Clamp(_windowRect.y, 0, global::Verse.UI.screenHeight - _windowRect.height);
+                    float curW = isCollapsed ? MiniPillWidth : _windowRect.width;
+                    float curH = isCollapsed ? MiniPillHeight : _windowRect.height;
+                    _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Mathf.Max(0f, global::Verse.UI.screenWidth - curW));
+                    _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Mathf.Max(0f, global::Verse.UI.screenHeight - curH));
                     currentEvent.Use();
                 }
             }

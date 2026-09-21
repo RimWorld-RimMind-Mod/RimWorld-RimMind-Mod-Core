@@ -52,13 +52,6 @@
   <RimMind.Agent.State.Terminated>Terminated</RimMind.Agent.State.Terminated>
   <RimMind.Infrastructure.Player2.LocalDetected>RimMind: Player2 desktop app detected! Using automatic authentication (no API key needed).</RimMind.Infrastructure.Player2.LocalDetected>
   <RimMind.Infrastructure.Player2.LocalNotFound>RimMind: Player2 desktop app not found. Please start the app or add an API key manually.</RimMind.Infrastructure.Player2.LocalNotFound>
-  <!-- AICoreSettingsUI.cs - Section headers -->
-  <RimMind.Settings.Section.ModelBehavior>Model Behavior</RimMind.Settings.Section.ModelBehavior>
-  <RimMind.Settings.Section.Request>Request Settings</RimMind.Settings.Section.Request>
-  <RimMind.Settings.Section.Debug>Debug</RimMind.Settings.Section.Debug>
-  <RimMind.Settings.Section.ModelOutput>Model Output</RimMind.Settings.Section.ModelOutput>
-  <RimMind.Settings.Section.NetworkRetry>Network &amp; Retry</RimMind.Settings.Section.NetworkRetry>
-  <RimMind.Settings.Section.AgentCadence>Agent Cadence</RimMind.Settings.Section.AgentCadence>
   <RimMind.Settings.MaxConcurrent>Max Concurrent Requests</RimMind.Settings.MaxConcurrent>
   <RimMind.Settings.MaxConcurrent.Desc>Maximum number of simultaneous AI requests. Higher values improve responsiveness but increase API costs.</RimMind.Settings.MaxConcurrent.Desc>
   <RimMind.Settings.MaxRetry>Max Retry Count</RimMind.Settings.MaxRetry>
@@ -667,4 +660,31 @@
   <RimMind.Inspector.Copied>Full AI request payload successfully copied to clipboard!</RimMind.Inspector.Copied>
   <RimMind.Inspector.OpenButton>Inspect Payload</RimMind.Inspector.OpenButton>
   <RimMind.UI.ResetToDefaults>Reset to Defaults</RimMind.UI.ResetToDefaults>
+  <!-- UX Optimization: Presets & Sections & HUD -->
+  <RimMind.Settings.PresetsBarTitle>⚙️ Quick Configuration Presets</RimMind.Settings.PresetsBarTitle>
+  <RimMind.Settings.PresetApplied>Preset applied: {0}</RimMind.Settings.PresetApplied>
+  <RimMind.Settings.Preset.Responsive>⚡ Responsive</RimMind.Settings.Preset.Responsive>
+  <RimMind.Settings.Preset.Responsive.Desc>Fast interaction: MaxTokens=600, Concurrency=3, Timeout=25s, Cooldown=15s. Ideal for real-time dialogue and responsive agents.</RimMind.Settings.Preset.Responsive.Desc>
+  <RimMind.Settings.Preset.Balanced>⚖️ Balanced</RimMind.Settings.Preset.Balanced>
+  <RimMind.Settings.Preset.Balanced.Desc>Standard balance: MaxTokens=800, Concurrency=2, Timeout=45s, Cooldown=30s. Balances reasoning quality and token costs.</RimMind.Settings.Preset.Balanced.Desc>
+  <RimMind.Settings.Preset.Eco>🛡️ Eco &amp; Rate Limit Guard</RimMind.Settings.Preset.Eco>
+  <RimMind.Settings.Preset.Eco.Desc>Economic guard: MaxTokens=400, Concurrency=1, Timeout=60s, Cooldown=60s. Recommended for free tiers or strict rate limits.</RimMind.Settings.Preset.Eco.Desc>
+  <RimMind.Settings.Section.Connection>1. Connection &amp; Services</RimMind.Settings.Section.Connection>
+  <RimMind.Settings.ModelServiceActiveNote>✓ ModelService extension mod is active. Available for local subscription proxies or custom gateway routing.</RimMind.Settings.ModelServiceActiveNote>
+  <RimMind.Settings.ModelServiceNotInstalledNote>Tip: Install RimMind-Extension-ModelService to enable local multi-provider support and subscription proxy gateways.</RimMind.Settings.ModelServiceNotInstalledNote>
+  <RimMind.Settings.Section.Generation>2. Generation &amp; Flywheel</RimMind.Settings.Section.Generation>
+  <RimMind.Settings.Section.Performance>3. Performance &amp; Queue</RimMind.Settings.Section.Performance>
+  <RimMind.Settings.Section.Interface>4. Interface &amp; HUD</RimMind.Settings.Section.Interface>
+  <RimMind.Settings.RequestOverlayAutoHideWhenEmpty>HUD Request Overlay Auto-Collapse When Idle</RimMind.Settings.RequestOverlayAutoHideWhenEmpty>
+  <RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>When there are no pending approval requests, collapse the HUD overlay into a compact 120x24 status capsule. Expands automatically on hover or when new requests arrive.</RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>
+  <RimMind.Settings.EnableFloatingMentalMonitor>Enable Floating Mental Monitor</RimMind.Settings.EnableFloatingMentalMonitor>
+  <RimMind.Settings.EnableFloatingMentalMonitor.Desc>Display a floating HUD bar at the screen edge showing colonist thinking activities and mental state trends (Experimental).</RimMind.Settings.EnableFloatingMentalMonitor.Desc>
+  <RimMind.Settings.OpenContextPayloadInspector>Open Context Payload Inspector</RimMind.Settings.OpenContextPayloadInspector>
+  <RimMind.Settings.OpenContextPayloadInspector.Desc>Open the real-time Payload Inspector to view assembled context, test AI connectivity, or copy full request JSON.</RimMind.Settings.OpenContextPayloadInspector.Desc>
+  <RimMind.UI.RequestOverlay.PendingCount>Pending: {0}</RimMind.UI.RequestOverlay.PendingCount>
+  <RimMind.UI.RequestOverlay.MiniPillTooltip>RimMind Approval HUD (Collapsed). Hover to expand full view.</RimMind.UI.RequestOverlay.MiniPillTooltip>
+  <RimMind.UI.Hub.StatusSummaryTitle>System Status Summary</RimMind.UI.Hub.StatusSummaryTitle>
+  <RimMind.UI.Hub.ShortcutsTitle>Quick Actions</RimMind.UI.Hub.ShortcutsTitle>
+  <RimMind.UI.Hub.QueueCountLabel>Request Queue</RimMind.UI.Hub.QueueCountLabel>
+  <RimMind.UI.Hub.ActiveRequests>active</RimMind.UI.Hub.ActiveRequests>
 </LanguageData>

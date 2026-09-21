@@ -14,6 +14,7 @@ using RimMind.Presentation.UI.Layout;
 using RimMind.Presentation.Runtime;
 using RimMind.Presentation.Runtime.Services;
 using RimMind.Presentation.Settings;
+using RimMind.Infrastructure.UI;
 using UnityEngine;
 using Verse;
 
@@ -26,6 +27,8 @@ namespace RimMind.Presentation.UI
         private static Color _testStatusColor = Color.white;
         private static bool _testPending;
         private static Vector2 _apiScroll;
+        private static string _presetAppliedMessage = "";
+        private static int _presetAppliedUntilTick;
         private static readonly GenerationUiState GenerationState = new GenerationUiState();
 
         private static readonly RuntimeServiceRef<IExtensionRegistry<IAIClientFactory>> ProviderRegistry =
@@ -53,6 +56,7 @@ namespace RimMind.Presentation.UI
                 _testPending = false;
                 _testStatus = string.Empty;
                 _testStatusColor = Color.white;
+                _presetAppliedMessage = string.Empty;
             }
 
             FormPageLayoutResult formLayout = FormPageLayout.Calculate(inRect, sectionCount: 5, rowsPerSection: 4);
@@ -66,6 +70,105 @@ namespace RimMind.Presentation.UI
             listing.Begin(viewRect);
 
             SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Tab.Api".Translate());
+
+            DrawPresetsBar(listing, s);
+
+            DrawConnectionSection(listing, s, runtimeScope, providerRegistry, player2Lifecycle, scope);
+            DrawGenerationSection(listing, s, scope);
+            DrawPerformanceSection(listing, s, runtimeScope, scope);
+            DrawInterfaceSection(listing, s, scope);
+
+            listing.End();
+            Widgets.EndScrollView();
+        }
+
+        private static void DrawPresetsBar(Listing_Standard listing, ISettingsProvider s)
+        {
+            listing.Label("RimMind.Settings.PresetsBarTitle".Translate());
+            Rect barRect = listing.GetRect(30f);
+            float gap = 6f;
+            float btnW = (barRect.width - gap * 2f) / 3f;
+
+            // Preset 1: Responsive
+            Rect btn1 = new Rect(barRect.x, barRect.y, btnW, barRect.height);
+            string label1 = "RimMind.Settings.Preset.Responsive".Translate();
+            if (Widgets.ButtonText(btn1, label1))
+            {
+                s.MaxTokens = 600;
+                s.MaxConcurrentRequests = 3;
+                s.RequestTimeoutMs = 25000;
+                s.DefaultModCooldownTicks = 15 * 60;
+                s.Persist();
+                _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label1);
+                _presetAppliedUntilTick = Environment.TickCount + 3500;
+            }
+            TooltipHandler.TipRegion(btn1, "RimMind.Settings.Preset.Responsive.Desc".Translate());
+
+            // Preset 2: Balanced
+            Rect btn2 = new Rect(btn1.xMax + gap, barRect.y, btnW, barRect.height);
+            string label2 = "RimMind.Settings.Preset.Balanced".Translate();
+            if (Widgets.ButtonText(btn2, label2))
+            {
+                s.MaxTokens = 800;
+                s.MaxConcurrentRequests = 2;
+                s.RequestTimeoutMs = 45000;
+                s.DefaultModCooldownTicks = 30 * 60;
+                s.Persist();
+                _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label2);
+                _presetAppliedUntilTick = Environment.TickCount + 3500;
+            }
+            TooltipHandler.TipRegion(btn2, "RimMind.Settings.Preset.Balanced.Desc".Translate());
+
+            // Preset 3: Eco
+            Rect btn3 = new Rect(btn2.xMax + gap, barRect.y, btnW, barRect.height);
+            string label3 = "RimMind.Settings.Preset.Eco".Translate();
+            if (Widgets.ButtonText(btn3, label3))
+            {
+                s.MaxTokens = 400;
+                s.MaxConcurrentRequests = 1;
+                s.RequestTimeoutMs = 60000;
+                s.DefaultModCooldownTicks = 60 * 60;
+                s.Persist();
+                _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label3);
+                _presetAppliedUntilTick = Environment.TickCount + 3500;
+            }
+            TooltipHandler.TipRegion(btn3, "RimMind.Settings.Preset.Eco.Desc".Translate());
+
+            if (!string.IsNullOrEmpty(_presetAppliedMessage) && Environment.TickCount < _presetAppliedUntilTick)
+            {
+                listing.Gap(2f);
+                GUI.color = new Color(0.4f, 0.9f, 0.4f);
+                listing.Label(_presetAppliedMessage);
+                GUI.color = Color.white;
+            }
+            listing.Gap(6f);
+        }
+
+        private static void DrawCardHeader(Listing_Standard listing, string title)
+        {
+            listing.Gap(10f);
+            Rect headerRect = listing.GetRect(28f);
+            Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
+            Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
+
+            Text.Font = GameFont.Small;
+            GUI.color = new Color(0.88f, 0.94f, 1.0f);
+            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 4f, headerRect.width - 24f, headerRect.height - 4f);
+            Widgets.Label(textRect, title);
+            GUI.color = Color.white;
+            listing.Gap(6f);
+        }
+
+        private static void DrawConnectionSection(
+            Listing_Standard listing,
+            ISettingsProvider s,
+            RuntimeServiceScope runtimeScope,
+            IExtensionRegistry<IAIClientFactory> providerRegistry,
+            IPlayer2Lifecycle? player2Lifecycle,
+            RimMindLayoutScope? scope = null)
+        {
+            DrawCardHeader(listing, "RimMind.Settings.Section.Connection".Translate());
+            scope?.Record(listing.GetRect(0f), "Section:Connection");
 
             listing.Label("RimMind.Settings.Provider".Translate());
             GUI.color = Color.gray;
@@ -105,8 +208,7 @@ namespace RimMind.Presentation.UI
             {
                 DrawApiKeySection(listing, s, scope);
             }
-
-            if (!AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry))
+            else
             {
                 DrawPlayer2Section(listing, s, player2Lifecycle, scope);
             }
@@ -115,15 +217,184 @@ namespace RimMind.Presentation.UI
 
             DrawConnectionTestButton(listing, s, runtimeScope, providerRegistry);
 
+            if (IsModelServiceInstalled())
+            {
+                listing.Gap(4f);
+                GUI.color = new Color(0.5f, 0.9f, 0.6f);
+                listing.Label("RimMind.Settings.ModelServiceActiveNote".Translate());
+                GUI.color = Color.white;
+            }
+            else
+            {
+                listing.Gap(4f);
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Settings.ModelServiceNotInstalledNote".Translate());
+                GUI.color = Color.white;
+            }
+        }
+
+        private static bool IsModelServiceInstalled()
+        {
+            try
+            {
+                return ModsConfig.IsActive("mcocdaa.RimMindModelService");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void DrawGenerationSection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
+        {
+            DrawCardHeader(listing, "RimMind.Settings.Section.Generation".Translate());
+            scope?.Record(listing.GetRect(0f), "Section:Generation");
+
+            listing.Label($"{"RimMind.Settings.MaxTokens".Translate()}: {s.MaxTokens}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.MaxTokens.Desc".Translate());
+            GUI.color = Color.white;
+            s.MaxTokens = (int)listing.Slider(s.MaxTokens, 200f, 2000f);
+
+            listing.Label($"{"RimMind.Settings.Temperature".Translate()}: {s.DefaultTemperature:F2}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.Temperature.Desc".Translate());
+            GUI.color = Color.white;
+            s.DefaultTemperature = listing.Slider(s.DefaultTemperature, 0f, 2f);
+
+            listing.Gap(4f);
+            var forceJsonMode = s.ForceJsonMode;
+            listing.CheckboxLabeled(
+                "RimMind.Settings.ForceJsonMode".Translate(),
+                ref forceJsonMode,
+                "RimMind.Settings.ForceJsonModeDesc".Translate());
+            s.ForceJsonMode = forceJsonMode;
+
             listing.Gap(6f);
+            listing.Label("RimMind.UI.FlywheelAutoApply".Translate());
+            {
+                Rect row = listing.GetRect(28f);
+                if (Widgets.ButtonText(row, GetAutoApplyModeLabel(s.AutoApplyMode)))
+                {
+                    var modes = new List<FloatMenuOption>();
+                    foreach (FlywheelAutoApplyMode mode in Enum.GetValues(typeof(FlywheelAutoApplyMode)))
+                    {
+                        var label = GetAutoApplyModeLabel(mode);
+                        modes.Add(new FloatMenuOption(label, () => s.AutoApplyMode = mode));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(modes));
+                }
+            }
 
-            DrawModelBehaviorSection(listing, s, scope);
-            DrawRequestSection(listing, s, runtimeScope, scope);
-            DrawDebugSection(listing, s, scope);
-            DrawFlywheelSection(listing, s, scope);
+            listing.Label("RimMind.UI.FlywheelConfidence".Translate(s.AutoApplyConfidenceThreshold));
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.UI.FlywheelConfidence.Desc".Translate());
+            GUI.color = Color.white;
+            s.AutoApplyConfidenceThreshold = listing.Slider(s.AutoApplyConfidenceThreshold, 0.5f, 1.0f);
+        }
 
-            listing.End();
-            Widgets.EndScrollView();
+        private static void DrawPerformanceSection(
+            Listing_Standard listing,
+            ISettingsProvider s,
+            RuntimeServiceScope runtimeScope,
+            RimMindLayoutScope? scope = null)
+        {
+            DrawCardHeader(listing, "RimMind.Settings.Section.Performance".Translate());
+            scope?.Record(listing.GetRect(0f), "Section:Performance");
+
+            listing.Label($"{"RimMind.Settings.MaxConcurrent".Translate()}: {s.MaxConcurrentRequests}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.MaxConcurrent.Desc".Translate());
+            GUI.color = Color.white;
+            s.MaxConcurrentRequests = (int)listing.Slider(s.MaxConcurrentRequests, 1f, 10f);
+
+            listing.Label($"{"RimMind.Settings.MaxRetry".Translate()}: {s.MaxRetryCount}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.MaxRetry.Desc".Translate());
+            GUI.color = Color.white;
+            s.MaxRetryCount = (int)listing.Slider(s.MaxRetryCount, 0f, 5f);
+
+            listing.Label($"{"RimMind.Settings.RequestTimeout".Translate()}: {s.RequestTimeoutMs / 1000}s");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.RequestTimeout.Desc".Translate());
+            GUI.color = Color.white;
+            s.RequestTimeoutMs = (int)listing.Slider(s.RequestTimeoutMs / 1000f, 10f, 300f) * 1000;
+
+            listing.Label($"{"RimMind.Settings.RequestExpireTicks".Translate()}: {s.RequestExpireTicks / 60f:F0}s ({s.RequestExpireTicks} ticks)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.RequestExpireTicks.Desc".Translate());
+            GUI.color = Color.white;
+            s.RequestExpireTicks = (int)listing.Slider(s.RequestExpireTicks, 6000f, 120000f);
+
+            listing.Label($"{"RimMind.Settings.BehaviorHistoryMax".Translate()}: {s.BehaviorHistoryMax}");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.BehaviorHistoryMax.Desc".Translate());
+            GUI.color = Color.white;
+            s.BehaviorHistoryMax = (int)listing.Slider(s.BehaviorHistoryMax, 10f, 500f);
+
+            listing.Label($"{"RimMind.Settings.QueueProcessInterval".Translate()}: {s.QueueProcessInterval} ticks ({s.QueueProcessInterval / 60f:F1}s)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.QueueProcessInterval.Desc".Translate());
+            GUI.color = Color.white;
+            s.QueueProcessInterval = (int)listing.Slider(s.QueueProcessInterval, 10f, 300f);
+
+            listing.Label($"{"RimMind.Settings.DefaultModCooldown".Translate()}: {s.DefaultModCooldownTicks / 60f:F0}s ({s.DefaultModCooldownTicks} ticks)");
+            GUI.color = Color.gray;
+            listing.Label("  " + "RimMind.Settings.DefaultModCooldown.Desc".Translate());
+            GUI.color = Color.white;
+            s.DefaultModCooldownTicks = (int)listing.Slider(s.DefaultModCooldownTicks, 600f, 36000f);
+
+            var queue = RequestQueue.ResolveOptional(runtimeScope);
+            if (queue != null)
+            {
+                listing.Gap(4f);
+                GUI.color = Color.gray;
+                listing.Label("RimMind.Settings.QueueSeeTab".Translate());
+                GUI.color = Color.white;
+            }
+        }
+
+        private static void DrawInterfaceSection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
+        {
+            DrawCardHeader(listing, "RimMind.Settings.Section.Interface".Translate());
+            scope?.Record(listing.GetRect(0f), "Section:Interface");
+
+            var autoHide = s.RequestOverlayAutoHideWhenEmpty;
+            listing.CheckboxLabeled(
+                "RimMind.Settings.RequestOverlayAutoHideWhenEmpty".Translate(),
+                ref autoHide,
+                "RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc".Translate());
+            s.RequestOverlayAutoHideWhenEmpty = autoHide;
+
+            var showProgress = s.ShowAgentProgressFloat;
+            listing.CheckboxLabeled(
+                "RimMind.Settings.ShowAgentProgressFloat".Translate(),
+                ref showProgress,
+                "RimMind.Settings.ShowAgentProgressFloat.Desc".Translate());
+            s.ShowAgentProgressFloat = showProgress;
+
+            var mentalMonitor = s.EnableFloatingMentalMonitor;
+            listing.CheckboxLabeled(
+                "RimMind.Settings.EnableFloatingMentalMonitor".Translate(),
+                ref mentalMonitor,
+                "RimMind.Settings.EnableFloatingMentalMonitor.Desc".Translate());
+            s.EnableFloatingMentalMonitor = mentalMonitor;
+
+            listing.Gap(6f);
+            Rect inspectorBtnRect = listing.GetRect(30f);
+            if (Widgets.ButtonText(inspectorBtnRect, "RimMind.Settings.OpenContextPayloadInspector".Translate()))
+            {
+                Find.WindowStack.Add(new Window_ContextPayloadInspector());
+            }
+            TooltipHandler.TipRegion(inspectorBtnRect, "RimMind.Settings.OpenContextPayloadInspector.Desc".Translate());
+
+            listing.Gap(6f);
+            var debugLogging = s.DebugLogging;
+            listing.CheckboxLabeled(
+                "RimMind.Settings.DebugLogging".Translate(),
+                ref debugLogging,
+                "RimMind.Settings.DebugLogging.Desc".Translate());
+            s.DebugLogging = debugLogging;
         }
 
         private static void DrawApiKeySection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
@@ -253,159 +524,5 @@ namespace RimMind.Presentation.UI
             Widgets.Label(status, _testStatus);
             GUI.color = Color.white;
         }
-
-        private static void DrawModelBehaviorSection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.ModelBehavior".Translate());
-            var forceJsonMode = s.ForceJsonMode;
-            listing.CheckboxLabeled(
-                "RimMind.Settings.ForceJsonMode".Translate(),
-                ref forceJsonMode,
-                "RimMind.Settings.ForceJsonModeDesc".Translate());
-            s.ForceJsonMode = forceJsonMode;
-
-            var showProgress = s.ShowAgentProgressFloat;
-            listing.CheckboxLabeled(
-                "RimMind.Settings.ShowAgentProgressFloat".Translate(),
-                ref showProgress,
-                "RimMind.Settings.ShowAgentProgressFloat.Desc".Translate());
-            s.ShowAgentProgressFloat = showProgress;
-        }
-
-        private static void DrawRequestSection(
-            Listing_Standard listing,
-            ISettingsProvider s,
-            RuntimeServiceScope runtimeScope,
-            RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.Request".Translate());
-            scope?.Record(listing.GetRect(0f), "Section:Request");
-
-            DrawModelOutputSubsection(listing, s, scope);
-            listing.Gap(8f);
-            DrawNetworkRetrySubsection(listing, s, scope);
-            listing.Gap(8f);
-            DrawAgentCadenceSubsection(listing, s, runtimeScope, scope);
-        }
-
-        private static void DrawModelOutputSubsection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.ModelOutput".Translate());
-            scope?.Record(listing.GetRect(0f), "Section:ModelOutput");
-
-            listing.Label($"{"RimMind.Settings.MaxTokens".Translate()}: {s.MaxTokens}");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.MaxTokens.Desc".Translate());
-            GUI.color = Color.white;
-            s.MaxTokens = (int)listing.Slider(s.MaxTokens, 200f, 2000f);
-
-            listing.Label($"{"RimMind.Settings.Temperature".Translate()}: {s.DefaultTemperature:F2}");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.Temperature.Desc".Translate());
-            GUI.color = Color.white;
-            s.DefaultTemperature = listing.Slider(s.DefaultTemperature, 0f, 2f);
-        }
-
-        private static void DrawNetworkRetrySubsection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.NetworkRetry".Translate());
-            scope?.Record(listing.GetRect(0f), "Section:NetworkRetry");
-
-            listing.Label($"{"RimMind.Settings.MaxConcurrent".Translate()}: {s.MaxConcurrentRequests}");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.MaxConcurrent.Desc".Translate());
-            GUI.color = Color.white;
-            s.MaxConcurrentRequests = (int)listing.Slider(s.MaxConcurrentRequests, 1f, 10f);
-
-            listing.Label($"{"RimMind.Settings.MaxRetry".Translate()}: {s.MaxRetryCount}");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.MaxRetry.Desc".Translate());
-            GUI.color = Color.white;
-            s.MaxRetryCount = (int)listing.Slider(s.MaxRetryCount, 0f, 5f);
-
-            listing.Label($"{"RimMind.Settings.RequestTimeout".Translate()}: {s.RequestTimeoutMs / 1000}s");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.RequestTimeout.Desc".Translate());
-            GUI.color = Color.white;
-            s.RequestTimeoutMs = (int)listing.Slider(s.RequestTimeoutMs / 1000f, 10f, 300f) * 1000;
-
-            listing.Label($"{"RimMind.Settings.RequestExpireTicks".Translate()}: {s.RequestExpireTicks / 60f:F0}s ({s.RequestExpireTicks} ticks)");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.RequestExpireTicks.Desc".Translate());
-            GUI.color = Color.white;
-            s.RequestExpireTicks = (int)listing.Slider(s.RequestExpireTicks, 6000f, 120000f);
-        }
-
-        private static void DrawAgentCadenceSubsection(
-            Listing_Standard listing,
-            ISettingsProvider s,
-            RuntimeServiceScope runtimeScope,
-            RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.AgentCadence".Translate());
-            scope?.Record(listing.GetRect(0f), "Section:AgentCadence");
-
-            listing.Label($"{"RimMind.Settings.BehaviorHistoryMax".Translate()}: {s.BehaviorHistoryMax}");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.BehaviorHistoryMax.Desc".Translate());
-            GUI.color = Color.white;
-            s.BehaviorHistoryMax = (int)listing.Slider(s.BehaviorHistoryMax, 10f, 500f);
-
-            listing.Label($"{"RimMind.Settings.QueueProcessInterval".Translate()}: {s.QueueProcessInterval} ticks ({s.QueueProcessInterval / 60f:F1}s)");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.QueueProcessInterval.Desc".Translate());
-            GUI.color = Color.white;
-            s.QueueProcessInterval = (int)listing.Slider(s.QueueProcessInterval, 10f, 300f);
-
-            listing.Label($"{"RimMind.Settings.DefaultModCooldown".Translate()}: {s.DefaultModCooldownTicks / 60f:F0}s ({s.DefaultModCooldownTicks} ticks)");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.DefaultModCooldown.Desc".Translate());
-            GUI.color = Color.white;
-            s.DefaultModCooldownTicks = (int)listing.Slider(s.DefaultModCooldownTicks, 600f, 36000f);
-
-            var queue = RequestQueue.ResolveOptional(runtimeScope);
-            if (queue != null)
-            {
-                listing.Gap(4f);
-                GUI.color = Color.gray;
-                listing.Label("RimMind.Settings.QueueSeeTab".Translate());
-                GUI.color = Color.white;
-            }
-            GUI.color = Color.white;
-        }
-
-        private static void DrawDebugSection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.Debug".Translate());
-            var debugLogging = s.DebugLogging;
-            listing.CheckboxLabeled("RimMind.Settings.DebugLogging".Translate(), ref debugLogging,
-                "RimMind.Settings.DebugLogging.Desc".Translate());
-            s.DebugLogging = debugLogging;
-        }
-
-        private static void DrawFlywheelSection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
-        {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.UI.FlywheelAutoApply".Translate());
-            {
-                Rect row = listing.GetRect(28f);
-                if (Widgets.ButtonText(row, GetAutoApplyModeLabel(s.AutoApplyMode)))
-                {
-                    var modes = new List<FloatMenuOption>();
-                    foreach (FlywheelAutoApplyMode mode in Enum.GetValues(typeof(FlywheelAutoApplyMode)))
-                    {
-                        var label = GetAutoApplyModeLabel(mode);
-                        modes.Add(new FloatMenuOption(label, () => s.AutoApplyMode = mode));
-                    }
-                    Find.WindowStack.Add(new FloatMenu(modes));
-                }
-            }
-
-            listing.Label("RimMind.UI.FlywheelConfidence".Translate(s.AutoApplyConfidenceThreshold));
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.UI.FlywheelConfidence.Desc".Translate());
-            GUI.color = Color.white;
-            s.AutoApplyConfidenceThreshold = listing.Slider(s.AutoApplyConfidenceThreshold, 0.5f, 1.0f);
-        }
-
     }
 }

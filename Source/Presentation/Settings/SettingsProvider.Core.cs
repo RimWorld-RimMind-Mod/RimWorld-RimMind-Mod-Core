@@ -152,6 +152,16 @@ namespace RimMind.Presentation.Settings
             get => _settings.showAgentProgressFloat;
             set => _settings.showAgentProgressFloat = value;
         }
+        public bool RequestOverlayAutoHideWhenEmpty
+        {
+            get => _settings.requestOverlayAutoHideWhenEmpty;
+            set => _settings.requestOverlayAutoHideWhenEmpty = value;
+        }
+        public bool EnableFloatingMentalMonitor
+        {
+            get => _settings.enableFloatingMentalMonitor;
+            set => _settings.enableFloatingMentalMonitor = value;
+        }
 
         public void Persist() => RimMindCoreMod.Settings.Write();
 

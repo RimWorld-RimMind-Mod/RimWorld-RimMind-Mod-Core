@@ -36,7 +36,7 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(1, dormant!.GetValue(snapshot));
                     Assert.Null(snapshot.GetType().GetProperty("PendingAgents"));
                 }),
-                ("seven debug tabs use two balanced rows with one consistent width", () =>
+                ("seven debug tabs use two balanced rows that both fill full width", () =>
                 {
                     var tabs = new List<TabbedPageTabModel>();
                     for (int i = 0; i < 7; i++)
@@ -47,8 +47,12 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(2, layout.RowCount);
                     Assert.Equal(layout.TabRects[0].Rect.y, layout.TabRects[3].Rect.y);
                     Assert.True(layout.TabRects[4].Rect.y > layout.TabRects[3].Rect.y);
-                    foreach (TabbedPageTabRect tab in layout.TabRects)
-                        Assert.Equal(layout.TabRects[0].Rect.width, tab.Rect.width, 3);
+                    for (int i = 0; i < 4; i++)
+                        Assert.Equal(layout.TabRects[0].Rect.width, layout.TabRects[i].Rect.width, 3);
+                    Assert.Equal(layout.Body.xMax, layout.TabRects[3].Rect.xMax, 1);
+                    for (int i = 4; i < 7; i++)
+                        Assert.Equal(layout.TabRects[4].Rect.width, layout.TabRects[i].Rect.width, 3);
+                    Assert.Equal(layout.Body.xMax, layout.TabRects[6].Rect.xMax, 1);
                 }),
                 ("closed window-stack snapshots do not draw disposed window contents", () =>
                 {

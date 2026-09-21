@@ -52,13 +52,6 @@
   <RimMind.Agent.State.Terminated>终止</RimMind.Agent.State.Terminated>
   <RimMind.Infrastructure.Player2.LocalDetected>RimMind: 已检测到 Player2 桌面应用！使用自动认证（无需 API Key）。</RimMind.Infrastructure.Player2.LocalDetected>
   <RimMind.Infrastructure.Player2.LocalNotFound>RimMind: 未检测到 Player2 桌面应用。请启动应用或手动输入 API Key。</RimMind.Infrastructure.Player2.LocalNotFound>
-  <!-- AICoreSettingsUI.cs - Section headers -->
-  <RimMind.Settings.Section.ModelBehavior>模型行为</RimMind.Settings.Section.ModelBehavior>
-  <RimMind.Settings.Section.Request>请求设置</RimMind.Settings.Section.Request>
-  <RimMind.Settings.Section.Debug>调试</RimMind.Settings.Section.Debug>
-  <RimMind.Settings.Section.ModelOutput>模型输出</RimMind.Settings.Section.ModelOutput>
-  <RimMind.Settings.Section.NetworkRetry>网络与重试</RimMind.Settings.Section.NetworkRetry>
-  <RimMind.Settings.Section.AgentCadence>Agent 节奏</RimMind.Settings.Section.AgentCadence>
   <RimMind.Settings.MaxConcurrent>最大并发请求数</RimMind.Settings.MaxConcurrent>
   <RimMind.Settings.MaxConcurrent.Desc>同时向 AI 发送请求的上限。增大可提高响应速度，但会增加 API 费用。</RimMind.Settings.MaxConcurrent.Desc>
   <RimMind.Settings.MaxRetry>最大重试次数</RimMind.Settings.MaxRetry>
@@ -667,4 +660,31 @@
   <RimMind.Inspector.Copied>已成功复制完整 AI 请求报文到剪贴板！</RimMind.Inspector.Copied>
   <RimMind.Inspector.OpenButton>检查报文 (Payload)</RimMind.Inspector.OpenButton>
   <RimMind.UI.ResetToDefaults>恢复默认</RimMind.UI.ResetToDefaults>
+  <!-- UX Optimization: Presets & Sections & HUD -->
+  <RimMind.Settings.PresetsBarTitle>⚙️ 快捷配置预设</RimMind.Settings.PresetsBarTitle>
+  <RimMind.Settings.PresetApplied>已应用预设：{0}</RimMind.Settings.PresetApplied>
+  <RimMind.Settings.Preset.Responsive>⚡ 响应优先</RimMind.Settings.Preset.Responsive>
+  <RimMind.Settings.Preset.Responsive.Desc>快速交互：MaxTokens=600，并发=3，超时=25秒，冷却=15秒。适合即时对话与快节奏智能体。</RimMind.Settings.Preset.Responsive.Desc>
+  <RimMind.Settings.Preset.Balanced>⚖️ 均衡标准</RimMind.Settings.Preset.Balanced>
+  <RimMind.Settings.Preset.Balanced.Desc>标准平衡：MaxTokens=800，并发=2，超时=45秒，冷却=30秒。兼顾思考质量与令牌开销。</RimMind.Settings.Preset.Balanced.Desc>
+  <RimMind.Settings.Preset.Eco>🛡️ 节能防限流</RimMind.Settings.Preset.Eco>
+  <RimMind.Settings.Preset.Eco.Desc>经济防护：MaxTokens=400，并发=1，超时=60秒，冷却=60秒。适合免费额度或严格限流 API。</RimMind.Settings.Preset.Eco.Desc>
+  <RimMind.Settings.Section.Connection>一、连接与服务 (Connection &amp; Services)</RimMind.Settings.Section.Connection>
+  <RimMind.Settings.ModelServiceActiveNote>✓ 已检测到 ModelService 扩展模组生效中。可配合本地订阅代理或自定义端点网关使用。</RimMind.Settings.ModelServiceActiveNote>
+  <RimMind.Settings.ModelServiceNotInstalledNote>提示：安装 RimMind-Extension-ModelService 可启用本地多提供商接入与 Codex/OpenAI 订阅代理网关。</RimMind.Settings.ModelServiceNotInstalledNote>
+  <RimMind.Settings.Section.Generation>二、生成与飞轮 (Generation &amp; Flywheel)</RimMind.Settings.Section.Generation>
+  <RimMind.Settings.Section.Performance>三、性能与队列 (Performance &amp; Queue)</RimMind.Settings.Section.Performance>
+  <RimMind.Settings.Section.Interface>四、界面与 HUD (Interface &amp; HUD)</RimMind.Settings.Section.Interface>
+  <RimMind.Settings.RequestOverlayAutoHideWhenEmpty>HUD 悬浮窗空闲时收起为微胶囊</RimMind.Settings.RequestOverlayAutoHideWhenEmpty>
+  <RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>当没有待审批请求时，将 HUD 悬浮窗最小化为 120x24 的细长状态胶囊，鼠标悬停或有新审批时自动展开。</RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>
+  <RimMind.Settings.EnableFloatingMentalMonitor>启用浮动心智状态监视器 (Mental Monitor)</RimMind.Settings.EnableFloatingMentalMonitor>
+  <RimMind.Settings.EnableFloatingMentalMonitor.Desc>在屏幕边缘浮动显示智能体思维活动与心情波动趋势监视条（实验性）。</RimMind.Settings.EnableFloatingMentalMonitor.Desc>
+  <RimMind.Settings.OpenContextPayloadInspector>打开报文检查与测试工具</RimMind.Settings.OpenContextPayloadInspector>
+  <RimMind.Settings.OpenContextPayloadInspector.Desc>打开实时 Payload 检查器，可查看组装后的上下文、测试发送或复制完整 JSON 报文。</RimMind.Settings.OpenContextPayloadInspector.Desc>
+  <RimMind.UI.RequestOverlay.PendingCount>待审批: {0}</RimMind.UI.RequestOverlay.PendingCount>
+  <RimMind.UI.RequestOverlay.MiniPillTooltip>RimMind 待审批悬浮窗（已收起）。悬停展开完整视图。</RimMind.UI.RequestOverlay.MiniPillTooltip>
+  <RimMind.UI.Hub.StatusSummaryTitle>系统概况与运行状态</RimMind.UI.Hub.StatusSummaryTitle>
+  <RimMind.UI.Hub.ShortcutsTitle>快速操作</RimMind.UI.Hub.ShortcutsTitle>
+  <RimMind.UI.Hub.QueueCountLabel>请求队列</RimMind.UI.Hub.QueueCountLabel>
+  <RimMind.UI.Hub.ActiveRequests>进行中</RimMind.UI.Hub.ActiveRequests>
 </LanguageData>

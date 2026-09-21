@@ -43,12 +43,16 @@ public sealed class UiDrawingContract : IDisposable
 
         var title = Assert.Single(Widgets.Draws, d => d.Label == "RimMind.UI.Hub.SettingsEntryTitle");
         var body = Assert.Single(Widgets.Draws, d => d.Label == "RimMind.UI.Hub.SettingsEntryDescription");
-        var button = Assert.Single(Widgets.Draws, d => d.Kind == "ButtonText");
+        var buttons = Widgets.Draws.Where(d => d.Kind == "ButtonText").ToArray();
+        Assert.Equal(2, buttons.Length);
+        Assert.Equal("RimMind.UI.Hub.OpenSettings", buttons[0].Label);
+        Assert.Equal("RimMind.Settings.OpenContextPayloadInspector", buttons[1].Label);
         AssertInside(content, title.Rect);
         AssertInside(content, body.Rect);
-        AssertInside(content, button.Rect);
+        AssertInside(content, buttons[0].Rect);
+        AssertInside(content, buttons[1].Rect);
         Assert.True(title.Rect.yMax <= body.Rect.y);
-        Assert.True(body.Rect.yMax < button.Rect.y);
+        Assert.True(body.Rect.yMax < buttons[0].Rect.y);
     }
 
     [Fact]
@@ -147,7 +151,7 @@ public sealed class UiDrawingContract : IDisposable
         var buttons = Widgets.Draws.Where(d => d.Kind == "ButtonText").ToArray();
         Assert.Equal(3, buttons.Length);
         Assert.Equal(Color.white, buttons[0].Color);
-        Assert.Equal(Color.gray, buttons[1].Color);
+        Assert.Equal(new Color(0.75f, 0.75f, 0.75f, 1.0f), buttons[1].Color);
         Assert.Equal(guiEnabled, buttons[0].Enabled);
         Assert.Equal(guiEnabled, buttons[1].Enabled);
         Assert.False(buttons[2].Enabled);

@@ -69,7 +69,10 @@ namespace RimMind.Presentation.UI
                             MaxTokens = RimMindDefaults.TestConnectionMaxTokens,
                             Temperature = 0.7f,
                         };
+                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                         var result = await client.SendAsync(envelope);
+                        stopwatch.Stop();
+                        long rttMs = stopwatch.ElapsedMilliseconds;
                         if (result.TryGetValue(out var response))
                         {
                             var content = response.Content.Trim();
@@ -78,7 +81,7 @@ namespace RimMind.Presentation.UI
                             {
                                 TryPublishConnectionTest(
                                     operation,
-                                    $"OK {content} ({tok} tok)",
+                                    $"OK ({rttMs}ms) {content} ({tok} tok)",
                                     new Color(0.4f, 0.9f, 0.4f));
                             });
                         }
@@ -89,7 +92,7 @@ namespace RimMind.Presentation.UI
                             {
                                 TryPublishConnectionTest(
                                     operation,
-                                    $"FAIL {error}",
+                                    $"FAIL ({rttMs}ms) {error}",
                                     new Color(0.9f, 0.4f, 0.4f));
                             });
                         }
@@ -151,7 +154,10 @@ namespace RimMind.Presentation.UI
                         MaxTokens = 60,
                         Temperature = 0.7f,
                     };
+                    var stopwatch2 = System.Diagnostics.Stopwatch.StartNew();
                     var result2 = await client.SendAsync(envelope2);
+                    stopwatch2.Stop();
+                    long rttMs2 = stopwatch2.ElapsedMilliseconds;
                     if (result2.TryGetValue(out var response2))
                     {
                         var content = response2.Content.Trim();
@@ -160,7 +166,7 @@ namespace RimMind.Presentation.UI
                         {
                             TryPublishConnectionTest(
                                 openAiOperation,
-                                $"OK {content} ({tok} tok)",
+                                $"OK ({rttMs2}ms) {content} ({tok} tok)",
                                 new Color(0.4f, 0.9f, 0.4f));
                         });
                     }
@@ -171,7 +177,7 @@ namespace RimMind.Presentation.UI
                         {
                             TryPublishConnectionTest(
                                 openAiOperation,
-                                $"FAIL {error}",
+                                $"FAIL ({rttMs2}ms) {error}",
                                 new Color(0.9f, 0.4f, 0.4f));
                         });
                     }
@@ -267,20 +273,7 @@ namespace RimMind.Presentation.UI
 
         private static float EstimateApiHeight()
         {
-            float h = 30f;
-            h += 24f + 28f + 6f;
-            h += 24f + 26f + 4f + 24f + 4f + 24f + 10f + 28f;
-            h += 24f + 24f;
-            h += 24f + 24f + 32f;
-            h += 24f + 24f;
-            h += 24f + 24f + 32f;
-            h += 24f;
-            h += 24f;
-            h += 24f + 24f;
-            h += 24f + 24f + 32f;
-            h += 24f + 24f + 24f;
-            h += 8f + 8f;
-            return h + 40f;
+            return 1250f;
         }
 
         internal static string GetProviderLabel(string p)

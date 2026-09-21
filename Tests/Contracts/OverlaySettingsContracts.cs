@@ -24,6 +24,8 @@ namespace RimMind.Tests.Contracts
             Assert.True(settings.RequestOverlayW > 0);
             Assert.True(settings.RequestOverlayH > 0);
             Assert.True(settings.RequestOverlayEnabled);
+            Assert.True(settings.RequestOverlayAutoHideWhenEmpty);
+            Assert.False(settings.EnableFloatingMentalMonitor);
         }
     }
 }
