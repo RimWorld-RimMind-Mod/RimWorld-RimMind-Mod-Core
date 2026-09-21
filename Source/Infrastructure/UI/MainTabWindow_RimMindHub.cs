@@ -49,6 +49,7 @@ namespace RimMind.Infrastructure.UI
 
         internal string CurrentPageId => _pageId;
         internal IDebugCenterPageDrawer CurrentDrawer => _drawerCache[_pageId];
+        internal void SelectPage(string pageId) => _pageId = ResolvePageId(pageId);
 
         protected override void DrawContents(Rect inRect, RimMindLayoutScope scope)
         {
