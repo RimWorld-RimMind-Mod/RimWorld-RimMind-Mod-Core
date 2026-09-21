@@ -319,6 +319,9 @@ namespace RimMind.Tests.Contracts
                         "OpenProviderSelectionMenu(s, providerRegistry, player2Lifecycle)",
                         api,
                         StringComparison.Ordinal);
+                    Assert.Contains("LabelWithTooltip", api, StringComparison.Ordinal);
+                    Assert.Contains("SliderWithTooltip", api, StringComparison.Ordinal);
+                    Assert.DoesNotContain("listing.Label(\"  \" + \"RimMind.Settings.Provider.Desc\".Translate())", api, StringComparison.Ordinal);
                 }),
                 ("settings window follows the current settings provider", () =>
                 {

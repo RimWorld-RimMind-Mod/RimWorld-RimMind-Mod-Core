@@ -6,18 +6,62 @@ namespace RimMind.Presentation.UI
 {
     public static class SettingsUIDrawer
     {
-        public static void DrawSectionHeader(Listing_Standard listing, string label)
+        public static void DrawSectionHeader(Listing_Standard listing, string label, string? tooltip = null)
         {
             listing.Gap(12f);
             GUI.color = new Color(0.8f, 0.85f, 1f);
-            listing.Label(label);
+            Rect rect = listing.GetRect(Text.CalcHeight(label, listing.ColumnWidth));
+            Widgets.Label(rect, label);
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                TooltipHandler.TipRegion(rect, tooltip);
+            }
             GUI.color = Color.white;
             listing.Gap(4f);
         }
 
-        public static void DrawCustomPromptSection(Listing_Standard listing, string label, ref string value, float height)
+        public static void LabelWithTooltip(this Listing_Standard listing, string label, string? tooltip, Color? textColor = null)
         {
-            listing.Label(label);
+            if (textColor.HasValue)
+                GUI.color = textColor.Value;
+
+            Rect rect = listing.GetRect(Text.CalcHeight(label, listing.ColumnWidth));
+            Widgets.Label(rect, label);
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                TooltipHandler.TipRegion(rect, tooltip);
+            }
+
+            if (textColor.HasValue)
+                GUI.color = Color.white;
+        }
+
+        public static float SliderWithTooltip(this Listing_Standard listing, float val, float min, float max, string? tooltip)
+        {
+            Rect rect = listing.GetRect(22f);
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                TooltipHandler.TipRegion(rect, tooltip);
+            }
+            return Widgets.HorizontalSlider(rect, val, min, max);
+        }
+
+        public static string TextEntryWithTooltip(this Listing_Standard listing, string text, string? tooltip)
+        {
+            Rect rect = listing.GetRect(Text.LineHeight);
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                TooltipHandler.TipRegion(rect, tooltip);
+            }
+            return Widgets.TextField(rect, text ?? string.Empty);
+        }
+
+        public static void DrawCustomPromptSection(Listing_Standard listing, string label, ref string value, float height, string? tooltip = null)
+        {
+            if (!string.IsNullOrEmpty(tooltip))
+                listing.LabelWithTooltip(label, tooltip);
+            else
+                listing.Label(label);
             value = listing.TextEntry(value, (int)height);
             listing.Gap(4f);
         }

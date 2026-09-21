@@ -26,15 +26,11 @@ namespace RimMind.Presentation.UI
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            GUI.color = Color.gray;
-            listing.Label("RimMind.Prompts.Desc".Translate());
-            GUI.color = Color.white;
-            listing.Gap(8f);
-
             var customPawnPrompt = s.CustomPawnPrompt;
             SettingsUIDrawer.DrawCustomPromptSection(listing,
                 "RimMind.Prompts.PawnPromptLabel".Translate(),
-                ref customPawnPrompt, 100f);
+                ref customPawnPrompt, 100f,
+                "RimMind.Prompts.Desc".Translate());
             s.CustomPawnPrompt = customPawnPrompt;
 
             listing.Gap(12f);
@@ -42,7 +38,8 @@ namespace RimMind.Presentation.UI
             var customMapPrompt = s.CustomMapPrompt;
             SettingsUIDrawer.DrawCustomPromptSection(listing,
                 "RimMind.Prompts.MapPromptLabel".Translate(),
-                ref customMapPrompt, 100f);
+                ref customMapPrompt, 100f,
+                "RimMind.Prompts.Desc".Translate());
             s.CustomMapPrompt = customMapPrompt;
 
             listing.End();

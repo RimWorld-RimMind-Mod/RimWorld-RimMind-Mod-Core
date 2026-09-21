@@ -323,6 +323,7 @@
   <RimMind.Agent.ModeChanged>{0} switched to {1} mode</RimMind.Agent.ModeChanged>
   <!-- Flywheel autoApplyMode UI -->
   <RimMind.UI.FlywheelAutoApply>Flywheel: auto-apply parameter recommendations</RimMind.UI.FlywheelAutoApply>
+  <RimMind.UI.FlywheelAutoApply.Desc>Adaptive optimization strategy that automatically adjusts model parameters based on execution history and feedback.</RimMind.UI.FlywheelAutoApply.Desc>
   <RimMind.UI.FlywheelAutoApply.Off>Off</RimMind.UI.FlywheelAutoApply.Off>
   <RimMind.UI.FlywheelAutoApply.LogOnly>Log Only</RimMind.UI.FlywheelAutoApply.LogOnly>
   <RimMind.UI.FlywheelAutoApply.Apply>Apply with Log</RimMind.UI.FlywheelAutoApply.Apply>

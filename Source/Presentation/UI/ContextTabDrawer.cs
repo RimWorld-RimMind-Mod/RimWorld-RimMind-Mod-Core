@@ -32,11 +32,6 @@ namespace RimMind.Presentation.UI
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            GUI.color = Color.gray;
-            listing.Label("RimMind.Context.Desc".Translate());
-            GUI.color = Color.white;
-            listing.Gap(8f);
-
             DrawPresetCards(listing, ctx);
             listing.Gap(12f);
 
@@ -144,32 +139,23 @@ namespace RimMind.Presentation.UI
         private static void DrawBudgetSection(Listing_Standard listing, ISettingsProvider s, IContextSettings ctx)
         {
             SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Context.Budget".Translate());
-            listing.Label($"{"RimMind.Context.ContextBudget".Translate()}: {ctx.ContextBudget:F2} ({(int)(ctx.ContextBudget * 100)}%)");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Context.ContextBudget.Desc".Translate());
-            GUI.color = Color.white;
-            ctx.ContextBudget = listing.Slider(ctx.ContextBudget, 0.1f, 2.0f);
+            listing.LabelWithTooltip($"{"RimMind.Context.ContextBudget".Translate()}: {ctx.ContextBudget:F2} ({(int)(ctx.ContextBudget * 100)}%)", "RimMind.Context.ContextBudget.Desc".Translate());
+            ctx.ContextBudget = listing.SliderWithTooltip(ctx.ContextBudget, 0.1f, 2.0f, "RimMind.Context.ContextBudget.Desc".Translate());
 
             listing.Gap(8f);
 
-            listing.Label($"{"RimMind.Settings.ContextDiffLifetime".Translate()}: {s.ContextDiffLifetimeTicks / 60f:F0}s ({s.ContextDiffLifetimeTicks} ticks)");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.ContextDiffLifetime.Desc".Translate());
-            GUI.color = Color.white;
-            s.ContextDiffLifetimeTicks = (int)listing.Slider(s.ContextDiffLifetimeTicks, 300f, 3000f);
+            listing.LabelWithTooltip($"{"RimMind.Settings.ContextDiffLifetime".Translate()}: {s.ContextDiffLifetimeTicks / 60f:F0}s ({s.ContextDiffLifetimeTicks} ticks)", "RimMind.Settings.ContextDiffLifetime.Desc".Translate());
+            s.ContextDiffLifetimeTicks = (int)listing.SliderWithTooltip(s.ContextDiffLifetimeTicks, 300f, 3000f, "RimMind.Settings.ContextDiffLifetime.Desc".Translate());
 
             listing.Gap(6f);
             var calibrateSec = s.ContextCalibrateInterval / 60f;
-            listing.Label($"{"RimMind.Settings.CalibrateInterval".Translate()}: {calibrateSec:F0}s ({s.ContextCalibrateInterval} ticks)");
-            GUI.color = Color.gray;
-            listing.Label("  " + "RimMind.Settings.CalibrateInterval.Desc".Translate());
-            GUI.color = Color.white;
-            s.ContextCalibrateInterval = (int)listing.Slider(s.ContextCalibrateInterval, 5000f, 60000f);
+            listing.LabelWithTooltip($"{"RimMind.Settings.CalibrateInterval".Translate()}: {calibrateSec:F0}s ({s.ContextCalibrateInterval} ticks)", "RimMind.Settings.CalibrateInterval.Desc".Translate());
+            s.ContextCalibrateInterval = (int)listing.SliderWithTooltip(s.ContextCalibrateInterval, 5000f, 60000f, "RimMind.Settings.CalibrateInterval.Desc".Translate());
         }
 
         private static void DrawPresetCards(Listing_Standard listing, IContextSettings ctx)
         {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Context.Presets".Translate());
+            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Context.Presets".Translate(), "RimMind.Context.Desc".Translate());
 
             var presets = new[] { ContextPreset.Minimal, ContextPreset.Standard, ContextPreset.Full, ContextPreset.Custom };
             const float gap = 10f;
