@@ -241,9 +241,25 @@ namespace RimMind.Infrastructure.UI
                 Rect btnRect = new Rect(x, rowY, btnW, RimMindUI.BtnHeight);
                 if (i == _targetModeIndex)
                     Widgets.DrawBoxSolid(btnRect, RimMindUI.ColorTabActive);
+                bool isTarget = i == _targetModeIndex;
+                if (isTarget)
+                {
+                    Widgets.DrawAtlas(btnRect, Widgets.ButtonBGAtlasClick);
+                    TextAnchor prevAnchor = Text.Anchor;
+                    Text.Anchor = TextAnchor.MiddleCenter;
+                    Widgets.Label(btnRect, modeLabel);
+                    Text.Anchor = prevAnchor;
 
                 if (Widgets.ButtonText(btnRect, modeLabel))
                     _targetModeIndex = i;
+                    if (Widgets.ButtonInvisible(btnRect))
+                        _targetModeIndex = i;
+                }
+                else
+                {
+                    if (Widgets.ButtonText(btnRect, modeLabel))
+                        _targetModeIndex = i;
+                }
 
                 x += btnW + RimMindUI.Padding * 0.5f;
             }

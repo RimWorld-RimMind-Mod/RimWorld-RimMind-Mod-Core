@@ -1,4 +1,4 @@
-using RimMind.Application.Common.Interfaces.Internal;
+﻿using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Presentation.UI.Framework;
 using RimMind.Presentation.UI.Layout;
 using UnityEngine;
@@ -156,17 +156,23 @@ namespace RimMind.Presentation.UI
             bool active = _viewMode == mode;
             if (active)
             {
-                Widgets.DrawBoxSolid(rect, new Color(0.2f, 0.4f, 0.6f, 0.85f));
+                Widgets.DrawAtlas(rect, Widgets.ButtonBGAtlasClick);
+                TextAnchor prevAnchor = Text.Anchor;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(rect, label);
+                Text.Anchor = prevAnchor;
+
+                if (Widgets.ButtonInvisible(rect))
+                {
+                    _viewMode = mode;
+                }
             }
-            if (Widgets.ButtonText(rect, label, drawBackground: !active))
+            else
             {
-                _viewMode = mode;
-            }
-            if (active)
-            {
-                GUI.color = new Color(0.4f, 0.7f, 1f);
-                Widgets.DrawBox(rect, 2);
-                GUI.color = Color.white;
+                if (Widgets.ButtonText(rect, label))
+                {
+                    _viewMode = mode;
+                }
             }
             TooltipHandler.TipRegion(rect, tooltip);
         }

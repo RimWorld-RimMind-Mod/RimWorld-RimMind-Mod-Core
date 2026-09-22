@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Helpers;
@@ -28,8 +28,6 @@ namespace RimMind.Presentation.UI
         private static Color _testStatusColor = Color.white;
         private static bool _testPending;
         private static Vector2 _apiScroll;
-        private static string _presetAppliedMessage = "";
-        private static int _presetAppliedUntilTick;
         private static readonly GenerationUiState GenerationState = new GenerationUiState();
 
         private static readonly RuntimeServiceRef<IExtensionRegistry<IAIClientFactory>> ProviderRegistry =
@@ -57,7 +55,6 @@ namespace RimMind.Presentation.UI
                 _testPending = false;
                 _testStatus = string.Empty;
                 _testStatusColor = Color.white;
-                _presetAppliedMessage = string.Empty;
                 GenerationState.MarkDerivedState();
             }
 
@@ -91,47 +88,82 @@ namespace RimMind.Presentation.UI
             float gap = 6f;
             float btnW = (barRect.width - gap * 2f) / 3f;
 
+            bool isResponsive = s.MaxTokens == 600 && s.MaxConcurrentRequests == 3 && s.RequestTimeoutMs == 25000 && s.DefaultModCooldownTicks == 15 * 60;
+            bool isBalanced = s.MaxTokens == 800 && s.MaxConcurrentRequests == 2 && s.RequestTimeoutMs == 45000 && s.DefaultModCooldownTicks == 30 * 60;
+            bool isEco = s.MaxTokens == 400 && s.MaxConcurrentRequests == 1 && s.RequestTimeoutMs == 60000 && s.DefaultModCooldownTicks == 60 * 60;
+
             // Preset 1: High Responsive
             Rect btn1 = new Rect(barRect.x, barRect.y, btnW, barRect.height);
             string label1 = "RimMind.Settings.Preset.Responsive".Translate();
-            if (Widgets.ButtonText(btn1, label1))
+            if (isResponsive)
             {
-                ApplyPresetResponsive(s);
+                Widgets.DrawAtlas(btn1, Widgets.ButtonBGAtlasClick);
+                TextAnchor prevAnchor = Text.Anchor;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(btn1, label1);
+                Text.Anchor = prevAnchor;
+                if (Widgets.ButtonInvisible(btn1))
+                {
+                    ApplyPresetResponsive(s);
+                }
+            }
+            else
+            {
+                if (Widgets.ButtonText(btn1, label1))
+                {
+                    ApplyPresetResponsive(s);
+                }
             }
             TooltipHandler.TipRegion(btn1, "RimMind.Settings.Preset.Responsive.Desc".Translate());
 
             // Preset 2: Balanced
             Rect btn2 = new Rect(btn1.xMax + gap, barRect.y, btnW, barRect.height);
             string label2 = "RimMind.Settings.Preset.Balanced".Translate();
-            if (Widgets.ButtonText(btn2, label2))
+            if (isBalanced)
             {
-                ApplyPresetBalanced(s);
+                Widgets.DrawAtlas(btn2, Widgets.ButtonBGAtlasClick);
+                TextAnchor prevAnchor = Text.Anchor;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(btn2, label2);
+                Text.Anchor = prevAnchor;
+                if (Widgets.ButtonInvisible(btn2))
+                {
+                    ApplyPresetBalanced(s);
+                }
+            }
+            else
+            {
+                if (Widgets.ButtonText(btn2, label2))
+                {
+                    ApplyPresetBalanced(s);
+                }
             }
             TooltipHandler.TipRegion(btn2, "RimMind.Settings.Preset.Balanced.Desc".Translate());
 
             // Preset 3: Eco
             Rect btn3 = new Rect(btn2.xMax + gap, barRect.y, btnW, barRect.height);
             string label3 = "RimMind.Settings.Preset.Eco".Translate();
-            if (Widgets.ButtonText(btn3, label3))
+            if (isEco)
             {
-                ApplyPresetEco(s);
+                Widgets.DrawAtlas(btn3, Widgets.ButtonBGAtlasClick);
+                TextAnchor prevAnchor = Text.Anchor;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(btn3, label3);
+                Text.Anchor = prevAnchor;
+                if (Widgets.ButtonInvisible(btn3))
+                {
+                    ApplyPresetEco(s);
+                }
+            }
+            else
+            {
+                if (Widgets.ButtonText(btn3, label3))
+                {
+                    ApplyPresetEco(s);
+                }
             }
             TooltipHandler.TipRegion(btn3, "RimMind.Settings.Preset.Eco.Desc".Translate());
 
-            if (!string.IsNullOrEmpty(_presetAppliedMessage) && Environment.TickCount < _presetAppliedUntilTick)
-            {
-                Color prevColor = GUI.color;
-                try
-                {
-                    listing.Gap(2f);
-                    GUI.color = new Color(0.4f, 0.9f, 0.4f);
-                    listing.Label(_presetAppliedMessage);
-                }
-                finally
-                {
-                    GUI.color = prevColor;
-                }
-            }
             listing.Gap(6f);
         }
 
@@ -142,9 +174,6 @@ namespace RimMind.Presentation.UI
             s.RequestTimeoutMs = 25000;
             s.DefaultModCooldownTicks = 15 * 60;
             s.Persist();
-            string label = "RimMind.Settings.Preset.Responsive".Translate();
-            _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label);
-            _presetAppliedUntilTick = Environment.TickCount + 3500;
         }
 
         internal static void ApplyPresetBalanced(ISettingsProvider s)
@@ -154,9 +183,6 @@ namespace RimMind.Presentation.UI
             s.RequestTimeoutMs = 45000;
             s.DefaultModCooldownTicks = 30 * 60;
             s.Persist();
-            string label = "RimMind.Settings.Preset.Balanced".Translate();
-            _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label);
-            _presetAppliedUntilTick = Environment.TickCount + 3500;
         }
 
         internal static void ApplyPresetEco(ISettingsProvider s)
@@ -166,14 +192,9 @@ namespace RimMind.Presentation.UI
             s.RequestTimeoutMs = 60000;
             s.DefaultModCooldownTicks = 60 * 60;
             s.Persist();
-            string label = "RimMind.Settings.Preset.Eco".Translate();
-            _presetAppliedMessage = "RimMind.Settings.PresetApplied".Translate(label);
-            _presetAppliedUntilTick = Environment.TickCount + 3500;
         }
 
-        internal static string? CurrentPresetFeedback => _presetAppliedMessage;
-
-
+        internal static string? CurrentPresetFeedback => null;
         private static void DrawConnectionSection(
             Listing_Standard listing,
             ISettingsProvider s,
@@ -314,7 +335,7 @@ namespace RimMind.Presentation.UI
             string providerId,
             string endpoint,
             string modelName,
-            string presetName)
+            string? presetName = null)
         {
             RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
             var currentSettings = SettingsProvider.Resolve(operationScope);
@@ -327,10 +348,6 @@ namespace RimMind.Presentation.UI
                 currentSettings.ModelName = modelName;
             currentSettings.Persist();
             currentClientManager?.InvalidateCache();
-
-            string msg = "RimMind.Settings.ProviderApplied".Translate(presetName);
-            _presetAppliedMessage = msg;
-            _presetAppliedUntilTick = Environment.TickCount + 4000;
         }
 
         internal static void SwitchToProvider(
@@ -350,12 +367,7 @@ namespace RimMind.Presentation.UI
                 currentPlayer2Lifecycle?.CheckStatusAndNotify();
             if (prev != providerId)
                 currentClientManager?.InvalidateCache();
-
-            string label = GetProviderLabel(providerId);
-            _presetAppliedMessage = "RimMind.Settings.ProviderSwitched".Translate(label);
-            _presetAppliedUntilTick = Environment.TickCount + 4000;
         }
-
         private static void DrawExtendedServiceSection(
             Listing_Standard listing,
             ISettingsProvider s,

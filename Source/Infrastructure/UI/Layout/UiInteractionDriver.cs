@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -55,6 +55,7 @@ namespace RimMind.Infrastructure.UI
                 // 1-3. Settings Presets Click Verification: [Responsive] -> [Eco] -> [Balanced]
                 // Display settings window so the preset transitions and feedback banner are visible on screen
                 // Display settings window so preset transitions and green feedback banners are visible
+                // Display settings window so preset transitions are visible on screen
                 // ============================================================
                 var settingsWin = new Window_RimMindSettings();
                 Find.WindowStack.Add(settingsWin);
@@ -71,15 +72,14 @@ namespace RimMind.Infrastructure.UI
                     if (RimMindCoreMod.Settings.maxTokens == 600 &&
                         RimMindCoreMod.Settings.maxConcurrentRequests == 3 &&
                         RimMindCoreMod.Settings.requestTimeoutMs == 25000 &&
-                        RimMindCoreMod.Settings.defaultModCooldownTicks == 900 &&
-                        !string.IsNullOrEmpty(ApiTabDrawer.CurrentPresetFeedback))
+                        RimMindCoreMod.Settings.defaultModCooldownTicks == 900)
                     {
                         checksPassed++;
-                        result.Details.Add("[PASS] Real Click: [Preset.Responsive] applied (Tokens=600, Concurrency=3, Timeout=25s, Cooldown=15s, VisualBanner=Visible)");
+                        result.Details.Add("[PASS] Real Click: [Preset.Responsive] applied (Tokens=600, Concurrency=3, Timeout=25s, Cooldown=15s, ActiveState=Pressed)");
                     }
                     else
                     {
-                        throw new InvalidOperationException("Preset.Responsive values or visual banner did not match expectation");
+                        throw new InvalidOperationException("Preset.Responsive values did not match expectation");
                     }
 
                     // 2. Settings Preset Click Verification: [Preset.Eco]
@@ -93,15 +93,14 @@ namespace RimMind.Infrastructure.UI
                     if (RimMindCoreMod.Settings.maxTokens == 400 &&
                         RimMindCoreMod.Settings.maxConcurrentRequests == 1 &&
                         RimMindCoreMod.Settings.requestTimeoutMs == 60000 &&
-                        RimMindCoreMod.Settings.defaultModCooldownTicks == 3600 &&
-                        !string.IsNullOrEmpty(ApiTabDrawer.CurrentPresetFeedback))
+                        RimMindCoreMod.Settings.defaultModCooldownTicks == 3600)
                     {
                         checksPassed++;
-                        result.Details.Add("[PASS] Real Click: [Preset.Eco] applied (Tokens=400, Concurrency=1, Timeout=60s, Cooldown=60s, VisualBanner=Visible)");
+                        result.Details.Add("[PASS] Real Click: [Preset.Eco] applied (Tokens=400, Concurrency=1, Timeout=60s, Cooldown=60s, ActiveState=Pressed)");
                     }
                     else
                     {
-                        throw new InvalidOperationException("Preset.Eco values or visual banner did not match expectation");
+                        throw new InvalidOperationException("Preset.Eco values did not match expectation");
                     }
 
                     // 3. Settings Preset Click Verification: [Preset.Balanced]
@@ -115,15 +114,14 @@ namespace RimMind.Infrastructure.UI
                     if (RimMindCoreMod.Settings.maxTokens == 800 &&
                         RimMindCoreMod.Settings.maxConcurrentRequests == 2 &&
                         RimMindCoreMod.Settings.requestTimeoutMs == 45000 &&
-                        RimMindCoreMod.Settings.defaultModCooldownTicks == 1800 &&
-                        !string.IsNullOrEmpty(ApiTabDrawer.CurrentPresetFeedback))
+                        RimMindCoreMod.Settings.defaultModCooldownTicks == 1800)
                     {
                         checksPassed++;
-                        result.Details.Add("[PASS] Real Click: [Preset.Balanced] applied (Tokens=800, Concurrency=2, Timeout=45s, Cooldown=30s, VisualBanner=Visible)");
+                        result.Details.Add("[PASS] Real Click: [Preset.Balanced] applied (Tokens=800, Concurrency=2, Timeout=45s, Cooldown=30s, ActiveState=Pressed)");
                     }
                     else
                     {
-                        throw new InvalidOperationException("Preset.Balanced values or visual banner did not match expectation");
+                        throw new InvalidOperationException("Preset.Balanced values did not match expectation");
                     }
                 }
                 finally

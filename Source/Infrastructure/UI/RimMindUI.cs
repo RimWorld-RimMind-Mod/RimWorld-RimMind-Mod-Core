@@ -1,4 +1,4 @@
-using RimMind.Domain.Enums;
+﻿using RimMind.Domain.Enums;
 using RimMind.Presentation.UI.Layout;
 using UnityEngine;
 using Verse;
@@ -198,23 +198,19 @@ namespace RimMind.Infrastructure.UI
         public static bool DrawTabButton(Rect rect, string label, bool selected)
         {
             if (selected)
-                Widgets.DrawBoxSolid(rect, ColorTabActive);
-            else if (Mouse.IsOver(rect))
-                Widgets.DrawBoxSolid(rect, ColorTabHover);
+            {
+                Widgets.DrawAtlas(rect, Widgets.ButtonBGAtlasClick);
+                TextAnchor prevAnchor = Text.Anchor;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                GUI.color = ColorHeader;
+                Widgets.Label(rect, label);
+                GUI.color = Color.white;
+                Text.Anchor = prevAnchor;
+                return Widgets.ButtonInvisible(rect);
+            }
 
-            Text.Anchor = TextAnchor.MiddleCenter;
-            GUI.color = selected ? ColorHeader : ColorMuted;
-            Widgets.Label(rect, label);
-            GUI.color = Color.white;
-            Text.Anchor = TextAnchor.UpperLeft;
-
-            return Widgets.ButtonInvisible(rect);
+            return Widgets.ButtonText(rect, label);
         }
-
-        // ── Action Button ────────────────────────────────────────
-
-        /// <summary>
-        /// Draw a standard action button. Returns true if clicked.
         /// </summary>
         public static bool DrawActionButton(Rect rect, string label)
         {

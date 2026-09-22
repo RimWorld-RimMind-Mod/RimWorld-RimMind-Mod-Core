@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -225,14 +225,25 @@ namespace RimMind.Infrastructure.UI
                 bool isActive = _selectedTab == i;
                 if (isActive)
                 {
-                    Widgets.DrawBoxSolid(tabBtn, new Color(0.2f, 0.35f, 0.55f, 0.9f));
+                    Widgets.DrawAtlas(tabBtn, Widgets.ButtonBGAtlasClick);
+                    TextAnchor prevAnchor = Text.Anchor;
+                    Text.Anchor = TextAnchor.MiddleCenter;
+                    Widgets.Label(tabBtn, Tabs[i]);
+                    Text.Anchor = prevAnchor;
+
+                    if (Widgets.ButtonInvisible(tabBtn))
+                    {
+                        _selectedTab = i;
+                    }
                 }
-                if (Widgets.ButtonText(tabBtn, Tabs[i], drawBackground: !isActive))
+                else
                 {
-                    _selectedTab = i;
+                    if (Widgets.ButtonText(tabBtn, Tabs[i]))
+                    {
+                        _selectedTab = i;
+                    }
                 }
             }
-
             // Tab Content Box
             Rect bodyRect = new Rect(rect.x, rect.y + TabHeight + 6f, rect.width, rect.height - TabHeight - 6f);
             Widgets.DrawBoxSolid(bodyRect, new Color(0.08f, 0.08f, 0.10f, 0.8f));

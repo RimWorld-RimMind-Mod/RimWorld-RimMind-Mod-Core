@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Domain.Enums;
@@ -171,29 +171,35 @@ namespace RimMind.Presentation.UI
                 var preset = presets[i];
                 bool selected = _selectedPreset == preset;
                 Rect box = new Rect(row.x + (w + gap) * i, row.y, w, h);
+                string label = $"RimMind.Context.Preset.{preset}".Translate();
 
-                Widgets.DrawBoxSolid(box,
-                    selected ? new Color(0.2f, 0.4f, 0.6f, 0.85f) : new Color(0.18f, 0.18f, 0.18f, 0.55f));
-                GUI.color = selected ? new Color(0.4f, 0.7f, 1f) : new Color(0.45f, 0.45f, 0.45f);
-                Widgets.DrawBox(box, 2);
-                GUI.color = Color.white;
-
-                if (Mouse.IsOver(box)) Widgets.DrawHighlight(box);
-                TooltipHandler.TipRegion(box, $"RimMind.Context.Preset.{preset}.Desc".Translate());
-                if (Widgets.ButtonInvisible(box))
+                if (selected)
                 {
-                    _selectedPreset = preset;
-                    if (preset != ContextPreset.Custom)
-                        ctx.ApplyPreset(preset);
+                    Widgets.DrawAtlas(box, Widgets.ButtonBGAtlasClick);
+                    TextAnchor prevAnchor = Text.Anchor;
+                    Text.Anchor = TextAnchor.MiddleCenter;
+                    Widgets.Label(box, label);
+                    Text.Anchor = prevAnchor;
+
+                    if (Widgets.ButtonInvisible(box))
+                    {
+                        _selectedPreset = preset;
+                        if (preset != ContextPreset.Custom)
+                            ctx.ApplyPreset(preset);
+                    }
+                }
+                else
+                {
+                    if (Widgets.ButtonText(box, label))
+                    {
+                        _selectedPreset = preset;
+                        if (preset != ContextPreset.Custom)
+                            ctx.ApplyPreset(preset);
+                    }
                 }
 
-                Text.Anchor = TextAnchor.MiddleCenter;
-                GUI.color = selected ? Color.white : new Color(0.8f, 0.8f, 0.8f);
-                Widgets.Label(box, $"RimMind.Context.Preset.{preset}".Translate());
-                Text.Anchor = TextAnchor.UpperLeft;
-                GUI.color = Color.white;
+                TooltipHandler.TipRegion(box, $"RimMind.Context.Preset.{preset}.Desc".Translate());
             }
-
             listing.Gap(4f);
         }
     }
