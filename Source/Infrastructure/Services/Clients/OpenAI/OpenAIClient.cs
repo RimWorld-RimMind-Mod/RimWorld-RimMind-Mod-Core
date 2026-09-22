@@ -77,8 +77,14 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             {
                 bool isLocal = IsLoopbackEndpoint(_settings.ApiEndpoint);
                 float connectTimeout = isLocal ? 300f : 60f;
+                bool isOpenCode = IsOpenCodeGo(_settings.ApiEndpoint, _settings.ApiKey);
+                string? headerName = isOpenCode ? "x-opencode-session" : null;
+                string? headerValue = isOpenCode ? ResolveSessionId(envelope) : null;
+
                 (string responseText, long httpStatusCode) = await HttpTransport.PostAsync(
-                    endpoint, json, $"Bearer {_settings.ApiKey}", connectTimeout: connectTimeout);
+                    endpoint, json, $"Bearer {_settings.ApiKey}",
+                    headerName: headerName, headerValue: headerValue,
+                    connectTimeout: connectTimeout);
                 var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
                 string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
                 string? reasoningContent = parsed?.choices?[0]?.message?.reasoning_content;
@@ -157,6 +163,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, endpoint);
                 request.Content = new System.Net.Http.StringContent(json, Encoding.UTF8, "application/json");
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_settings.ApiKey}");
+                HttpTransport.EnsureOpenCodeSessionHeader(request, endpoint, $"Bearer {_settings.ApiKey}", ResolveSessionId(envelope));
 
                 using var httpClient = new System.Net.Http.HttpClient();
                 using var response = await httpClient.SendAsync(request, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, ct);
@@ -266,5 +273,24 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             throw new NotSupportedException("OpenAI does not support NPC server-side state");
         }
 
+        private static bool IsOpenCodeGo(string? endpoint, string? apiKey)
+        {
+            if (!string.IsNullOrEmpty(endpoint) && endpoint.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+            if (!string.IsNullOrEmpty(apiKey) && apiKey.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+            return false;
+        }
+
+        private static string ResolveSessionId(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
+        {
+            if (!string.IsNullOrEmpty(envelope.NpcId))
+                return "rimmind-" + envelope.NpcId;
+            if (!string.IsNullOrEmpty(envelope.RequestId))
+                return "rimmind-" + envelope.RequestId;
+            if (!string.IsNullOrEmpty(envelope.TraceId))
+                return "rimmind-" + envelope.TraceId;
+            return "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+        }
     }
 }

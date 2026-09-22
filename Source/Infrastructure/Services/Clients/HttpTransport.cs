@@ -16,6 +16,20 @@ namespace RimMind.Infrastructure.Services.Clients
             public HttpException(string message, int statusCode) : base(message) { StatusCode = statusCode; }
         }
 
+        public static void EnsureOpenCodeSessionHeader(HttpRequestMessage request, string? url, string? authHeader, string? customSessionId = null)
+        {
+            if (!string.IsNullOrEmpty(url) && (url.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0 || (authHeader != null && authHeader.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)))
+            {
+                if (!request.Headers.Contains("x-opencode-session"))
+                {
+                    string sessionId = !string.IsNullOrEmpty(customSessionId)
+                        ? customSessionId!
+                        : "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                    request.Headers.TryAddWithoutValidation("x-opencode-session", sessionId);
+                }
+            }
+        }
+
         public static async Task<(string body, long statusCode)> PostAsync(
             string url, string jsonBody, string? authHeader = null,
             string? headerName = null, string? headerValue = null,
@@ -27,6 +41,8 @@ namespace RimMind.Infrastructure.Services.Clients
                 request.Headers.TryAddWithoutValidation("Authorization", authHeader);
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
+
+            EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
 
             using var response = await _http.SendAsync(request);
             string body = await response.Content.ReadAsStringAsync();
@@ -48,6 +64,8 @@ namespace RimMind.Infrastructure.Services.Clients
                 request.Headers.TryAddWithoutValidation("Authorization", authHeader);
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
+
+            EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
 
             using var response = await _http.SendAsync(request);
             string body = await response.Content.ReadAsStringAsync();

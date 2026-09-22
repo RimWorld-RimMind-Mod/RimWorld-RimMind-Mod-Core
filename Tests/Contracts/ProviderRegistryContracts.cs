@@ -122,5 +122,22 @@ namespace RimMind.Tests.Contracts
             Assert.Equal("126", registry.GetProviderData("profile", new object()).Value);
         }
 
+        [Fact]
+        public void HttpTransport_attaches_opencode_session_header_when_opencode_url_or_key_used()
+        {
+            using var req1 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://opencode.ai/zen/go/v1/chat/completions");
+            RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req1, "https://opencode.ai/zen/go/v1/chat/completions", null);
+            Assert.True(req1.Headers.Contains("x-opencode-session"));
+            Assert.StartsWith("rimmind-", System.Linq.Enumerable.First(req1.Headers.GetValues("x-opencode-session")));
+
+            using var req2 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api.custom.com/v1");
+            RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req2, "https://api.custom.com/v1", "Bearer oc_sk_test_key_123", "custom-sess");
+            Assert.True(req2.Headers.Contains("x-opencode-session"));
+            Assert.Equal("custom-sess", System.Linq.Enumerable.First(req2.Headers.GetValues("x-opencode-session")));
+
+            using var req3 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api.openai.com/v1");
+            RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req3, "https://api.openai.com/v1", "Bearer sk-standard-key");
+            Assert.False(req3.Headers.Contains("x-opencode-session"));
+        }
     }
 }
