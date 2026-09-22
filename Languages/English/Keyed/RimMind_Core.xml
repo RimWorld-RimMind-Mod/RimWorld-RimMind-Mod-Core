@@ -126,6 +126,7 @@
   <RimMind.Context.PawnInfo>Pawn Info</RimMind.Context.PawnInfo>
   <RimMind.Context.Environment>Environment</RimMind.Context.Environment>
   <RimMind.Context.ResetDefault>Reset to Default (Standard)</RimMind.Context.ResetDefault>
+  <RimMind.Context.ResetDefault.Desc>Reset all context filter options to standard recommended defaults.</RimMind.Context.ResetDefault.Desc>
   <!-- Context presets -->
   <RimMind.Context.Preset.Minimal>Minimal</RimMind.Context.Preset.Minimal>
   <RimMind.Context.Preset.Minimal.Desc>Core info only, least tokens</RimMind.Context.Preset.Minimal.Desc>
@@ -151,6 +152,7 @@
   <RimMind.Context.IncludeSkills>Skills</RimMind.Context.IncludeSkills>
   <RimMind.Context.IncludeSkills.Desc>Inject the pawn's skill levels into AI context. Skills below the minimum level are filtered out.</RimMind.Context.IncludeSkills.Desc>
   <RimMind.Context.MinSkillLevel>Min Skill Level</RimMind.Context.MinSkillLevel>
+  <RimMind.Context.MinSkillLevel.Desc>Minimum skill level threshold to include in context. Skills below this level will be omitted.</RimMind.Context.MinSkillLevel.Desc>
   <RimMind.Context.IncludeHealth>Health</RimMind.Context.IncludeHealth>
   <RimMind.Context.IncludeHealth.Desc>Inject the pawn's health issues (wounds, diseases, implants, etc.) into AI context.</RimMind.Context.IncludeHealth.Desc>
   <RimMind.Context.IncludeCapacities>Capacities</RimMind.Context.IncludeCapacities>
@@ -265,6 +267,10 @@
   <RimMind.Prompts.PawnPromptLabel>Custom prompt appended after pawn context (leave empty to skip):</RimMind.Prompts.PawnPromptLabel>
   <RimMind.Prompts.MapPrompt>Global Map Prompt</RimMind.Prompts.MapPrompt>
   <RimMind.Prompts.MapPromptLabel>Custom prompt appended after map context (leave empty to skip):</RimMind.Prompts.MapPromptLabel>
+  <RimMind.Prompts.ResetPawn.Desc>Clear custom pawn prompt and reset to default.</RimMind.Prompts.ResetPawn.Desc>
+  <RimMind.Prompts.ResetMap.Desc>Clear custom map prompt and reset to default.</RimMind.Prompts.ResetMap.Desc>
+  <RimMind.Prompts.ShowAll>Show All</RimMind.Prompts.ShowAll>
+  <RimMind.Prompts.ShowAll.Desc>Show all custom prompts for both pawn and map context simultaneously.</RimMind.Prompts.ShowAll.Desc>
   <!-- RequestOverlay.cs -->
   <RimMind.UI.RequestOverlay.Title>RimMind Requests</RimMind.UI.RequestOverlay.Title>
   <RimMind.UI.RequestOverlay.SystemBlocked>[System Blocked] {0}</RimMind.UI.RequestOverlay.SystemBlocked>
@@ -441,6 +447,41 @@
   <RimMind.UI.Hub.SettingsEntryTitle>Settings</RimMind.UI.Hub.SettingsEntryTitle>
   <RimMind.UI.Hub.SettingsEntryDescription>The Debug Center provides an entry point only. Full configuration stays in the RimMind Settings window.</RimMind.UI.Hub.SettingsEntryDescription>
   <RimMind.UI.Hub.OpenSettings>Open Settings</RimMind.UI.Hub.OpenSettings>
+  <RimMind.UI.Hub.LiveAIConnectivity>Live AI Connectivity &amp; Model Status</RimMind.UI.Hub.LiveAIConnectivity>
+  <RimMind.UI.Hub.LiveAIConnectivityTip>Displays current AI provider, endpoint URL, model, and allows initiating a real-time probe test.</RimMind.UI.Hub.LiveAIConnectivityTip>
+  <RimMind.UI.Hub.TestAIRequest>⚡ Test AI Request</RimMind.UI.Hub.TestAIRequest>
+  <RimMind.UI.Hub.TestAIRequestTip>Executes a background test request to verify API connectivity, measuring round-trip latency, HTTP status, and response tokens.</RimMind.UI.Hub.TestAIRequestTip>
+  <RimMind.UI.Hub.PingStatus>Ping Status</RimMind.UI.Hub.PingStatus>
+  <RimMind.UI.Hub.PingNotRun>Not tested</RimMind.UI.Hub.PingNotRun>
+  <RimMind.UI.Hub.Latency>Latency</RimMind.UI.Hub.Latency>
+  <RimMind.UI.Hub.Tokens>Tokens</RimMind.UI.Hub.Tokens>
+  <RimMind.UI.Hub.ResponseSnippet>Response Snippet</RimMind.UI.Hub.ResponseSnippet>
+  <RimMind.UI.Hub.QueueAndCooldownTitle>Queue &amp; Cooldown Console</RimMind.UI.Hub.QueueAndCooldownTitle>
+  <RimMind.UI.Hub.QueueAndCooldownTip>Monitor request concurrency and cooldowns, pause queue, flush requests, or reset mod rate limits.</RimMind.UI.Hub.QueueAndCooldownTip>
+  <RimMind.UI.Hub.QueueFlushed>All queued requests have been flushed.</RimMind.UI.Hub.QueueFlushed>
+  <RimMind.UI.Hub.CooldownsCleared>All mod request cooldowns have been cleared.</RimMind.UI.Hub.CooldownsCleared>
+  <RimMind.UI.Hub.TogglePauseTip>Pause or resume request queue consumption and background dispatch.</RimMind.UI.Hub.TogglePauseTip>
+  <RimMind.UI.Hub.ClearQueuesTip>Drop all AI requests currently waiting in queue.</RimMind.UI.Hub.ClearQueuesTip>
+  <RimMind.UI.Hub.ClearCooldownsTip>Reset all mod rate limit and circuit breaker cooldowns.</RimMind.UI.Hub.ClearCooldownsTip>
+  <RimMind.UI.Hub.RuntimeSettingsTuner>Runtime Settings Tuner</RimMind.UI.Hub.RuntimeSettingsTuner>
+  <RimMind.UI.Hub.RuntimeSettingsTunerTip>Directly tweak and persist core runtime parameters without restarting the game.</RimMind.UI.Hub.RuntimeSettingsTunerTip>
+  <RimMind.UI.Hub.MaxConcurrentTip>Maximum number of simultaneous background requests to the AI model (1 ~ 5).</RimMind.UI.Hub.MaxConcurrentTip>
+  <RimMind.UI.Hub.RequestTimeoutTip>Maximum time to wait for AI response before timing out (15s ~ 120s).</RimMind.UI.Hub.RequestTimeoutTip>
+  <RimMind.UI.Hub.DebugLoggingTip>Enable verbose developer debug logging in console.</RimMind.UI.Hub.DebugLoggingTip>
+  <RimMind.UI.Hub.MockMode>Offline Mock Mode</RimMind.UI.Hub.MockMode>
+  <RimMind.UI.Hub.MockModeTip>Simulate offline AI responses for testing without calling remote endpoints.</RimMind.UI.Hub.MockModeTip>
+  <RimMind.UI.Hub.ColonistAgentInspector>Colonist Agent Inspector</RimMind.UI.Hub.ColonistAgentInspector>
+  <RimMind.UI.Hub.ColonistAgentInspectorTip>View selected colonist's Agent state, inspect payload prompt, or trigger an immediate thinking tick.</RimMind.UI.Hub.ColonistAgentInspectorTip>
+  <RimMind.UI.Hub.SelectColonist>👥 Select Colonist</RimMind.UI.Hub.SelectColonist>
+  <RimMind.UI.Hub.SelectColonistTip>Quickly pick a colonist from the current map.</RimMind.UI.Hub.SelectColonistTip>
+  <RimMind.UI.Hub.AgentWorkflow>Workflow Phase</RimMind.UI.Hub.AgentWorkflow>
+  <RimMind.UI.Hub.AgentAutonomy>Autonomy Level</RimMind.UI.Hub.AgentAutonomy>
+  <RimMind.UI.Hub.InspectPayload>🔍 Inspect Payload</RimMind.UI.Hub.InspectPayload>
+  <RimMind.UI.Hub.InspectPayloadTip>Open the context payload inspector to view full prompts, memories, and environment data.</RimMind.UI.Hub.InspectPayloadTip>
+  <RimMind.UI.Hub.TriggerAgentTick>⚡ Trigger Agent Tick</RimMind.UI.Hub.TriggerAgentTick>
+  <RimMind.UI.Hub.TriggerAgentTickTip>Reset think cooldown and immediately execute one Agent Tick to prompt decision making.</RimMind.UI.Hub.TriggerAgentTickTip>
+  <RimMind.UI.Hub.AgentTickTriggered>Agent tick triggered for: {0}</RimMind.UI.Hub.AgentTickTriggered>
+  <RimMind.UI.Hub.AgentNotFound>Agent component not yet initialized for this pawn.</RimMind.UI.Hub.AgentNotFound>
   <!-- Debug table shared headers -->
   <RimMind.UI.DebugTable.Header.Id>ID</RimMind.UI.DebugTable.Header.Id>
   <RimMind.UI.DebugTable.Header.Status>Status</RimMind.UI.DebugTable.Header.Status>
@@ -699,12 +740,12 @@
   <RimMind.Settings.Preset.Balanced.Desc>Standard balance: MaxTokens=800, Concurrency=2, Timeout=45s, Cooldown=30s. Balances reasoning quality and token costs.</RimMind.Settings.Preset.Balanced.Desc>
   <RimMind.Settings.Preset.Eco>🛡️ Eco &amp; Rate Limit Guard</RimMind.Settings.Preset.Eco>
   <RimMind.Settings.Preset.Eco.Desc>Economic guard: MaxTokens=400, Concurrency=1, Timeout=60s, Cooldown=60s. Recommended for free tiers or strict rate limits.</RimMind.Settings.Preset.Eco.Desc>
-  <RimMind.Settings.Section.Connection>1. Connection &amp; Services</RimMind.Settings.Section.Connection>
+  <RimMind.Settings.Section.Connection>1. Connection &amp; Endpoints</RimMind.Settings.Section.Connection>
   <RimMind.Settings.ModelServiceActiveNote>✓ ModelService extension mod is active. Available for local subscription proxies or custom gateway routing.</RimMind.Settings.ModelServiceActiveNote>
   <RimMind.Settings.ModelServiceNotInstalledNote>Tip: Install RimMind-Extension-ModelService to enable local multi-provider support and subscription proxy gateways.</RimMind.Settings.ModelServiceNotInstalledNote>
-  <RimMind.Settings.Section.Generation>2. Generation &amp; Flywheel</RimMind.Settings.Section.Generation>
-  <RimMind.Settings.Section.Performance>3. Performance &amp; Queue</RimMind.Settings.Section.Performance>
-  <RimMind.Settings.Section.Interface>4. Interface &amp; HUD</RimMind.Settings.Section.Interface>
+  <RimMind.Settings.Section.Generation>2. Generation &amp; Model Behavior</RimMind.Settings.Section.Generation>
+  <RimMind.Settings.Section.Performance>3. Performance &amp; Scheduling</RimMind.Settings.Section.Performance>
+  <RimMind.Settings.Section.Interface>4. Interface &amp; Overlay</RimMind.Settings.Section.Interface>
   <RimMind.Settings.RequestOverlayAutoHideWhenEmpty>HUD Request Overlay Auto-Collapse When Idle</RimMind.Settings.RequestOverlayAutoHideWhenEmpty>
   <RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>When there are no pending approval requests, collapse the HUD overlay into a compact 120x24 status capsule. Expands automatically on hover or when new requests arrive.</RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>
   <RimMind.Settings.EnableFloatingMentalMonitor>Enable Floating Mental Monitor</RimMind.Settings.EnableFloatingMentalMonitor>

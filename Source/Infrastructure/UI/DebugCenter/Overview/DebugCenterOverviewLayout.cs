@@ -72,7 +72,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Overview
                 0f,
                 0f,
                 width,
-                Mathf.Max(viewport.height + 1f, quick.yMax + RimMindUiMetrics.Padding));
+                Mathf.Max(viewport.height + 1f, Mathf.Max(quick.yMax + RimMindUiMetrics.Padding, 820f)));
 
             return new DebugCenterOverviewLayoutResult(
                 viewport,

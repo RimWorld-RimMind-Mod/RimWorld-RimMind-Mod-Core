@@ -48,7 +48,10 @@ namespace RimMind.Tests
 namespace RimMind.Infrastructure.UI
 {
     public sealed class Window_RimMindSettings : global::Verse.Window { }
-    public sealed class Window_ContextPayloadInspector : global::Verse.Window { }
+    public sealed class Window_ContextPayloadInspector : global::Verse.Window
+    {
+        public Window_ContextPayloadInspector(object? initialPawn = null) { }
+    }
 
     public static class RequestOverlay
     {

@@ -64,6 +64,7 @@
     <Compile Include="../Source/Infrastructure/UI/Framework/RimMindTableDrawer.cs" />
     <Compile Include="../Source/Infrastructure/UI/NpcSyncStateStore.cs" />
     <Compile Include="../Source/Presentation/UI/Framework/*.cs" />
+    <Compile Include="../Source/Presentation/UI/SettingsUIDrawer.cs" />
     <Compile Include="../Source/Presentation/Context/AsyncContextLayerBatchBuilder.cs" />
     <Compile Include="../Source/Presentation/Context/ContextBuildServices.cs" />
     <Compile Include="../Source/Presentation/Context/ContextOrchestrator.cs" />

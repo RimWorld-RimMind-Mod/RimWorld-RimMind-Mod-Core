@@ -15,7 +15,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter
             Navigation = navigation;
         }
 
-        public Pawn? SelectedPawn { get; }
+        public Pawn? SelectedPawn { get; set; }
 
         public DebugCenterNavigation Navigation { get; }
     }

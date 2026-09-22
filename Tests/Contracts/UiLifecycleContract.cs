@@ -308,7 +308,7 @@ namespace RimMind.Tests.Contracts
                         api,
                         StringComparison.Ordinal);
                     Assert.Contains(
-                        "QuickApplyOpenCodeGo",
+                        "OpenCodeGo",
                         api,
                         StringComparison.Ordinal);
                     Assert.Contains(

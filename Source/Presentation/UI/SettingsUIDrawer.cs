@@ -8,16 +8,47 @@ namespace RimMind.Presentation.UI
     {
         public static void DrawSectionHeader(Listing_Standard listing, string label, string? tooltip = null)
         {
-            listing.Gap(12f);
-            GUI.color = new Color(0.8f, 0.85f, 1f);
-            Rect rect = listing.GetRect(Text.CalcHeight(label, listing.ColumnWidth));
-            Widgets.Label(rect, label);
+            listing.Gap(10f);
+            Rect headerRect = listing.GetRect(28f);
+            Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
+            Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
+
+            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 4f, headerRect.width - 20f, headerRect.height - 8f);
+            Text.Font = GameFont.Medium;
+            GUI.color = new Color(0.9f, 0.95f, 1.0f);
+            Widgets.Label(textRect, label);
+            Text.Font = GameFont.Small;
+            GUI.color = Color.white;
+
             if (!string.IsNullOrEmpty(tooltip))
             {
-                TooltipHandler.TipRegion(rect, tooltip);
+                TooltipHandler.TipRegion(headerRect, tooltip);
             }
+
+        }
+
+        public static float DrawSectionHeader(Rect canvas, float y, string label, string? tooltip = null)
+        {
+            float x = canvas.x + 4f;
+            float w = canvas.width - 8f;
+            Rect headerRect = new Rect(x, y, w, 28f);
+
+            Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
+            Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
+
+            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 4f, headerRect.width - 20f, headerRect.height - 8f);
+            Text.Font = GameFont.Medium;
+            GUI.color = new Color(0.9f, 0.95f, 1.0f);
+            Widgets.Label(textRect, label);
+            Text.Font = GameFont.Small;
             GUI.color = Color.white;
-            listing.Gap(4f);
+
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                TooltipHandler.TipRegion(headerRect, tooltip);
+            }
+
+            return y + 34f;
         }
 
         public static void LabelWithTooltip(this Listing_Standard listing, string label, string? tooltip, Color? textColor = null)

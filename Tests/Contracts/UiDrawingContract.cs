@@ -149,12 +149,15 @@ public sealed class UiDrawingContract : IDisposable
 
         Assert.Equal(expectedSelection, selected);
         var buttons = Widgets.Draws.Where(d => d.Kind == "ButtonText").ToArray();
-        Assert.Equal(3, buttons.Length);
+        Assert.Equal(2, buttons.Length);
         Assert.Equal(guiEnabled, buttons[0].Enabled);
-        Assert.Equal(guiEnabled, buttons[1].Enabled);
-        Assert.False(buttons[2].Enabled);
+        Assert.False(buttons[1].Enabled);
+        var atlasDraws = Widgets.Draws.Where(d => d.Kind == "DrawAtlas").ToArray();
+        Assert.Single(atlasDraws);
+        var selectedLabel = Assert.Single(Widgets.Draws, d => d.Kind == "Label" && d.Label == "selected");
+        Assert.Equal(guiEnabled, selectedLabel.Enabled);
         var highlights = Widgets.Draws.Where(d => d.Kind == "HighlightSelected").ToArray();
-        Assert.Single(highlights);
+        Assert.Empty(highlights);
         Assert.Equal(incomingColor, GUI.color);
         Assert.Equal(guiEnabled, GUI.enabled);
         Assert.Equal(GameFont.Tiny, Text.Font);

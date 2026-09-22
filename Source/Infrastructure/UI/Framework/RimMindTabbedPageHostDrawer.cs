@@ -37,14 +37,21 @@ namespace RimMind.Infrastructure.UI.Framework
 
                     GUI.enabled = previousEnabled && tab.Enabled;
                     bool isSelected = tabRect.Selected;
-                    // Standard RimWorld button with standard background and centered text
-                    if (Widgets.ButtonText(tabRect.Rect, tab.Label) && GUI.enabled)
-                        nextSelected = tab.Id;
-
-                    // Default RimWorld yellow/amber highlight outline & tint for active tab
                     if (isSelected)
                     {
-                        Widgets.DrawHighlightSelected(tabRect.Rect);
+                        Widgets.DrawAtlas(tabRect.Rect, Widgets.ButtonBGAtlasClick);
+                        TextAnchor prevAnchor = Text.Anchor;
+                        Text.Anchor = TextAnchor.MiddleCenter;
+                        Widgets.Label(tabRect.Rect, tab.Label);
+                        Text.Anchor = prevAnchor;
+
+                        if (Widgets.ButtonInvisible(tabRect.Rect) && GUI.enabled)
+                            nextSelected = tab.Id;
+                    }
+                    else
+                    {
+                        if (Widgets.ButtonText(tabRect.Rect, tab.Label) && GUI.enabled)
+                            nextSelected = tab.Id;
                     }
 
                     if (!string.IsNullOrEmpty(tab.TooltipKey))

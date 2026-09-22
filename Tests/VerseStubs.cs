@@ -59,6 +59,7 @@ namespace UnityEngine
         public static Color white => new(1f, 1f, 1f, 1f);
         public static Color gray => new(0.5f, 0.5f, 0.5f, 1f);
         public static Color red => new(1f, 0f, 0f, 1f);
+        public static Color yellow => new(1f, 0.92f, 0.016f, 1f);
         public static bool operator ==(Color lhs, Color rhs) =>
             System.Math.Abs(lhs.r - rhs.r) < 1e-6f && System.Math.Abs(lhs.g - rhs.g) < 1e-6f &&
             System.Math.Abs(lhs.b - rhs.b) < 1e-6f && System.Math.Abs(lhs.a - rhs.a) < 1e-6f;
@@ -277,6 +278,7 @@ namespace Verse
 
     public class Selector
     {
+        public object? SingleSelectedThing => null;
         public void Select(Pawn pawn, bool playSound, bool forceDesignatorDeselect) { }
     }
 
@@ -319,9 +321,20 @@ namespace Verse
         public static UnityEngine.Vector2 CalcSize(string text) => new(text.Length * 6f, 22f);
         public static float CalcHeight(string text, float width)
             => Math.Max(1f, (float)Math.Ceiling(text.Length * 6f / Math.Max(1f, width))) * 22f;
+        public static float LineHeight => 22f;
     }
 
     public sealed record WidgetDraw(string Kind, UnityEngine.Rect Rect, string Label, UnityEngine.Color Color, bool Enabled);
+
+    public class Listing_Standard
+    {
+        public float ColumnWidth => 400f;
+        public void Begin(UnityEngine.Rect rect) { }
+        public void End() { }
+        public void Gap(float gap = 12f) { }
+        public UnityEngine.Rect GetRect(float height) => new(0f, 0f, ColumnWidth, height);
+        public void Label(string label) { }
+    }
 
     /// <summary>Stub for Verse.Widgets used in UI overlay tests.</summary>
     public static class Widgets
@@ -360,7 +373,32 @@ namespace Verse
             Record("ButtonText", rect, label);
             return UnityEngine.GUI.enabled && ClickLabel == label;
         }
-        public static bool ButtonInvisible(UnityEngine.Rect rect) => false;
+        public static readonly UnityEngine.Texture2D ButtonBGAtlasClick = new();
+        public static void DrawAtlas(UnityEngine.Rect rect, UnityEngine.Texture2D atlas) => Record("DrawAtlas", rect);
+        public static bool ButtonInvisible(UnityEngine.Rect rect)
+        {
+            Record("ButtonInvisible", rect);
+            return UnityEngine.GUI.enabled && ClickLabel == "selected";
+        }
+        public static float HorizontalSlider(UnityEngine.Rect rect, float val, float min, float max, bool middleAlignment = false, string? label = null, string? leftAlignedLabel = null, string? rightAlignedLabel = null, float roundTo = -1f)
+        {
+            Record("HorizontalSlider", rect, label ?? "");
+            return val;
+        }
+        public static void CheckboxLabeled(UnityEngine.Rect rect, string label, ref bool checkOn, bool disabled = false, UnityEngine.Texture2D? texChecked = null, UnityEngine.Texture2D? texUnchecked = null, bool placeCheckboxNearText = false)
+        {
+            Record("CheckboxLabeled", rect, label);
+        }
+        public static string TextField(UnityEngine.Rect rect, string text)
+        {
+            Record("TextField", rect, text);
+            return text;
+        }
+        public static string TextArea(UnityEngine.Rect rect, string text, bool readOnly = false)
+        {
+            Record("TextArea", rect, text);
+            return text;
+        }
         public static void BeginScrollView(UnityEngine.Rect viewport, ref UnityEngine.Vector2 scroll, UnityEngine.Rect content)
             => ScrollOffsets.Push(new UnityEngine.Vector2(viewport.x - content.x - scroll.x, viewport.y - content.y - scroll.y));
         public static void EndScrollView() => ScrollOffsets.Pop();

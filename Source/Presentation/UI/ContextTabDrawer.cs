@@ -50,6 +50,7 @@ namespace RimMind.Presentation.UI
                 s.Context.ResetToDefault();
                 _selectedPreset = ContextPreset.Standard;
             }
+            TooltipHandler.TipRegion(centerBtn, "RimMind.Context.ResetDefault.Desc".Translate());
 
             listing.End();
             Widgets.EndScrollView();
@@ -70,10 +71,7 @@ namespace RimMind.Presentation.UI
         {
             var left = new Listing_Standard();
             left.Begin(new Rect(anchor.x, anchor.y, colW, 9999f));
-            GUI.color = new Color(0.6f, 0.78f, 1f);
-            left.Label("RimMind.Context.PawnInfo".Translate());
-            GUI.color = Color.white;
-            left.Gap(4f);
+            SettingsUIDrawer.DrawSectionHeader(left, "RimMind.Context.PawnInfo".Translate());
 
             DrawCheckbox(left, ctx, c => c.IncludeRace, (c, v) => c.IncludeRace = v, "RimMind.Context.IncludeRace", "RimMind.Context.IncludeRace.Desc");
             DrawCheckbox(left, ctx, c => c.IncludeAge, (c, v) => c.IncludeAge = v, "RimMind.Context.IncludeAge", "RimMind.Context.IncludeAge.Desc");
@@ -87,8 +85,9 @@ namespace RimMind.Presentation.UI
             ctx.IncludeSkills = includeSkills;
             if (ctx.IncludeSkills)
             {
-                left.Label($"  {"RimMind.Context.MinSkillLevel".Translate()}: {ctx.MinSkillLevel}");
-                ctx.MinSkillLevel = (int)left.Slider(ctx.MinSkillLevel, 1f, 15f);
+                string skillTip = "RimMind.Context.MinSkillLevel.Desc".Translate();
+                left.LabelWithTooltip($"  {"RimMind.Context.MinSkillLevel".Translate()}: {ctx.MinSkillLevel}", skillTip);
+                ctx.MinSkillLevel = (int)left.SliderWithTooltip(ctx.MinSkillLevel, 1f, 15f, skillTip);
             }
 
             DrawCheckbox(left, ctx, c => c.IncludeHealth, (c, v) => c.IncludeHealth = v, "RimMind.Context.IncludeHealth", "RimMind.Context.IncludeHealth.Desc");
@@ -123,10 +122,7 @@ namespace RimMind.Presentation.UI
         {
             var right = new Listing_Standard();
             right.Begin(new Rect(anchor.x + colW + 20f, anchor.y, colW, 9999f));
-            GUI.color = new Color(0.6f, 0.78f, 1f);
-            right.Label("RimMind.Context.Environment".Translate());
-            GUI.color = Color.white;
-            right.Gap(4f);
+            SettingsUIDrawer.DrawSectionHeader(right, "RimMind.Context.Environment".Translate());
 
             DrawCheckbox(right, ctx, c => c.IncludeGameTime, (c, v) => c.IncludeGameTime = v, "RimMind.Context.IncludeGameTime", "RimMind.Context.IncludeGameTime.Desc");
             DrawCheckbox(right, ctx, c => c.IncludeColonistCount, (c, v) => c.IncludeColonistCount = v, "RimMind.Context.IncludeColonistCount", "RimMind.Context.IncludeColonistCount.Desc");
@@ -165,7 +161,7 @@ namespace RimMind.Presentation.UI
 
             var presets = new[] { ContextPreset.Minimal, ContextPreset.Standard, ContextPreset.Full, ContextPreset.Custom };
             const float gap = 10f;
-            const float h = 62f;
+            const float h = 34f;
             float totalW = listing.ColumnWidth;
             float w = (totalW - gap * (presets.Length - 1)) / presets.Length;
             Rect row = listing.GetRect(h);
@@ -183,6 +179,7 @@ namespace RimMind.Presentation.UI
                 GUI.color = Color.white;
 
                 if (Mouse.IsOver(box)) Widgets.DrawHighlight(box);
+                TooltipHandler.TipRegion(box, $"RimMind.Context.Preset.{preset}.Desc".Translate());
                 if (Widgets.ButtonInvisible(box))
                 {
                     _selectedPreset = preset;
@@ -190,20 +187,9 @@ namespace RimMind.Presentation.UI
                         ctx.ApplyPreset(preset);
                 }
 
-                Rect inner = box.ContractedBy(6f);
-                Text.Anchor = TextAnchor.UpperCenter;
-
+                Text.Anchor = TextAnchor.MiddleCenter;
                 GUI.color = selected ? Color.white : new Color(0.8f, 0.8f, 0.8f);
-                Widgets.Label(new Rect(inner.x, inner.y, inner.width, Text.LineHeight),
-                    $"RimMind.Context.Preset.{preset}".Translate());
-
-                Text.Font = GameFont.Tiny;
-                GUI.color = selected ? new Color(0.85f, 0.85f, 0.85f) : new Color(0.55f, 0.55f, 0.55f);
-                Widgets.Label(new Rect(inner.x, inner.y + Text.LineHeight + 2f,
-                                       inner.width, inner.height - Text.LineHeight - 2f),
-                    $"RimMind.Context.Preset.{preset}.Desc".Translate());
-
-                Text.Font = GameFont.Small;
+                Widgets.Label(box, $"RimMind.Context.Preset.{preset}".Translate());
                 Text.Anchor = TextAnchor.UpperLeft;
                 GUI.color = Color.white;
             }

@@ -106,10 +106,13 @@ namespace RimMind.Presentation.UI
                 if (queue.IsPaused) queue.ResumeQueue();
                 else queue.PauseQueue();
             }
+            TooltipHandler.TipRegion(pauseBtn, pauseText);
             if (Widgets.ButtonText(clearBtn, "RimMind.Settings.Queue.ClearQueues".Translate()))
                 queue.ClearAllQueues();
+            TooltipHandler.TipRegion(clearBtn, "RimMind.Settings.Queue.ClearQueues".Translate());
             if (Widgets.ButtonText(clearCdBtn, "RimMind.Settings.Queue.ClearCooldowns".Translate()))
                 queue.ClearAllCooldowns();
+            TooltipHandler.TipRegion(clearCdBtn, "RimMind.Settings.Queue.ClearCooldowns".Translate());
         }
 
         private static void DrawPerModCooldowns(Listing_Standard listing, IRequestQueue queue, HashSet<string> allModIds)

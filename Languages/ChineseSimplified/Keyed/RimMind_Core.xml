@@ -126,6 +126,7 @@
   <RimMind.Context.PawnInfo>小人信息</RimMind.Context.PawnInfo>
   <RimMind.Context.Environment>环境信息</RimMind.Context.Environment>
   <RimMind.Context.ResetDefault>重置为默认（标准）</RimMind.Context.ResetDefault>
+  <RimMind.Context.ResetDefault.Desc>将所有上下文过滤选项重置为标准推荐预设。</RimMind.Context.ResetDefault.Desc>
   <!-- Context presets -->
   <RimMind.Context.Preset.Minimal>最小</RimMind.Context.Preset.Minimal>
   <RimMind.Context.Preset.Minimal.Desc>仅核心信息，最少 Token</RimMind.Context.Preset.Minimal.Desc>
@@ -151,6 +152,7 @@
   <RimMind.Context.IncludeSkills>技能</RimMind.Context.IncludeSkills>
   <RimMind.Context.IncludeSkills.Desc>将小人的技能等级注入 AI 上下文。低于最低技能等级的技能会被过滤。</RimMind.Context.IncludeSkills.Desc>
   <RimMind.Context.MinSkillLevel>最低技能等级</RimMind.Context.MinSkillLevel>
+  <RimMind.Context.MinSkillLevel.Desc>注入上下文的最低技能等级阈值。低于此等级的技能将不会被发送。</RimMind.Context.MinSkillLevel.Desc>
   <RimMind.Context.IncludeHealth>健康状况</RimMind.Context.IncludeHealth>
   <RimMind.Context.IncludeHealth.Desc>将小人的健康问题（伤口、疾病、义体等）注入 AI 上下文。</RimMind.Context.IncludeHealth.Desc>
   <RimMind.Context.IncludeCapacities>行动能力</RimMind.Context.IncludeCapacities>
@@ -265,6 +267,10 @@
   <RimMind.Prompts.PawnPromptLabel>追加在人物上下文末尾的自定义提示词（留空则不追加）：</RimMind.Prompts.PawnPromptLabel>
   <RimMind.Prompts.MapPrompt>全局地图提示词</RimMind.Prompts.MapPrompt>
   <RimMind.Prompts.MapPromptLabel>追加在地图上下文末尾的自定义提示词（留空则不追加）：</RimMind.Prompts.MapPromptLabel>
+  <RimMind.Prompts.ResetPawn.Desc>将自定义人物提示词清空并恢复默认设置。</RimMind.Prompts.ResetPawn.Desc>
+  <RimMind.Prompts.ResetMap.Desc>将自定义地图提示词清空并恢复默认设置。</RimMind.Prompts.ResetMap.Desc>
+  <RimMind.Prompts.ShowAll>全部显示</RimMind.Prompts.ShowAll>
+  <RimMind.Prompts.ShowAll.Desc>同时显示人物和地图的所有自定义提示词。</RimMind.Prompts.ShowAll.Desc>
   <!-- RequestOverlay.cs -->
   <RimMind.UI.RequestOverlay.Title>RimMind 请求</RimMind.UI.RequestOverlay.Title>
   <RimMind.UI.RequestOverlay.SystemBlocked>[系统拦截] {0}</RimMind.UI.RequestOverlay.SystemBlocked>
@@ -441,6 +447,41 @@
   <RimMind.UI.Hub.SettingsEntryTitle>设置</RimMind.UI.Hub.SettingsEntryTitle>
   <RimMind.UI.Hub.SettingsEntryDescription>调试中心只提供设置入口，完整配置仍在 RimMind 设置窗口中维护。</RimMind.UI.Hub.SettingsEntryDescription>
   <RimMind.UI.Hub.OpenSettings>打开设置</RimMind.UI.Hub.OpenSettings>
+  <RimMind.UI.Hub.LiveAIConnectivity>实时 LLM 连通性与模型状态</RimMind.UI.Hub.LiveAIConnectivity>
+  <RimMind.UI.Hub.LiveAIConnectivityTip>显示当前配置的模型服务商、端点与连通性，支持一键发起即时测试。</RimMind.UI.Hub.LiveAIConnectivityTip>
+  <RimMind.UI.Hub.TestAIRequest>⚡ 发起实时测试请求</RimMind.UI.Hub.TestAIRequest>
+  <RimMind.UI.Hub.TestAIRequestTip>在后台向已配置的 AI 模型发送快速测试请求，测量往返延迟、HTTP 状态和响应令牌数。</RimMind.UI.Hub.TestAIRequestTip>
+  <RimMind.UI.Hub.PingStatus>连通状态</RimMind.UI.Hub.PingStatus>
+  <RimMind.UI.Hub.PingNotRun>未测试</RimMind.UI.Hub.PingNotRun>
+  <RimMind.UI.Hub.Latency>延迟</RimMind.UI.Hub.Latency>
+  <RimMind.UI.Hub.Tokens>Tokens</RimMind.UI.Hub.Tokens>
+  <RimMind.UI.Hub.ResponseSnippet>响应摘要</RimMind.UI.Hub.ResponseSnippet>
+  <RimMind.UI.Hub.QueueAndCooldownTitle>请求队列与冷却控制台</RimMind.UI.Hub.QueueAndCooldownTitle>
+  <RimMind.UI.Hub.QueueAndCooldownTip>监控请求队列并发与冷却状态，支持暂停派发、清空排队以及重置模组频控。</RimMind.UI.Hub.QueueAndCooldownTip>
+  <RimMind.UI.Hub.QueueFlushed>已清空所有排队中的请求。</RimMind.UI.Hub.QueueFlushed>
+  <RimMind.UI.Hub.CooldownsCleared>已重置所有模组的请求冷却。</RimMind.UI.Hub.CooldownsCleared>
+  <RimMind.UI.Hub.TogglePauseTip>暂停或继续请求队列的任务消费与后台派发。</RimMind.UI.Hub.TogglePauseTip>
+  <RimMind.UI.Hub.ClearQueuesTip>丢弃所有正在排队等待发送的 AI 请求。</RimMind.UI.Hub.ClearQueuesTip>
+  <RimMind.UI.Hub.ClearCooldownsTip>重置所有模组的熔断冷却时间与频控限制。</RimMind.UI.Hub.ClearCooldownsTip>
+  <RimMind.UI.Hub.RuntimeSettingsTuner>运行时配置快捷微调</RimMind.UI.Hub.RuntimeSettingsTuner>
+  <RimMind.UI.Hub.RuntimeSettingsTunerTip>直接微调核心运行时参数并即时保存生效，无需重启游戏。</RimMind.UI.Hub.RuntimeSettingsTunerTip>
+  <RimMind.UI.Hub.MaxConcurrentTip>允许同时向大模型发送的并发请求上限 (1 ~ 5)。</RimMind.UI.Hub.MaxConcurrentTip>
+  <RimMind.UI.Hub.RequestTimeoutTip>等待 AI 响应的最长超时时间 (15秒 ~ 120秒)。</RimMind.UI.Hub.RequestTimeoutTip>
+  <RimMind.UI.Hub.DebugLoggingTip>启用详细的开发者调试日志输出到控制台。</RimMind.UI.Hub.DebugLoggingTip>
+  <RimMind.UI.Hub.MockMode>离线模拟模式</RimMind.UI.Hub.MockMode>
+  <RimMind.UI.Hub.MockModeTip>启用离线模拟响应，无需连接外部 AI 接口即可测试闭环。</RimMind.UI.Hub.MockModeTip>
+  <RimMind.UI.Hub.ColonistAgentInspector>殖民者智能体实时状态</RimMind.UI.Hub.ColonistAgentInspector>
+  <RimMind.UI.Hub.ColonistAgentInspectorTip>查看当前选中殖民者的 Agent 状态与思考周期，可单步触发思考或检查上下文报文。</RimMind.UI.Hub.ColonistAgentInspectorTip>
+  <RimMind.UI.Hub.SelectColonist>👥 选择殖民者</RimMind.UI.Hub.SelectColonist>
+  <RimMind.UI.Hub.SelectColonistTip>从当前地图的存活殖民者中快速切换目标。</RimMind.UI.Hub.SelectColonistTip>
+  <RimMind.UI.Hub.AgentWorkflow>工作流阶段</RimMind.UI.Hub.AgentWorkflow>
+  <RimMind.UI.Hub.AgentAutonomy>自主级别</RimMind.UI.Hub.AgentAutonomy>
+  <RimMind.UI.Hub.InspectPayload>🔍 检查当前小人报文</RimMind.UI.Hub.InspectPayload>
+  <RimMind.UI.Hub.InspectPayloadTip>打开当前殖民者的完整上下文报文检查器，查看 Prompt、记忆与环境数据。</RimMind.UI.Hub.InspectPayloadTip>
+  <RimMind.UI.Hub.TriggerAgentTick>⚡ 立即触发单次思考</RimMind.UI.Hub.TriggerAgentTick>
+  <RimMind.UI.Hub.TriggerAgentTickTip>重置思考冷却并立即执行一次 Agent Tick，驱动该小人发起决策。</RimMind.UI.Hub.TriggerAgentTickTip>
+  <RimMind.UI.Hub.AgentTickTriggered>已触发小人思考循环: {0}</RimMind.UI.Hub.AgentTickTriggered>
+  <RimMind.UI.Hub.AgentNotFound>小人尚未初始化 Agent 组件。</RimMind.UI.Hub.AgentNotFound>
   <!-- Debug table shared headers -->
   <RimMind.UI.DebugTable.Header.Id>ID</RimMind.UI.DebugTable.Header.Id>
   <RimMind.UI.DebugTable.Header.Status>状态</RimMind.UI.DebugTable.Header.Status>
@@ -678,7 +719,7 @@
   <RimMind.Notification.ApiKeyMissing.Title>RimMind: 需要配置 API 密钥</RimMind.Notification.ApiKeyMissing.Title>
   <RimMind.Notification.ApiKeyMissing.Desc>RimMind 检测到当前选中的 AI 提供商尚未配置 API 密钥。请在“选项 -&gt; Mod 设置 -&gt; RimMind”中输入您的 API 密钥，以激活殖民者智能体决策、AI 对话与叙事者等功能。</RimMind.Notification.ApiKeyMissing.Desc>
   <!-- Context Inspector & Display Settings -->
-  <RimMind.Settings.ShowAgentProgressFloat>显示浮动心智监视窗 (Agent Progress Float)</RimMind.Settings.ShowAgentProgressFloat>
+  <RimMind.Settings.ShowAgentProgressFloat>显示浮动心智监视窗</RimMind.Settings.ShowAgentProgressFloat>
   <RimMind.Settings.ShowAgentProgressFloat.Desc>在屏幕上显示所有活动殖民者的实时思考与工作流状态条（默认关闭）。</RimMind.Settings.ShowAgentProgressFloat.Desc>
   <RimMind.Inspector.Title>AI 报文与上下文检查器</RimMind.Inspector.Title>
   <RimMind.Inspector.CopyClipboard>复制完整报文</RimMind.Inspector.CopyClipboard>
@@ -688,7 +729,7 @@
   <RimMind.Inspector.ColonistsList>殖民者列表</RimMind.Inspector.ColonistsList>
   <RimMind.Inspector.ScenarioLabel>场景:</RimMind.Inspector.ScenarioLabel>
   <RimMind.Inspector.Copied>已成功复制完整 AI 请求报文到剪贴板！</RimMind.Inspector.Copied>
-  <RimMind.Inspector.OpenButton>检查报文 (Payload)</RimMind.Inspector.OpenButton>
+  <RimMind.Inspector.OpenButton>检查报文</RimMind.Inspector.OpenButton>
   <RimMind.UI.ResetToDefaults>恢复默认</RimMind.UI.ResetToDefaults>
   <!-- UX Optimization: Presets & Sections & HUD -->
   <RimMind.Settings.PresetsBarTitle>⚙️ 快捷配置预设</RimMind.Settings.PresetsBarTitle>
@@ -699,18 +740,18 @@
   <RimMind.Settings.Preset.Balanced.Desc>标准平衡：MaxTokens=800，并发=2，超时=45秒，冷却=30秒。兼顾思考质量与令牌开销。</RimMind.Settings.Preset.Balanced.Desc>
   <RimMind.Settings.Preset.Eco>🛡️ 节能防限流</RimMind.Settings.Preset.Eco>
   <RimMind.Settings.Preset.Eco.Desc>经济防护：MaxTokens=400，并发=1，超时=60秒，冷却=60秒。适合免费额度或严格限流 API。</RimMind.Settings.Preset.Eco.Desc>
-  <RimMind.Settings.Section.Connection>一、连接与服务 (Connection &amp; Services)</RimMind.Settings.Section.Connection>
+  <RimMind.Settings.Section.Connection>一、连接与端点</RimMind.Settings.Section.Connection>
   <RimMind.Settings.ModelServiceActiveNote>✓ 已检测到 ModelService 扩展模组生效中。可配合本地订阅代理或自定义端点网关使用。</RimMind.Settings.ModelServiceActiveNote>
   <RimMind.Settings.ModelServiceNotInstalledNote>提示：安装 RimMind-Extension-ModelService 可启用本地多提供商接入与 Codex/OpenAI 订阅代理网关。</RimMind.Settings.ModelServiceNotInstalledNote>
-  <RimMind.Settings.Section.Generation>二、生成与飞轮 (Generation &amp; Flywheel)</RimMind.Settings.Section.Generation>
-  <RimMind.Settings.Section.Performance>三、性能与队列 (Performance &amp; Queue)</RimMind.Settings.Section.Performance>
-  <RimMind.Settings.Section.Interface>四、界面与 HUD (Interface &amp; HUD)</RimMind.Settings.Section.Interface>
+  <RimMind.Settings.Section.Generation>二、生成与模型行为</RimMind.Settings.Section.Generation>
+  <RimMind.Settings.Section.Performance>三、性能与调度</RimMind.Settings.Section.Performance>
+  <RimMind.Settings.Section.Interface>四、界面与悬浮窗</RimMind.Settings.Section.Interface>
   <RimMind.Settings.RequestOverlayAutoHideWhenEmpty>HUD 悬浮窗空闲时收起为微胶囊</RimMind.Settings.RequestOverlayAutoHideWhenEmpty>
   <RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>当没有待审批请求时，将 HUD 悬浮窗最小化为 120x24 的细长状态胶囊，鼠标悬停或有新审批时自动展开。</RimMind.Settings.RequestOverlayAutoHideWhenEmpty.Desc>
-  <RimMind.Settings.EnableFloatingMentalMonitor>启用浮动心智状态监视器 (Mental Monitor)</RimMind.Settings.EnableFloatingMentalMonitor>
+  <RimMind.Settings.EnableFloatingMentalMonitor>启用浮动心智状态监视器</RimMind.Settings.EnableFloatingMentalMonitor>
   <RimMind.Settings.EnableFloatingMentalMonitor.Desc>在屏幕边缘浮动显示智能体思维活动与心情波动趋势监视条（实验性）。</RimMind.Settings.EnableFloatingMentalMonitor.Desc>
   <RimMind.Settings.OpenContextPayloadInspector>打开报文检查与测试工具</RimMind.Settings.OpenContextPayloadInspector>
-  <RimMind.Settings.OpenContextPayloadInspector.Desc>打开实时 Payload 检查器，可查看组装后的上下文、测试发送或复制完整 JSON 报文。</RimMind.Settings.OpenContextPayloadInspector.Desc>
+  <RimMind.Settings.OpenContextPayloadInspector.Desc>打开实时报文检查器，可查看组装后的上下文、测试发送或复制完整 JSON 报文。</RimMind.Settings.OpenContextPayloadInspector.Desc>
   <RimMind.UI.RequestOverlay.PendingCount>待审批: {0}</RimMind.UI.RequestOverlay.PendingCount>
   <RimMind.UI.RequestOverlay.MiniPillTooltip>RimMind 待审批悬浮窗（已收起）。悬停展开完整视图。</RimMind.UI.RequestOverlay.MiniPillTooltip>
   <RimMind.UI.Hub.StatusSummaryTitle>系统概况与运行状态</RimMind.UI.Hub.StatusSummaryTitle>
