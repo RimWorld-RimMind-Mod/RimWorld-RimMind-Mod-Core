@@ -119,19 +119,24 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             Text.Anchor = TextAnchor.UpperLeft;
             TooltipHandler.TipRegion(rowRect, labelText);
 
+            string tooltip = !string.IsNullOrWhiteSpace(row.TooltipDetail)
+                ? row.TooltipDetail
+                : labelText;
+            TooltipHandler.TipRegion(rowRect, tooltip);
+
             scope.Record(rowRect, $"Agents:Activity:TraceRow:{index}");
             return y + TraceRowHeight + RimMindUI.Padding * 0.5f;
         }
 
         private static string TraceRowLabel(AgentRequestTraceRow row)
         {
-            string summary = row.Summary;
+            string summary = row.Summary?.Replace('\r', ' ').Replace('\n', ' ').Trim() ?? string.Empty;
             string label = TraceStatusLabel(row.Status);
             if (string.IsNullOrWhiteSpace(summary))
-                return label + ": " + (row.ErrorMessage ?? string.Empty);
+                return label + ": " + (row.ErrorMessage?.Replace('\r', ' ').Replace('\n', ' ').Trim() ?? string.Empty);
 
             return row.HasError && !string.IsNullOrWhiteSpace(row.ErrorMessage)
-                ? label + ": " + summary + " - " + row.ErrorMessage
+                ? label + ": " + summary + " - " + row.ErrorMessage.Replace('\r', ' ').Replace('\n', ' ').Trim()
                 : label + ": " + summary;
         }
 

@@ -669,6 +669,20 @@
   <RimMind.UI.AgentsPage.Trace.Pending>等待回复</RimMind.UI.AgentsPage.Trace.Pending>
   <RimMind.UI.AgentsPage.Trace.Success>成功</RimMind.UI.AgentsPage.Trace.Success>
   <RimMind.UI.AgentsPage.Trace.Error>出错</RimMind.UI.AgentsPage.Trace.Error>
+  <RimMind.UI.AgentsPage.Trace.WaitingModel>等待模型响应...</RimMind.UI.AgentsPage.Trace.WaitingModel>
+  <RimMind.UI.AgentsPage.Trace.RequestError>请求异常</RimMind.UI.AgentsPage.Trace.RequestError>
+  <RimMind.UI.AgentsPage.Trace.DailyReaction>触发日常反应/独白</RimMind.UI.AgentsPage.Trace.DailyReaction>
+  <RimMind.UI.AgentsPage.Trace.TriggerInteraction>触发 AI 交互</RimMind.UI.AgentsPage.Trace.TriggerInteraction>
+  <RimMind.UI.AgentsPage.Trace.CallTools>调用工具: {0}</RimMind.UI.AgentsPage.Trace.CallTools>
+  <RimMind.UI.AgentsPage.Trace.TooltipTitle>【AI 交互记录】 {0}</RimMind.UI.AgentsPage.Trace.TooltipTitle>
+  <RimMind.UI.AgentsPage.Trace.TooltipElapsed>耗时: {0}ms</RimMind.UI.AgentsPage.Trace.TooltipElapsed>
+  <RimMind.UI.AgentsPage.Trace.TooltipTokens>Tokens: {0}</RimMind.UI.AgentsPage.Trace.TooltipTokens>
+  <RimMind.UI.AgentsPage.Trace.TooltipModel>模型: {0}</RimMind.UI.AgentsPage.Trace.TooltipModel>
+  <RimMind.UI.AgentsPage.Trace.TooltipSource>来源: {0}</RimMind.UI.AgentsPage.Trace.TooltipSource>
+  <RimMind.UI.AgentsPage.Trace.TooltipIntent>触发意图: {0}</RimMind.UI.AgentsPage.Trace.TooltipIntent>
+  <RimMind.UI.AgentsPage.Trace.TooltipTools>工具调用: {0}</RimMind.UI.AgentsPage.Trace.TooltipTools>
+  <RimMind.UI.AgentsPage.Trace.TooltipContent>交互内容: {0}</RimMind.UI.AgentsPage.Trace.TooltipContent>
+  <RimMind.UI.AgentsPage.Trace.TooltipError>错误详情: {0}</RimMind.UI.AgentsPage.Trace.TooltipError>
   <RimMind.UI.AgentsPage.CreateFailed>创建智能体失败，请检查服务是否可用。</RimMind.UI.AgentsPage.CreateFailed>
   <RimMind.UI.AgentsPage.MessageUnavailable>智能体聊天输入尚未接入，已保留当前草稿。</RimMind.UI.AgentsPage.MessageUnavailable>
   <!-- AIRequestsPageDrawer.cs -->

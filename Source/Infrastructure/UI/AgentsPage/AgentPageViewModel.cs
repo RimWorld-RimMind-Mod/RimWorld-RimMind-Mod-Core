@@ -20,12 +20,14 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             AgentRequestTraceStatus status,
             string toolCallSummary,
             string contentSummary,
-            string? error)
+            string? error,
+            string? tooltipDetail = null)
         {
             Status = status;
             ToolCallSummary = toolCallSummary ?? string.Empty;
             ContentSummary = contentSummary ?? string.Empty;
             ErrorMessage = error;
+            TooltipDetail = tooltipDetail ?? string.Empty;
         }
 
         public AgentRequestTraceStatus Status { get; }
@@ -36,46 +38,53 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
         public string? ErrorMessage { get; }
 
+        public string TooltipDetail { get; }
+
         public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
         public string Summary => !string.IsNullOrWhiteSpace(ToolCallSummary)
             ? ToolCallSummary
             : ContentSummary;
 
-        public static AgentRequestTraceRow Waiting(string contentSummary)
+        public static AgentRequestTraceRow Waiting(string contentSummary, string? tooltipDetail = null)
             => new AgentRequestTraceRow(
                 AgentRequestTraceStatus.Waiting,
                 toolCallSummary: string.Empty,
                 contentSummary,
-                error: null);
+                error: null,
+                tooltipDetail);
 
-        public static AgentRequestTraceRow Streaming(string contentSummary)
+        public static AgentRequestTraceRow Streaming(string contentSummary, string? tooltipDetail = null)
             => new AgentRequestTraceRow(
                 AgentRequestTraceStatus.Streaming,
                 toolCallSummary: string.Empty,
                 contentSummary,
-                error: null);
+                error: null,
+                tooltipDetail);
 
-        public static AgentRequestTraceRow Success(string toolCallSummary, string contentSummary)
+        public static AgentRequestTraceRow Success(string toolCallSummary, string contentSummary, string? tooltipDetail = null)
             => new AgentRequestTraceRow(
                 AgentRequestTraceStatus.Success,
                 toolCallSummary,
                 contentSummary,
-                error: null);
+                error: null,
+                tooltipDetail);
 
-        public static AgentRequestTraceRow Error(string toolCallSummary, string contentSummary, string error)
+        public static AgentRequestTraceRow Error(string toolCallSummary, string contentSummary, string error, string? tooltipDetail = null)
             => new AgentRequestTraceRow(
                 AgentRequestTraceStatus.Error,
                 toolCallSummary,
                 contentSummary,
-                error);
+                error,
+                tooltipDetail);
 
-        public static AgentRequestTraceRow System(string contentSummary)
+        public static AgentRequestTraceRow System(string contentSummary, string? tooltipDetail = null)
             => new AgentRequestTraceRow(
                 AgentRequestTraceStatus.System,
                 toolCallSummary: string.Empty,
                 contentSummary,
-                error: null);
+                error: null,
+                tooltipDetail);
     }
 
     public enum AgentPageAction

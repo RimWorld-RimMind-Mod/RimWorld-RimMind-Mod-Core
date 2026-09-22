@@ -669,6 +669,20 @@
   <RimMind.UI.AgentsPage.Trace.Pending>Pending</RimMind.UI.AgentsPage.Trace.Pending>
   <RimMind.UI.AgentsPage.Trace.Success>Success</RimMind.UI.AgentsPage.Trace.Success>
   <RimMind.UI.AgentsPage.Trace.Error>Error</RimMind.UI.AgentsPage.Trace.Error>
+  <RimMind.UI.AgentsPage.Trace.WaitingModel>Waiting for model response...</RimMind.UI.AgentsPage.Trace.WaitingModel>
+  <RimMind.UI.AgentsPage.Trace.RequestError>Request error</RimMind.UI.AgentsPage.Trace.RequestError>
+  <RimMind.UI.AgentsPage.Trace.DailyReaction>Daily reaction/monologue</RimMind.UI.AgentsPage.Trace.DailyReaction>
+  <RimMind.UI.AgentsPage.Trace.TriggerInteraction>Trigger AI interaction</RimMind.UI.AgentsPage.Trace.TriggerInteraction>
+  <RimMind.UI.AgentsPage.Trace.CallTools>Call tool: {0}</RimMind.UI.AgentsPage.Trace.CallTools>
+  <RimMind.UI.AgentsPage.Trace.TooltipTitle>[AI Trace Entry] {0}</RimMind.UI.AgentsPage.Trace.TooltipTitle>
+  <RimMind.UI.AgentsPage.Trace.TooltipElapsed>Latency: {0}ms</RimMind.UI.AgentsPage.Trace.TooltipElapsed>
+  <RimMind.UI.AgentsPage.Trace.TooltipTokens>Tokens: {0}</RimMind.UI.AgentsPage.Trace.TooltipTokens>
+  <RimMind.UI.AgentsPage.Trace.TooltipModel>Model: {0}</RimMind.UI.AgentsPage.Trace.TooltipModel>
+  <RimMind.UI.AgentsPage.Trace.TooltipSource>Source: {0}</RimMind.UI.AgentsPage.Trace.TooltipSource>
+  <RimMind.UI.AgentsPage.Trace.TooltipIntent>Intent: {0}</RimMind.UI.AgentsPage.Trace.TooltipIntent>
+  <RimMind.UI.AgentsPage.Trace.TooltipTools>Tools: {0}</RimMind.UI.AgentsPage.Trace.TooltipTools>
+  <RimMind.UI.AgentsPage.Trace.TooltipContent>Content: {0}</RimMind.UI.AgentsPage.Trace.TooltipContent>
+  <RimMind.UI.AgentsPage.Trace.TooltipError>Error: {0}</RimMind.UI.AgentsPage.Trace.TooltipError>
   <RimMind.UI.AgentsPage.CreateFailed>Failed to create agent. Check that services are available.</RimMind.UI.AgentsPage.CreateFailed>
   <RimMind.UI.AgentsPage.MessageUnavailable>Agent chat input is not connected yet. Your draft was kept.</RimMind.UI.AgentsPage.MessageUnavailable>
   <!-- AIRequestsPageDrawer.cs -->
