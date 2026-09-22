@@ -80,9 +80,12 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
             Text.Font = GameFont.Medium;
             GUI.color = RimMindUI.ColorHeader;
-            Widgets.Label(new Rect(inner.x, inner.y, inner.width, RimMindUI.LineHeight), pawn.LabelShortCap);
+            const float nameHeight = 32f;
+            Rect nameRect = new Rect(inner.x, inner.y, inner.width, nameHeight);
+            Widgets.Label(nameRect, pawn.LabelShortCap);
             Text.Font = GameFont.Small;
             GUI.color = Color.white;
+            TooltipHandler.TipRegion(nameRect, pawn.Name != null ? pawn.Name.ToStringFull : pawn.LabelCap);
 
             string stateLabel = "RimMind.UI.AgentsPage.Pending".Translate();
             AgentState? state = null;
@@ -95,7 +98,9 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             var (textColor, bgColor) = state.HasValue
                 ? RimMindUI.GetStateBadgeColors(state.Value)
                 : RimMindUI.GetStateBadgeColors(AgentState.Dormant, isPendingCreation: true);
-            RimMindUI.DrawStatusBadge(inner, inner.y + RimMindUI.LineHeight + RimMindUI.Padding,
+
+            // Pass rect (whose padding gives inner.x) so the badge aligns with inner.x
+            RimMindUI.DrawStatusBadge(rect, inner.y + nameHeight + 6f,
                 "RimMind.UI.AgentsPage.State".Translate() + ": " + stateLabel, textColor, bgColor);
         }
 
@@ -107,6 +112,11 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 {
                     case "primary":
                         DrawPrimaryStateButton(button.Rect, agent);
+                        bool isSingle = agent.State == AgentState.Dormant || agent.State == AgentState.Terminated;
+                        Rect btnRect = isSingle
+                            ? new Rect(button.Rect.x, button.Rect.y, Mathf.Min(button.Rect.width * 2f + RimMindUiMetrics.ButtonGap, 200f), button.Rect.height)
+                            : button.Rect;
+                        DrawPrimaryStateButton(btnRect, agent);
                         break;
                     case "force_think":
                         if ((agent.State == AgentState.Active || agent.State == AgentState.Paused)

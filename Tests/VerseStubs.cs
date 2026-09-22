@@ -141,6 +141,7 @@ namespace Verse
         public Pawn_Name Name => new Pawn_Name();
         public string LabelShort => "TestPawn";
         public string LabelShortCap => LabelShort;
+        public string LabelCap => LabelShortCap;
         public string ThingID => "Pawn_" + thingIDNumber;
         public object jobs = new();
 
@@ -161,6 +162,12 @@ namespace Verse
     public class Pawn_Name
     {
         public string ToStringShort => "TestPawn";
+        public string ToStringFull => "TestPawn Full";
+    }
+
+    public static class StringEx
+    {
+        public static string Truncate(this string str, float width, Dictionary<string, string>? cache = null) => str;
     }
 
     /// <summary>Stub for Verse.Map used by context orchestration tests.</summary>

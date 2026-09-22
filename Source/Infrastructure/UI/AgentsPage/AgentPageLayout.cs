@@ -70,7 +70,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 scrollable.y,
                 detailWidth,
                 scrollable.height);
-            Rect status = new Rect(detail.x, detail.y, detail.width, 72f);
+            Rect status = new Rect(detail.x, detail.y, detail.width, 80f);
             Rect actions = new Rect(detail.x, status.yMax + RimMindUiMetrics.Padding, detail.width, 70f);
             ActionBarLayoutResult actionBar = ActionBarLayout.Calculate(
                 actions,

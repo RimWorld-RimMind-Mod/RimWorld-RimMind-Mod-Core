@@ -51,17 +51,18 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
             float y = bodyRect.y;
 
+            float rowHeight = 24f;
             y = RimMindUI.DrawSectionHeader(bodyRect, y,
                 "RimMind.UI.AgentsPage.Active".Translate() + $" ({groups.Active.Count})");
             foreach (var item in groups.Active)
-                y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, RimMindUI.LineHeight), item, ref listSelectedPawnId);
+                y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, rowHeight), item, ref listSelectedPawnId);
 
             y += RimMindUI.Padding;
 
             y = RimMindUI.DrawSectionHeader(bodyRect, y,
                 "RimMind.UI.AgentsPage.Paused".Translate() + $" ({groups.Paused.Count})");
             foreach (var item in groups.Paused)
-                y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, RimMindUI.LineHeight), item, ref listSelectedPawnId);
+                y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, rowHeight), item, ref listSelectedPawnId);
 
             y += RimMindUI.Padding;
 
@@ -70,7 +71,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 y = RimMindUI.DrawSectionHeader(bodyRect, y,
                     "RimMind.UI.AgentsPage.Pending".Translate());
                 foreach (var item in groups.PendingCreation)
-                    y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, RimMindUI.LineHeight), item, ref listSelectedPawnId);
+                    y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, rowHeight), item, ref listSelectedPawnId);
             }
 
             if (groups.Other.Count > 0)
@@ -79,7 +80,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 y = RimMindUI.DrawSectionHeader(bodyRect, y,
                     "RimMind.UI.AgentsPage.Other".Translate() + $" ({groups.Other.Count})");
                 foreach (var item in groups.Other)
-                    y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, RimMindUI.LineHeight), item, ref listSelectedPawnId);
+                    y = DrawAgentRow(new Rect(bodyRect.x, y, bodyRect.width, rowHeight), item, ref listSelectedPawnId);
             }
 
             Widgets.EndScrollView();
@@ -104,8 +105,13 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 Widgets.DrawBoxSolid(rect, bgColor);
 
             GUI.color = textColor;
-            Widgets.Label(rect, item.Label);
+            TextAnchor prevAnchor = Text.Anchor;
+            Text.Anchor = TextAnchor.MiddleLeft;
+            Rect textRect = new Rect(rect.x + 8f, rect.y, rect.width - 16f, rect.height);
+            Widgets.Label(textRect, item.Label.Truncate(textRect.width));
+            Text.Anchor = prevAnchor;
             GUI.color = Color.white;
+            TooltipHandler.TipRegion(rect, item.Label);
 
             if (Widgets.ButtonInvisible(rect))
             {
@@ -114,14 +120,14 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                     Find.Selector.Select(pawn, false, true);
             }
 
-            return rect.yMax;
+            return rect.yMax + 2f;
         }
 
         private static float CalcListHeight(AgentListGroups groups)
         {
             float h = 0f;
             float sectionHeaderH = RimMindUI.LineHeight + RimMindUI.SectionGap * 0.5f;
-            float rowH = RimMindUI.LineHeight;
+            float rowH = 26f;
 
             h += sectionHeaderH + groups.Active.Count * rowH + RimMindUI.Padding;
             h += sectionHeaderH + groups.Paused.Count * rowH + RimMindUI.Padding;

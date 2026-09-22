@@ -161,7 +161,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             else
             {
                 GUI.color = RimMindUI.ColorMuted;
-                Widgets.Label(statsRow, "RimMind.UI.Hub.PingNotRun".Translate());
+                Widgets.Label(statsRow, $"{"RimMind.UI.Hub.Latency".Translate()}: - | {"RimMind.UI.Hub.Tokens".Translate()}: -");
                 GUI.color = Color.white;
                 TooltipHandler.TipRegion(statsRow, "RimMind.UI.Hub.PingNotRun".Translate());
             }
@@ -377,13 +377,17 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             string pawnName = selectedPawn != null ? selectedPawn.LabelShortCap : "RimMind.UI.Hub.NoPawn".Translate();
 
             // Row 1: Selected Pawn label + Selector Button
-            Rect pLabelRect = new Rect(card.x + 8f, pY, 200f, 26f);
+            string fullPawnText = $"{"RimMind.UI.Hub.SelectedPawn".Translate()}: {pawnName}";
+            Vector2 pawnTextSize = Text.CalcSize(fullPawnText);
+            float labelW = Mathf.Clamp(pawnTextSize.x + 8f, 200f, 280f);
+            Rect pLabelRect = new Rect(card.x + 8f, pY, labelW, 26f);
             GUI.color = selectedPawn != null ? RimMindUI.ColorValue : RimMindUI.ColorMuted;
-            Widgets.Label(pLabelRect, $"{"RimMind.UI.Hub.SelectedPawn".Translate()}: {pawnName}");
+            Widgets.Label(pLabelRect, fullPawnText.Truncate(labelW));
             GUI.color = Color.white;
-            TooltipHandler.TipRegion(pLabelRect, "RimMind.UI.Hub.SelectColonistTip".Translate());
+            TooltipHandler.TipRegion(pLabelRect, selectedPawn?.Name != null ? selectedPawn.Name.ToStringFull : fullPawnText);
 
-            Rect pSelectBtn = new Rect(card.x + 214f, pY, 130f, 26f);
+            float pSelectW = 120f;
+            Rect pSelectBtn = new Rect(pLabelRect.xMax + 8f, pY, pSelectW, 26f);
             if (Widgets.ButtonText(pSelectBtn, "RimMind.UI.Hub.SelectColonist".Translate()))
             {
                 var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList();
@@ -407,9 +411,12 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 Color stateCol = agent?.State == AgentState.Active ? RimMindUI.ColorActive :
                                  agent?.State == AgentState.Paused ? RimMindUI.ColorPaused : RimMindUI.ColorMuted;
 
-                Rect stateRect = new Rect(card.x + 356f, pY, cardW - 364f, 26f);
+                float stateX = pSelectBtn.xMax + 12f;
+                float stateW = Mathf.Max(60f, card.xMax - stateX - 8f);
+                Rect stateRect = new Rect(stateX, pY, stateW, 26f);
                 GUI.color = stateCol;
-                Widgets.Label(stateRect, $"{"RimMind.UI.DebugTable.Header.Status".Translate()}: {stateStr}");
+                string stateFullText = $"{"RimMind.UI.DebugTable.Header.Status".Translate()}: {stateStr}";
+                Widgets.Label(stateRect, stateFullText.Truncate(stateW));
                 GUI.color = Color.white;
                 TooltipHandler.TipRegion(stateRect, $"Agent State: {stateStr}");
 
@@ -422,11 +429,13 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     : "Never";
 
                 Rect wfRect = new Rect(card.x + 8f, pY, cardW * 0.5f - 12f, 22f);
-                Widgets.Label(wfRect, $"{"RimMind.UI.Hub.AgentWorkflow".Translate()}: {workflowStr} ({"RimMind.UI.Hub.AgentAutonomy".Translate()}: {agent?.AutonomyLevel})");
+                string wfText = $"{"RimMind.UI.Hub.AgentWorkflow".Translate()}: {workflowStr} ({"RimMind.UI.Hub.AgentAutonomy".Translate()}: {agent?.AutonomyLevel})";
+                Widgets.Label(wfRect, wfText.Truncate(wfRect.width));
                 TooltipHandler.TipRegion(wfRect, $"Phase: {workflowStr}, Autonomy: {agent?.AutonomyLevel}");
 
                 Rect tickRect = new Rect(card.x + cardW * 0.5f + 4f, pY, cardW * 0.5f - 12f, 22f);
-                Widgets.Label(tickRect, $"{"RimMind.UI.Hub.AgentLoopLastTick".Translate()}: {lastThinkStr}");
+                string tickText = $"{"RimMind.UI.Hub.AgentLoopLastTick".Translate()}: {lastThinkStr}";
+                Widgets.Label(tickRect, tickText.Truncate(tickRect.width));
                 TooltipHandler.TipRegion(tickRect, $"Last think: {lastThinkStr}");
 
                 pY += 28f;
