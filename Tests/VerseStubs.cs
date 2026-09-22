@@ -117,6 +117,11 @@ namespace Verse
             => Activator.CreateInstance(typeof(T)) as T;
     }
 
+    public static class UnityData
+    {
+        public static bool IsInMainThread = true;
+    }
+
     public static class Current
     {
         public static Game? Game { get; set; } = new Game();
@@ -137,6 +142,9 @@ namespace Verse
     {
         public int thingIDNumber;
         public bool Dead;
+        public bool IsColonist = true;
+        public bool Downed = false;
+        public object? MentalState = null;
         public Map? Map { get; set; }
         public Pawn_Name Name => new Pawn_Name();
         public string LabelShort => "TestPawn";
@@ -180,10 +188,31 @@ namespace Verse
     public class MapPawns
     {
         public List<Pawn> AllPawnsSpawned = new();
+        public List<Pawn> AllPawns = new();
+        public List<Pawn> FreeColonists = new();
+    }
+
+    public class WorldPawns
+    {
+        public List<Pawn> AllPawnsAlive { get; set; } = new();
+        public List<Pawn> AllPawnsAliveOrDead { get; set; } = new();
+    }
+
+    public class Caravan
+    {
+        public List<Pawn> PawnsListForReading { get; set; } = new();
+    }
+
+    public class WorldObjects
+    {
+        public List<Caravan> Caravans { get; set; } = new();
     }
 
     /// <summary>Stub for Verse.ThingWithComps base class.</summary>
-    public class ThingWithComps { }
+    public class ThingWithComps
+    {
+        public bool DestroyedOrNull() => false;
+    }
 
     public enum DestroyMode
     {
@@ -281,6 +310,9 @@ namespace Verse
         public static Map? CurrentMap;
         public static Selector Selector = new();
         public static LetterStack? LetterStack = new();
+        public static WorldPawns WorldPawns { get; set; } = new();
+        public static List<Map> Maps { get; set; } = new();
+        public static WorldObjects WorldObjects { get; set; } = new();
     }
 
     public class Selector

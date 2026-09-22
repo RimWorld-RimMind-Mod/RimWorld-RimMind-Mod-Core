@@ -21,12 +21,8 @@ namespace RimMind.Presentation.Context
     {
         private static Pawn? ResolvePawn(int pawnId)
         {
-            if (pawnId == 0) return null;
-            var pawn = Find.WorldPawns.AllPawnsAlive
-                .FirstOrDefault(p => p.thingIDNumber == pawnId);
-            if (pawn != null) return pawn;
-            return Find.CurrentMap?.mapPawns?.FreeColonists
-                .FirstOrDefault(p => p.thingIDNumber == pawnId);
+            if (pawnId <= 0) return null;
+            return RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
         }
 
         private static string? NullIfEmpty(string? value)

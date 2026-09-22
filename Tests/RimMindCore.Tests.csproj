@@ -88,6 +88,7 @@
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHandler.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismListToolHandler.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHelper.cs" />
+    <Compile Include="../Source/Presentation/Common/RimMindPawnLookup.cs" />
   </ItemGroup>
 
 </Project>

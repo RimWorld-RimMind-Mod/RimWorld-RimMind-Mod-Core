@@ -113,7 +113,6 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
             Text.Anchor = TextAnchor.MiddleLeft;
             GUI.color = row.HasError ? RimMindUI.ColorError : RimMindUI.ColorValue;
-            Widgets.Label(labelRect, TraceRowLabel(row));
             string labelText = TraceRowLabel(row);
             Widgets.Label(labelRect, labelText.Truncate(labelRect.width));
             GUI.color = Color.white;

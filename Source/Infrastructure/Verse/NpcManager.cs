@@ -57,7 +57,10 @@ namespace RimMind.Infrastructure.Verse
         public void IndexPawn(Pawn pawn)
         {
             if (pawn != null)
+            {
                 _pawnIndex[pawn.thingIDNumber] = pawn;
+                RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
+            }
         }
 
         void INpcManager.IndexPawn(object pawn) => IndexPawn(pawn as Pawn);
@@ -129,6 +132,18 @@ namespace RimMind.Infrastructure.Verse
                 _pawnIndex.TryRemove(thingId, out _);
             }
 
+            var cached = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(thingId);
+            if (cached != null)
+            {
+                _pawnIndex[thingId] = cached;
+                return cached;
+            }
+
+            if (!UnityData.IsInMainThread)
+            {
+                return null;
+            }
+
             foreach (var map in Find.Maps)
             {
                 if (map?.mapPawns == null) continue;
@@ -136,13 +151,17 @@ namespace RimMind.Infrastructure.Verse
                 if (pawn != null)
                 {
                     _pawnIndex[thingId] = pawn;
+                    RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
                     return pawn;
                 }
             }
 
             var worldPawn = Find.WorldPawns?.AllPawnsAlive.FirstOrDefault(p => p.thingIDNumber == thingId);
             if (worldPawn != null)
+            {
                 _pawnIndex[thingId] = worldPawn;
+                RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(worldPawn);
+            }
             return worldPawn;
         }
 
