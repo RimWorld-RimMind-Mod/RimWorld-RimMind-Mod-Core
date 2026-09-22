@@ -138,7 +138,6 @@ namespace RimMind.Tests.Contracts
 
         [Fact]
         public void HttpTransport_attaches_opencode_session_header_when_opencode_url_or_key_used()
-        public void AIClientFactory_contract_exposes_metadata_for_ui_and_presets()
         {
             using var req1 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://opencode.ai/zen/go/v1/chat/completions");
             RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req1, "https://opencode.ai/zen/go/v1/chat/completions", null);
@@ -153,6 +152,11 @@ namespace RimMind.Tests.Contracts
             using var req3 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api.openai.com/v1");
             RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req3, "https://api.openai.com/v1", "Bearer sk-standard-key");
             Assert.False(req3.Headers.Contains("x-opencode-session"));
+        }
+
+        [Fact]
+        public void AIClientFactory_contract_exposes_metadata_for_ui_and_presets()
+        {
             var factory = new TestClientFactory();
             Assert.Equal("test_provider", factory.ProviderId);
             Assert.True(factory.RequiresApiKey);
