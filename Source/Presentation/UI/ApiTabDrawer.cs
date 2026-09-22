@@ -607,17 +607,33 @@ namespace RimMind.Presentation.UI
                 Rect field = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
                 Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
 
+                Widgets.DrawBoxSolid(field, new Color(0.04f, 0.05f, 0.08f, 0.6f));
+                GUI.color = new Color(0.28f, 0.35f, 0.45f, 0.7f);
+                Widgets.DrawBox(field, 1);
+                GUI.color = Color.white;
+
                 if (_showApiKey)
                 {
                     s.ApiKey = Widgets.TextField(field, s.ApiKey ?? string.Empty);
                 }
                 else
                 {
-                    string hiddenLabel = string.IsNullOrEmpty(s.ApiKey)
-                        ? string.Empty
-                        : "RimMind.Settings.ApiKey.Saved".Translate(s.ApiKey.Length).ToString();
-                    Widgets.DrawBoxSolid(field, new Color(0.08f, 0.08f, 0.08f, 0.35f));
-                    Widgets.Label(new Rect(field.x + 6f, field.y + 4f, field.width - 12f, field.height), hiddenLabel);
+                    if (string.IsNullOrEmpty(s.ApiKey))
+                    {
+                        GUI.color = new Color(0.6f, 0.65f, 0.7f, 0.65f);
+                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), "RimMind.Settings.ApiKey.EmptyPlaceholder".Translate());
+                        GUI.color = Color.white;
+                    }
+                    else
+                    {
+                        string hiddenLabel = "RimMind.Settings.ApiKey.Saved".Translate(s.ApiKey.Length).ToString();
+                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), hiddenLabel);
+                    }
+
+                    if (Widgets.ButtonInvisible(field))
+                    {
+                        _showApiKey = true;
+                    }
                 }
                 TooltipHandler.TipRegion(field, "RimMind.Settings.ApiKey.Desc".Translate());
                 if (Widgets.ButtonText(toggle, _showApiKey ? "RimMind.Settings.Hide".Translate() : "RimMind.Settings.Show".Translate()))
@@ -649,17 +665,33 @@ namespace RimMind.Presentation.UI
                 Rect field = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
                 Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
 
+                Widgets.DrawBoxSolid(field, new Color(0.04f, 0.05f, 0.08f, 0.6f));
+                GUI.color = new Color(0.28f, 0.35f, 0.45f, 0.7f);
+                Widgets.DrawBox(field, 1);
+                GUI.color = Color.white;
+
                 if (_showApiKey)
                 {
                     s.ApiKey = Widgets.TextField(field, s.ApiKey ?? string.Empty);
                 }
                 else
                 {
-                    string hiddenLabel = string.IsNullOrEmpty(s.ApiKey)
-                        ? string.Empty
-                        : "RimMind.Settings.ApiKey.Saved".Translate(s.ApiKey.Length).ToString();
-                    Widgets.DrawBoxSolid(field, new Color(0.08f, 0.08f, 0.08f, 0.35f));
-                    Widgets.Label(new Rect(field.x + 6f, field.y + 4f, field.width - 12f, field.height), hiddenLabel);
+                    if (string.IsNullOrEmpty(s.ApiKey))
+                    {
+                        GUI.color = new Color(0.6f, 0.65f, 0.7f, 0.65f);
+                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), "RimMind.Settings.ApiKey.EmptyPlaceholder".Translate());
+                        GUI.color = Color.white;
+                    }
+                    else
+                    {
+                        string hiddenLabel = "RimMind.Settings.ApiKey.Saved".Translate(s.ApiKey.Length).ToString();
+                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), hiddenLabel);
+                    }
+
+                    if (Widgets.ButtonInvisible(field))
+                    {
+                        _showApiKey = true;
+                    }
                 }
                 TooltipHandler.TipRegion(field, "RimMind.Settings.Player2.ApiKeyDesc".Translate());
                 if (Widgets.ButtonText(toggle, _showApiKey ? "RimMind.Settings.Hide".Translate() : "RimMind.Settings.Show".Translate()))

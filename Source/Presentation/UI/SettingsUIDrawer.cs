@@ -9,11 +9,11 @@ namespace RimMind.Presentation.UI
         public static void DrawSectionHeader(Listing_Standard listing, string label, string? tooltip = null)
         {
             listing.Gap(10f);
-            Rect headerRect = listing.GetRect(28f);
+            Rect headerRect = listing.GetRect(32f);
             Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
             Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
 
-            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 4f, headerRect.width - 20f, headerRect.height - 8f);
+            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 2f, headerRect.width - 20f, 28f);
             Text.Font = GameFont.Medium;
             GUI.color = new Color(0.9f, 0.95f, 1.0f);
             Widgets.Label(textRect, label);
@@ -24,19 +24,18 @@ namespace RimMind.Presentation.UI
             {
                 TooltipHandler.TipRegion(headerRect, tooltip);
             }
-
         }
 
         public static float DrawSectionHeader(Rect canvas, float y, string label, string? tooltip = null)
         {
             float x = canvas.x + 4f;
             float w = canvas.width - 8f;
-            Rect headerRect = new Rect(x, y, w, 28f);
+            Rect headerRect = new Rect(x, y, w, 32f);
 
             Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
             Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
 
-            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 4f, headerRect.width - 20f, headerRect.height - 8f);
+            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 2f, headerRect.width - 20f, 28f);
             Text.Font = GameFont.Medium;
             GUI.color = new Color(0.9f, 0.95f, 1.0f);
             Widgets.Label(textRect, label);
@@ -48,7 +47,7 @@ namespace RimMind.Presentation.UI
                 TooltipHandler.TipRegion(headerRect, tooltip);
             }
 
-            return y + 34f;
+            return y + 38f;
         }
 
         public static void LabelWithTooltip(this Listing_Standard listing, string label, string? tooltip, Color? textColor = null)

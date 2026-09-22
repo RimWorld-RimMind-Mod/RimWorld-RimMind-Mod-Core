@@ -39,6 +39,9 @@
   <RimMind.Settings.ApiKey>API Key</RimMind.Settings.ApiKey>
   <RimMind.Settings.ApiKey.Desc>Your AI provider's API key for authentication.</RimMind.Settings.ApiKey.Desc>
   <RimMind.Settings.ApiKey.Saved>Saved ({0} chars). Click Show to edit.</RimMind.Settings.ApiKey.Saved>
+  <RimMind.Settings.ApiKey.Desc>Your AI service provider's API key for authentication.</RimMind.Settings.ApiKey.Desc>
+  <RimMind.Settings.ApiKey.Saved>Saved ({0} chars). Click show to edit.</RimMind.Settings.ApiKey.Saved>
+  <RimMind.Settings.ApiKey.EmptyPlaceholder>Click here to enter API Key...</RimMind.Settings.ApiKey.EmptyPlaceholder>
   <RimMind.Settings.ApiEndpoint>API Endpoint</RimMind.Settings.ApiEndpoint>
   <RimMind.Settings.ApiEndpoint.Desc>AI service API address. Supports OpenAI-compatible interfaces (e.g. DeepSeek, local Ollama).</RimMind.Settings.ApiEndpoint.Desc>
   <RimMind.Settings.ModelName>Model Name</RimMind.Settings.ModelName>

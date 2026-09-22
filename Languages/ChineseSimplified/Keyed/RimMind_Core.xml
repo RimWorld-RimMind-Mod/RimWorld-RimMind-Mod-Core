@@ -39,6 +39,7 @@
   <RimMind.Settings.ApiKey>API 密钥</RimMind.Settings.ApiKey>
   <RimMind.Settings.ApiKey.Desc>你的 AI 服务商提供的 API Key，用于身份验证。</RimMind.Settings.ApiKey.Desc>
   <RimMind.Settings.ApiKey.Saved>已保存（{0} 字符）。点击显示后可编辑。</RimMind.Settings.ApiKey.Saved>
+  <RimMind.Settings.ApiKey.EmptyPlaceholder>点击此处输入 API 密钥...</RimMind.Settings.ApiKey.EmptyPlaceholder>
   <RimMind.Settings.ApiEndpoint>API 端点</RimMind.Settings.ApiEndpoint>
   <RimMind.Settings.ApiEndpoint.Desc>AI 服务的 API 地址。支持 OpenAI 兼容接口（如 DeepSeek、本地 Ollama 等）。</RimMind.Settings.ApiEndpoint.Desc>
   <RimMind.Settings.ModelName>模型名称</RimMind.Settings.ModelName>

@@ -286,13 +286,16 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 float rY = card.y + 8f;
 
                 // Row 1 Left: Max Concurrent Slider (1 ~ 5)
-                Rect concLabelRect = new Rect(card.x + 8f, rY, halfW * 0.5f, 22f);
+                float labelW = 120f;
+                float valW = 32f;
+                float sliderW = halfW - labelW - valW - 12f;
+
+                Rect concLabelRect = new Rect(card.x + 8f, rY, labelW, 22f);
                 int curConc = settings.MaxConcurrentRequests;
-                Widgets.Label(concLabelRect, $"{"RimMind.Settings.MaxConcurrentRequests".Translate()}: {curConc}");
-                Widgets.Label(concLabelRect, $"{"RimMind.Settings.MaxConcurrent".Translate()}: {curConc}");
+                Widgets.Label(concLabelRect, "RimMind.Settings.MaxConcurrent".Translate());
                 TooltipHandler.TipRegion(concLabelRect, "RimMind.UI.Hub.MaxConcurrentTip".Translate());
 
-                Rect concSliderRect = new Rect(concLabelRect.xMax + 4f, rY, halfW * 0.5f - 4f, 22f);
+                Rect concSliderRect = new Rect(concLabelRect.xMax + 4f, rY, sliderW, 22f);
                 float newConc = Widgets.HorizontalSlider(concSliderRect, curConc, 1f, 5f, roundTo: 1f);
                 if ((int)newConc != curConc)
                 {
@@ -301,14 +304,19 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 }
                 TooltipHandler.TipRegion(concSliderRect, "RimMind.UI.Hub.MaxConcurrentTip".Translate());
 
+                Rect concValRect = new Rect(concSliderRect.xMax + 4f, rY, valW, 22f);
+                GUI.color = new Color(0.4f, 0.8f, 1.0f);
+                Widgets.Label(concValRect, curConc.ToString());
+                GUI.color = Color.white;
+
                 // Row 1 Right: Request Timeout Slider (15s ~ 120s)
                 float rightColX = card.x + halfW + 16f;
-                Rect timeLabelRect = new Rect(rightColX, rY, halfW * 0.5f, 22f);
+                Rect timeLabelRect = new Rect(rightColX, rY, labelW, 22f);
                 int curTimeoutSec = Mathf.Clamp(settings.RequestTimeoutMs / 1000, 15, 120);
-                Widgets.Label(timeLabelRect, $"{"RimMind.Settings.RequestTimeout".Translate()}: {curTimeoutSec}s");
+                Widgets.Label(timeLabelRect, "RimMind.Settings.RequestTimeout".Translate());
                 TooltipHandler.TipRegion(timeLabelRect, "RimMind.UI.Hub.RequestTimeoutTip".Translate());
 
-                Rect timeSliderRect = new Rect(timeLabelRect.xMax + 4f, rY, halfW * 0.5f - 4f, 22f);
+                Rect timeSliderRect = new Rect(timeLabelRect.xMax + 4f, rY, sliderW, 22f);
                 float newTimeout = Widgets.HorizontalSlider(timeSliderRect, curTimeoutSec, 15f, 120f, roundTo: 5f);
                 if ((int)newTimeout != curTimeoutSec)
                 {
@@ -316,6 +324,11 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     settings.Persist();
                 }
                 TooltipHandler.TipRegion(timeSliderRect, "RimMind.UI.Hub.RequestTimeoutTip".Translate());
+
+                Rect timeValRect = new Rect(timeSliderRect.xMax + 4f, rY, valW + 8f, 22f);
+                GUI.color = new Color(0.4f, 0.8f, 1.0f);
+                Widgets.Label(timeValRect, $"{curTimeoutSec}s");
+                GUI.color = Color.white;
 
                 rY += 34f;
 
