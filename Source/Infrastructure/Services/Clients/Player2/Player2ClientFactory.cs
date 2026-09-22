@@ -19,6 +19,11 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
         public string ProviderId => AIProviders.Player2;
         public bool RequiresApiKey => false;
+        public string DisplayLabel => global::Verse.Translator.Translate("RimMind.Settings.Provider.Player2");
+        public string? DefaultEndpoint => null;
+        public string? DefaultModelName => null;
+        public int OrderWeight => 30;
+        public bool VisibleInMenu => true;
 
         public IAIClient Create(ISettingsProvider settings)
         {

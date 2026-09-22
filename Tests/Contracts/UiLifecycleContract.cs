@@ -309,6 +309,7 @@ namespace RimMind.Tests.Contracts
                         StringComparison.Ordinal);
                     Assert.Contains(
                         "OpenCodeGo",
+                        "DrawExtendedServiceSection(listing, s, providerRegistry, scope)",
                         api,
                         StringComparison.Ordinal);
                     Assert.Contains(

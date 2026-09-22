@@ -122,8 +122,23 @@ namespace RimMind.Tests.Contracts
             Assert.Equal("126", registry.GetProviderData("profile", new object()).Value);
         }
 
+        private sealed class TestClientFactory : RimMind.Application.Common.Interfaces.Client.IAIClientFactory
+        {
+            public string Id => "test_provider";
+            public string OwnerModId => "test_mod";
+            public string ProviderId => "test_provider";
+            public bool RequiresApiKey => true;
+            public string DisplayLabel => "Test Provider";
+            public string? DefaultEndpoint => "https://api.test.com/v1";
+            public string? DefaultModelName => "test-model";
+            public int OrderWeight => 42;
+            public bool VisibleInMenu => true;
+            public RimMind.Application.Common.Interfaces.Client.IAIClient Create(RimMind.Application.Common.Interfaces.Internal.ISettingsProvider settings) => null!;
+        }
+
         [Fact]
         public void HttpTransport_attaches_opencode_session_header_when_opencode_url_or_key_used()
+        public void AIClientFactory_contract_exposes_metadata_for_ui_and_presets()
         {
             using var req1 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://opencode.ai/zen/go/v1/chat/completions");
             RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req1, "https://opencode.ai/zen/go/v1/chat/completions", null);
@@ -138,6 +153,14 @@ namespace RimMind.Tests.Contracts
             using var req3 = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api.openai.com/v1");
             RimMind.Infrastructure.Services.Clients.HttpTransport.EnsureOpenCodeSessionHeader(req3, "https://api.openai.com/v1", "Bearer sk-standard-key");
             Assert.False(req3.Headers.Contains("x-opencode-session"));
+            var factory = new TestClientFactory();
+            Assert.Equal("test_provider", factory.ProviderId);
+            Assert.True(factory.RequiresApiKey);
+            Assert.Equal("Test Provider", factory.DisplayLabel);
+            Assert.Equal("https://api.test.com/v1", factory.DefaultEndpoint);
+            Assert.Equal("test-model", factory.DefaultModelName);
+            Assert.Equal(42, factory.OrderWeight);
+            Assert.True(factory.VisibleInMenu);
         }
     }
 }
