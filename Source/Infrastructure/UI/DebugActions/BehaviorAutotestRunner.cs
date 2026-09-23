@@ -101,6 +101,12 @@ namespace RimMind.Infrastructure.UI
             if (_startupChecked || Current.ProgramState != ProgramState.Playing || Find.CurrentMap == null) return;
             _startupChecked = true;
 
+            if (GenCommandLine.TryGetCommandLineArg("rimmind-10day-playthrough", out string ptRunId))
+            {
+                TenDayPlaythroughRunner.StartPlaythrough(ptRunId);
+                return;
+            }
+
             if (GenCommandLine.TryGetCommandLineArg("rimmind-behavior-test", out string runId))
             {
                 StartSuite(runId, isHeadless: true);
