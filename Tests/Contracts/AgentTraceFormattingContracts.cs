@@ -98,5 +98,27 @@ namespace RimMind.Tests.Contracts
             Assert.Contains("亲近", row.Summary);
             Assert.DoesNotContain("```", row.Summary);
         }
+
+        [Fact]
+        public void BuildRow_HandlesExpressDialogueToolCallWithEscapedJsonArguments()
+        {
+            var entry = new AIRequestTraceEntry
+            {
+                RequestId = "req-005",
+                State = AIRequestTraceState.Completed,
+                Response = "[{\"id\":\"call_99\",\"type\":\"function\",\"function\":{\"name\":\"express_dialogue\",\"arguments\":\"{\\\"speech\\\":\\\"今天天气真不错。\\\",\\\"thought_tag\\\":\\\"VALUED\\\",\\\"thought_desc\\\":\\\"轻松愉快\\\"}\"}}]"
+            };
+            entry.ToolCalls.Add(new AIRequestToolCallTrace("call_99", "express_dialogue", true, null));
+
+            var rows = AgentRequestTraceRowBuilder.BuildRecent(new[] { entry });
+            Assert.Single(rows);
+
+            var row = rows[0];
+            Assert.Equal(AgentRequestTraceStatus.Success, row.Status);
+            Assert.Contains("今天天气真不错。", row.Summary);
+            Assert.Contains("轻松愉快", row.Summary);
+            Assert.DoesNotContain("express_dialogue", row.Summary);
+            Assert.DoesNotContain("call_99", row.Summary);
+        }
     }
 }

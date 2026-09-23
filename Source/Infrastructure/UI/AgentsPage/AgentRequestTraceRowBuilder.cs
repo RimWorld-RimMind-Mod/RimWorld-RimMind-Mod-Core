@@ -74,7 +74,8 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 {
                     if (entry.ToolCalls.Any(t => t.ToolName == "express_dialogue") && !string.IsNullOrWhiteSpace(entry.Response))
                     {
-                        if (TryExtractSpeechOrNarration(entry.Response, out string dialogueSpeech, out string? dialogueThought))
+                        if (TryExtractDialogueToolCall(entry.Response, out string dialogueSpeech, out string? dialogueThought)
+                            || TryExtractSpeechOrNarration(entry.Response, out dialogueSpeech, out dialogueThought))
                         {
                             string speech = "\"" + ToSingleLine(dialogueSpeech) + "\"";
                             if (!string.IsNullOrWhiteSpace(dialogueThought))
@@ -84,7 +85,9 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                             return speech;
                         }
                     }
-                    return BuildToolCallSummary(entry);
+                    string toolSummary = BuildToolCallSummary(entry);
+                    if (!string.IsNullOrWhiteSpace(toolSummary))
+                        return toolSummary;
                 }
 
                 if (!string.IsNullOrWhiteSpace(entry.Response))
@@ -203,6 +206,78 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             return false;
         }
 
+        private static bool TryExtractDialogueToolCall(string raw, out string speechText, out string? thoughtText)
+        {
+            speechText = string.Empty;
+            thoughtText = null;
+
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+
+            try
+            {
+                var token = Newtonsoft.Json.Linq.JToken.Parse(raw.Trim());
+                Newtonsoft.Json.Linq.JObject? argsObj = null;
+
+                if (token is Newtonsoft.Json.Linq.JArray arr)
+                {
+                    foreach (var item in arr)
+                    {
+                        if (item is Newtonsoft.Json.Linq.JObject obj)
+                        {
+                            string? toolName = (obj["name"] ?? obj["function"]?["name"])?.ToString();
+                            if (string.Equals(toolName, "express_dialogue", StringComparison.OrdinalIgnoreCase))
+                            {
+                                argsObj = ParseArgs(obj);
+                                if (argsObj != null) break;
+                            }
+                        }
+                    }
+                }
+                else if (token is Newtonsoft.Json.Linq.JObject singleObj)
+                {
+                    argsObj = ParseArgs(singleObj);
+                }
+
+                if (argsObj != null)
+                {
+                    speechText = (argsObj["speech"] ?? argsObj["reply"] ?? argsObj["content"])?.ToString() ?? string.Empty;
+                    thoughtText = (argsObj["thought_desc"] ?? argsObj["thought_tag"] ?? argsObj["thought"])?.ToString();
+
+                    if (!string.IsNullOrWhiteSpace(speechText))
+                        return true;
+                }
+            }
+            catch
+            {
+                // Fallback to regex with escaped or unescaped quotes
+            }
+
+            var match = Regex.Match(
+                raw,
+                @"\\?""speech\\?""\s*:\s*\\?""((?:\\.|[^""\\])+)\\?""",
+                RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                speechText = Regex.Unescape(match.Groups[1].Value);
+                return !string.IsNullOrWhiteSpace(speechText);
+            }
+
+            return false;
+
+            static Newtonsoft.Json.Linq.JObject? ParseArgs(Newtonsoft.Json.Linq.JObject obj)
+            {
+                var argsToken = obj["arguments"] ?? obj["function"]?["arguments"];
+                if (argsToken == null) return null;
+                if (argsToken.Type == Newtonsoft.Json.Linq.JTokenType.Object && argsToken is Newtonsoft.Json.Linq.JObject jobj) return jobj;
+                if (argsToken.Type == Newtonsoft.Json.Linq.JTokenType.String)
+                {
+                    string str = (argsToken as Newtonsoft.Json.Linq.JValue)?.Value?.ToString()?.Trim() ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(str)) return Newtonsoft.Json.Linq.JObject.Parse(str);
+                }
+                return null;
+            }
+        }
+
         private static string CleanPromptForSummary(string rawPrompt)
         {
             if (string.IsNullOrWhiteSpace(rawPrompt))
@@ -294,8 +369,17 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             if (entry.ToolCalls.Count == 0)
                 return string.Empty;
 
+            var relevantTools = entry.ToolCalls
+                .Where(toolCall => toolCall != null
+                    && !string.IsNullOrWhiteSpace(toolCall.ToolName)
+                    && !string.Equals(toolCall.ToolName, "express_dialogue", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (relevantTools.Count == 0)
+                return string.Empty;
+
             string tools = string.Join(", ",
-                entry.ToolCalls
+                relevantTools
                     .Take(ToolCallSummaryLimit)
                     .Select(toolCall => toolCall.ToolName)
                     .Where(name => !string.IsNullOrWhiteSpace(name)));
