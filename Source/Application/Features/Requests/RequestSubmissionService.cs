@@ -144,11 +144,37 @@ namespace RimMind.Application.Features.Requests
             if (result.IsOk)
             {
                 var response = result.Value;
+                string responseContent = !string.IsNullOrWhiteSpace(response.Content)
+                    ? response.Content
+                    : response.ToolCallsJson ?? string.Empty;
+
                 _traceLog?.CompleteRequest(
                     requestId,
-                    response.Content,
+                    responseContent,
                     response.TokensUsed,
                     (int)elapsedMilliseconds);
+
+                if (!string.IsNullOrWhiteSpace(response.ToolCallsJson) && _traceLog != null)
+                {
+                    try
+                    {
+                        var calls = Newtonsoft.Json.JsonConvert.DeserializeObject<List<StructuredToolCall>>(response.ToolCallsJson!);
+                        if (calls != null)
+                        {
+                            foreach (var call in calls)
+                            {
+                                if (!string.IsNullOrWhiteSpace(call.Name))
+                                {
+                                    _traceLog.AddToolCall(requestId, call.Id, call.Name, succeeded: true, error: null);
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore trace parse failure
+                    }
+                }
                 return;
             }
 

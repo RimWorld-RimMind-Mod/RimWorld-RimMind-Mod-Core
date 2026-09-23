@@ -123,8 +123,17 @@ namespace RimMind.Infrastructure.Verse
             lock (_lock)
             {
                 var entry = FindOrCreate(requestId);
-                entry.ToolCalls.Add(new AIRequestToolCallTrace(
-                    toolCallId, toolName, succeeded, error));
+                int existingIdx = entry.ToolCalls.FindIndex(t => t.ToolCallId == toolCallId);
+                if (existingIdx >= 0)
+                {
+                    entry.ToolCalls[existingIdx] = new AIRequestToolCallTrace(
+                        toolCallId, toolName, succeeded, error);
+                }
+                else
+                {
+                    entry.ToolCalls.Add(new AIRequestToolCallTrace(
+                        toolCallId, toolName, succeeded, error));
+                }
                 _revision++;
             }
         }

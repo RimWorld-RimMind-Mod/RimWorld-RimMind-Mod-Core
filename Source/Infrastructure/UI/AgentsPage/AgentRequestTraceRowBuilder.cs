@@ -72,6 +72,18 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             {
                 if (entry.ToolCalls.Count > 0)
                 {
+                    if (entry.ToolCalls.Any(t => t.ToolName == "express_dialogue") && !string.IsNullOrWhiteSpace(entry.Response))
+                    {
+                        if (TryExtractSpeechOrNarration(entry.Response, out string dialogueSpeech, out string? dialogueThought))
+                        {
+                            string speech = "\"" + ToSingleLine(dialogueSpeech) + "\"";
+                            if (!string.IsNullOrWhiteSpace(dialogueThought))
+                            {
+                                speech += " (" + ToSingleLine(dialogueThought) + ")";
+                            }
+                            return speech;
+                        }
+                    }
                     return BuildToolCallSummary(entry);
                 }
 
