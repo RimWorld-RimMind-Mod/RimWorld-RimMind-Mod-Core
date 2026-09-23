@@ -205,15 +205,25 @@ namespace RimMind.Presentation.Context
             snapshot.LatencyByLayerMs["L3"] = layerResults.L3.ElapsedMilliseconds;
             snapshot.LatencyByLayerMs["L5"] = layerResults.L5.ElapsedMilliseconds;
 
-            // Merge results into snapshot in layer order
+            // 4-Zone Cache-Optimized Context Order:
+            // Zone 1: Immutable Static Prefix (L0)
+            // Zone 2: Semi-Static Agent Profile (L1)
+            // Zone 3: Append-Only Conversation History (L4 past turns)
+            // Zone 4: Volatile Tail Suffix (L2 Environment, L3 State, L5 Sensor, and Current User Query)
             var messages = new List<ChatMessage>();
             if (l0Msg != null) { messages.Add(l0Msg); snapshot.Meta.L0Tokens = EstimateTokens(l0Msg.Content); }
             if (l1Msg != null) { messages.Add(l1Msg); snapshot.Meta.L1Tokens = EstimateTokens(l1Msg.Content); }
+
+            // Zone 3: Append-Only History (Completed past turns)
+            AppendConversationHistory(ctx, schedule, scenario, messages, snapshot);
+
+            // Zone 4: Volatile Tail Suffix (Real-time dynamic observations)
             if (l2Msg != null) { messages.Add(l2Msg); snapshot.Meta.L2Tokens = EstimateTokens(l2Msg.Content); }
             if (l3Msg != null && (skipLayers == null || !skipLayers.Contains("L3"))) { messages.Add(l3Msg); snapshot.Meta.L3Tokens = EstimateTokens(l3Msg.Content); }
             if (l5Msg != null) { messages.Add(l5Msg); snapshot.Meta.L5Tokens = EstimateTokens(l5Msg.Content); }
 
-            BuildConversationHistory(ctx, schedule, scenario, messages, snapshot);
+            // Zone 4: Current User Query / Trigger
+            AppendCurrentQuery(ctx, scenario, messages, snapshot);
 
             snapshot.SetMessages(messages);
             snapshot.Meta.TotalTokens = snapshot.Meta.L0Tokens + snapshot.Meta.L1Tokens +
@@ -227,16 +237,20 @@ namespace RimMind.Presentation.Context
             return snapshot;
         }
 
-        private void BuildConversationHistory(BuildContext ctx, BudgetAllocation schedule, string scenario, List<ChatMessage> messages, ContextSnapshot snapshot)
+        private void AppendConversationHistory(BuildContext ctx, BudgetAllocation schedule, string scenario, List<ChatMessage> messages, ContextSnapshot snapshot)
         {
             int maxRounds = schedule.MaxHistoryRounds;
             var history = _historyManager.GetHistory(ctx.NpcId, maxRounds, scenario);
             foreach (var (role, content) in history)
             {
-                messages.Add(new ChatMessage { Role = role, Content = content });
+                messages.Add(new ChatMessage { Role = role, Content = content, LayerTag = "L4" });
                 snapshot.Meta.L4Tokens += EstimateTokens(content);
             }
+        }
 
+        private void AppendCurrentQuery(BuildContext ctx, string scenario, List<ChatMessage> messages, ContextSnapshot snapshot)
+        {
+            bool currentQueryAdded = false;
             if (!string.IsNullOrEmpty(ctx.CurrentQuery))
             {
                 var translationService = _translationService;
@@ -246,10 +260,10 @@ namespace RimMind.Presentation.Context
                     : PromptSanitizer.SanitizeUserInput(ctx.CurrentQuery!);
                 messages.Add(new ChatMessage { Role = "user", Content = queryContent, LayerTag = "L4" });
                 snapshot.Meta.L4Tokens += EstimateTokens(queryContent);
+                currentQueryAdded = true;
             }
 
-            bool hasUserMessage = messages.Any(m => m.Role == "user");
-            if (!hasUserMessage)
+            if (!currentQueryAdded)
             {
                 string scenarioLabel = !string.IsNullOrEmpty(ctx.Scenario)
                     ? ctx.Scenario : "general";
@@ -336,16 +350,34 @@ namespace RimMind.Presentation.Context
             if (snapshot.EstimatedTokens <= available) return;
 
             var sections = new List<PromptSection>();
+            var lastUserMsg = snapshot.Messages.LastOrDefault(m => m.Role == "user");
             foreach (var msg in snapshot.Messages)
             {
-                int priority = msg.Role switch
+                int priority;
+                if (msg.Role == "system" && msg.LayerTag == "L0")
                 {
-                    "system" when msg.LayerTag == "L0" => PromptSection.PriorityCore,
-                    "system" => PromptSection.PriorityKeyState,
-                    "user" => PromptSection.PriorityCurrentInput,
-                    "assistant" => PromptSection.PriorityAuxiliary,
-                    _ => PromptSection.PriorityAuxiliary
-                };
+                    priority = PromptSection.PriorityCore; // 0: Immutable Static Prefix
+                }
+                else if (msg == lastUserMsg)
+                {
+                    priority = 2; // Current User Query - must be preserved
+                }
+                else if (msg.Role == "system" && msg.LayerTag == "L1")
+                {
+                    priority = 5; // Semi-static pawn profile - high priority
+                }
+                else if (msg.LayerTag == "L4")
+                {
+                    priority = 15; // History turns - droppable oldest-first if budget tight
+                }
+                else if (msg.Role == "system" && (msg.LayerTag == "L2" || msg.LayerTag == "L3" || msg.LayerTag == "L5"))
+                {
+                    priority = 25; // Volatile tail observations - can compress to brief or drop
+                }
+                else
+                {
+                    priority = PromptSection.PriorityAuxiliary; // 30
+                }
 
                 var section = new PromptSection(msg.Role ?? "unknown", msg.Content ?? "", priority)
                 {

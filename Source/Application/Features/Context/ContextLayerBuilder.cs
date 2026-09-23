@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,7 +54,8 @@ namespace RimMind.Application.Features.Context
             var sb = new StringBuilder();
             sb.AppendLine($"<layer_{layerTag}>");
             bool hasContent = false;
-            foreach (var entry in entries)
+            var orderedEntries = entries.OrderBy(e => e.SourceKey, System.StringComparer.Ordinal);
+            foreach (var entry in orderedEntries)
             {
                 if (!string.IsNullOrEmpty(entry.Content))
                 {

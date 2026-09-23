@@ -39,7 +39,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             if (envelope.Tools != null && envelope.Tools.Count > 0)
             {
                 body.tools = new List<ToolDto>();
-                foreach (var t in envelope.Tools)
+                foreach (var t in envelope.Tools.OrderBy(t => t.Name, System.StringComparer.Ordinal))
                 {
                     body.tools.Add(new ToolDto
                     {

@@ -22,12 +22,14 @@ namespace RimMind.Application.Common.Models.Context
         public List<PromptSection>? Compose(List<PromptSection> sections)
         {
             if (sections == null) return null;
-            var sorted = sections.OrderBy(s => s.Priority).ToList();
-            var result = new List<PromptSection>();
+            var withIndex = sections.Select((s, idx) => (Section: s, Index: idx)).ToList();
+            var sorted = withIndex.OrderBy(x => x.Section.Priority).ToList();
+            var result = new List<(PromptSection Section, int Index)>();
             int used = 0;
             int maxAllowed = AvailableTokens;
-            foreach (var sec in sorted)
+            foreach (var item in sorted)
             {
+                var sec = item.Section;
                 if (used + sec.EstimatedTokens > maxAllowed)
                 {
                     if (sec.IsCompressible && sec.Compress != null)
@@ -37,18 +39,18 @@ namespace RimMind.Application.Common.Models.Context
                         compressed.EstimatedTokens = PromptSection.EstimateTokens(compressed.Content);
                         if (used + compressed.EstimatedTokens <= maxAllowed)
                         {
-                            result.Add(compressed);
+                            result.Add((compressed, item.Index));
                             used += compressed.EstimatedTokens;
                             continue;
                         }
                     }
                     continue;
                 }
-                result.Add(sec);
+                result.Add(item);
                 used += sec.EstimatedTokens;
             }
             UsedTokens = used;
-            return result.OrderBy(s => s.Priority).ToList();
+            return result.OrderBy(x => x.Index).Select(x => x.Section).ToList();
         }
     }
 }

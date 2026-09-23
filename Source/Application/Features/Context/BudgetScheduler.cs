@@ -187,10 +187,7 @@ namespace RimMind.Application.Features.Context
 
         private static ContextLayer ChooseLayer(ContextLayer declared, float cumulative)
         {
-            if (declared != ContextLayer.L2_Environment) return declared;
-            if (cumulative > 0.8f) return ContextLayer.L0_Static;
-            if (cumulative > 0.5f) return ContextLayer.L1_Baseline;
-            return ContextLayer.L2_Environment;
+            return declared;
         }
 
         private static void AddToAllocation(BudgetAllocation alloc, ContextLayer layer, KeyMeta key)

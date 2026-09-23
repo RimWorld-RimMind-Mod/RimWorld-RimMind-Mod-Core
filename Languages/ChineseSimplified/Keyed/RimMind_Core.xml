@@ -736,6 +736,15 @@
   <RimMind.Inspector.ScenarioLabel>场景:</RimMind.Inspector.ScenarioLabel>
   <RimMind.Inspector.Copied>已成功复制完整 AI 请求报文到剪贴板！</RimMind.Inspector.Copied>
   <RimMind.Inspector.OpenButton>检查报文</RimMind.Inspector.OpenButton>
+  <RimMind.Inspector.PromptCachingTitle>=== Prompt Caching (KV-Cache) 前缀稳定性分析 ===</RimMind.Inspector.PromptCachingTitle>
+  <RimMind.Inspector.PrefixTokens>• 稳定可缓存前缀 (Static Prefix) : ~{0} tokens ({1:F1}% 缓存占比)</RimMind.Inspector.PrefixTokens>
+  <RimMind.Inspector.Zone1Tokens>  - Zone 1 静态公理与指令 : ~{0} tokens (100% 全局复用)</RimMind.Inspector.Zone1Tokens>
+  <RimMind.Inspector.Zone2Tokens>  - Zone 2 智能体基础档案 : ~{0} tokens (100% 同一小人跨回合复用)</RimMind.Inspector.Zone2Tokens>
+  <RimMind.Inspector.ToolsTokens>  - 确定性工具声明列表    : ~{0} tokens (字典序稳定对齐)</RimMind.Inspector.ToolsTokens>
+  <RimMind.Inspector.VolatileTokens>• 动态易变尾部 (Volatile Tail)  : ~{0} tokens ({1:F1}%)</RimMind.Inspector.VolatileTokens>
+  <RimMind.Inspector.EstimatedHit>• 预估次轮 Cache 命中率 (Estimated Hit) : ~{0:F1}%</RimMind.Inspector.EstimatedHit>
+  <RimMind.Inspector.TailIsolated>  [✓] 截断边界已严格隔离：时间 (time_of_day)、天气与心情置于尾部，绝不击穿历史 Cache！</RimMind.Inspector.TailIsolated>
+  <RimMind.Inspector.ProfileAligned>小人档案与背景已对齐至 Zone 2 稳定前缀，跨回合 100% 享受 KV-Cache 命中。</RimMind.Inspector.ProfileAligned>
   <RimMind.UI.ResetToDefaults>恢复默认</RimMind.UI.ResetToDefaults>
   <!-- UX Optimization: Presets & Sections & HUD -->
   <RimMind.Settings.PresetsBarTitle>⚙️ 快捷配置预设</RimMind.Settings.PresetsBarTitle>

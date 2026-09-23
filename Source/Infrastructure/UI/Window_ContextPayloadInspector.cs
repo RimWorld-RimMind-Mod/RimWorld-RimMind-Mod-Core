@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -295,6 +295,18 @@ namespace RimMind.Infrastructure.UI
             sb.AppendLine($"  - 动态状态与感知 (Dynamic): ~{r.DynamicTokens} tokens ({(r.TotalTokens > 0 ? r.DynamicTokens * 100f / r.TotalTokens : 0):F1}%)");
             sb.AppendLine($"  - 工具结构声明 (Tools)    : ~{r.ToolTokens} tokens ({(r.TotalTokens > 0 ? r.ToolTokens * 100f / r.TotalTokens : 0):F1}%)");
             sb.AppendLine();
+            sb.AppendLine("RimMind.Inspector.PromptCachingTitle".Translate());
+            int prefixTokens = r.SystemTokens + r.StaticTokens + r.ToolTokens;
+            int volatileTokens = r.DynamicTokens;
+            float hitRatio = r.TotalTokens > 0 ? (prefixTokens * 100f / r.TotalTokens) : 0f;
+            sb.AppendLine("RimMind.Inspector.PrefixTokens".Translate(prefixTokens, hitRatio));
+            sb.AppendLine("RimMind.Inspector.Zone1Tokens".Translate(r.SystemTokens));
+            sb.AppendLine("RimMind.Inspector.Zone2Tokens".Translate(r.StaticTokens));
+            sb.AppendLine("RimMind.Inspector.ToolsTokens".Translate(r.ToolTokens));
+            sb.AppendLine("RimMind.Inspector.VolatileTokens".Translate(volatileTokens, (100f - hitRatio)));
+            sb.AppendLine("RimMind.Inspector.EstimatedHit".Translate(hitRatio));
+            sb.AppendLine("RimMind.Inspector.TailIsolated".Translate());
+            sb.AppendLine();
             sb.AppendLine("=== 冗余与优化提示 (Redundancy & Warnings) ===");
             if (r.Warnings.Count == 0)
             {
@@ -536,18 +548,21 @@ namespace RimMind.Infrastructure.UI
             // Estimate static vs dynamic in layers
             int backstoryLen = (pawn.story?.Childhood?.title?.Length ?? 0) + (pawn.story?.Adulthood?.title?.Length ?? 0);
             rep.StaticTokens = rep.SystemTokens + EstimateTokens(backstoryLen * 4);
+            int baseProfileLen = backstoryLen * 4 + 120; // backstory + traits + passions
+            rep.StaticTokens = EstimateTokens(baseProfileLen);
             rep.DynamicTokens = Math.Max(0, EstimateTokens(layers) - rep.StaticTokens);
             rep.TotalTokens = rep.SystemTokens + EstimateTokens(layers) + rep.ToolTokens;
+            rep.TotalTokens = rep.SystemTokens + rep.StaticTokens + rep.DynamicTokens + rep.ToolTokens;
             rep.TotalChars = system.Length + layers.Length + tools.Length;
 
-            // Redundancy check
-            if (backstoryLen > 0)
-            {
-                rep.Warnings.Add($"静态背景 (Backstory) 在每次思考请求中重复占用约 {EstimateTokens(backstoryLen * 4)} tokens。建议后续支持单会话缓存。");
-            }
+            // Redundancy & Cache checks
             if (pawn.skills != null && pawn.skills.skills.Count(s => s.Level < 3) > 4)
             {
                 rep.Warnings.Add("包含 4+ 个极低技能 (等级 < 3)。建议非工作决策时过滤无意义弱势技能。");
+            }
+            if (backstoryLen > 0)
+            {
+                rep.SufficiencyPoints.Add("RimMind.Inspector.ProfileAligned".Translate());
             }
 
             // Sufficiency check

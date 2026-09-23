@@ -38,10 +38,13 @@ namespace RimMind.Tests.Contracts
             completion.SetResult("colonist identity");
             var snapshot = Assert.IsType<ContextSnapshot>(await pending.WaitAsync(TimeSpan.FromSeconds(2)));
 
-            Assert.Equal(new[] { "L0", "L5" }, snapshot.Messages.Take(2).Select(message => message.LayerTag));
+            // 4-Zone Order: Zone 1 (L0) -> Zone 3 (History L4) -> Zone 4 (Volatile L5 + Current Query L4)
+            Assert.Equal(new[] { "L0", "L4", "L4", "L5", "L4" }, snapshot.Messages.Select(message => message.LayerTag));
             Assert.Contains("colonist identity", snapshot.Messages[0].Content);
-            Assert.Equal(new[] { "earlier question", "earlier answer", "current query" },
-                snapshot.Messages.Skip(2).Select(message => message.Content));
+            Assert.Equal("earlier question", snapshot.Messages[1].Content);
+            Assert.Equal("earlier answer", snapshot.Messages[2].Content);
+            Assert.Contains("danger", snapshot.Messages[3].Content);
+            Assert.Equal("current query", snapshot.Messages[4].Content);
             Assert.Equal(456, snapshot.MaxTokens);
             Assert.Equal(0.2f, snapshot.Temperature);
             Assert.True(snapshot.EstimatedTokens > 0);
@@ -89,7 +92,7 @@ namespace RimMind.Tests.Contracts
             var snapshot = await runtime.Build();
             Assert.Contains("identity", snapshot!.Messages[0].Content);
             Assert.DoesNotContain(snapshot.Messages, message => message.LayerTag == "L3");
-            Assert.Contains(runtime.Log.Warnings, warning => warning.Contains("layer=L3", StringComparison.Ordinal));
+            Assert.Contains(runtime.Log.Warnings, warning => warning.Contains("key=failed", StringComparison.Ordinal));
         }
 
         [Fact]
@@ -141,7 +144,7 @@ namespace RimMind.Tests.Contracts
             Assert.Contains(snapshot.Messages, message => message.Content == "current query");
         }
 
-        private sealed class ContextRuntime
+        internal sealed class ContextRuntime
         {
             public AgentBusImpl Bus { get; } = new();
             public HistoryManager History { get; } = new();
@@ -165,16 +168,13 @@ namespace RimMind.Tests.Contracts
                 => Engine.BuildSnapshotFromEnvelopeAsync("pawn", "query", scenarioId: "context-test");
         }
 
-        private sealed class RecordingLog : ILogSink
+        internal sealed class RecordingLog : ILogSink
         {
             public List<string> Warnings { get; } = new();
             public void Message(string msg) { }
             public void Warning(string msg) => Warnings.Add(msg);
             public void Error(string msg) { }
-            public void LogFromBackground(string msg, bool isWarning = false)
-            {
-                if (isWarning) Warnings.Add(msg);
-            }
+            public void LogFromBackground(string msg, bool isError = false) { }
         }
     }
 }
