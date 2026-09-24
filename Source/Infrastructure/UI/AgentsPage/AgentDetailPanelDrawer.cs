@@ -111,7 +111,6 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 switch (button.Id)
                 {
                     case "primary":
-                        DrawPrimaryStateButton(button.Rect, agent);
                         bool isSingle = agent.State == AgentState.Dormant || agent.State == AgentState.Terminated;
                         Rect btnRect = isSingle
                             ? new Rect(button.Rect.x, button.Rect.y, Mathf.Min(button.Rect.width * 2f + RimMindUiMetrics.ButtonGap, 200f), button.Rect.height)
