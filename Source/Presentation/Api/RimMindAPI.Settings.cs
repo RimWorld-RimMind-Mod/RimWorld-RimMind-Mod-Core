@@ -29,6 +29,7 @@ namespace RimMind.Presentation.Api
             public static IContextSettings? ContextSettings => GetSettingsProvider()?.Context;
 
             public static bool DebugLogging => GetSettingsProvider()?.DebugLogging == true;
+            public static float ActivityFrequencyScale => GetSettingsProvider()?.ActivityFrequencyScale ?? 1.0f;
 
             internal static IHistoryManager GetHistoryManager() => HistoryManagers.Value;
             public static IContextEngine GetContextEngine() => ContextEngines.Value;

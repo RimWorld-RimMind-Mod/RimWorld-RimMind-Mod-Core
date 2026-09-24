@@ -7,5 +7,6 @@ namespace RimMind.Application.Common.Interfaces.Internal
         int ThinkCooldownTicks { get; }
         int MaxToolCallDepth { get; }
         int DefaultModCooldownTicks { get; set; }
+        float ActivityFrequencyScale { get; set; }
     }
 }

@@ -278,6 +278,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 
             float cardW = canvas.width - 8f;
             Rect card = new Rect(4f, y, cardW, 90f);
+            Rect card = new Rect(4f, y, cardW, 124f);
             Widgets.DrawBoxSolid(card, RimMindUI.ColorCardBg);
 
             if (settings != null)
@@ -333,6 +334,34 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 rY += 34f;
 
                 // Row 2 Left: Verbose Dev Logging Checkbox
+                // Row 2: Activity Frequency Scale Slider (0.1x ~ 3.5x)
+                float curFreq = settings.ActivityFrequencyScale;
+                string freqTitle = "RimMind.Settings.ActivityFrequencyScale".Translate();
+                string freqTip = "RimMind.Settings.ActivityFrequencyScale.Desc".Translate();
+                Rect freqLabelRect = new Rect(card.x + 8f, rY, 150f, 22f);
+                Widgets.Label(freqLabelRect, freqTitle);
+                TooltipHandler.TipRegion(freqLabelRect, freqTip);
+
+                float freqSliderW = cardW - 150f - 190f - 32f;
+                Rect freqSliderRect = new Rect(freqLabelRect.xMax + 4f, rY, freqSliderW, 22f);
+                float newFreq = Widgets.HorizontalSlider(freqSliderRect, curFreq, 0.1f, 3.5f, roundTo: 0.1f);
+                if (Mathf.Abs(newFreq - curFreq) > 0.05f)
+                {
+                    settings.ActivityFrequencyScale = newFreq;
+                    settings.Persist();
+                }
+                TooltipHandler.TipRegion(freqSliderRect, freqTip);
+
+                Rect freqValRect = new Rect(freqSliderRect.xMax + 6f, rY, 190f, 22f);
+                GUI.color = new Color(0.4f, 0.8f, 1.0f);
+                string freqDesc = ApiTabDrawer.GetActivityFrequencyDescription(curFreq);
+                Widgets.Label(freqValRect, $"{freqDesc} ({curFreq:F1}x)");
+                GUI.color = Color.white;
+                TooltipHandler.TipRegion(freqValRect, freqTip);
+
+                rY += 34f;
+
+                // Row 3 Left: Verbose Dev Logging Checkbox
                 Rect logRect = new Rect(card.x + 8f, rY, halfW, 24f);
                 bool debugLog = settings.DebugLogging;
                 Widgets.CheckboxLabeled(logRect, "RimMind.Settings.DebugLogging".Translate(), ref debugLog);
@@ -344,6 +373,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 TooltipHandler.TipRegion(logRect, "RimMind.UI.Hub.DebugLoggingTip".Translate());
 
                 // Row 2 Right: Mock / Offline Mode Checkbox
+                // Row 3 Right: Mock / Offline Mode Checkbox
                 Rect mockRect = new Rect(rightColX, rY, halfW, 24f);
                 bool mockMode = LiveAiProbeState.OfflineSimulationMode;
                 Widgets.CheckboxLabeled(mockRect, "RimMind.UI.Hub.MockMode".Translate(), ref mockMode);

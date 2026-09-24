@@ -71,6 +71,13 @@
   <RimMind.Infrastructure.Player2.LocalNotFound>RimMind: 未检测到 Player2 桌面应用。请启动应用或手动输入 API Key。</RimMind.Infrastructure.Player2.LocalNotFound>
   <RimMind.Settings.MaxConcurrent>最大并发请求数</RimMind.Settings.MaxConcurrent>
   <RimMind.Settings.MaxConcurrent.Desc>同时向 AI 发送请求的上限。增大可提高响应速度，但会增加 API 费用。</RimMind.Settings.MaxConcurrent.Desc>
+  <RimMind.Settings.ActivityFrequencyScale>日常活跃与触发频率</RimMind.Settings.ActivityFrequencyScale>
+  <RimMind.Settings.ActivityFrequencyScale.Desc>统一调控殖民者心智思考、日常对话与叙事建议的触发频率。\n\n• 极低 (0.2x)：每 3 天约触发 1 次事件（适合极低 API 消耗需求）。\n• 中等/默认 (1.0x)：以 3 名殖民者为基准，全殖民地每天约触发 3 次（每人每天约 1 次，兼顾日常生动与开销）。\n• 极高 (3.0x)：全殖民地每天最多约 10 次（就餐、劳作、娱乐、晨昏频繁互动与讨论）。\n\n提示：若开启了小人自主 Agent 决策循环，实际请求量会随小人自主行为额外提升。</RimMind.Settings.ActivityFrequencyScale.Desc>
+  <RimMind.Settings.ActivityFrequency.Low>极低 (约3天1次)</RimMind.Settings.ActivityFrequency.Low>
+  <RimMind.Settings.ActivityFrequency.SubMedium>较少 (约2天1次)</RimMind.Settings.ActivityFrequency.SubMedium>
+  <RimMind.Settings.ActivityFrequency.Medium>默认日常 (3人约每天3次)</RimMind.Settings.ActivityFrequency.Medium>
+  <RimMind.Settings.ActivityFrequency.High>活跃 (3人约每天6次)</RimMind.Settings.ActivityFrequency.High>
+  <RimMind.Settings.ActivityFrequency.VeryHigh>极度活跃 (3人约每天10次)</RimMind.Settings.ActivityFrequency.VeryHigh>
   <RimMind.Settings.MaxRetry>最大重试次数</RimMind.Settings.MaxRetry>
   <RimMind.Settings.MaxRetry.Desc>请求失败后的最大重试次数。设为 0 则不重试。</RimMind.Settings.MaxRetry.Desc>
   <RimMind.Settings.RequestTimeout>请求超时（秒）</RimMind.Settings.RequestTimeout>

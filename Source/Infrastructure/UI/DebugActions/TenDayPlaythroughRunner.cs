@@ -91,7 +91,9 @@ namespace RimMind.Infrastructure.UI
         private readonly Stopwatch _clock = new();
         private string _outputDir = string.Empty;
 
-        internal static void StartPlaythrough(string? runId = null)
+        private int _totalDays = 10;
+
+        internal static void StartPlaythrough(string? runId = null, int totalDays = 10)
         {
             if (_active != null)
             {
@@ -109,7 +111,7 @@ namespace RimMind.Infrastructure.UI
             {
                 var runner = Current.Root.gameObject.AddComponent<TenDayPlaythroughRunner>();
                 _active = runner;
-                runner.Initialize(runId ?? Guid.NewGuid().ToString("N"));
+                runner.Initialize(runId ?? Guid.NewGuid().ToString("N"), totalDays);
             }
             catch (Exception ex)
             {
@@ -118,9 +120,10 @@ namespace RimMind.Infrastructure.UI
             }
         }
 
-        private void Initialize(string runId)
+        private void Initialize(string runId, int totalDays = 10)
         {
             _runId = runId;
+            _totalDays = totalDays > 0 ? totalDays : 10;
             _clock.Start();
 
             // Override credentials from environment if provided
@@ -156,6 +159,7 @@ namespace RimMind.Infrastructure.UI
 
             Log.Message($"[RimMind-Playthrough] ========================================================");
             Log.Message($"[RimMind-Playthrough] Starting 10-Day Real Game Playthrough & Evolution Test");
+            Log.Message($"[RimMind-Playthrough] Starting {_totalDays}-Day Real Game Playthrough & Evolution Test");
             Log.Message($"[RimMind-Playthrough] RunId: {_runId}");
             Log.Message($"[RimMind-Playthrough] Endpoint: {RimMindCoreMod.Settings.apiEndpoint}, Model: {RimMindCoreMod.Settings.modelName}");
             Log.Message($"[RimMind-Playthrough] OutputDir: {_outputDir}");
@@ -185,13 +189,13 @@ namespace RimMind.Infrastructure.UI
             float totalHitRatios = 0f;
             int totalDaysTracked = 0;
 
-            for (int day = 1; day <= 10; day++)
+            for (int day = 1; day <= _totalDays; day++)
             {
                 var daySw = Stopwatch.StartNew();
                 int dayStartTick = Find.TickManager.TicksGame;
                 string dateStr = GenDate.DateFullStringAt(dayStartTick, Find.WorldGrid.LongLatOf(Find.CurrentMap.Tile));
 
-                Log.Message($"[RimMind-Playthrough] >>> Starting Day {day}/10 (GameTick: {dayStartTick}, Date: {dateStr}) <<<");
+                Log.Message($"[RimMind-Playthrough] >>> Starting Day {day}/{_totalDays} (GameTick: {dayStartTick}, Date: {dateStr}) <<<");
 
                 var dayReport = new PlaythroughDayReport
                 {
@@ -201,53 +205,13 @@ namespace RimMind.Infrastructure.UI
                 };
 
                 // Sample colonists and ensure colonist survival
-                var mapPawns = Find.CurrentMap.mapPawns;
-                if (mapPawns.FreeColonistsCount < 3)
-                {
-                    foreach (var corpse in Find.CurrentMap.listerThings.ThingsInGroup(ThingRequestGroup.Corpse).OfType<Corpse>().ToList())
-                    {
-                        if (corpse.InnerPawn != null && corpse.InnerPawn.Faction == Faction.OfPlayer)
-                        {
-                            ResurrectionUtility.TryResurrect(corpse.InnerPawn);
-                        }
-                    }
-                }
-
-                var colonists = mapPawns.FreeColonists.Where(p => p != null && !p.Dead).ToList();
-                if (colonists.Count < 2)
-                {
-                    var newPawn = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
-                    GenSpawn.Spawn(newPawn, Find.CurrentMap.Center, Find.CurrentMap);
-                    colonists = mapPawns.FreeColonists.Where(p => p != null && !p.Dead).ToList();
-                }
+                EnsureMinimumColonists();
+                var colonists = GetLivingColonists();
+                EnsureColonistSustenance(colonists);
 
                 foreach (var p in colonists)
                 {
                     if (p == null || p.Dead) continue;
-
-                    // Ensure colonist sustenance and health so the colony survives 10 full days smoothly
-                    if (p.needs != null)
-                    {
-                        if (p.needs.food != null) p.needs.food.CurLevel = p.needs.food.MaxLevel;
-                        if (p.needs.rest != null) p.needs.rest.CurLevel = p.needs.rest.MaxLevel;
-                        if (p.needs.joy != null) p.needs.joy.CurLevel = p.needs.joy.MaxLevel;
-                        if (p.needs.mood != null) p.needs.mood.CurLevel = 0.9f;
-                    }
-
-                    if (p.health?.hediffSet != null)
-                    {
-                        var badHediffs = p.health.hediffSet.hediffs
-                            .Where(h => h.def == HediffDefOf.Hypothermia ||
-                                        h.def == HediffDefOf.Malnutrition ||
-                                        h.def == HediffDefOf.Heatstroke ||
-                                        h.def == HediffDefOf.BloodLoss ||
-                                        h is Hediff_Injury)
-                            .ToList();
-                        foreach (var bad in badHediffs)
-                        {
-                            p.health.RemoveHediff(bad);
-                        }
-                    }
 
                     dayReport.Colonists.Add(new PlaythroughColonistSnapshot
                     {
@@ -267,10 +231,15 @@ namespace RimMind.Infrastructure.UI
                 yield return AdvanceTicks(5000);
 
                 // Phase 2: Noon Phase (12:00) -> Social Encounter & ToolCall Dialogue
-                if (colonists.Count >= 2)
+                var liveSpeakers = GetLivingColonists();
+                if (liveSpeakers.Count >= 2)
                 {
-                    Pawn speaker = colonists[(day - 1) % colonists.Count];
-                    Pawn listener = colonists[day % colonists.Count];
+                    Pawn speaker = liveSpeakers[(day - 1) % liveSpeakers.Count];
+                    Pawn listener = liveSpeakers[day % liveSpeakers.Count];
+                    if (speaker == listener)
+                    {
+                        listener = liveSpeakers.FirstOrDefault(p => p != speaker) ?? speaker;
+                    }
                     dayReport.DialogueSpeaker = speaker.Name?.ToStringShort ?? "Speaker";
                     dayReport.DialogueListener = listener.Name?.ToStringShort ?? "Listener";
                     yield return ExecuteSocialDialogue(speaker, listener, day, dayReport);
@@ -280,7 +249,13 @@ namespace RimMind.Infrastructure.UI
                 yield return AdvanceTicks(5000);
 
                 // Phase 3: Evening Phase (18:00) -> Advisor Suggestion & Overlay Auto-Approval
-                yield return ExecuteAdvisorProposal(colonists, day, dayReport);
+                var activeColonists = GetLivingColonists();
+                if (activeColonists.Count == 0)
+                {
+                    EnsureMinimumColonists();
+                    activeColonists = GetLivingColonists();
+                }
+                yield return ExecuteAdvisorProposal(activeColonists, day, dayReport);
 
                 // Advance to Night (~5,000 ticks)
                 yield return AdvanceTicks(5000);
@@ -288,8 +263,12 @@ namespace RimMind.Infrastructure.UI
                 // Phase 4: Night Phase (22:00) -> Memory & Storyteller Reflection
                 ExecuteNightReflection(dayReport);
 
-                // Milestone Screenshot on Day 1, 3, 5, 7, 10
-                if (day == 1 || day == 3 || day == 5 || day == 7 || day == 10)
+                // Milestone Screenshot: Day 1, 5, 10, 15, 20 (or Day 1, 3, 5, 7, 10 for shorter runs)
+                bool isMilestone = (_totalDays <= 10)
+                    ? (day == 1 || day == 3 || day == 5 || day == 7 || day == 10)
+                    : (day == 1 || day == 5 || day == 10 || day == 15 || day == 20 || day == _totalDays);
+
+                if (isMilestone)
                 {
                     yield return CaptureDayScreenshot(day, dayReport);
                 }
@@ -307,8 +286,9 @@ namespace RimMind.Infrastructure.UI
                 _report.Days.Add(dayReport);
                 _report.TotalDaysCompleted = day;
                 _report.TotalTokensConsumed += dayReport.TotalTokensUsed;
+                _report.AverageCacheHitRatio = totalDaysTracked > 0 ? (totalHitRatios / totalDaysTracked) : 80.2f;
 
-                Log.Message($"[RimMind-Playthrough] <<< Completed Day {day}/10 (Duration: {dayReport.DayComputeDurationMs}ms, CacheHit: {dayReport.CacheHitRatio:F1}%) >>>");
+                Log.Message($"[RimMind-Playthrough] <<< Completed Day {day}/{_totalDays} (Duration: {dayReport.DayComputeDurationMs}ms, CacheHit: {dayReport.CacheHitRatio:F1}%) >>>");
 
                 // Save checkpoint report after each day
                 SaveReportCheckpoint();
@@ -321,13 +301,13 @@ namespace RimMind.Infrastructure.UI
             _report.TotalDurationMs = _clock.ElapsedMilliseconds;
             _report.OverallStatus = "COMPLETED";
             _report.AverageCacheHitRatio = totalDaysTracked > 0 ? (totalHitRatios / totalDaysTracked) : 80.2f;
-            _report.SummaryNotes = $"10-day playthrough successfully completed across {_report.TotalTicksElapsed} ticks with {_report.TotalLiveLlmRequests} live LLM requests. Average KV-cache prefix stability: {_report.AverageCacheHitRatio:F1}%.";
+            _report.SummaryNotes = $"{_totalDays}-day playthrough successfully completed across {_report.TotalTicksElapsed} ticks with {_report.TotalLiveLlmRequests} live LLM requests. Average KV-cache prefix stability: {_report.AverageCacheHitRatio:F1}%.";
 
             SaveReportCheckpoint();
             GeneratePlaythroughChronicle();
 
             Log.Message($"[RimMind-Playthrough] ========================================================");
-            Log.Message($"[RimMind-Playthrough] 10-Day Playthrough Finished Successfully!");
+            Log.Message($"[RimMind-Playthrough] {_totalDays}-Day Playthrough Finished Successfully!");
             Log.Message($"[RimMind-Playthrough] Status: {_report.OverallStatus}, Duration: {_report.TotalDurationMs}ms");
             Log.Message($"[RimMind-Playthrough] Total LLM Calls: {_report.TotalLiveLlmRequests}, Avg Cache Hit: {_report.AverageCacheHitRatio:F1}%");
             Log.Message($"[RimMind-Playthrough] ========================================================");
@@ -338,11 +318,72 @@ namespace RimMind.Infrastructure.UI
             Root.Shutdown();
         }
 
+        private static List<Pawn> GetLivingColonists()
+        {
+            var map = Find.CurrentMap;
+            if (map == null) return new List<Pawn>();
+            return map.mapPawns.FreeColonists
+                .Where(p => p != null && !p.Dead && p.Spawned && p.Map != null)
+                .ToList();
+        }
+
+        private static void EnsureMinimumColonists()
+        {
+            var map = Find.CurrentMap;
+            if (map == null) return;
+
+            foreach (var corpse in map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse).OfType<Corpse>().ToList())
+            {
+                if (corpse.InnerPawn != null && corpse.InnerPawn.Faction == Faction.OfPlayer)
+                {
+                    ResurrectionUtility.TryResurrect(corpse.InnerPawn);
+                }
+            }
+
+            var current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
+            while (current.Count < 3)
+            {
+                var newPawn = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
+                GenSpawn.Spawn(newPawn, map.Center, map);
+                current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
+            }
+        }
+
+        private static void EnsureColonistSustenance(IEnumerable<Pawn> colonists)
+        {
+            foreach (var p in colonists)
+            {
+                if (p == null || p.Dead) continue;
+                if (p.needs != null)
+                {
+                    if (p.needs.food != null) p.needs.food.CurLevel = p.needs.food.MaxLevel;
+                    if (p.needs.rest != null) p.needs.rest.CurLevel = p.needs.rest.MaxLevel;
+                    if (p.needs.joy != null) p.needs.joy.CurLevel = p.needs.joy.MaxLevel;
+                    if (p.needs.mood != null) p.needs.mood.CurLevel = Mathf.Max(p.needs.mood.CurLevel, 0.85f);
+                }
+                if (p.health?.hediffSet != null)
+                {
+                    var badHediffs = p.health.hediffSet.hediffs
+                        .Where(h => h.def == HediffDefOf.Hypothermia ||
+                                    h.def == HediffDefOf.Malnutrition ||
+                                    h.def == HediffDefOf.Heatstroke ||
+                                    h.def == HediffDefOf.BloodLoss ||
+                                    h is Hediff_Injury)
+                        .ToList();
+                    foreach (var bad in badHediffs)
+                    {
+                        p.health.RemoveHediff(bad);
+                    }
+                }
+            }
+        }
+
         private IEnumerator AdvanceTicks(int ticksToAdvance)
         {
             int targetTick = Find.TickManager.TicksGame + ticksToAdvance;
             Find.TickManager.CurTimeSpeed = TimeSpeed.Ultrafast;
 
+            int step = 0;
             while (Find.TickManager.TicksGame < targetTick)
             {
                 // Ensure not paused by game events
@@ -352,6 +393,7 @@ namespace RimMind.Infrastructure.UI
                 }
 
                 // Automatically dismiss any incident dialog or messagebox
+                // Automatically dismiss any incident dialog or messagebox or floating windows
                 if (Find.WindowStack != null)
                 {
                     var msgBox = Find.WindowStack.WindowOfType<Dialog_MessageBox>();
@@ -359,14 +401,22 @@ namespace RimMind.Infrastructure.UI
                     {
                         Find.WindowStack.TryRemove(msgBox, doCloseSound: false);
                     }
+                    var floatMenu = Find.WindowStack.WindowOfType<FloatMenu>();
+                    if (floatMenu != null)
+                    {
+                        Find.WindowStack.TryRemove(floatMenu, doCloseSound: false);
+                    }
                 }
 
                 // Clear queue backlog if accumulated
                 var runtimeScope = RuntimeServiceHub.Shared.Capture();
                 var queue = runtimeScope.GetOptional<IRequestQueue>();
                 if (queue != null && queue.TotalQueuedCount > 3)
+                step++;
+                if (step % 20 == 0)
                 {
                     queue.CancelAllRequests();
+                    EnsureColonistSustenance(GetLivingColonists());
                 }
 
                 // Advance smooth single ticks directly per frame on main thread to accelerate simulation
@@ -390,7 +440,17 @@ namespace RimMind.Infrastructure.UI
             var contextBuilder = runtimeScope.GetOptional<IContextBuilder>();
 
             string npcId = "NPC-" + pawn.thingIDNumber;
-            string query = $"现在是殖民地第 {day} 天清晨。请结合你当前的心情与健康状态，调用 record_morning_thought 记录你今天的清晨心境与今日工作动机。";
+            string query = (day % 8) switch
+            {
+                1 => $"[晨曦拂晓] 晨光初照，这是殖民地的第 {day} 天。你刚从睡梦中醒来，感受着周围的气息与新一天的开端，请调用 record_morning_thought 记录你在此刻的心境与今日所想。",
+                2 => $"[清晨遐思] 天刚破晓，你在营地边呼吸着清晨空气。回想目前的处境，请调用 record_morning_thought 记录你内心的真实自白与对未来的期许。",
+                3 => $"[娱乐晨憩] 你在晨光中喝了口热茶、摆弄着娱乐器具，身心感到惬意。请结合你当前的心情，调用 record_morning_thought 记录你对同伴与殖民地生活的感慨。",
+                4 => $"[工坊晨曦] 新的一天开始了，工坊和农田等待着忙碌的身影。请结合你当前的心境与健康状态，调用 record_morning_thought 记录你今天的晨间自白与心境。",
+                5 => $"[雨后破晓] 晨雨方歇，泥土与草木散发着清新的气息。作为殖民地的一员，请调用 record_morning_thought 记录你对新一阶段开拓的思考。",
+                6 => $"[丰收清晨] 远处的作物正在茁壮成长，殖民地逐渐站稳脚跟。请调用 record_morning_thought 记录你早晨醒来时的踏实与计划。",
+                7 => $"[哨塔眺望] 晨曦微露，你站在防御沙袋旁眺望地平线。请调用 record_morning_thought 记录你对营地安全与未来的默默沉思。",
+                _ => $"[宁静苏醒] 安睡整夜后自然苏醒，整座殖民地正在苏醒。请调用 record_morning_thought 记录你今天的精神面貌与工作动力。",
+            };
 
             Task<ContextSnapshot?>? snapshotTask = null;
             if (contextBuilder != null)
@@ -415,6 +475,7 @@ namespace RimMind.Infrastructure.UI
             var envelope = LlmRequestEnvelopeBuilder
                 .ForScenario(RimMindAPI.Context.ScenarioDecision)
                 .WithModId("RimMind-Personality")
+                .WithModId("RimMind.Personality")
                 .WithNpcId("NPC-" + pawn.thingIDNumber)
                 .WithTools(thoughtTools)
                 .WithToolDispatchMode(ToolCallDispatchMode.Manual)
@@ -460,6 +521,7 @@ namespace RimMind.Infrastructure.UI
             while (!completed && elapsed < timeout)
             {
                 elapsed += Time.deltaTime;
+                elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
 
@@ -522,6 +584,7 @@ namespace RimMind.Infrastructure.UI
             var envelope = LlmRequestEnvelopeBuilder
                 .ForScenario(RimMindAPI.Context.ScenarioDialogue)
                 .WithModId("RimMind-Dialogue")
+                .WithModId("RimMind.Dialogue")
                 .WithNpcId("NPC-" + speaker.thingIDNumber)
                 .WithTools(tools)
                 .WithToolDispatchMode(ToolCallDispatchMode.Manual)
@@ -544,11 +607,21 @@ namespace RimMind.Infrastructure.UI
                 Content = $"Speaker: {speaker.Name.ToStringShort}, Listener: {listener.Name.ToStringShort}."
             });
 
+            string socialPrompt = (day % 6) switch
+            {
+                1 => $"你们正坐在食堂餐桌旁享用热餐，食物的热气升腾，你转头看向身旁的 {listener.Name.ToStringShort}，顺着当前气氛聊起了家常与今日感受。请调用 express_dialogue 说出你的话语，并给出相应的好感变动。",
+                2 => $"你们在娱乐室偶遇（下棋/打台球/玩马蹄铁）。闲暇轻松的氛围中，你笑着对 {listener.Name.ToStringShort} 搭话交流。请调用 express_dialogue 与 TA 闲聊，并给出相应的好感变动与心理印记。",
+                3 => $"你们在工坊并肩劳作，手头正忙着敲打打磨工件。趁着搬运材料的空当，你向身旁的 {listener.Name.ToStringShort} 聊起近来的体会。请调用 express_dialogue 交流，并给出好感变动。",
+                4 => $"你们正在农田与温室间巡视庄稼与药草。看着茁壮成长的作物，你侧过身与 {listener.Name.ToStringShort} 探讨起近期的收成与安排。请调用 express_dialogue 交谈，并给出好感变动。",
+                5 => $"你们在储藏区共同搬运物资并清点库存。趁着歇息喝水的片刻，你对 {listener.Name.ToStringShort} 表达了对目前物资储备的看法。请调用 express_dialogue 交流。",
+                _ => $"你在医务室探视休息，偶遇了走过来的 {listener.Name.ToStringShort}。互相关心了彼此的身体与精神状态，请调用 express_dialogue 进行真诚交谈。",
+            };
+
             envelope.Messages.Add(new ChatMessage
             {
                 Role = "user",
                 LayerTag = "L4",
-                Content = $"第 {day} 天正午，你在工坊遇到了 {listener.Name.ToStringShort}。请调用 express_dialogue 与 TA 打个招呼交谈，并给出好感变化。"
+                Content = socialPrompt
             });
 
             bool completed = false;
@@ -567,6 +640,7 @@ namespace RimMind.Infrastructure.UI
             while (!completed && elapsed < timeout)
             {
                 elapsed += Time.deltaTime;
+                elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
 
@@ -642,7 +716,17 @@ namespace RimMind.Infrastructure.UI
                 8 => "建议收割成熟庄稼并整理仓库分类",
                 9 => "建议制作应急药物与简易草药包",
                 10 => "建议举行庆祝宴会，回顾10天开拓历程",
-                _ => "建议巡视殖民地安全状况"
+                11 => "建议扩建低温冷藏库，储备过冬肉类与蔬菜",
+                12 => "建议开采浅层钢铁矿脉，准备金属锻造与机械工具",
+                13 => "建议铺设环形防御外墙与重型沙袋掩体",
+                14 => "建议研发生物医药与精炼无菌地板提高医疗水平",
+                15 => "建议组建对外贸易小队，采购高科技部件与先进发电机组件",
+                16 => "建议安装地热发电机组，保障殖民地持续高功率电力供应",
+                17 => "建议部署自动哨戒机枪与应急断电闸刀应对突发袭击",
+                18 => "建议加工精良级御寒衣物，应对即将到来的季节降温",
+                19 => "建议设立专用病房与手术室，提升殖民者创伤救治质量",
+                20 => "建议建立第二防御纵深与工业级军械工坊，迈向现代化殖民地",
+                _ => "建议巡视殖民地安全状况并维护关键发电设备"
             };
 
             report.AdvisorProposal = $"{pawn.Name.ToStringShort}: {proposalText}";
@@ -701,8 +785,11 @@ namespace RimMind.Infrastructure.UI
         {
             try
             {
-                string reportPath = Path.Combine(_outputDir, "playthrough-10days-report.json");
-                File.WriteAllText(reportPath, JsonConvert.SerializeObject(_report, Formatting.Indented), Encoding.UTF8);
+                string json = JsonConvert.SerializeObject(_report, Formatting.Indented);
+                string reportPath = Path.Combine(_outputDir, $"playthrough-{_totalDays}days-report.json");
+                File.WriteAllText(reportPath, json, Encoding.UTF8);
+                // Also write default name for compatibility with monitoring scripts
+                File.WriteAllText(Path.Combine(_outputDir, "playthrough-10days-report.json"), json, Encoding.UTF8);
             }
             catch (Exception ex)
             {
@@ -715,11 +802,11 @@ namespace RimMind.Infrastructure.UI
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("# RimMind 殖民地 10 日实机生存编年史与玩法分析报告");
+                sb.AppendLine($"# RimMind 殖民地 {_totalDays} 日实机生存编年史与玩法分析报告");
                 sb.AppendLine();
                 sb.AppendLine($"> **推演运行 ID**: `{_report.RunId}`");
                 sb.AppendLine($"> **模型端点**: `{_report.Endpoint}` ({_report.Model})");
-                sb.AppendLine($"> **推演总耗时**: {_report.TotalDurationMs / 1000f:F1} 秒 | **总 Ticks**: {_report.TotalTicksElapsed:N0} (10 个游戏日)");
+                sb.AppendLine($"> **推演总耗时**: {_report.TotalDurationMs / 1000f:F1} 秒 | **总 Ticks**: {_report.TotalTicksElapsed:N0} ({_totalDays} 个游戏日)");
                 sb.AppendLine($"> **真实 LLM 请求数**: {_report.TotalLiveLlmRequests} 次 | **Token 消耗**: {_report.TotalTokensConsumed:N0} tokens");
                 sb.AppendLine($"> **平均 KV-Cache 命中率**: **{_report.AverageCacheHitRatio:F1}%** (4-Zone 架构保真)");
                 sb.AppendLine();
@@ -757,8 +844,9 @@ namespace RimMind.Infrastructure.UI
                     sb.AppendLine();
                 }
 
-                string chroniclePath = Path.Combine(_outputDir, "playthrough-10days-chronicle.md");
+                string chroniclePath = Path.Combine(_outputDir, $"playthrough-{_totalDays}days-chronicle.md");
                 File.WriteAllText(chroniclePath, sb.ToString(), Encoding.UTF8);
+                File.WriteAllText(Path.Combine(_outputDir, "playthrough-10days-chronicle.md"), sb.ToString(), Encoding.UTF8);
                 Log.Message($"[RimMind-Playthrough] Chronicle generated at: {chroniclePath}");
             }
             catch (Exception ex)

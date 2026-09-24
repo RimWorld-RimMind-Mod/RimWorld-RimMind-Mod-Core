@@ -37,6 +37,17 @@ namespace RimMind.Application.Features.Requests.Queue
                 var registered = ModCooldowns.FindById(modId);
                 if (registered != null && registered.CooldownTicks > 0)
                     return registered.CooldownTicks;
+
+                foreach (var cd in ModCooldowns.All)
+                {
+                    if (cd == null) continue;
+                    if (string.Equals(cd.Id, modId, System.StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(cd.OwnerModId, modId, System.StringComparison.OrdinalIgnoreCase) ||
+                        modId.IndexOf(cd.Id, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        if (cd.CooldownTicks > 0) return cd.CooldownTicks;
+                    }
+                }
             }
             return _cooldowns.GetModCooldownTicks(modId);
         }

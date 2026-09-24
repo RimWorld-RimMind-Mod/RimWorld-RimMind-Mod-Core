@@ -65,6 +65,11 @@ namespace RimMind.Presentation.Settings
             get => _settings.defaultModCooldownTicks;
             set => _settings.defaultModCooldownTicks = value;
         }
+        public float ActivityFrequencyScale
+        {
+            get => _settings.activityFrequencyScale;
+            set => _settings.activityFrequencyScale = System.Math.Clamp(value, Application.Common.Models.RimMindDefaults.MinActivityFrequencyScale, Application.Common.Models.RimMindDefaults.MaxActivityFrequencyScale);
+        }
 
         // IAIModelSettings
         public int MaxTokens

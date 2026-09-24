@@ -101,9 +101,20 @@ namespace RimMind.Infrastructure.UI
             if (_startupChecked || Current.ProgramState != ProgramState.Playing || Find.CurrentMap == null) return;
             _startupChecked = true;
 
-            if (GenCommandLine.TryGetCommandLineArg("rimmind-10day-playthrough", out string ptRunId))
+            string? ptRunId = null;
+            if (GenCommandLine.TryGetCommandLineArg("rimmind-10day-playthrough", out ptRunId) ||
+                GenCommandLine.TryGetCommandLineArg("rimmind-playthrough", out ptRunId))
             {
-                TenDayPlaythroughRunner.StartPlaythrough(ptRunId);
+                int totalDays = 10;
+                if (GenCommandLine.TryGetCommandLineArg("rimmind-playthrough-days", out string daysArg) && int.TryParse(daysArg, out int parsedDays) && parsedDays > 0)
+                {
+                    totalDays = parsedDays;
+                }
+                else if (int.TryParse(Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_DAYS"), out int envDays) && envDays > 0)
+                {
+                    totalDays = envDays;
+                }
+                TenDayPlaythroughRunner.StartPlaythrough(ptRunId, totalDays);
                 return;
             }
 

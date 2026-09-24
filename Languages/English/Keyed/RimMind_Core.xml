@@ -71,6 +71,13 @@
   <RimMind.Infrastructure.Player2.LocalNotFound>RimMind: Player2 desktop app not found. Please start the app or add an API key manually.</RimMind.Infrastructure.Player2.LocalNotFound>
   <RimMind.Settings.MaxConcurrent>Max Concurrent Requests</RimMind.Settings.MaxConcurrent>
   <RimMind.Settings.MaxConcurrent.Desc>Maximum number of simultaneous AI requests. Higher values improve responsiveness but increase API costs.</RimMind.Settings.MaxConcurrent.Desc>
+  <RimMind.Settings.ActivityFrequencyScale>Daily Activity &amp; Trigger Frequency</RimMind.Settings.ActivityFrequencyScale>
+  <RimMind.Settings.ActivityFrequencyScale.Desc>Unified control for the trigger frequency of colonist inner thoughts, social chit-chat, and colony advisor suggestions.\n\n• Low (0.2x): ~1 event every 3 days colony-wide.\n• Medium / Default (1.0x): ~3 events per day for a baseline of 3 colonists (~1/colonist/day).\n• High (3.0x): Up to ~10 events per day colony-wide.\n\nNote: If autonomous Pawn Agent loops are enabled, requests will naturally increase based on agent proactive goals.</RimMind.Settings.ActivityFrequencyScale.Desc>
+  <RimMind.Settings.ActivityFrequency.Low>Low (~1 per 3 days)</RimMind.Settings.ActivityFrequency.Low>
+  <RimMind.Settings.ActivityFrequency.SubMedium>Sub-medium (~1 per 2 days)</RimMind.Settings.ActivityFrequency.SubMedium>
+  <RimMind.Settings.ActivityFrequency.Medium>Default (~3 per day for 3 pawns)</RimMind.Settings.ActivityFrequency.Medium>
+  <RimMind.Settings.ActivityFrequency.High>Active (~6 per day for 3 pawns)</RimMind.Settings.ActivityFrequency.High>
+  <RimMind.Settings.ActivityFrequency.VeryHigh>Very Active (Up to ~10 per day)</RimMind.Settings.ActivityFrequency.VeryHigh>
   <RimMind.Settings.MaxRetry>Max Retry Count</RimMind.Settings.MaxRetry>
   <RimMind.Settings.MaxRetry.Desc>Maximum number of retries after a request failure. Set to 0 to disable retries.</RimMind.Settings.MaxRetry.Desc>
   <RimMind.Settings.RequestTimeout>Request Timeout (seconds)</RimMind.Settings.RequestTimeout>

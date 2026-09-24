@@ -152,11 +152,11 @@ namespace RimMind.Application.Common.Models
         public const int DefaultRequestTimeoutMs = 120000;
 
         // Agent
-        /// <summary>Proactive agent mode tick interval in game ticks.</summary>
-        public const int ProactiveTickInterval = 60000;
+        /// <summary>Proactive agent mode tick interval in game ticks (≈2 game hours).</summary>
+        public const int ProactiveTickInterval = 5000;
 
-        /// <summary>Cooldown ticks between pawn think operations.</summary>
-        public const int ThinkCooldownTicks = 30000;
+        /// <summary>Cooldown ticks between pawn think operations (≈1 game hour guardrail).</summary>
+        public const int ThinkCooldownTicks = 2500;
 
         /// <summary>Timeout in game ticks before a think request is considered lost (≈30 seconds at 60 tps).</summary>
         public const int ThinkRequestTimeoutTicks = 1800;
@@ -174,7 +174,7 @@ namespace RimMind.Application.Common.Models
         public const int MinQueueProcessInterval = 60;
 
         /// <summary>Default mod cooldown in game ticks.</summary>
-        public const int DefaultModCooldownTicks = 3600;
+        public const int DefaultModCooldownTicks = 1500;
 
         // Context
         /// <summary>Minimum lifetime in ticks for context diff entries.</summary>
@@ -234,6 +234,12 @@ namespace RimMind.Application.Common.Models
 
         /// <summary>Default maximum tool call depth for AI requests.</summary>
         public const int DefaultMaxToolCallDepth = 3;
+
+        // Activity & Frequency scaling defaults
+        /// <summary>Default activity and event frequency scaling multiplier.</summary>
+        public const float DefaultActivityFrequencyScale = 1.0f;
+        public const float MinActivityFrequencyScale = 0.1f;
+        public const float MaxActivityFrequencyScale = 3.5f;
 
         // Context environment
         /// <summary>Default environment scan radius in cells.</summary>

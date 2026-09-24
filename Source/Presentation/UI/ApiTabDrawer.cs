@@ -92,6 +92,9 @@ namespace RimMind.Presentation.UI
             bool isResponsive = s.MaxTokens == 600 && s.MaxConcurrentRequests == 3 && s.RequestTimeoutMs == 25000 && s.DefaultModCooldownTicks == 15 * 60;
             bool isBalanced = s.MaxTokens == 800 && s.MaxConcurrentRequests == 2 && s.RequestTimeoutMs == 45000 && s.DefaultModCooldownTicks == 30 * 60;
             bool isEco = s.MaxTokens == 400 && s.MaxConcurrentRequests == 1 && s.RequestTimeoutMs == 60000 && s.DefaultModCooldownTicks == 60 * 60;
+            bool isResponsive = s.MaxTokens == 600 && s.MaxConcurrentRequests == 3 && s.RequestTimeoutMs == 25000 && s.DefaultModCooldownTicks == 15 * 60 && Mathf.Abs(s.ActivityFrequencyScale - 2.0f) < 0.1f;
+            bool isBalanced = s.MaxTokens == 800 && s.MaxConcurrentRequests == 2 && s.RequestTimeoutMs == 45000 && s.DefaultModCooldownTicks == 30 * 60 && Mathf.Abs(s.ActivityFrequencyScale - 1.0f) < 0.1f;
+            bool isEco = s.MaxTokens == 400 && s.MaxConcurrentRequests == 1 && s.RequestTimeoutMs == 60000 && s.DefaultModCooldownTicks == 60 * 60 && Mathf.Abs(s.ActivityFrequencyScale - 0.33f) < 0.1f;
 
             // Preset 1: High Responsive
             Rect btn1 = new Rect(barRect.x, barRect.y, btnW, barRect.height);
@@ -174,6 +177,7 @@ namespace RimMind.Presentation.UI
             s.MaxConcurrentRequests = 3;
             s.RequestTimeoutMs = 25000;
             s.DefaultModCooldownTicks = 15 * 60;
+            s.ActivityFrequencyScale = 2.0f;
             s.Persist();
         }
 
@@ -183,6 +187,7 @@ namespace RimMind.Presentation.UI
             s.MaxConcurrentRequests = 2;
             s.RequestTimeoutMs = 45000;
             s.DefaultModCooldownTicks = 30 * 60;
+            s.ActivityFrequencyScale = 1.0f;
             s.Persist();
         }
 
@@ -192,6 +197,7 @@ namespace RimMind.Presentation.UI
             s.MaxConcurrentRequests = 1;
             s.RequestTimeoutMs = 60000;
             s.DefaultModCooldownTicks = 60 * 60;
+            s.ActivityFrequencyScale = 0.33f;
             s.Persist();
         }
 
@@ -420,6 +426,11 @@ namespace RimMind.Presentation.UI
         {
             SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.Section.Generation".Translate());
             scope?.Record(listing.GetRect(0f), "Section:Generation");
+
+            string freqDesc = GetActivityFrequencyDescription(s.ActivityFrequencyScale);
+            listing.LabelWithTooltip($"{"RimMind.Settings.ActivityFrequencyScale".Translate()}: {freqDesc} ({s.ActivityFrequencyScale:F1}x)", "RimMind.Settings.ActivityFrequencyScale.Desc".Translate());
+            s.ActivityFrequencyScale = listing.SliderWithTooltip(s.ActivityFrequencyScale, 0.1f, 3.5f, "RimMind.Settings.ActivityFrequencyScale.Desc".Translate());
+            listing.Gap(4f);
 
             listing.LabelWithTooltip($"{"RimMind.Settings.MaxTokens".Translate()}: {s.MaxTokens}", "RimMind.Settings.MaxTokens.Desc".Translate());
             s.MaxTokens = (int)listing.SliderWithTooltip(s.MaxTokens, 200f, 2000f, "RimMind.Settings.MaxTokens.Desc".Translate());
@@ -680,6 +691,15 @@ namespace RimMind.Presentation.UI
             GUI.color = _testStatusColor;
             Widgets.Label(status, _testStatus);
             GUI.color = Color.white;
+        }
+
+        internal static string GetActivityFrequencyDescription(float scale)
+        {
+            if (scale <= 0.35f) return "RimMind.Settings.ActivityFrequency.Low".Translate();
+            if (scale <= 0.75f) return "RimMind.Settings.ActivityFrequency.SubMedium".Translate();
+            if (scale <= 1.4f) return "RimMind.Settings.ActivityFrequency.Medium".Translate();
+            if (scale <= 2.4f) return "RimMind.Settings.ActivityFrequency.High".Translate();
+            return "RimMind.Settings.ActivityFrequency.VeryHigh".Translate();
         }
     }
 }

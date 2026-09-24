@@ -24,6 +24,7 @@ namespace RimMind.Application.Features.Requests.Queue
         public int ThinkCooldownTicks => RimMindDefaults.ThinkCooldownTicks;
         public int MaxToolCallDepth => RimMindDefaults.DefaultMaxToolCallDepth;
         public int DefaultModCooldownTicks { get => RimMindDefaults.DefaultModCooldownTicks; set { } }
+        public float ActivityFrequencyScale { get => RimMindDefaults.DefaultActivityFrequencyScale; set { } }
         public int MaxTokens { get => RimMindDefaults.MaxTokens; set { } }
         public float DefaultTemperature { get => RimMindDefaults.DefaultTemperature; set { } }
         public bool ForceJsonMode { get => true; set { } }
