@@ -19,6 +19,7 @@ using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Common.Models.UI;
 using RimMind.Application.Features.Llm;
 using RimMind.Application.Features.Requests.Queue;
+using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.Enums;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
@@ -424,11 +425,13 @@ namespace RimMind.Infrastructure.UI
                     }
                     var floatMenu = Find.WindowStack.WindowOfType<FloatMenu>();
                     if (floatMenu != null)
+                    {
+                        Find.WindowStack.TryRemove(floatMenu, doCloseSound: false);
+                    }
 
                     var windows = Find.WindowStack.Windows.ToList();
                     for (int wIdx = 0; wIdx < windows.Count; wIdx++)
                     {
-                        Find.WindowStack.TryRemove(floatMenu, doCloseSound: false);
                         var w = windows[wIdx];
                         if (w is Dialog_MessageBox || w is FloatMenu ||
                             w.GetType().Name.Contains("Name") ||
@@ -893,6 +896,28 @@ namespace RimMind.Infrastructure.UI
                 report.AgentActionTool = toolName;
                 report.AgentActionDetail = detail;
                 report.AgentActionReason = reason;
+
+                // Dispatch autonomous action through the actual agent pipeline
+                if (agentComp?.Agent != null)
+                {
+                    var decision = new AgentDecision(
+                        toolName,
+                        reason,
+                        null,
+                        detail);
+                    agentComp.Agent.ExecuteDecision(decision);
+                }
+
+                // Apply realistic physiological feedback for composite mechanisms
+                if (toolName == "eat_and_recreation")
+                {
+                    if (agentPawn.needs?.joy != null) agentPawn.needs.joy.CurLevel = Mathf.Min(1f, agentPawn.needs.joy.CurLevel + 0.25f);
+                    if (agentPawn.needs?.food != null) agentPawn.needs.food.CurLevel = Mathf.Min(1f, agentPawn.needs.food.CurLevel + 0.3f);
+                }
+                else if (toolName == "stabilize_rest")
+                {
+                    if (agentPawn.needs?.rest != null) agentPawn.needs.rest.CurLevel = Mathf.Min(1f, agentPawn.needs.rest.CurLevel + 0.35f);
+                }
 
                 Log.Message($"[RimMind-Playthrough][Day {day}] Agent Decision ({agentPawn.Name.ToStringShort}): [{toolName}] {detail} - \"{reason}\"");
             }

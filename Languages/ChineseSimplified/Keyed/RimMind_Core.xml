@@ -78,6 +78,8 @@
   <RimMind.Settings.ActivityFrequency.Medium>默认日常 (3人约每天3次)</RimMind.Settings.ActivityFrequency.Medium>
   <RimMind.Settings.ActivityFrequency.High>活跃 (3人约每天6次)</RimMind.Settings.ActivityFrequency.High>
   <RimMind.Settings.ActivityFrequency.VeryHigh>极度活跃 (3人约每天10次)</RimMind.Settings.ActivityFrequency.VeryHigh>
+  <RimMind.Settings.AutoActivateColonistAgents>自动激活殖民者智能体</RimMind.Settings.AutoActivateColonistAgents>
+  <RimMind.Settings.AutoActivateColonistAgents.Desc>开启后，加入殖民地的新生或新加入殖民者将自动启动智能体自主感知与行动循环（无需手动在智能体面板逐个点击激活）。</RimMind.Settings.AutoActivateColonistAgents.Desc>
   <RimMind.Settings.MaxRetry>最大重试次数</RimMind.Settings.MaxRetry>
   <RimMind.Settings.MaxRetry.Desc>请求失败后的最大重试次数。设为 0 则不重试。</RimMind.Settings.MaxRetry.Desc>
   <RimMind.Settings.RequestTimeout>请求超时（秒）</RimMind.Settings.RequestTimeout>
@@ -481,6 +483,9 @@
   <RimMind.UI.Hub.TriggerAgentTickTip>重置思考冷却并立即执行一次 Agent Tick，驱动该小人发起决策。</RimMind.UI.Hub.TriggerAgentTickTip>
   <RimMind.UI.Hub.AgentTickTriggered>已触发小人思考循环: {0}</RimMind.UI.Hub.AgentTickTriggered>
   <RimMind.UI.Hub.AgentNotFound>小人尚未初始化 Agent 组件。</RimMind.UI.Hub.AgentNotFound>
+  <RimMind.UI.Hub.ActivateAllAgents>⚡ 激活全员智能体</RimMind.UI.Hub.ActivateAllAgents>
+  <RimMind.UI.Hub.ActivateAllAgentsTip>立即将当前殖民地内所有处于休眠状态的可用殖民者激活为自主智能体。</RimMind.UI.Hub.ActivateAllAgentsTip>
+  <RimMind.UI.Hub.AllAgentsActivated>已成功将 {0} 位殖民者激活为自主智能体！</RimMind.UI.Hub.AllAgentsActivated>
   <!-- Debug table shared headers -->
   <RimMind.UI.DebugTable.Header.Id>ID</RimMind.UI.DebugTable.Header.Id>
   <RimMind.UI.DebugTable.Header.Status>状态</RimMind.UI.DebugTable.Header.Status>

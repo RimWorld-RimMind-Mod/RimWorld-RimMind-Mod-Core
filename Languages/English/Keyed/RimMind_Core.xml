@@ -78,6 +78,8 @@
   <RimMind.Settings.ActivityFrequency.Medium>Default (~3 per day for 3 pawns)</RimMind.Settings.ActivityFrequency.Medium>
   <RimMind.Settings.ActivityFrequency.High>Active (~6 per day for 3 pawns)</RimMind.Settings.ActivityFrequency.High>
   <RimMind.Settings.ActivityFrequency.VeryHigh>Very Active (Up to ~10 per day)</RimMind.Settings.ActivityFrequency.VeryHigh>
+  <RimMind.Settings.AutoActivateColonistAgents>Auto-activate Colonist Agents</RimMind.Settings.AutoActivateColonistAgents>
+  <RimMind.Settings.AutoActivateColonistAgents.Desc>When enabled, new or joining colonists automatically start their autonomous Pawn Agent perception and decision loops without manual activation.</RimMind.Settings.AutoActivateColonistAgents.Desc>
   <RimMind.Settings.MaxRetry>Max Retry Count</RimMind.Settings.MaxRetry>
   <RimMind.Settings.MaxRetry.Desc>Maximum number of retries after a request failure. Set to 0 to disable retries.</RimMind.Settings.MaxRetry.Desc>
   <RimMind.Settings.RequestTimeout>Request Timeout (seconds)</RimMind.Settings.RequestTimeout>
@@ -481,6 +483,9 @@
   <RimMind.UI.Hub.TriggerAgentTickTip>Reset think cooldown and immediately execute one Agent Tick to prompt decision making.</RimMind.UI.Hub.TriggerAgentTickTip>
   <RimMind.UI.Hub.AgentTickTriggered>Agent tick triggered for: {0}</RimMind.UI.Hub.AgentTickTriggered>
   <RimMind.UI.Hub.AgentNotFound>Agent component not yet initialized for this pawn.</RimMind.UI.Hub.AgentNotFound>
+  <RimMind.UI.Hub.ActivateAllAgents>⚡ Activate All Agents</RimMind.UI.Hub.ActivateAllAgents>
+  <RimMind.UI.Hub.ActivateAllAgentsTip>Immediately activate autonomous agent perception and action loops for all living dormant colonists.</RimMind.UI.Hub.ActivateAllAgentsTip>
+  <RimMind.UI.Hub.AllAgentsActivated>Successfully activated {0} colonist agents!</RimMind.UI.Hub.AllAgentsActivated>
   <!-- Debug table shared headers -->
   <RimMind.UI.DebugTable.Header.Id>ID</RimMind.UI.DebugTable.Header.Id>
   <RimMind.UI.DebugTable.Header.Status>Status</RimMind.UI.DebugTable.Header.Status>

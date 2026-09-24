@@ -59,6 +59,7 @@ namespace RimMind.Presentation.Settings
             set => _settings.behaviorHistoryMax = value;
         }
         public int ThinkCooldownTicks => _settings.thinkCooldownTicks;
+        public int ThinkCooldownTicks => (int)System.Math.Clamp(_settings.thinkCooldownTicks / System.Math.Max(0.1f, ActivityFrequencyScale), 1200f, 120000f);
         public int MaxToolCallDepth => _settings.maxToolCallDepth;
         public int DefaultModCooldownTicks
         {
@@ -69,6 +70,11 @@ namespace RimMind.Presentation.Settings
         {
             get => _settings.activityFrequencyScale;
             set => _settings.activityFrequencyScale = System.Math.Clamp(value, Application.Common.Models.RimMindDefaults.MinActivityFrequencyScale, Application.Common.Models.RimMindDefaults.MaxActivityFrequencyScale);
+        }
+        public bool AutoActivateColonistAgents
+        {
+            get => _settings.autoActivateColonistAgents;
+            set => _settings.autoActivateColonistAgents = value;
         }
 
         // IAIModelSettings

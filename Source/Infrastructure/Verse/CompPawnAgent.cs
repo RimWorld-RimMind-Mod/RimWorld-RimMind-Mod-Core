@@ -54,6 +54,14 @@ namespace RimMind.Infrastructure.Verse
             base.CompTick();
             EnsureCurrentAgent();
             EnsureAgentLoopRegistration();
+
+            var tickSettings = RuntimeServiceHub.Shared.Capture().GetOptional<IAgentTickSettings>();
+            if (tickSettings?.AutoActivateColonistAgents == true
+                && Pawn.IsColonist && !Pawn.Dead && Pawn.Map != null
+                && _agent != null && _agent.State == AgentState.Dormant)
+            {
+                _agent.TransitionTo(AgentState.Active);
+            }
         }
 
         private void EnsureAgentLoopRegistration()

@@ -66,6 +66,7 @@ namespace RimMind.Presentation.Settings
         public int queueProcessInterval = RimMindDefaults.QueueProcessInterval;
         public int defaultModCooldownTicks = RimMindDefaults.DefaultModCooldownTicks;
         public float activityFrequencyScale = RimMindDefaults.DefaultActivityFrequencyScale;
+        public bool autoActivateColonistAgents = false;
 
         public AgentAutonomyLevel autonomyLevel = AgentAutonomyLevel.Guided;
 
@@ -135,6 +136,7 @@ namespace RimMind.Presentation.Settings
             Scribe_Values.Look(ref queueProcessInterval, "queueProcessInterval", RimMindDefaults.QueueProcessInterval);
             Scribe_Values.Look(ref defaultModCooldownTicks, "defaultModCooldownTicks", RimMindDefaults.DefaultModCooldownTicks);
             Scribe_Values.Look(ref activityFrequencyScale, "activityFrequencyScale", RimMindDefaults.DefaultActivityFrequencyScale);
+            Scribe_Values.Look(ref autoActivateColonistAgents, "autoActivateColonistAgents", false);
             Scribe_Values.Look(ref autonomyLevel, "autonomyLevel", AgentAutonomyLevel.Guided);
             Scribe_Values.Look(ref circuitBreakerFailureThreshold, "circuitBreakerFailureThreshold", RimMindDefaults.CircuitBreakerFailureThreshold);
             Scribe_Values.Look(ref circuitBreakerOpenDurationSec, "circuitBreakerOpenDurationSec", RimMindDefaults.CircuitBreakerOpenDurationSec);

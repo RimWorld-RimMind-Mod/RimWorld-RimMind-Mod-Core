@@ -278,6 +278,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 
             float cardW = canvas.width - 8f;
             Rect card = new Rect(4f, y, cardW, 124f);
+            Rect card = new Rect(4f, y, cardW, 152f);
             Widgets.DrawBoxSolid(card, RimMindUI.ColorCardBg);
 
             if (settings != null)
@@ -381,6 +382,18 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     LiveAiProbeState.OfflineSimulationMode = mockMode;
                 }
                 TooltipHandler.TipRegion(mockRect, "RimMind.UI.Hub.MockModeTip".Translate());
+
+                // Row 4: Auto Activate Colonist Agents
+                rY += 28f;
+                Rect autoAgentRect = new Rect(card.x + 8f, rY, cardW - 16f, 24f);
+                bool autoAgent = settings.AutoActivateColonistAgents;
+                Widgets.CheckboxLabeled(autoAgentRect, "RimMind.Settings.AutoActivateColonistAgents".Translate(), ref autoAgent);
+                if (autoAgent != settings.AutoActivateColonistAgents)
+                {
+                    settings.AutoActivateColonistAgents = autoAgent;
+                    settings.Persist();
+                }
+                TooltipHandler.TipRegion(autoAgentRect, "RimMind.Settings.AutoActivateColonistAgents.Desc".Translate());
             }
 
             return card.yMax + 12f;
@@ -471,6 +484,8 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 
                 // Row 3: Inspect Payload & Trigger Agent Tick
                 float btnW = (cardW - 24f) / 2f;
+                // Row 3: Inspect Payload, Trigger Agent Tick & Activate All Agents
+                float btnW = (cardW - 32f) / 3f;
                 Rect btnInspect = new Rect(card.x + 8f, pY, btnW, 28f);
                 if (Widgets.ButtonText(btnInspect, "RimMind.UI.Hub.InspectPayload".Translate()))
                 {
@@ -494,6 +509,13 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     }
                 }
                 TooltipHandler.TipRegion(btnTick, "RimMind.UI.Hub.TriggerAgentTickTip".Translate());
+
+                Rect btnActivateAll = new Rect(btnTick.xMax + 8f, pY, btnW, 28f);
+                if (Widgets.ButtonText(btnActivateAll, "RimMind.UI.Hub.ActivateAllAgents".Translate()))
+                {
+                    ActivateAllLivingColonistAgents();
+                }
+                TooltipHandler.TipRegion(btnActivateAll, "RimMind.UI.Hub.ActivateAllAgentsTip".Translate());
             }
             else
             {
@@ -503,6 +525,13 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 Widgets.Label(hintRect, "RimMind.UI.Hub.NoPawn".Translate() + " - " + "RimMind.UI.Hub.SelectColonistTip".Translate());
                 GUI.color = Color.white;
                 TooltipHandler.TipRegion(hintRect, "RimMind.UI.Hub.SelectColonistTip".Translate());
+                float btnAllW = Mathf.Min(cardW - 16f, 260f);
+                Rect btnAllRect = new Rect(card.x + 8f, pY, btnAllW, 28f);
+                if (Widgets.ButtonText(btnAllRect, "RimMind.UI.Hub.ActivateAllAgents".Translate()))
+                {
+                    ActivateAllLivingColonistAgents();
+                }
+                TooltipHandler.TipRegion(btnAllRect, "RimMind.UI.Hub.ActivateAllAgentsTip".Translate());
             }
 
             return card.yMax + 12f;
@@ -599,5 +628,26 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 GameLifecycleState.Failed => "RimMind.UI.Lifecycle.Failed".Translate(),
                 _ => string.Empty
             };
+        private static void ActivateAllLivingColonistAgents()
+        {
+            var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList();
+            int count = 0;
+            if (colonists != null)
+            {
+                foreach (var p in colonists)
+                {
+                    var pComp = CompPawnAgent.GetComp(p);
+                    if (pComp != null && pComp.EnsureAgentCreated() && pComp.Agent != null)
+                    {
+                        if (pComp.Agent.State != AgentState.Active)
+                        {
+                            pComp.Agent.TransitionTo(AgentState.Active);
+                            count++;
+                        }
+                    }
+                }
+            }
+            Messages.Message(string.Format("RimMind.UI.Hub.AllAgentsActivated".Translate(), count), MessageTypeDefOf.TaskCompletion, false);
+        }
     }
 }

@@ -8,5 +8,6 @@ namespace RimMind.Application.Common.Interfaces.Internal
         int MaxToolCallDepth { get; }
         int DefaultModCooldownTicks { get; set; }
         float ActivityFrequencyScale { get; set; }
+        bool AutoActivateColonistAgents { get; set; }
     }
 }
