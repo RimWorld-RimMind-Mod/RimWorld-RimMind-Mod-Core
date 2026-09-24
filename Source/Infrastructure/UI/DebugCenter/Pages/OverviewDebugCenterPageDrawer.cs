@@ -277,7 +277,6 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 "RimMind.UI.Hub.RuntimeSettingsTunerTip".Translate());
 
             float cardW = canvas.width - 8f;
-            Rect card = new Rect(4f, y, cardW, 90f);
             Rect card = new Rect(4f, y, cardW, 124f);
             Widgets.DrawBoxSolid(card, RimMindUI.ColorCardBg);
 

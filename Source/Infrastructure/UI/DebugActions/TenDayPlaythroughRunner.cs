@@ -54,6 +54,10 @@ namespace RimMind.Infrastructure.UI
         public string DialogueSpeech { get; set; } = string.Empty;
         public string DialogueThoughtTag { get; set; } = string.Empty;
         public int DialogueRelationDelta { get; set; }
+        public string AgentActionPawn { get; set; } = string.Empty;
+        public string AgentActionTool { get; set; } = string.Empty;
+        public string AgentActionDetail { get; set; } = string.Empty;
+        public string AgentActionReason { get; set; } = string.Empty;
         public string AdvisorProposal { get; set; } = string.Empty;
         public bool AdvisorApproved { get; set; }
         public int WorkingMemoryCount { get; set; }
@@ -247,6 +251,20 @@ namespace RimMind.Infrastructure.UI
 
                 // Advance to Evening (~5,000 ticks)
                 yield return AdvanceTicks(5000);
+                // Advance to Afternoon (~3,000 ticks)
+                yield return AdvanceTicks(3000);
+
+                // Phase 2.5: Afternoon Phase (15:00) -> Autonomous Agent Action & Mechanism Decision
+                var currentColonists = GetLivingColonists();
+                if (currentColonists.Count > 0)
+                {
+                    Pawn agentPawn = currentColonists[(day + 1) % currentColonists.Count];
+                    dayReport.AgentActionPawn = agentPawn.Name?.ToStringShort ?? "Agent";
+                    yield return ExecuteAutonomousAgentAction(agentPawn, day, dayReport);
+                }
+
+                // Advance to Evening (~2,000 ticks)
+                yield return AdvanceTicks(2000);
 
                 // Phase 3: Evening Phase (18:00) -> Advisor Suggestion & Overlay Auto-Approval
                 var activeColonists = GetLivingColonists();
@@ -394,17 +412,31 @@ namespace RimMind.Infrastructure.UI
 
                 // Automatically dismiss any incident dialog or messagebox
                 // Automatically dismiss any incident dialog or messagebox or floating windows
+                // Automatically dismiss any incident dialog, messagebox, naming window, or debug log
                 if (Find.WindowStack != null)
                 {
                     var msgBox = Find.WindowStack.WindowOfType<Dialog_MessageBox>();
                     if (msgBox != null)
+                    if (Find.FactionManager?.OfPlayer != null && !Find.FactionManager.OfPlayer.HasName)
                     {
                         Find.WindowStack.TryRemove(msgBox, doCloseSound: false);
+                        Find.FactionManager.OfPlayer.Name = "RimMind Settlement";
                     }
                     var floatMenu = Find.WindowStack.WindowOfType<FloatMenu>();
                     if (floatMenu != null)
+
+                    var windows = Find.WindowStack.Windows.ToList();
+                    for (int wIdx = 0; wIdx < windows.Count; wIdx++)
                     {
                         Find.WindowStack.TryRemove(floatMenu, doCloseSound: false);
+                        var w = windows[wIdx];
+                        if (w is Dialog_MessageBox || w is FloatMenu ||
+                            w.GetType().Name.Contains("Name") ||
+                            w.GetType().Name.Contains("Log") ||
+                            w.GetType().Name.Contains("GiveName"))
+                        {
+                            Find.WindowStack.TryRemove(w, doCloseSound: false);
+                        }
                     }
                 }
 
@@ -433,8 +465,11 @@ namespace RimMind.Infrastructure.UI
             var runtimeScope = RuntimeServiceHub.Shared.Capture();
             var queue = runtimeScope.GetOptional<IRequestQueue>();
             if (queue != null && queue.TotalQueuedCount > 2)
+            if (queue != null)
             {
                 queue.CancelAllRequests();
+                if (queue.TotalQueuedCount > 2) queue.CancelAllRequests();
+                queue.ClearAllCooldowns();
             }
 
             var contextBuilder = runtimeScope.GetOptional<IContextBuilder>();
@@ -531,20 +566,14 @@ namespace RimMind.Infrastructure.UI
                 report.TotalTokensUsed += val.TokensUsed;
 
                 string? thoughtText = null;
-                if (!string.IsNullOrWhiteSpace(val.ToolCallsJson))
+                var args = ExtractToolArguments(val.ToolCallsJson, "record_morning_thought");
+                if (args != null)
                 {
-                    try
-                    {
-                        var jArr = JArray.Parse(val.ToolCallsJson);
-                        if (jArr.Count > 0)
-                        {
-                            var func = jArr[0]["function"] ?? jArr[0];
-                            string argsStr = func["arguments"]?.ToString() ?? "{}";
-                            var args = JObject.Parse(argsStr);
-                            thoughtText = args["thought"]?.ToString() ?? args["speech"]?.ToString() ?? args["motivation"]?.ToString();
-                        }
-                    }
-                    catch { }
+                    thoughtText = args["thought"]?.ToString() ??
+                                  args["content"]?.ToString() ??
+                                  args["speech"]?.ToString() ??
+                                  args["motivation"]?.ToString() ??
+                                  args["mindset"]?.ToString();
                 }
 
                 if (string.IsNullOrWhiteSpace(thoughtText))
@@ -558,6 +587,15 @@ namespace RimMind.Infrastructure.UI
             else
             {
                 report.MorningThought = $"清晨微风吹过，准备开始第 {day} 天的开拓。";
+                string[] morningFallbacks = new[]
+                {
+                    $"天光渐明，晨露浸润着泥土。深吸一口气，第 {day} 天的生活要更加踏实努力。",
+                    $"清晨从营房醒来，身体休息得还算充分。今天首要任务是保障营地运转与食物储备。",
+                    $"阳光照在初具规模的木墙上。回想初到这片边缘世界时的无助，如今殖民地正一天天变好。",
+                    $"晨起在水盆前洗了把脸，精神清爽。今天要把手头的农耕与工坊活计按时完成。",
+                    $"破晓的云霞很美，同伴们也陆续起来劳作了。为了大家能平安活下去，今天也要全力以赴。"
+                };
+                report.MorningThought = morningFallbacks[day % morningFallbacks.Length];
                 Log.Warning($"[RimMind-Playthrough][Day {day}] Morning thought fallback: {responseResult?.Error.Message}");
             }
         }
@@ -567,8 +605,11 @@ namespace RimMind.Infrastructure.UI
             var runtimeScope = RuntimeServiceHub.Shared.Capture();
             var queue = runtimeScope.GetOptional<IRequestQueue>();
             if (queue != null && queue.TotalQueuedCount > 2)
+            if (queue != null)
             {
                 queue.CancelAllRequests();
+                if (queue.TotalQueuedCount > 2) queue.CancelAllRequests();
+                queue.ClearAllCooldowns();
             }
 
             var tools = new List<StructuredTool>
@@ -649,39 +690,23 @@ namespace RimMind.Infrastructure.UI
                 var val = responseResult.Value.Value;
                 report.TotalTokensUsed += val.TokensUsed;
 
-                // Try parse express_dialogue tool call
-                if (!string.IsNullOrWhiteSpace(val.ToolCallsJson))
+                var args = ExtractToolArguments(val.ToolCallsJson, "express_dialogue");
+                if (args != null)
                 {
-                    try
-                    {
-                        var jArr = JArray.Parse(val.ToolCallsJson);
-                        if (jArr.Count > 0)
-                        {
-                            var func = jArr[0]["function"] ?? jArr[0];
-                            string argsStr = func["arguments"]?.ToString() ?? "{}";
-                            var args = JObject.Parse(argsStr);
-                            string? speech = args["speech"]?.ToString() ??
-                                            args["reply"]?.ToString() ??
-                                            args["dialogue"]?.ToString() ??
-                                            args["text"]?.ToString() ??
-                                            args["content"]?.ToString();
+                    string? speech = args["speech"]?.ToString() ??
+                                     args["reply"]?.ToString() ??
+                                     args["dialogue"]?.ToString() ??
+                                     args["text"]?.ToString() ??
+                                     args["content"]?.ToString();
 
-                            report.DialogueSpeech = !string.IsNullOrWhiteSpace(speech) ? speech.Trim() : (!string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : $"嗨，{listener.Name.ToStringShort}，今天手头活儿还顺手吗？");
-                            report.DialogueThoughtTag = args["thought_tag"]?.ToString() ?? "FRIENDLY";
-                            int relDelta = args["relation_delta"]?.Value<int>() ?? 1;
-                            report.DialogueRelationDelta = Mathf.Clamp(relDelta, -5, 5);
-                        }
-                    }
-                    catch
-                    {
-                        report.DialogueSpeech = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : $"嗨，{listener.Name.ToStringShort}，今天工作还顺利吗？";
-                        report.DialogueThoughtTag = "FRIENDLY";
-                        report.DialogueRelationDelta = 1;
-                    }
+                    report.DialogueSpeech = !string.IsNullOrWhiteSpace(speech) ? speech!.Trim() : (!string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : $"嗨，{listener.Name.ToStringShort}，今天手头活儿还顺手吗？");
+                    report.DialogueThoughtTag = args["thought_tag"]?.ToString() ?? "FRIENDLY";
+                    int relDelta = args["relation_delta"]?.Value<int>() ?? 1;
+                    report.DialogueRelationDelta = Mathf.Clamp(relDelta, -5, 5);
                 }
                 else
                 {
-                    report.DialogueSpeech = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : $"嗨，{listener.Name.ToStringShort}，干得漂亮！";
+                    report.DialogueSpeech = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : $"嗨，{listener.Name.ToStringShort}，今天工作还顺利吗？";
                     report.DialogueThoughtTag = "FRIENDLY";
                     report.DialogueRelationDelta = 1;
                 }
@@ -696,9 +721,285 @@ namespace RimMind.Infrastructure.UI
             else
             {
                 report.DialogueSpeech = $"今天天气不错，{listener.Name.ToStringShort}，我们加把劲！";
+                string[] fallbacks = new[]
+                {
+                    $"嗨，{listener.Name.ToStringShort}，这批货搬完我们去娱乐室歇歇吧，我看你忙了一上午了。",
+                    $"{listener.Name.ToStringShort}，外头风沙有点大，待会儿巡视农田时记得戴上兜帽。",
+                    $"刚才路过工坊，看到你做的那把手工椅真不错，手艺越来越熟练了，{listener.Name.ToStringShort}。",
+                    $"今天的炖菜味道比昨天好多了，终于吃上了热气腾腾的熟食，{listener.Name.ToStringShort}。",
+                    $"{listener.Name.ToStringShort}，等这阵忙完，咱们得把仓库的建材分类整理一下，不然取用太费劲了。",
+                    $"听外头广播说可能有热浪或者冷流，我们得提前把防寒/降温设施检查一遍，{listener.Name.ToStringShort}。"
+                };
+                report.DialogueSpeech = fallbacks[day % fallbacks.Length];
                 report.DialogueThoughtTag = "FRIENDLY";
                 report.DialogueRelationDelta = 1;
             }
+        }
+
+        private IEnumerator ExecuteAutonomousAgentAction(Pawn agentPawn, int day, PlaythroughDayReport report)
+        {
+            var runtimeScope = RuntimeServiceHub.Shared.Capture();
+            var queue = runtimeScope.GetOptional<IRequestQueue>();
+            if (queue != null && queue.TotalQueuedCount > 2)
+            if (queue != null)
+            {
+                queue.CancelAllRequests();
+                if (queue.TotalQueuedCount > 2) queue.CancelAllRequests();
+                queue.ClearAllCooldowns();
+            }
+
+            var agentComp = CompPawnAgent.GetComp(agentPawn);
+            if (agentComp != null)
+            {
+                agentComp.EnsureAgentCreated();
+                if (agentComp.Agent != null && agentComp.Agent.State != AgentState.Active)
+                {
+                    agentComp.Agent.TransitionTo(AgentState.Active);
+                }
+            }
+
+            var tools = new List<StructuredTool>
+            {
+                new StructuredTool
+                {
+                    Name = "prioritize_work",
+                    Description = "Prioritize a critical colony labor task (e.g. Firefighting, Doctor, Warden, Growing, Crafting, Construction, Hauling, Cleaning)",
+                    Parameters = "{\"type\":\"object\",\"properties\":{\"work_type\":{\"type\":\"string\"},\"reason\":{\"type\":\"string\"}},\"required\":[\"work_type\",\"reason\"]}"
+                },
+                new StructuredTool
+                {
+                    Name = "take_job",
+                    Description = "Directly assign an immediate action job (e.g. HaulToStorage, CleanFilth, TendPatient, RepairBuilding, CutPlants)",
+                    Parameters = "{\"type\":\"object\",\"properties\":{\"job_type\":{\"type\":\"string\"},\"target\":{\"type\":\"string\"},\"reason\":{\"type\":\"string\"}},\"required\":[\"job_type\",\"reason\"]}"
+                },
+                new StructuredTool
+                {
+                    Name = "eat_and_recreation",
+                    Description = "Composite mechanism: satisfy urgent nourishment needs and enjoy social recreation to restore morale",
+                    Parameters = "{\"type\":\"object\",\"properties\":{\"reason\":{\"type\":\"string\"}},\"required\":[\"reason\"]}"
+                },
+                new StructuredTool
+                {
+                    Name = "stabilize_rest",
+                    Description = "Composite mechanism: find the nearest safe medical bed, bandage wounds, and rest to recover stamina",
+                    Parameters = "{\"type\":\"object\",\"properties\":{\"reason\":{\"type\":\"string\"}},\"required\":[\"reason\"]}"
+                }
+            };
+
+            var envelope = LlmRequestEnvelopeBuilder
+                .ForScenario(RimMindAPI.Context.ScenarioDecision)
+                .WithModId("RimMind-Actions")
+                .WithModId("RimMind.Actions")
+                .WithNpcId("NPC-" + agentPawn.thingIDNumber)
+                .WithTools(tools)
+                .WithToolDispatchMode(ToolCallDispatchMode.Manual)
+                .WithMaxTokens(180)
+                .WithTemperature(0.6f)
+                .WithPriority(AIRequestPriority.High)
+                .Build();
+
+            envelope.Messages.Add(new ChatMessage
+            {
+                Role = "system",
+                LayerTag = "L0",
+                Content = "You are the autonomous colonist AI agent in RimWorld. You must choose ONE tool from [prioritize_work, take_job, eat_and_recreation, stabilize_rest] to direct your next action."
+            });
+            envelope.Messages.Add(new ChatMessage
+            {
+                Role = "system",
+                LayerTag = "L1",
+                Content = $"Pawn: {agentPawn.Name.ToStringShort}, Current Job: {agentPawn.CurJobDef?.defName ?? "Idle"}, Mood: {agentPawn.needs?.mood?.CurLevelPercentage.ToString("P0") ?? "80%"}, Health: {agentPawn.health?.summaryHealth?.SummaryHealthPercent.ToString("P0") ?? "100%"}"
+            });
+
+            string afternoonPrompt = (day % 5) switch
+            {
+                1 => $"当前是殖民地第 {day} 天下午 15:00。农田与工坊周边有散落的材料与未整理的物资，请评估当前轻重缓急，调用最适工具做出你的行动决策。",
+                2 => $"午后阳光充足，殖民地营房与通道地面有些积尘，防御陷阱与木墙也需要例行检修。请调用工具做出你的下午工作决策。",
+                3 => $"经历了大半天的劳作，你的饱腹度与娱乐需求有所下降，但也挂念着仓库的分类整理。请权衡自身状态与营地需求，调用工具做出决策。",
+                4 => $"工坊的工作台前还堆放着待加工的木料与纺织品，同时外围种植区的水稻需要除草看护。请调用工具选择你重点推进的工作。",
+                _ => $"午后微风徐徐，营地正处于平稳建设阶段。请根据你的特长与当前营地环境，调用工具做出你的自主行动决策。"
+            };
+
+            envelope.Messages.Add(new ChatMessage
+            {
+                Role = "user",
+                LayerTag = "L4",
+                Content = afternoonPrompt
+            });
+
+            bool completed = false;
+            Result<LlmResponse, RimMindError>? responseResult = null;
+
+            RimMindAPI.Send(envelope, res =>
+            {
+                responseResult = res;
+                completed = true;
+            });
+
+            _report.TotalLiveLlmRequests++;
+
+            float timeout = 40f;
+            float elapsed = 0f;
+            while (!completed && elapsed < timeout)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (completed && responseResult != null && responseResult.Value.IsOk)
+            {
+                var val = responseResult.Value.Value;
+                report.TotalTokensUsed += val.TokensUsed;
+
+                var argsObj = ExtractToolArguments(val.ToolCallsJson);
+                string toolName = "prioritize_work";
+                string detail = "Cleaning / Hauling";
+                string reason = "协助维持营地秩序与物资整洁";
+
+                if (argsObj != null)
+                {
+                    if (argsObj.TryGetValue("work_type", StringComparison.OrdinalIgnoreCase, out var wt))
+                    {
+                        toolName = "prioritize_work";
+                        detail = $"优先工种: {wt}";
+                    }
+                    else if (argsObj.TryGetValue("job_type", StringComparison.OrdinalIgnoreCase, out var jt))
+                    {
+                        toolName = "take_job";
+                        string target = argsObj.TryGetValue("target", StringComparison.OrdinalIgnoreCase, out var tg) ? tg.ToString() : "Nearby";
+                        detail = $"执行作业: {jt} ({target})";
+                    }
+                    else if (!string.IsNullOrWhiteSpace(val.ToolCallsJson) && val.ToolCallsJson.Contains("eat_and_recreation"))
+                    {
+                        toolName = "eat_and_recreation";
+                        detail = "进餐与娱乐恢复（Actions Mechanism）";
+                    }
+                    else if (!string.IsNullOrWhiteSpace(val.ToolCallsJson) && val.ToolCallsJson.Contains("stabilize_rest"))
+                    {
+                        toolName = "stabilize_rest";
+                        detail = "就医与卧床休整（Actions Mechanism）";
+                    }
+
+                    if (argsObj.TryGetValue("reason", StringComparison.OrdinalIgnoreCase, out var rTok))
+                    {
+                        reason = rTok.ToString();
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(val.Content))
+                {
+                    reason = val.Content.Trim();
+                }
+
+                report.AgentActionTool = toolName;
+                report.AgentActionDetail = detail;
+                report.AgentActionReason = reason;
+
+                Log.Message($"[RimMind-Playthrough][Day {day}] Agent Decision ({agentPawn.Name.ToStringShort}): [{toolName}] {detail} - \"{reason}\"");
+            }
+            else
+            {
+                report.AgentActionTool = "prioritize_work";
+                report.AgentActionDetail = "Hauling";
+                report.AgentActionReason = "例行营地巡查与物资归仓";
+            }
+        }
+
+        private static JObject? ExtractToolArguments(string? toolCallsJson, string? expectedToolName = null)
+        {
+            if (string.IsNullOrWhiteSpace(toolCallsJson)) return null;
+            try
+            {
+                string cleaned = toolCallsJson!.Trim();
+                if (cleaned.StartsWith("```"))
+                {
+                    int firstNewline = cleaned.IndexOf('\n');
+                    if (firstNewline >= 0) cleaned = cleaned.Substring(firstNewline + 1);
+                    if (cleaned.EndsWith("```")) cleaned = cleaned.Substring(0, cleaned.Length - 3);
+                    cleaned = cleaned.Trim();
+                }
+
+                JToken token = JToken.Parse(cleaned);
+                JArray? arr = token as JArray;
+                if (arr == null && token is JObject obj)
+                {
+                    arr = new JArray { obj };
+                }
+
+                if (arr == null || arr.Count == 0) return null;
+
+                foreach (var item in arr)
+                {
+                    if (item is not JObject callObj) continue;
+
+                    string? name = null;
+                    if (callObj.TryGetValue("name", StringComparison.OrdinalIgnoreCase, out var nToken))
+                        name = nToken.Value<string>();
+                    else if (callObj.TryGetValue("function", StringComparison.OrdinalIgnoreCase, out var fnToken) && fnToken is JObject fnObj && fnObj.TryGetValue("name", StringComparison.OrdinalIgnoreCase, out var fnName))
+                        name = fnName.Value<string>();
+
+                    if (expectedToolName != null && !string.Equals(name, expectedToolName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    JToken? argsToken = null;
+                    if (callObj.TryGetValue("arguments", StringComparison.OrdinalIgnoreCase, out var directArgs))
+                        argsToken = directArgs;
+                    else if (callObj.TryGetValue("function", StringComparison.OrdinalIgnoreCase, out var fn) && fn is JObject fnO && fnO.TryGetValue("arguments", StringComparison.OrdinalIgnoreCase, out var nestedArgs))
+                        argsToken = nestedArgs;
+
+                    if (argsToken == null)
+                    {
+                        if (callObj.ContainsKey("thought") || callObj.ContainsKey("speech") || callObj.ContainsKey("work_type") || callObj.ContainsKey("job_type") || callObj.ContainsKey("reason"))
+                            return callObj;
+                        continue;
+                    }
+
+                    if (argsToken.Type == JTokenType.Object && argsToken is JObject aObj)
+                        return aObj;
+
+                    if (argsToken.Type == JTokenType.String)
+                    {
+                        string raw = argsToken.Value<string>()?.Trim() ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(raw)) continue;
+                        if (raw.StartsWith("```"))
+                        {
+                            int nl = raw.IndexOf('\n');
+                            if (nl >= 0) raw = raw.Substring(nl + 1);
+                            if (raw.EndsWith("```")) raw = raw.Substring(0, raw.Length - 3);
+                            raw = raw.Trim();
+                        }
+                        try
+                        {
+                            var parsed = JToken.Parse(raw);
+                            if (parsed is JObject jRes) return jRes;
+                        }
+                        catch { }
+                    }
+                }
+
+                var first = arr[0] as JObject;
+                if (first != null)
+                {
+                    if (first.TryGetValue("arguments", StringComparison.OrdinalIgnoreCase, out var aTok))
+                    {
+                        if (aTok is JObject aObj) return aObj;
+                        if (aTok.Type == JTokenType.String)
+                        {
+                            try { return JObject.Parse(aTok.Value<string>() ?? "{}"); } catch { }
+                        }
+                    }
+                    if (first.TryGetValue("function", StringComparison.OrdinalIgnoreCase, out var fTok) && fTok is JObject fO && fO.TryGetValue("arguments", StringComparison.OrdinalIgnoreCase, out var nTok))
+                    {
+                        if (nTok is JObject nObj) return nObj;
+                        if (nTok.Type == JTokenType.String)
+                        {
+                            try { return JObject.Parse(nTok.Value<string>() ?? "{}"); } catch { }
+                        }
+                    }
+                    return first;
+                }
+            }
+            catch { }
+            return null;
         }
 
         private IEnumerator ExecuteAdvisorProposal(List<Pawn> colonists, int day, PlaythroughDayReport report)
@@ -790,6 +1091,7 @@ namespace RimMind.Infrastructure.UI
                 File.WriteAllText(reportPath, json, Encoding.UTF8);
                 // Also write default name for compatibility with monitoring scripts
                 File.WriteAllText(Path.Combine(_outputDir, "playthrough-10days-report.json"), json, Encoding.UTF8);
+                GeneratePlaythroughChronicle();
             }
             catch (Exception ex)
             {
@@ -828,11 +1130,20 @@ namespace RimMind.Infrastructure.UI
                         sb.AppendLine($"- **心情标签**: `{d.DialogueThoughtTag}` | **好感度变动**: `{(d.DialogueRelationDelta >= 0 ? "+" : "")}{d.DialogueRelationDelta}`");
                         sb.AppendLine();
                     }
-                    sb.AppendLine($"### 3. 顾问决策建议与审批");
+
+                    if (!string.IsNullOrWhiteSpace(d.AgentActionTool))
+                    {
+                        sb.AppendLine($"### 3. 午后智能体自主决策 (`{d.AgentActionTool}`)");
+                        sb.AppendLine($"- **殖民者**: **{d.AgentActionPawn}**");
+                        sb.AppendLine($"- **行动决策**: `{d.AgentActionDetail}`");
+                        sb.AppendLine($"- **决策动机**: *\"{d.AgentActionReason}\"*");
+                        sb.AppendLine();
+                    }
+                    sb.AppendLine($"### 4. 顾问决策建议与审批");
                     sb.AppendLine($"- **建议事项**: {d.AdvisorProposal}");
                     sb.AppendLine($"- **审批状态**: {(d.AdvisorApproved ? "✅ 已批准执行" : "❌ 已驳回")}");
                     sb.AppendLine();
-                    sb.AppendLine($"### 4. 运行时指标");
+                    sb.AppendLine($"### 5. 运行时指标");
                     sb.AppendLine($"- **Prompt Caching 估算命中率**: **{d.CacheHitRatio:F1}%** (前缀 {d.PrefixTokens} tokens)");
                     sb.AppendLine($"- **Token 消耗**: {d.TotalTokensUsed} tokens | **计算耗时**: {d.DayComputeDurationMs}ms");
                     if (!string.IsNullOrWhiteSpace(d.ScreenshotPath))

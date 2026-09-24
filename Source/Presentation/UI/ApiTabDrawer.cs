@@ -89,9 +89,6 @@ namespace RimMind.Presentation.UI
             float gap = 6f;
             float btnW = (barRect.width - gap * 2f) / 3f;
 
-            bool isResponsive = s.MaxTokens == 600 && s.MaxConcurrentRequests == 3 && s.RequestTimeoutMs == 25000 && s.DefaultModCooldownTicks == 15 * 60;
-            bool isBalanced = s.MaxTokens == 800 && s.MaxConcurrentRequests == 2 && s.RequestTimeoutMs == 45000 && s.DefaultModCooldownTicks == 30 * 60;
-            bool isEco = s.MaxTokens == 400 && s.MaxConcurrentRequests == 1 && s.RequestTimeoutMs == 60000 && s.DefaultModCooldownTicks == 60 * 60;
             bool isResponsive = s.MaxTokens == 600 && s.MaxConcurrentRequests == 3 && s.RequestTimeoutMs == 25000 && s.DefaultModCooldownTicks == 15 * 60 && Mathf.Abs(s.ActivityFrequencyScale - 2.0f) < 0.1f;
             bool isBalanced = s.MaxTokens == 800 && s.MaxConcurrentRequests == 2 && s.RequestTimeoutMs == 45000 && s.DefaultModCooldownTicks == 30 * 60 && Mathf.Abs(s.ActivityFrequencyScale - 1.0f) < 0.1f;
             bool isEco = s.MaxTokens == 400 && s.MaxConcurrentRequests == 1 && s.RequestTimeoutMs == 60000 && s.DefaultModCooldownTicks == 60 * 60 && Mathf.Abs(s.ActivityFrequencyScale - 0.33f) < 0.1f;
