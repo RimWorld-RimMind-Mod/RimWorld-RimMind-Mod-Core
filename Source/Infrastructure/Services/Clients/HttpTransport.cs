@@ -1,0 +1,80 @@
+using System;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace RimMind.Infrastructure.Services.Clients
+{
+    internal static class HttpTransport
+    {
+        private static readonly HttpClient _http = new HttpClient();
+
+        public class HttpException : Exception
+        {
+            public int StatusCode { get; }
+            public HttpException(string message, int statusCode) : base(message) { StatusCode = statusCode; }
+        }
+
+        public static void EnsureOpenCodeSessionHeader(HttpRequestMessage request, string? url, string? authHeader, string? customSessionId = null)
+        {
+            if (!string.IsNullOrEmpty(url) && (url.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0 || (authHeader != null && authHeader.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)))
+            {
+                if (!request.Headers.Contains("x-opencode-session"))
+                {
+                    string sessionId = !string.IsNullOrEmpty(customSessionId)
+                        ? customSessionId!
+                        : "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                    request.Headers.TryAddWithoutValidation("x-opencode-session", sessionId);
+                }
+            }
+        }
+
+        public static async Task<(string body, long statusCode)> PostAsync(
+            string url, string jsonBody, string? authHeader = null,
+            string? headerName = null, string? headerValue = null,
+            float connectTimeout = 60f)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+            if (authHeader != null)
+                request.Headers.TryAddWithoutValidation("Authorization", authHeader);
+            if (headerName != null && headerValue != null)
+                request.Headers.TryAddWithoutValidation(headerName, headerValue);
+
+            EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
+
+            using var response = await _http.SendAsync(request);
+            string body = await response.Content.ReadAsStringAsync();
+            long statusCode = (long)response.StatusCode;
+
+            if (!response.IsSuccessStatusCode)
+                throw new HttpException(body ?? response.ReasonPhrase ?? $"HTTP {(int)statusCode}", (int)statusCode);
+
+            return (body, statusCode);
+        }
+
+        public static async Task<(string body, long statusCode)> GetAsync(
+            string url, string? authHeader = null,
+            string? headerName = null, string? headerValue = null,
+            float connectTimeout = 60f)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (authHeader != null)
+                request.Headers.TryAddWithoutValidation("Authorization", authHeader);
+            if (headerName != null && headerValue != null)
+                request.Headers.TryAddWithoutValidation(headerName, headerValue);
+
+            EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
+
+            using var response = await _http.SendAsync(request);
+            string body = await response.Content.ReadAsStringAsync();
+            long statusCode = (long)response.StatusCode;
+
+            if (!response.IsSuccessStatusCode)
+                throw new HttpException(body ?? response.ReasonPhrase ?? $"HTTP {(int)statusCode}", (int)statusCode);
+
+            return (body, statusCode);
+        }
+    }
+}

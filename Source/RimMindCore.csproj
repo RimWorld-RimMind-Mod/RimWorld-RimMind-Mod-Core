@@ -5,24 +5,46 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net48</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
-    <RootNamespace>RimMind.Core</RootNamespace>
-    <AssemblyName>RimMindCore</AssemblyName>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <OutputPath>../$(GameVersion)/Assemblies/</OutputPath>
-    <LangVersion>9.0</LangVersion>
+    <LangVersion>10.0</LangVersion>
     <Nullable>enable</Nullable>
+    <RootNamespace>RimMind.Presentation</RootNamespace>
+    <AssemblyName>2_RimMindCore</AssemblyName>
+    <Version>2.0.0</Version>
+    <OutputPath>..\$(GameVersion)\Assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS8604;CS8601;CS8602;CS8603</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
     <DefineConstants>$(DefineConstants);V$(GameVersion.Replace('.', '_'))</DefineConstants>
   </PropertyGroup>
 
-  <!-- RimWorld reference assemblies (no local game copy required) -->
+  <ItemGroup>
+    <ProjectReference Include=".\Application\RimMindCore.Application.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="$(GameVersion).*-*" PrivateAssets="All" />
     <PackageReference Include="Lib.Harmony.Ref" Version="2.*" PrivateAssets="All" />
-    <!-- Newtonsoft.Json is bundled in RimWorld but not in Krafs.Rimworld.Ref; reference for compile-time only -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" PrivateAssets="All" GeneratePathProperty="true" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>RimMindCore.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>RimMindCore.ArchTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="AICoreMod.cs" />
+    <Compile Include="RimMindAPI.cs" />
+    <Compile Include="Infrastructure\**\*.cs" />
+    <Compile Include="Presentation\**\*.cs" />
   </ItemGroup>
 
   <Target Name="CopyNewtonsoftJson" AfterTargets="Build">

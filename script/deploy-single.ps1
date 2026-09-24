@@ -58,25 +58,71 @@ if (-not (Test-Path $RimWorldMods)) {
 }
 
 # 构建
-$CSPROJ = Get-ChildItem -Path (Join-Path $ModDir "Source") -Filter "*.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($CSPROJ) {
-    Write-Host "=== Building $ModName ===" -ForegroundColor Cyan
-    dotnet build $CSPROJ.FullName -c Release --nologo -v quiet
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Build failed"
-        exit $LASTEXITCODE
+$SourceDir = Join-Path $ModDir "Source"
+
+if ($ModName -eq "RimMind-Core") {
+    $domainCsproj = Join-Path $SourceDir "Domain\RimMindCore.Domain.csproj"
+    $applicationCsproj = Join-Path $SourceDir "Application\RimMindCore.Application.csproj"
+    $coreCsproj = Get-ChildItem -Path $SourceDir -Filter "RimMindCore.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    if (-not (Test-Path $domainCsproj)) {
+        Write-Error "Domain csproj not found: $domainCsproj"
+        exit 1
     }
-    Write-Host "  Build successful"
+    if (-not (Test-Path $applicationCsproj)) {
+        Write-Error "Application csproj not found: $applicationCsproj"
+        exit 1
+    }
+    if (-not $coreCsproj) {
+        Write-Error "Core csproj not found in $SourceDir"
+        exit 1
+    }
+
+    Write-Host "=== Building $ModName (Domain) ===" -ForegroundColor Cyan
+    dotnet build $domainCsproj -c Release --nologo -v quiet
+    if ($LASTEXITCODE -ne 0) { Write-Error "Domain build failed"; exit $LASTEXITCODE }
+    Write-Host "  Domain build successful"
+
+    Write-Host "=== Building $ModName (Application) ===" -ForegroundColor Cyan
+    dotnet build $applicationCsproj -c Release --nologo -v quiet
+    if ($LASTEXITCODE -ne 0) { Write-Error "Application build failed"; exit $LASTEXITCODE }
+    Write-Host "  Application build successful"
+
+    Write-Host "=== Building $ModName (Core) ===" -ForegroundColor Cyan
+    dotnet build $coreCsproj.FullName -c Release --nologo -v quiet
+    if ($LASTEXITCODE -ne 0) { Write-Error "Core build failed"; exit $LASTEXITCODE }
+    Write-Host "  Core build successful"
 } else {
-    Write-Host "No .csproj found in Source\, skipping build" -ForegroundColor Yellow
+    $CSPROJ = Get-ChildItem -Path $SourceDir -Filter "*.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($CSPROJ) {
+        Write-Host "=== Building $ModName ===" -ForegroundColor Cyan
+        dotnet build $CSPROJ.FullName -c Release --nologo -v quiet
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Build failed"
+            exit $LASTEXITCODE
+        }
+        Write-Host "  Build successful"
+    } else {
+        Write-Host "No .csproj found in Source\, skipping build" -ForegroundColor Yellow
+    }
 }
 
 # 部署
 $DestDir = Join-Path $RimWorldMods $ModName
 Write-Host "=== Deploying $ModName -> $DestDir ===" -ForegroundColor Cyan
 
-$Exclude = @('Sources', 'Tests', '*.csproj', '*.user', 'obj', '.git', '.gitignore', 'script')
-$SourceItems = Get-ChildItem -Path $ModDir -Exclude $Exclude
+$ExcludeDirs = @('Source', 'Tests', 'obj', '.git', 'script')
+$ExcludeFiles = @('*.csproj', '*.user', '.gitignore')
+$SourceItems = Get-ChildItem -Path $ModDir | Where-Object {
+    $item = $_
+    if ($item.PSIsContainer -and $ExcludeDirs -contains $item.Name) { return $false }
+    if (-not $item.PSIsContainer) {
+        foreach ($pattern in $ExcludeFiles) {
+            if ($item.Name -like $pattern) { return $false }
+        }
+    }
+    return $true
+}
 
 if (Test-Path $DestDir) {
     Get-ChildItem -Path $DestDir | Remove-Item -Recurse -Force

@@ -2,13 +2,12 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <!-- net10.0 for Linux test runner; JsonTagExtractor 无 RimWorld 依赖，兼容现代 .NET -->
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>RimMind.Core.Tests</RootNamespace>
+    <RootNamespace>RimMind.Tests</RootNamespace>
     <AssemblyName>RimMindCore.Tests</AssemblyName>
-    <LangVersion>9.0</LangVersion>
+    <LangVersion>10.0</LangVersion>
     <Nullable>enable</Nullable>
-    <!-- Tests 项目不引用 RimWorld，只测纯逻辑 -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,9 +17,78 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
-  <!-- 直接编译纯逻辑源文件（不引用 RimWorld 依赖的代码） -->
   <ItemGroup>
-    <Compile Include="../Source/Core/JsonTagExtractor.cs" />
+    <Compile Include="VerseStubs.cs" />
+    <Compile Include="RimMindTestStubs.cs" />
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="Infrastructure\UI\DebugCenter\DebugCenterPageDrawerStubs.cs" Link="Support\DebugCenterPageDrawerStubs.cs" />
+    <Compile Include="Contracts\**\*.cs" />
+    <Compile Include="..\TestSupport\ContractCaseRunner.cs" Link="Support\ContractCaseRunner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Source/Domain/**/*.cs" Exclude="../Source/Domain/**/obj/**;../Source/Domain/Common/NetStandardCompat.cs;../Source/Domain/Common/IsExternalInit.cs" />
+    <Compile Include="../Source/Application/**/*.cs" Exclude="../Source/Application/**/obj/**;../Source/Application/DependencyInjection.cs;../Source/Application/Common/IsExternalInit.cs" />
+    <Compile Include="../Source/Infrastructure/Verse/CompPawnAgent.cs" />
+    <Compile Include="../Source/Infrastructure/Verse/AIRequestTraceLog.cs" />
+    <Compile Include="../Source/Infrastructure/Verse/HistoryManagerGameComponent.cs" />
+    <Compile Include="../Source/Infrastructure/Cache/EmbedCache.cs" />
+    <Compile Include="../Source/Presentation/Agent/ScopedAgent.cs" />
+    <Compile Include="../Source/Presentation/Agent/ScopedAgentFactory.cs" />
+    <Compile Include="../Source/Presentation/Agent/ScopedAgentManager.cs" />
+    <Compile Include="../Source/Presentation/Agent/ScopedThinkStrategy.cs" />
+    <Compile Include="../Source/Presentation/Runtime/RimMindRuntimeGameComponent.cs" />
+    <Compile Include="../Source/Presentation/Runtime/RimMindExtensionManager.cs" />
+    <Compile Include="../Source/Presentation/Runtime/OverlayService.cs" />
+    <Compile Include="../Source/Presentation/Runtime/ProviderRegistry.cs" />
+    <Compile Include="../Source/Presentation/Runtime/Services/*.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentListBuilder.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentListItem.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentListPanelDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentDetailPanelDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentActivityStreamDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentState/AgentContextPreviewCoordinator.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentFlow/AgentFlowAsyncCoordinator.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentFlow/AgentFlowStepTracker.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentLifecycleGroup.cs" />
+    <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentPageLayout.cs" Link="Infrastructure\UI\AgentsPage\AgentPageLayout.cs" />
+    <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentPageViewModel.cs" Link="Infrastructure\UI\AgentsPage\AgentPageViewModel.cs" />
+    <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentRequestTraceRowBuilder.cs" Link="Infrastructure\UI\AgentsPage\AgentRequestTraceRowBuilder.cs" />
+    <Compile Include="../Source/Infrastructure/UI/DebugCenter/*.cs" />
+    <Compile Include="../Source/Infrastructure/UI/DebugCenter/Pages/SettingsEntryDebugCenterPageDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/DebugCenter/Overview/*.cs" />
+    <Compile Include="../Source/Infrastructure/UI/DebugTables/*.cs" />
+    <Compile Include="../Source/Infrastructure/UI/RimMindUITheme.cs" />
+    <Compile Include="../Source/Infrastructure/UI/RimMindUI.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Framework/RimMindTabbedPageHostDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Framework/RimMindTableDrawer.cs" />
+    <Compile Include="../Source/Infrastructure/UI/NpcSyncStateStore.cs" />
+    <Compile Include="../Source/Presentation/UI/Framework/*.cs" />
+    <Compile Include="../Source/Presentation/UI/SettingsUIDrawer.cs" />
+    <Compile Include="../Source/Presentation/Context/AsyncContextLayerBatchBuilder.cs" />
+    <Compile Include="../Source/Presentation/Context/ContextBuildServices.cs" />
+    <Compile Include="../Source/Presentation/Context/ContextOrchestrator.cs" />
+    <Compile Include="../Source/Presentation/Context/HistoryManager.cs" />
+    <Compile Include="../Source/Presentation/Api/RimMindAPI.Memory.cs" />
+    <Compile Include="../Source/Presentation/UI/Layout/LayoutConflict.cs" />
+    <Compile Include="../Source/Presentation/UI/Layout/LayoutTraceRecorder.cs" />
+    <Compile Include="../Source/Presentation/UI/Layout/LayoutConflictStore.cs" />
+    <Compile Include="../Source/Presentation/UI/Layout/RimMindLayoutScope.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Layout/LayoutAutotestEvaluator.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Layout/UiCaptureSequence.cs" />
+    <Compile Include="../Source/Infrastructure/UI/Layout/UiCaptureArtifacts.cs" />
+    <Compile Include="../Source/Infrastructure/UI/RimMindWindowBase.cs" />
+    <Compile Include="../Source/Infrastructure/UI/RimMindITabBase.cs" />
+    <Compile Include="../Source/Infrastructure/UI/RimMindMainTabWindowBase.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/MessageDto.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIRequestSerializer.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/HttpTransport.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/Shared/*.cs" />
+    <Compile Include="../Source/Infrastructure/Mechanisms/GameMechanismRegistry.cs" />
+    <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHandler.cs" />
+    <Compile Include="../Source/Infrastructure/Mechanisms/MechanismListToolHandler.cs" />
+    <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHelper.cs" />
+    <Compile Include="../Source/Presentation/Common/RimMindPawnLookup.cs" />
   </ItemGroup>
 
 </Project>

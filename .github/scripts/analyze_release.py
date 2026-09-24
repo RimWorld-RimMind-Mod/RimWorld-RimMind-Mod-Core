@@ -107,7 +107,7 @@ def generate_fallback_notes(prs: list, commits: str) -> tuple:
     lines = [f"- {pr.get('title', '无标题')}" for pr in prs]
     if not lines:
         lines = ["- 常规代码更新与维护"]
-    
+
     notes_zh = "### 变更内容\n" + "\n".join(lines)
     notes_en = "### Changes\n" + "\n".join(lines)
     return notes_zh, notes_en

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <JobDef>
+    <defName>RimMind_GenericAction</defName>
+    <driverClass>RimMind.Infrastructure.Patches.JobDriver_RimMindAction</driverClass>
+    <reportString>Executing AI decision</reportString>
+    <allowOpportunisticPrefix>true</allowOpportunisticPrefix>
+  </JobDef>
+
+  <JobDef>
+    <defName>RimMind_Rest</defName>
+    <driverClass>RimMind.Infrastructure.Patches.JobDriver_RimMindAction</driverClass>
+    <reportString>Resting (AI decision)</reportString>
+    <allowOpportunisticPrefix>true</allowOpportunisticPrefix>
+  </JobDef>
+
+  <JobDef>
+    <defName>RimMind_Work</defName>
+    <driverClass>RimMind.Infrastructure.Patches.JobDriver_RimMindAction</driverClass>
+    <reportString>Working (AI decision)</reportString>
+    <allowOpportunisticPrefix>true</allowOpportunisticPrefix>
+  </JobDef>
+
+  <JobDef>
+    <defName>RimMind_Socialize</defName>
+    <driverClass>RimMind.Infrastructure.Patches.JobDriver_RimMindAction</driverClass>
+    <reportString>Socializing (AI decision)</reportString>
+    <allowOpportunisticPrefix>true</allowOpportunisticPrefix>
+  </JobDef>
+
+  <JobDef>
+    <defName>RimMind_EmergencyTend</defName>
+    <driverClass>RimMind.Infrastructure.Patches.JobDriver_RimMindAction</driverClass>
+    <reportString>Tending to emergency (AI decision)</reportString>
+    <allowOpportunisticPrefix>true</allowOpportunisticPrefix>
+    <casualInterruptible>false</casualInterruptible>
+  </JobDef>
+</Defs>

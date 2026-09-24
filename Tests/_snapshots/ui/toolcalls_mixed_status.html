@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    .viewport { position: relative; box-sizing: border-box; }
+    .element { position: absolute; box-sizing: border-box; border: 1px solid #777; padding: 2px 4px; font: 12px sans-serif; overflow: hidden; }
+    .panel { background: #f4f4f4; }
+    .selected { outline: 2px solid #2f6fed; }
+  </style>
+</head>
+<body>
+  <div class="viewport" data-id="toolcalls_mixed_status" style="left:0px;top:0px;width:1180px;height:500px;">
+    <div class="element panel" data-name="toolbar" style="left:0px;top:0px;width:1180px;height:30px;"></div>
+    <div class="element label" data-name="title" style="left:0px;top:0px;width:1180px;height:30px;">ToolCalls</div>
+    <div class="element tableheader" data-name="header" style="left:0px;top:36px;width:1180px;height:26px;">Status | Time | Scope | Actor | Channel | Model | Summary | Duration</div>
+    <div class="element panel" data-name="body" style="left:0px;top:62px;width:1180px;height:386px;"></div>
+    <div class="element panel" data-name="bottom" style="left:0px;top:460px;width:1180px;height:40px;"></div>
+    <div class="element tablerow" data-name="row_tool-001" style="left:0px;top:62px;width:1164px;height:26px;">Completed | 10:04 | Pawn | Nickie | move_to | mechanism | Moved to stockpile | 180ms</div>
+    <div class="element tablerow" data-name="row_tool-002" style="left:0px;top:88px;width:1164px;height:26px;">Streaming | 10:04 | Pawn | Tynan | inspect_need | mechanism | Reading hunger state | 80ms</div>
+    <div class="element tablerow" data-name="row_tool-003" style="left:0px;top:114px;width:1164px;height:26px;">Failed | 10:05 | Pawn | Maya | reserve_target | mechanism | Target reservation denied | 220ms</div>
+  </div>
+</body>
+</html>

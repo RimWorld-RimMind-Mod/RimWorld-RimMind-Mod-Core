@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <TaleDef>
+    <defName>RimMind_AgentDecision</defName>
+    <label>AI agent decision</label>
+    <taleClass>Tale_SinglePawn</taleClass>
+    <type>Volatile</type>
+    <baseInterest>1</baseInterest>
+    <rulePack>
+      <rulesStrings>
+        <li>tale_noun->[PAWN_nameDef] making an AI-guided decision</li>
+        <li>image->[PAWN_nameDef] contemplating [circumstance_group] with a thoughtful expression</li>
+        <li>image->[PAWN_nameDef] standing still while considering options</li>
+        <li>circumstance_group->the situation at hand</li>
+        <li>circumstance_group->the colony's needs</li>
+        <li>desc_sentence->[PAWN_nameDef] seems focused and determined.</li>
+        <li>desc_sentence->[PAWN_possessive] eyes scan the surroundings carefully.</li>
+      </rulesStrings>
+    </rulePack>
+  </TaleDef>
+
+  <TaleDef>
+    <defName>RimMind_GoalAchieved</defName>
+    <label>AI goal achieved</label>
+    <taleClass>Tale_SinglePawn</taleClass>
+    <type>PermanentHistorical</type>
+    <baseInterest>3</baseInterest>
+    <rulePack>
+      <rulesStrings>
+        <li>tale_noun->[PAWN_nameDef] achieving an AI-guided goal</li>
+        <li>image->[PAWN_nameDef] standing triumphantly after completing [circumstance_group]</li>
+        <li>image->[PAWN_nameDef] looking satisfied with [PAWN_possessive] accomplishment</li>
+        <li>circumstance_group->an important task</li>
+        <li>circumstance_group->a challenging objective</li>
+        <li>desc_sentence->[PAWN_nameDef] smiles with quiet satisfaction.</li>
+        <li>desc_sentence->A sense of purpose fills the air.</li>
+      </rulesStrings>
+    </rulePack>
+  </TaleDef>
+</Defs>

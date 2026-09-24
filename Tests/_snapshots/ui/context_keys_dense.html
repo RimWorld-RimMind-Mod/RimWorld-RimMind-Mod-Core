@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    .viewport { position: relative; box-sizing: border-box; }
+    .element { position: absolute; box-sizing: border-box; border: 1px solid #777; padding: 2px 4px; font: 12px sans-serif; overflow: hidden; }
+    .panel { background: #f4f4f4; }
+    .selected { outline: 2px solid #2f6fed; }
+  </style>
+</head>
+<body>
+  <div class="viewport" data-id="context_keys_dense" style="left:0px;top:0px;width:1180px;height:500px;">
+    <div class="element panel" data-name="toolbar" style="left:0px;top:0px;width:1180px;height:30px;"></div>
+    <div class="element label" data-name="title" style="left:0px;top:0px;width:1180px;height:30px;">Context Keys</div>
+    <div class="element tableheader" data-name="header" style="left:0px;top:36px;width:1180px;height:26px;">Status | Time | Scope | Actor | Channel | Model | Summary | Duration</div>
+    <div class="element panel" data-name="body" style="left:0px;top:62px;width:1180px;height:386px;"></div>
+    <div class="element panel" data-name="bottom" style="left:0px;top:460px;width:1180px;height:40px;"></div>
+    <div class="element tablerow" data-name="row_ctx-001" style="left:0px;top:62px;width:1164px;height:26px;">Completed | 10:08 | L0 | Core | pawn.identity | context | Pawn identity snapshot | 120 tokens</div>
+    <div class="element tablerow" data-name="row_ctx-002" style="left:0px;top:88px;width:1164px;height:26px;">Completed | 10:08 | L1 | Core | pawn.needs | context | Need and mood summary | 220 tokens</div>
+    <div class="element tablerow" data-name="row_ctx-003" style="left:0px;top:114px;width:1164px;height:26px;">Completed | 10:08 | L1 | Memory | memory.recent | context | Recent memories compacted | 310 tokens</div>
+    <div class="element tablerow" data-name="row_ctx-004" style="left:0px;top:140px;width:1164px;height:26px;">Completed | 10:08 | L2 | Advisor | advisor.options | context | Available actions and risks | 260 tokens</div>
+    <div class="element tablerow" data-name="row_ctx-005" style="left:0px;top:166px;width:1164px;height:26px;">Waiting | 10:09 | L3 | Storyteller | world.threats | context | Awaiting threat scan | 0 tokens</div>
+    <div class="element tablerow" data-name="row_ctx-006" style="left:0px;top:192px;width:1164px;height:26px;">Cancelled | 10:09 | L4 | Dialogue | dialogue.history | context | Skipped by budget | 0 tokens</div>
+  </div>
+</body>
+</html>

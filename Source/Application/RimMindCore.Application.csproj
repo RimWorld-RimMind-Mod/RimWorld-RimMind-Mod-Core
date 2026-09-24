@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <GameVersion Condition=" '$(GameVersion)' == '' ">1.6</GameVersion>
+    <TargetFrameworks>net48;net10.0</TargetFrameworks>
+    <LangVersion>10.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RimMind.Application</RootNamespace>
+    <AssemblyName>1_RimMindApplication</AssemblyName>
+    <Version>2.0.0</Version>
+    <OutputPath Condition="'$(TargetFramework)' == 'net48'">..\..\$(GameVersion)\Assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath Condition="'$(TargetFramework)' == 'net48'">false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Domain\RimMindCore.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RimMindCore.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+
+</Project>

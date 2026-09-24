@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThoughtDef>
+    <defName>RimMind_DynamicThought</defName>
+    <durationDays>1</durationDays>
+    <stages>
+      <li>
+        <label>AI-generated thought</label>
+        <description>An AI-generated thought affecting this pawn's mood.</description>
+        <baseMoodEffect>0</baseMoodEffect>
+      </li>
+    </stages>
+  </ThoughtDef>
+</Defs>

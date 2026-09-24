@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="500" viewBox="0 0 780 500" data-id="requests_table">
+  <rect class="panel" data-name="toolbar" x="0" y="0" width="780" height="30" fill="none" stroke="#777" />
+  <rect class="tableheader" data-name="header" x="0" y="36" width="780" height="26" fill="none" stroke="#777" />
+  <text data-name="header" x="4" y="52" font-family="sans-serif" font-size="12">Status</text>
+  <rect class="panel" data-name="body" x="0" y="62" width="780" height="386" fill="none" stroke="#777" />
+  <rect class="panel" data-name="bottom" x="0" y="460" width="780" height="40" fill="none" stroke="#777" />
+</svg>

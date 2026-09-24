@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>RimMind.IntegrationTests</RootNamespace>
+    <AssemblyName>RimMindCore.Integration.Tests</AssemblyName>
+    <LangVersion>10.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Source\Domain\RimMindCore.Domain.csproj" />
+    <ProjectReference Include="..\Source\Application\RimMindCore.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Contracts\**\*.cs" />
+    <Compile Include="..\TestSupport\ContractCaseRunner.cs" Link="Support\ContractCaseRunner.cs" />
+    <Compile Include="..\Source\Infrastructure\Services\Clients\HttpTransport.cs" Link="Adapters\HttpTransport.cs" />
+    <Compile Include="..\Source\Infrastructure\Mechanisms\GameMechanismRegistry.cs" Link="Adapters\GameMechanismRegistry.cs" />
+    <Compile Include="..\Source\Infrastructure\Mechanisms\MechanismToolHandler.cs" Link="Adapters\MechanismToolHandler.cs" />
+    <Compile Include="..\Source\Infrastructure\Mechanisms\MechanismListToolHandler.cs" Link="Adapters\MechanismListToolHandler.cs" />
+    <Compile Include="..\Source\Infrastructure\Mechanisms\MechanismToolHelper.cs" Link="Adapters\MechanismToolHelper.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

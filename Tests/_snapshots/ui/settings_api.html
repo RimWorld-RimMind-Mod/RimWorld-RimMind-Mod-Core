@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    .viewport { position: relative; box-sizing: border-box; }
+    .element { position: absolute; box-sizing: border-box; border: 1px solid #777; padding: 2px 4px; font: 12px sans-serif; overflow: hidden; }
+    .panel { background: #f4f4f4; }
+    .selected { outline: 2px solid #2f6fed; }
+  </style>
+</head>
+<body>
+  <div class="viewport" data-id="settings_api" style="left:0px;top:0px;width:780px;height:580px;">
+    <div class="element tab selected" data-name="tab_api" style="left:8px;top:8px;width:188px;height:30px;">api</div>
+    <div class="element tab" data-name="tab_queue" style="left:200px;top:8px;width:188px;height:30px;">queue</div>
+    <div class="element tab" data-name="tab_prompts" style="left:392px;top:8px;width:188px;height:30px;">prompts</div>
+    <div class="element tab" data-name="tab_context" style="left:584px;top:8px;width:188px;height:30px;">context</div>
+    <div class="element panel" data-name="settings_content" style="left:8px;top:50px;width:764px;height:522px;"></div>
+    <div class="element label" data-name="api_key" style="left:20px;top:98px;width:300px;height:24px;">API Key</div>
+    <div class="element input" data-name="api_key_input" style="left:20px;top:126px;width:520px;height:26px;">Saved (35 chars)</div>
+  </div>
+</body>
+</html>

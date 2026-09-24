@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <GameVersion Condition=" '$(GameVersion)' == '' ">1.6</GameVersion>
+    <TargetFrameworks>net48;net10.0</TargetFrameworks>
+    <LangVersion>10.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RimMind.Domain</RootNamespace>
+    <AssemblyName>0_RimMindDomain</AssemblyName>
+    <Version>2.0.0</Version>
+    <OutputPath Condition="'$(TargetFramework)' == 'net48'">..\..\$(GameVersion)\Assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath Condition="'$(TargetFramework)' == 'net48'">false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+</Project>

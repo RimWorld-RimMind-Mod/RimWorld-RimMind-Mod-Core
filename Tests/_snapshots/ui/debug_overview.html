@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    .viewport { position: relative; box-sizing: border-box; }
+    .element { position: absolute; box-sizing: border-box; border: 1px solid #777; padding: 2px 4px; font: 12px sans-serif; overflow: hidden; }
+    .panel { background: #f4f4f4; }
+    .selected { outline: 2px solid #2f6fed; }
+  </style>
+</head>
+<body>
+  <div class="viewport" data-id="debug_overview" style="left:0px;top:0px;width:900px;height:560px;">
+    <div class="element panel" data-name="overview_health" style="left:0px;top:0px;width:444px;height:104px;"></div>
+    <div class="element label" data-name="overview_health_title" style="left:6px;top:6px;width:432px;height:24px;">Health</div>
+    <div class="element label" data-name="overview_health_value" style="left:6px;top:30px;width:432px;height:24px;">Operational</div>
+    <div class="element panel" data-name="overview_agents" style="left:456px;top:0px;width:444px;height:104px;"></div>
+    <div class="element label" data-name="overview_agents_title" style="left:462px;top:6px;width:432px;height:24px;">Agents</div>
+    <div class="element label" data-name="overview_agents_value" style="left:462px;top:30px;width:432px;height:24px;">3 / 6</div>
+    <div class="element panel" data-name="overview_queue" style="left:0px;top:116px;width:444px;height:104px;"></div>
+    <div class="element label" data-name="overview_queue_title" style="left:6px;top:122px;width:432px;height:24px;">Queue</div>
+    <div class="element label" data-name="overview_queue_value" style="left:6px;top:146px;width:432px;height:24px;">Queue: Running</div>
+    <div class="element panel" data-name="overview_selection" style="left:456px;top:116px;width:444px;height:104px;"></div>
+    <div class="element label" data-name="overview_selection_title" style="left:462px;top:122px;width:432px;height:24px;">Selection</div>
+    <div class="element label" data-name="overview_selection_value" style="left:462px;top:146px;width:432px;height:24px;">Nickie</div>
+    <div class="element label" data-name="overview_pending_requests" style="left:0px;top:232px;width:900px;height:24px;">Pending AI requests: 4</div>
+    <div class="element label" data-name="overview_agent_loop" style="left:0px;top:256px;width:900px;height:24px;">Agent runtime loop: 3 pawn / 1 scoped</div>
+    <div class="element label" data-name="overview_last_loop_tick" style="left:0px;top:280px;width:900px;height:24px;">Last loop tick: 900</div>
+    <div class="element label" data-name="overview_loop_faults" style="left:0px;top:304px;width:900px;height:24px;">Loop faults: 0</div>
+    <div class="element label" data-name="overview_quick_actions" style="left:0px;top:340px;width:900px;height:24px;">Quick Actions</div>
+    <div class="element button" data-name="overview_nav_agents" style="left:0px;top:370px;width:447px;height:24px;">Agents</div>
+    <div class="element button" data-name="overview_nav_ai_requests" style="left:453px;top:370px;width:447px;height:24px;">AI Requests</div>
+    <div class="element button" data-name="overview_nav_tool_calls" style="left:0px;top:400px;width:447px;height:24px;">ToolCalls</div>
+    <div class="element button" data-name="overview_nav_mechanisms" style="left:453px;top:400px;width:447px;height:24px;">Mechanisms</div>
+  </div>
+</body>
+</html>

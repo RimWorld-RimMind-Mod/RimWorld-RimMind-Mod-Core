@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" data-id="agent_error">
+  <rect class="panel" data-name="list" x="0" y="0" width="216" height="502" fill="none" stroke="#777" />
+  <rect class="panel" data-name="activity" x="232" y="6" width="413.68" height="496" fill="none" stroke="#777" />
+  <rect class="panel" data-name="detail" x="655.68" y="6" width="238.32" height="496" fill="none" stroke="#777" />
+  <rect class="label" data-name="status" x="655.68" y="6" width="238.32" height="72" fill="none" stroke="#777" />
+  <text data-name="status" x="659.68" y="22" font-family="sans-serif" font-size="12">Cashton - Error</text>
+  <rect class="button" data-name="open_requests" x="655.68" y="118" width="238.32" height="30" fill="none" stroke="#777" />
+  <text data-name="open_requests" x="659.68" y="134" font-family="sans-serif" font-size="12">Open Requests</text>
+  <rect class="input" data-name="chat" x="232" y="514" width="662" height="40" fill="none" stroke="#777" />
+</svg>

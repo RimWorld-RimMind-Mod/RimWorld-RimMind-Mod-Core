@@ -1,3 +1,5 @@
+default_stages: [pre-commit]
+
 repos:
   # - repo: https://github.com/pre-commit/pre-commit-hooks
   - repo: https://gitlab.cern.ch/pre-commit-hook-mirrors/pre-commit/pre-commit-hooks
@@ -10,6 +12,12 @@ repos:
       - id: check-yaml
       - id: debug-statements
       - id: end-of-file-fixer
+        # Windows represents Git symlinks as target text; a newline changes the target.
+        exclude: '(^|/)CLAUDE\.md$'
       - id: mixed-line-ending
       - id: requirements-txt-fixer
       - id: trailing-whitespace
+  - repo: https://github.com/mcocdaa/ai-commit.git
+    rev: v1.0.2
+    hooks:
+      - id: ai-commit

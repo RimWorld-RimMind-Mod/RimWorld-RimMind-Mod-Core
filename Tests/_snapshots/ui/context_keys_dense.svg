@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="500" viewBox="0 0 1180 500" data-id="context_keys_dense">
+  <rect class="panel" data-name="toolbar" x="0" y="0" width="1180" height="30" fill="none" stroke="#777" />
+  <rect class="label" data-name="title" x="0" y="0" width="1180" height="30" fill="none" stroke="#777" />
+  <text data-name="title" x="4" y="16" font-family="sans-serif" font-size="12">Context Keys</text>
+  <rect class="tableheader" data-name="header" x="0" y="36" width="1180" height="26" fill="none" stroke="#777" />
+  <text data-name="header" x="4" y="52" font-family="sans-serif" font-size="12">Status | Time | Scope | Actor | Channel | Model | Summary | Duration</text>
+  <rect class="panel" data-name="body" x="0" y="62" width="1180" height="386" fill="none" stroke="#777" />
+  <rect class="panel" data-name="bottom" x="0" y="460" width="1180" height="40" fill="none" stroke="#777" />
+  <rect class="tablerow" data-name="row_ctx-001" x="0" y="62" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_ctx-001" x="4" y="78" font-family="sans-serif" font-size="12">Completed | 10:08 | L0 | Core | pawn.identity | context | Pawn identity snapshot | 120 tokens</text>
+  <rect class="tablerow" data-name="row_ctx-002" x="0" y="88" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_ctx-002" x="4" y="104" font-family="sans-serif" font-size="12">Completed | 10:08 | L1 | Core | pawn.needs | context | Need and mood summary | 220 tokens</text>
+  <rect class="tablerow" data-name="row_ctx-003" x="0" y="114" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_ctx-003" x="4" y="130" font-family="sans-serif" font-size="12">Completed | 10:08 | L1 | Memory | memory.recent | context | Recent memories compacted | 310 tokens</text>
+  <rect class="tablerow" data-name="row_ctx-004" x="0" y="140" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_ctx-004" x="4" y="156" font-family="sans-serif" font-size="12">Completed | 10:08 | L2 | Advisor | advisor.options | context | Available actions and risks | 260 tokens</text>
+  <rect class="tablerow" data-name="row_ctx-005" x="0" y="166" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_ctx-005" x="4" y="182" font-family="sans-serif" font-size="12">Waiting | 10:09 | L3 | Storyteller | world.threats | context | Awaiting threat scan | 0 tokens</text>
+  <rect class="tablerow" data-name="row_ctx-006" x="0" y="192" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_ctx-006" x="4" y="208" font-family="sans-serif" font-size="12">Cancelled | 10:09 | L4 | Dialogue | dialogue.history | context | Skipped by budget | 0 tokens</text>
+</svg>

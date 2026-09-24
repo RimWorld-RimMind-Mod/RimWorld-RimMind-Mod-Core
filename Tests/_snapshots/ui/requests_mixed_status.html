@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    .viewport { position: relative; box-sizing: border-box; }
+    .element { position: absolute; box-sizing: border-box; border: 1px solid #777; padding: 2px 4px; font: 12px sans-serif; overflow: hidden; }
+    .panel { background: #f4f4f4; }
+    .selected { outline: 2px solid #2f6fed; }
+  </style>
+</head>
+<body>
+  <div class="viewport" data-id="requests_mixed_status" style="left:0px;top:0px;width:780px;height:500px;">
+    <div class="element panel" data-name="request_list" style="left:0px;top:0px;width:300px;height:500px;"></div>
+    <div class="element tableheader" data-name="request_header" style="left:0px;top:36px;width:300px;height:26px;">Request | Summary</div>
+    <div class="element panel" data-name="request_body" style="left:0px;top:62px;width:300px;height:386px;"></div>
+    <div class="element panel" data-name="request_detail" style="left:310px;top:0px;width:470px;height:500px;"></div>
+    <div class="element label" data-name="request_detail_title" style="left:318px;top:8px;width:454px;height:26px;">Request Detail</div>
+    <div class="element tablerow selected" data-name="request_row_req-001" style="left:0px;top:62px;width:300px;height:26px;"></div>
+    <div class="element label" data-name="request_id_req-001" style="left:6px;top:62px;width:142px;height:26px;">req-001</div>
+    <div class="element label" data-name="request_summary_req-001" style="left:156px;top:62px;width:142px;height:26px;">Queued for cont...</div>
+    <div class="element tablerow" data-name="request_row_req-002" style="left:0px;top:88px;width:300px;height:26px;"></div>
+    <div class="element label" data-name="request_id_req-002" style="left:6px;top:88px;width:142px;height:26px;">req-002</div>
+    <div class="element label" data-name="request_summary_req-002" style="left:156px;top:88px;width:142px;height:26px;">Streaming 3 chu...</div>
+    <div class="element tablerow" data-name="request_row_req-003" style="left:0px;top:114px;width:300px;height:26px;"></div>
+    <div class="element label" data-name="request_id_req-003" style="left:6px;top:114px;width:142px;height:26px;">req-003</div>
+    <div class="element label" data-name="request_summary_req-003" style="left:156px;top:114px;width:142px;height:26px;">Completed ToolC...</div>
+    <div class="element tablerow" data-name="request_row_req-004" style="left:0px;top:140px;width:300px;height:26px;"></div>
+    <div class="element label" data-name="request_id_req-004" style="left:6px;top:140px;width:142px;height:26px;">req-004</div>
+    <div class="element label" data-name="request_summary_req-004" style="left:156px;top:140px;width:142px;height:26px;">HTTP timeout af...</div>
+  </div>
+</body>
+</html>

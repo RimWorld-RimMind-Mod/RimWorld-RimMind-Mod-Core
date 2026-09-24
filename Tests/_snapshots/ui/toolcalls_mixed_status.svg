@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="500" viewBox="0 0 1180 500" data-id="toolcalls_mixed_status">
+  <rect class="panel" data-name="toolbar" x="0" y="0" width="1180" height="30" fill="none" stroke="#777" />
+  <rect class="label" data-name="title" x="0" y="0" width="1180" height="30" fill="none" stroke="#777" />
+  <text data-name="title" x="4" y="16" font-family="sans-serif" font-size="12">ToolCalls</text>
+  <rect class="tableheader" data-name="header" x="0" y="36" width="1180" height="26" fill="none" stroke="#777" />
+  <text data-name="header" x="4" y="52" font-family="sans-serif" font-size="12">Status | Time | Scope | Actor | Channel | Model | Summary | Duration</text>
+  <rect class="panel" data-name="body" x="0" y="62" width="1180" height="386" fill="none" stroke="#777" />
+  <rect class="panel" data-name="bottom" x="0" y="460" width="1180" height="40" fill="none" stroke="#777" />
+  <rect class="tablerow" data-name="row_tool-001" x="0" y="62" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_tool-001" x="4" y="78" font-family="sans-serif" font-size="12">Completed | 10:04 | Pawn | Nickie | move_to | mechanism | Moved to stockpile | 180ms</text>
+  <rect class="tablerow" data-name="row_tool-002" x="0" y="88" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_tool-002" x="4" y="104" font-family="sans-serif" font-size="12">Streaming | 10:04 | Pawn | Tynan | inspect_need | mechanism | Reading hunger state | 80ms</text>
+  <rect class="tablerow" data-name="row_tool-003" x="0" y="114" width="1164" height="26" fill="none" stroke="#777" />
+  <text data-name="row_tool-003" x="4" y="130" font-family="sans-serif" font-size="12">Failed | 10:05 | Pawn | Maya | reserve_target | mechanism | Target reservation denied | 220ms</text>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="500" viewBox="0 0 780 500" data-id="requests_mixed_status">
+  <rect class="panel" data-name="request_list" x="0" y="0" width="300" height="500" fill="none" stroke="#777" />
+  <rect class="tableheader" data-name="request_header" x="0" y="36" width="300" height="26" fill="none" stroke="#777" />
+  <text data-name="request_header" x="4" y="52" font-family="sans-serif" font-size="12">Request | Summary</text>
+  <rect class="panel" data-name="request_body" x="0" y="62" width="300" height="386" fill="none" stroke="#777" />
+  <rect class="panel" data-name="request_detail" x="310" y="0" width="470" height="500" fill="none" stroke="#777" />
+  <rect class="label" data-name="request_detail_title" x="318" y="8" width="454" height="26" fill="none" stroke="#777" />
+  <text data-name="request_detail_title" x="322" y="24" font-family="sans-serif" font-size="12">Request Detail</text>
+  <rect class="tablerow selected" data-name="request_row_req-001" x="0" y="62" width="300" height="26" fill="none" stroke="#777" />
+  <rect class="label" data-name="request_id_req-001" x="6" y="62" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_id_req-001" x="10" y="78" font-family="sans-serif" font-size="12">req-001</text>
+  <rect class="label" data-name="request_summary_req-001" x="156" y="62" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_summary_req-001" x="160" y="78" font-family="sans-serif" font-size="12">Queued for cont...</text>
+  <rect class="tablerow" data-name="request_row_req-002" x="0" y="88" width="300" height="26" fill="none" stroke="#777" />
+  <rect class="label" data-name="request_id_req-002" x="6" y="88" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_id_req-002" x="10" y="104" font-family="sans-serif" font-size="12">req-002</text>
+  <rect class="label" data-name="request_summary_req-002" x="156" y="88" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_summary_req-002" x="160" y="104" font-family="sans-serif" font-size="12">Streaming 3 chu...</text>
+  <rect class="tablerow" data-name="request_row_req-003" x="0" y="114" width="300" height="26" fill="none" stroke="#777" />
+  <rect class="label" data-name="request_id_req-003" x="6" y="114" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_id_req-003" x="10" y="130" font-family="sans-serif" font-size="12">req-003</text>
+  <rect class="label" data-name="request_summary_req-003" x="156" y="114" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_summary_req-003" x="160" y="130" font-family="sans-serif" font-size="12">Completed ToolC...</text>
+  <rect class="tablerow" data-name="request_row_req-004" x="0" y="140" width="300" height="26" fill="none" stroke="#777" />
+  <rect class="label" data-name="request_id_req-004" x="6" y="140" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_id_req-004" x="10" y="156" font-family="sans-serif" font-size="12">req-004</text>
+  <rect class="label" data-name="request_summary_req-004" x="156" y="140" width="142" height="26" fill="none" stroke="#777" />
+  <text data-name="request_summary_req-004" x="160" y="156" font-family="sans-serif" font-size="12">HTTP timeout af...</text>
+</svg>

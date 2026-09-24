@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="500" viewBox="0 0 780 500" data-id="agent_pending">
+  <rect class="panel" data-name="list" x="0" y="0" width="187.2" height="442" fill="none" stroke="#777" />
+  <rect class="panel" data-name="detail" x="554" y="6" width="220" height="436" fill="none" stroke="#777" />
+  <rect class="label" data-name="status" x="554" y="6" width="220" height="72" fill="none" stroke="#777" />
+  <text data-name="status" x="558" y="22" font-family="sans-serif" font-size="12">Cashton - Pending</text>
+  <rect class="button" data-name="create_start" x="554" y="84" width="106" height="30" fill="none" stroke="#777" />
+  <text data-name="create_start" x="558" y="100" font-family="sans-serif" font-size="12">Start</text>
+  <rect class="panel" data-name="activity" x="203.2" y="6" width="340.8" height="436" fill="none" stroke="#777" />
+</svg>

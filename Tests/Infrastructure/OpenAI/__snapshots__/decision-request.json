@@ -1,0 +1,74 @@
+{
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an autonomous RimWorld colonist. Decide the single best next action. Respond ONLY with <Action>{\"action\":\"mechanism.operation\",\"reason\":\"...\",\"param\":\"...\"}</Action>."
+    },
+    {
+      "role": "user",
+      "content": "[mood] Mood: 35% (importance:0.7)\n[need] Need: Food at 20% (importance:0.9)"
+    },
+    {
+      "role": "assistant",
+      "content": "<Action>{\"action\":\"pawn.job.force_rest\",\"reason\":\"Mood and food needs are critical; rest first to stabilize mood before eating\"}</Action>"
+    },
+    {
+      "role": "user",
+      "content": "[combat] Currently drafted for combat (importance:1.0)\n[health] Health issue: Bruise (importance:0.4)"
+    },
+    {
+      "role": "assistant",
+      "content": "<Action>{\"action\":\"pawn.draft.toggle\",\"reason\":\"Enemy nearby; engage in combat defense despite minor injury\"}</Action>"
+    },
+    {
+      "role": "user",
+      "content": "[environment] Environment: Clear, 22°C (importance:0.1)\n[social] Social: Alice (friend) (importance:0.3)"
+    },
+    {
+      "role": "assistant",
+      "content": "<Action>{\"action\":\"pawn.work.set\",\"reason\":\"No urgent needs; assign to mining work with friend nearby\",\"param\":\"Mining\"}</Action>"
+    },
+    {
+      "role": "user",
+      "content": "[combat] Enemy spotted at range 15 (importance:1.0)"
+    },
+    {
+      "role": "assistant",
+      "content": "<Action>{\"action\":\"pawn.draft.toggle\",\"reason\":\"Need to engage enemy; drafting first to access combat tools\"}</Action>"
+    },
+    {
+      "role": "user",
+      "content": "[tool_result] pawn.draft.toggle succeeded. Now drafted. (importance:0.8)"
+    },
+    {
+      "role": "assistant",
+      "content": "<Action>{\"action\":\"pawn.equipment.set\",\"reason\":\"Drafted and need ranged weapon for enemy at range 15\",\"param\":\"SniperRifle\"}</Action>"
+    },
+    {
+      "role": "user",
+      "content": "<perceptions>Pawn is hungry. Food available in stockpile.</perceptions>"
+    }
+  ],
+  "max_tokens": 800,
+  "temperature": 0.7,
+  "stream": false,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "pawn.move.to",
+        "description": "Move the pawn to a target cell.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}

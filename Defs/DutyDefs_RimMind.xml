@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <DutyDef>
+    <defName>RimMind_AgentDecision</defName>
+    <thinkNode Class="RimMind.Infrastructure.Patches.ThinkNode_RimMindAgent">
+      <priority>5</priority>
+    </thinkNode>
+    <hook>HighPriority</hook>
+    <socialModeMax>Normal</socialModeMax>
+  </DutyDef>
+
+  <DutyDef>
+    <defName>RimMind_AgentRest</defName>
+    <thinkNode Class="RimMind.Infrastructure.Patches.ThinkNode_RimMindAgent">
+      <priority>5</priority>
+    </thinkNode>
+    <hook>HighPriority</hook>
+    <socialModeMax>Quiet</socialModeMax>
+  </DutyDef>
+</Defs>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" data-id="debug_overview">
+  <rect class="panel" data-name="overview_health" x="0" y="0" width="444" height="104" fill="none" stroke="#777" />
+  <rect class="label" data-name="overview_health_title" x="6" y="6" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_health_title" x="10" y="22" font-family="sans-serif" font-size="12">Health</text>
+  <rect class="label" data-name="overview_health_value" x="6" y="30" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_health_value" x="10" y="46" font-family="sans-serif" font-size="12">Operational</text>
+  <rect class="panel" data-name="overview_agents" x="456" y="0" width="444" height="104" fill="none" stroke="#777" />
+  <rect class="label" data-name="overview_agents_title" x="462" y="6" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_agents_title" x="466" y="22" font-family="sans-serif" font-size="12">Agents</text>
+  <rect class="label" data-name="overview_agents_value" x="462" y="30" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_agents_value" x="466" y="46" font-family="sans-serif" font-size="12">3 / 6</text>
+  <rect class="panel" data-name="overview_queue" x="0" y="116" width="444" height="104" fill="none" stroke="#777" />
+  <rect class="label" data-name="overview_queue_title" x="6" y="122" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_queue_title" x="10" y="138" font-family="sans-serif" font-size="12">Queue</text>
+  <rect class="label" data-name="overview_queue_value" x="6" y="146" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_queue_value" x="10" y="162" font-family="sans-serif" font-size="12">Queue: Running</text>
+  <rect class="panel" data-name="overview_selection" x="456" y="116" width="444" height="104" fill="none" stroke="#777" />
+  <rect class="label" data-name="overview_selection_title" x="462" y="122" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_selection_title" x="466" y="138" font-family="sans-serif" font-size="12">Selection</text>
+  <rect class="label" data-name="overview_selection_value" x="462" y="146" width="432" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_selection_value" x="466" y="162" font-family="sans-serif" font-size="12">Nickie</text>
+  <rect class="label" data-name="overview_pending_requests" x="0" y="232" width="900" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_pending_requests" x="4" y="248" font-family="sans-serif" font-size="12">Pending AI requests: 4</text>
+  <rect class="label" data-name="overview_agent_loop" x="0" y="256" width="900" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_agent_loop" x="4" y="272" font-family="sans-serif" font-size="12">Agent runtime loop: 3 pawn / 1 scoped</text>
+  <rect class="label" data-name="overview_last_loop_tick" x="0" y="280" width="900" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_last_loop_tick" x="4" y="296" font-family="sans-serif" font-size="12">Last loop tick: 900</text>
+  <rect class="label" data-name="overview_loop_faults" x="0" y="304" width="900" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_loop_faults" x="4" y="320" font-family="sans-serif" font-size="12">Loop faults: 0</text>
+  <rect class="label" data-name="overview_quick_actions" x="0" y="340" width="900" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_quick_actions" x="4" y="356" font-family="sans-serif" font-size="12">Quick Actions</text>
+  <rect class="button" data-name="overview_nav_agents" x="0" y="370" width="447" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_nav_agents" x="4" y="386" font-family="sans-serif" font-size="12">Agents</text>
+  <rect class="button" data-name="overview_nav_ai_requests" x="453" y="370" width="447" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_nav_ai_requests" x="457" y="386" font-family="sans-serif" font-size="12">AI Requests</text>
+  <rect class="button" data-name="overview_nav_tool_calls" x="0" y="400" width="447" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_nav_tool_calls" x="4" y="416" font-family="sans-serif" font-size="12">ToolCalls</text>
+  <rect class="button" data-name="overview_nav_mechanisms" x="453" y="400" width="447" height="24" fill="none" stroke="#777" />
+  <text data-name="overview_nav_mechanisms" x="457" y="416" font-family="sans-serif" font-size="12">Mechanisms</text>
+</svg>
