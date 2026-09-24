@@ -1,28 +1,55 @@
 ═══════════════════════════════════════════════
   RimMind — 你的小人有了真正的灵魂
 ═══════════════════════════════════════════════
+[h1]RimMind - Core (核心引擎)[/h1]
 
 想象这个场景：
+[i]赋予殖民者真正的认知与灵魂——RimMind 系列模组的基础运行时与核心引擎。[/i]
+[i]Bring true cognition and souls to your colonists — The foundation runtime and core AI engine for the RimMind suite.[/i]
 
   袭击刚结束。Alice 蹲在废墟旁，她的爱人倒在血泊中。
   你点开她的思维面板——她在想：
   "我受够了。我要离开这个鬼地方。"
+[hr]
+[h2]📖 中文介绍 / Chinese Overview[/h2]
 
   另一边，Bob 刚被救回来。他看到 Alice 独自发抖，
   决定走过去安慰她。不是你下的命令——是他自己想的。
+[b]RimMind-Core[/b] 是整个 RimMind 智能体套件的心脏与基础设施。它将大型语言模型（LLM）无缝嵌入 RimWorld 1.6 的游戏循环中，通过高效的上下文编排、异步队列与原生 ToolCall 机制，让殖民地的小人获得真正的思考、记忆与行动能力。
 
   这不是脚本。不是随机事件表。这是 AI 在那一刻，
   为这两个有性格、有记忆、有情感的小人做出的真实决定。
+[h3]🌟 核心特性[/h3]
+[list]
+[*] [b]4-Zone KV-Cache 深度缓存架构[/b]：创新将系统提示词、角色背景、长期记忆与易变环境（天气/心情/时间）分层解耦，实现高达 [b]80%~90% 的缓存命中率[/b]，大幅降低 API Token 消耗并提升响应速度！
+[*] [b]全能模型服务适配[/b]：开箱即用支持 [b]OpenAI (GPT-4o/mini)[/b]、[b]DeepSeek (Chat/Reasoner)[/b]、[b]本地 Ollama / LM Studio / vLLM[/b] 以及 [b]OpenCode Go[/b] 订阅直连。
+[*] [b]原生 ToolCall 工具调用体系[/b]：支持复杂嵌套函数调用（Function Calling），AI 不仅能输出台词，更能精准执行游戏内动作。
+[*] [b]直观的 F8 智能体调试与控制中心[/b]：按 [b]F8[/b] 随时唤出总控中心，提供实时连通性测试、队列状态、Token 消耗统计、报文检查器与殖民者智能体监控。
+[*] [b]统一频率调节滑块[/b]：在设置中提供动态活动频率滑块（0.33x ~ 3.33x），支持从“每3天1次”到“每天10次”的平滑调谐，彻底告别死板定时打卡。
+[*] [b]极致性能保护[/b]：网络请求与高开销纯计算全部运行在后台线程，游戏主线程 0 掉帧、0 阻断。
+[/list]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[hr]
+[h2]🌐 English Overview[/h2]
 
   这 Mod 到底好玩在哪？
   ────────────────────
+[b]RimMind-Core[/b] is the foundational AI runtime engine for the entire RimMind mod suite in RimWorld 1.6. It bridges large language models (LLMs) with RimWorld's simulation loop, providing intelligent context management, async queue scheduling, and structured tool execution.
 
   ▸ 小人真的会"想"
     每个 Pawn 都有独立的认知循环：感知→思考→行动→记忆。
     它们会注意到同伴的心情、殖民地的食物短缺、窗外的威胁。
     然后做出自己的判断，甚至形成长期目标。
+[h3]🌟 Key Highlights[/h3]
+[list]
+[*] [b]4-Zone Prompt Caching (KV-Cache)[/b]: Isolates static definitions and pawn profiles from volatile environmental states (time/weather/mood), achieving [b]80%~90% prefix cache hit rate[/b] for massive token cost reduction and lightning-fast responses!
+[*] [b]Universal Model Compatibility[/b]: Out-of-the-box support for [b]OpenAI[/b], [b]DeepSeek[/b], local [b]Ollama / LM Studio[/b], and high-speed [b]OpenCode Go[/b].
+[*] [b]Unified Native ToolCall Architecture[/b]: Enables structured function calling, allowing LLMs to directly read game states and invoke game mechanics without brittle text parsing.
+[*] [b]F8 RimMind Debug Hub & Inspector[/b]: Press [b]F8[/b] in-game to view live AI connectivity, test API ping, inspect token payloads, and monitor colonist agents.
+[*] [b]Dynamic Frequency Slider[/b]: Seamlessly scale AI interaction frequency from eco-mode (1 event per 3 days) to active-mode (10+ events per day).
+[*] [b]Lag-Free Threading[/b]: All network and compute workloads run on background threads; your RimWorld main thread stays completely butter-smooth.
+[/list]
 
   ▸ 上下文引擎——AI 真正"懂"你的殖民地
     不是把一堆数据丢给 LLM，而是用五层架构精准筛选：
@@ -98,3 +125,10 @@
   - 详细规范: 见 AGENTS.md
 
 ═══════════════════════════════════════════════
+[hr]
+[h2]⚙️ 安装与依赖 / Requirements & Setup[/h2]
+[list]
+[*] [b]必需前置 (Required)[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2009463077]Harmony[/url]
+[*] [b]加载顺序 (Load Order)[/b]: Harmony -> RimWorld Core -> [b]RimMind-Core[/b] -> (其他 RimMind 子模组)
+[*] [b]配置指南[/b]: 进入游戏主菜单或选项 -> Mod 设置 -> [b]RimMind-Core[/b]，选择你的 AI 服务商并填入 API Key 与端点即可！
+[/list]
