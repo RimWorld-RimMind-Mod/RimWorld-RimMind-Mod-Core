@@ -21,6 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build Mod
+        run: dotnet build Source/RimMindCore.csproj --configuration Release
+
       - name: Determine Git Range
         id: git-range
         run: |

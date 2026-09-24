@@ -27,7 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="$(GameVersion).*-*" PrivateAssets="All" />
     <PackageReference Include="Lib.Harmony.Ref" Version="2.*" PrivateAssets="All" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" PrivateAssets="All" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" PrivateAssets="All" GeneratePathProperty="true" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
@@ -46,5 +46,24 @@
     <Compile Include="Infrastructure\**\*.cs" />
     <Compile Include="Presentation\**\*.cs" />
   </ItemGroup>
+
+  <Target Name="CopyNewtonsoftJson" AfterTargets="Build">
+    <Copy SourceFiles="$(PkgNewtonsoft_Json)\lib\net45\Newtonsoft.Json.dll"
+          DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Deploy to game mods folder after build (set RIMWORLD_DIR env var) -->
+  <Target Name="DeployToModsFolder" AfterTargets="Build"
+          Condition=" '$(RIMWORLD_DIR)' != '' ">
+    <PropertyGroup>
+      <DeployPath>$(RIMWORLD_DIR)\Mods\RimMind-Core\</DeployPath>
+    </PropertyGroup>
+    <MakeDir Directories="$(DeployPath)" />
+    <Exec Command='robocopy "$(ProjectDir)..\About"      "$(DeployPath)About"     /MIR' IgnoreExitCode="true"/>
+    <Exec Command='robocopy "$(ProjectDir)..\Defs"       "$(DeployPath)Defs"      /MIR' IgnoreExitCode="true"/>
+    <Exec Command='robocopy "$(ProjectDir)..\Languages"  "$(DeployPath)Languages" /MIR' IgnoreExitCode="true"/>
+    <Exec Command='robocopy "$(ProjectDir)..\$(GameVersion)" "$(DeployPath)$(GameVersion)" /MIR' IgnoreExitCode="true"/>
+    <Message Text="--- RimMind-Core deployed to $(DeployPath) ---" Importance="high"/>
+  </Target>
 
 </Project>

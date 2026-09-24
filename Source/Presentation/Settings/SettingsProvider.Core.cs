@@ -58,7 +58,6 @@ namespace RimMind.Presentation.Settings
             get => _settings.behaviorHistoryMax;
             set => _settings.behaviorHistoryMax = value;
         }
-        public int ThinkCooldownTicks => _settings.thinkCooldownTicks;
         public int ThinkCooldownTicks => (int)System.Math.Clamp(_settings.thinkCooldownTicks / System.Math.Max(0.1f, ActivityFrequencyScale), 1200f, 120000f);
         public int MaxToolCallDepth => _settings.maxToolCallDepth;
         public int DefaultModCooldownTicks

@@ -277,7 +277,6 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 "RimMind.UI.Hub.RuntimeSettingsTunerTip".Translate());
 
             float cardW = canvas.width - 8f;
-            Rect card = new Rect(4f, y, cardW, 124f);
             Rect card = new Rect(4f, y, cardW, 152f);
             Widgets.DrawBoxSolid(card, RimMindUI.ColorCardBg);
 
@@ -482,8 +481,6 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
 
                 pY += 28f;
 
-                // Row 3: Inspect Payload & Trigger Agent Tick
-                float btnW = (cardW - 24f) / 2f;
                 // Row 3: Inspect Payload, Trigger Agent Tick & Activate All Agents
                 float btnW = (cardW - 32f) / 3f;
                 Rect btnInspect = new Rect(card.x + 8f, pY, btnW, 28f);
