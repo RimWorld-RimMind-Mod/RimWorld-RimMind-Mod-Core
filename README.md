@@ -10,20 +10,29 @@ RimMind 是一套 AI 驱动的 RimWorld 模组套件，通过接入大语言模�
 
 | 模组 | 职责 | 依赖 | GitHub |
 |------|------|------|--------|
-| **RimMind-Core** | API 客户端、请求调度、上下文打包 | Harmony | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core) |
-| RimMind-Actions | AI 控制小人的动作执行库 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions) |
-| RimMind-Advisor | AI 扮演小人做出工作决策 | Core, Actions | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor) |
-| RimMind-Dialogue | AI 驱动的对话系统 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue) |
-| RimMind-Memory | 记忆采集与上下文注入 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory) |
-| RimMind-Personality | AI 生成人格与想法 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality) |
-| RimMind-Storyteller | AI 叙事者，智能选择事件 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller) |
+| **RimMind-Core** | 公共 API、LLM 请求调度、4-Zone 上下文引擎、ToolCall 契约与运行时 | Harmony | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core) |
+| RimMind-Actions | 将基础 ToolCall 组合成高级 Mechanism 动作 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions) |
+| RimMind-Advisor | 状态/Thought → 建议、审批、动作与反馈闭环 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor) |
+| RimMind-Dialogue | AI 驱动的对话系统与社交关系演进（express_dialogue） | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue) |
+| RimMind-Memory | 三层记忆系统（情景/摘要/反思）与时间上下文 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory) |
+| RimMind-Personality | 基于概率的状态跃迁驱动的人格与 Thought 注入 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality) |
+| RimMind-Storyteller | AI 叙事者，智能评估戏剧性曲线与事件选择 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller) |
+| RimMind-Bridge-RimChat | RimMind 与 RimChat 模组的协调与门控互斥 | Core, RimChat | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimChat) |
+| RimMind-Bridge-RimTalk | RimMind 与 RimTalk 模组的对话气泡与上下文桥 | Core, RimTalk | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimTalk) |
+| RimMind-Extension-ModelService | 扩展模型网关、OpenCode Go 订阅直连与多端点负载均衡 | Core | [链接](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Extension-ModelService) |
 
-```
-Core ── Actions ── Advisor
-  ├── Dialogue
-  ├── Memory
-  ├── Personality
-  └── Storyteller
+```mermaid
+graph TD
+    Core["RimMind-Core (API / Context / ToolCall / Runtime)"]
+    Core --> Actions["RimMind-Actions (Mechanism Composite)"]
+    Core --> Advisor["RimMind-Advisor (Advice & Approval)"]
+    Core --> Dialogue["RimMind-Dialogue (Social & Dialogue)"]
+    Core --> Memory["RimMind-Memory (3-Tier Memory)"]
+    Core --> Personality["RimMind-Personality (State Transitions)"]
+    Core --> Storyteller["RimMind-Storyteller (AI Director)"]
+    Core --> ModelService["Extension-ModelService (Gateway / LB)"]
+    Core --> BridgeRimChat["Bridge-RimChat"]
+    Core --> BridgeRimTalk["Bridge-RimTalk"]
 ```
 
 ## 安装步骤
@@ -121,19 +130,32 @@ cd RimWorld-RimMind-Mod-Core
 
 默认装配 Reactive / Proactive 模式，保留主动周期和感知触发。反思、日规划、梦境、社交组织与性格演化没有内置可用策略，不以空实现制造触发；其可选策略合同及 Verse 执行/生命周期完成检查仍保留。
 
-### 统一上下文引擎
+### 统一 4-Zone 上下文引擎与 Prompt Caching (KV-Cache)
 
-ContextEngine 采用 L0-L5 分层构建上下文，支持 Diff 注入与 Tick 过期合并：
+ContextEngine 采用针对现代大模型前缀缓存特化设计的 4-Zone 分层拓扑，前缀跨轮多 Tick 100% 字节不变，预估缓存命中率达 80%~90%：
 
-- L0 静态层（系统指令、身份）→ L1 基线层（地图、Pawn 信息）→ L2 环境层（天气、时间）→ L3 状态层（健康、心情）→ L4 历史层（对话记录）→ L5 感知层（Sensor 数据）
-- BudgetScheduler 按 Score = W1×优先级 + W2×相关性 调度上下文预算
-- 子模组通过 ContextKeyRegistry.Register 注入自定义上下文 Provider
+- **Zone 1 (Static System Instructions)**：L0 系统指令与通用规范，全局静态，永久锁定在前缀最前端（100% 命中）。
+- **Zone 2 (Pawn Profiles)**：L1 殖民者持久画像、背景故事、特质与技能，只要角色未发生剧烈变动即保持跨轮字节一致。
+- **Zone 3 (Monotonic Histories)**：L4 对话记录、近期事件流与记忆摘要，按时间戳确定性严格单调追加，绝不产生历史乱序。
+- **Zone 4 (Volatile Observations Tail)**：L2/L3/L5 动态易变环境（当前游戏时间、动态天气、即时心情、生理伤痛及周围 Sensor 信号），严格隔离在消息尾部，彻底杜绝易变数据对前置长缓存的击穿。
+- **确定性字典序**：条目与 Tool 声明均按字典序排序，保证跨帧序列化字节完全一致。
 
 快照构建统一走 `BuildSnapshotFromEnvelopeAsync`，支持异步 Provider、取消、缓存失效和历史/预算处理；不再提供只执行同步 Provider 的平行构建入口。
 
 ### 数据飞轮
 
 内置自动调优系统（Flywheel），持续分析 AI 请求效果并优化上下文参数，让 AI 输出质量随使用时间逐步提升。
+
+### 现代化调试中心 (RimMind Hub) 与观测台
+
+按快捷键或通过开发者菜单可随时呼出 RimMind 调试中心与全链路报文检查器：
+
+- **实时 LLM 连通性测试台**：一键发起异步测速探针，实时显示 HTTP 状态码、RTT 延迟、Token 消耗与返回内容/错误详情。
+- **请求队列与冷却控制台**：一键暂停/恢复全局队列、清空积压请求、重置各模块冷却时间。
+- **运行时参数微调**：实时无缝调节最大并发数、超时时间、详细日志开关。
+- **殖民者 Agent 观测器**：实时查看殖民者认知状态、一键触发即时思考（Trigger Agent Tick）。
+- **报文检查器 (ContextPayloadInspector)**：全景可视化 4-Zone 结构，审查每个 Zone 的 Token 占比、KV-Cache 稳定性评分与次轮预估命中率。
+- **智能收缩悬浮窗 (RequestOverlay)**：待审批时展开审批卡片，无请求时自动收缩为视口边缘的轻量迷你胶囊 `[Pending: 0]`。
 
 ### 调试工具
 
@@ -210,13 +232,16 @@ RimMind is an AI-driven RimWorld mod suite that connects to Large Language Model
 
 | Module | Role | Depends On | GitHub |
 |--------|------|------------|--------|
-| **RimMind-Core** | API client, request dispatch, context packaging | Harmony | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core) |
-| RimMind-Actions | AI-controlled pawn action execution | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions) |
-| RimMind-Advisor | AI role-plays colonists for work decisions | Core, Actions | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor) |
-| RimMind-Dialogue | AI-driven dialogue system | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue) |
-| RimMind-Memory | Memory collection & context injection | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory) |
-| RimMind-Personality | AI-generated personality & thoughts | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality) |
-| RimMind-Storyteller | AI storyteller, smart event selection | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller) |
+| **RimMind-Core** | Public API, LLM scheduling, 4-Zone context engine, ToolCall contracts & runtime | Harmony | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core) |
+| RimMind-Actions | High-level Mechanism composite actions from atomic ToolCalls | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions) |
+| RimMind-Advisor | Thought/Status → advice, player approval, action & feedback loop | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor) |
+| RimMind-Dialogue | Context-aware AI dialogue & social relationship dynamics (express_dialogue) | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue) |
+| RimMind-Memory | 3-tier memory system (Episodic/Summary/Reflection) & temporal context | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory) |
+| RimMind-Personality | Probabilistic state-transition driven personality & Thought injection | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality) |
+| RimMind-Storyteller | AI storyteller, dynamic dramatic tension & incident selection | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller) |
+| RimMind-Bridge-RimChat | Coordination & mutual exclusion layer with RimChat mod | Core, RimChat | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimChat) |
+| RimMind-Bridge-RimTalk | Dialogue bubbles & context bridge with RimTalk mod | Core, RimTalk | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimTalk) |
+| RimMind-Extension-ModelService | Extended model gateway, OpenCode Go subscription & multi-endpoint load balancing | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Extension-ModelService) |
 
 ## Installation
 
