@@ -35,6 +35,13 @@ graph TD
     Core --> BridgeRimTalk["Bridge-RimTalk"]
 ```
 
+## 🎮 实机特性展示 / In-Game Showcase
+
+![RimMind-Core In-Game Showcase](docs/images/showcase.jpg)
+
+- **F8 RimMind Hub 控制中枢**：游戏内随时按 `F8` 键唤起控制中心，查看实时 AI 请求队列、网络状态与并发配置。
+- **4-Zone KV Cache 原生优化**：前缀稳定性达到 80%+，将易变环境（时间、天气）隔离在末尾，大幅降低 Token 消耗与计费。
+
 ## 安装步骤
 
 ### 从源码安装
@@ -242,6 +249,13 @@ RimMind is an AI-driven RimWorld mod suite that connects to Large Language Model
 | RimMind-Bridge-RimChat | Coordination & mutual exclusion layer with RimChat mod | Core, RimChat | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimChat) |
 | RimMind-Bridge-RimTalk | Dialogue bubbles & context bridge with RimTalk mod | Core, RimTalk | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimTalk) |
 | RimMind-Extension-ModelService | Extended model gateway, OpenCode Go subscription & multi-endpoint load balancing | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Extension-ModelService) |
+
+## 🎮 In-Game Showcase
+
+![RimMind-Core In-Game Showcase](docs/images/showcase.jpg)
+
+- **F8 RimMind Hub**: Open the live control hub anytime with `F8` to inspect AI queue state, round-trip latency, and runtime concurrency limits.
+- **4-Zone KV Cache Optimization**: Isolates volatile environment data (time, weather) to the tail of the payload, achieving 80%+ prefix stability and drastically cutting token costs.
 
 ## Installation
 
