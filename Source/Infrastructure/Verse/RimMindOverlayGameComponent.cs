@@ -12,6 +12,7 @@ namespace RimMind.Infrastructure.Verse
         {
             RimMind.Infrastructure.UI.Layout.UiCaptureRunner.CheckStartup();
             RimMind.Infrastructure.UI.BehaviorAutotestRunner.CheckStartup();
+            RimMind.Infrastructure.UI.DebugActions.ShowcaseSceneCaptureRunner.CheckStartup();
         }
 
         public override void GameComponentOnGUI()
