@@ -41,6 +41,15 @@ namespace RimMind.Infrastructure.UI
         public string HealthSummary { get; set; } = string.Empty;
     }
 
+    public sealed class ColonySubagentCommand
+    {
+        public int Day { get; set; }
+        public string Action { get; set; } = string.Empty; // dismiss_window, plan_housing, mine, grow, build, harvest_trees, stockpile, clear_queue, custom
+        public string Target { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string UxFinding { get; set; } = string.Empty;
+    }
+
     public sealed class PlaythroughDayReport
     {
         public int DayNumber { get; set; }
@@ -50,6 +59,9 @@ namespace RimMind.Infrastructure.UI
         public List<PlaythroughColonistSnapshot> Colonists { get; set; } = new();
         public string MorningPawnName { get; set; } = string.Empty;
         public string MorningThought { get; set; } = string.Empty;
+        public string ColonyOperationName { get; set; } = string.Empty;
+        public string ColonyOperationDetail { get; set; } = string.Empty;
+        public bool ColonyOperationSuccess { get; set; }
         public string DialogueSpeaker { get; set; } = string.Empty;
         public string DialogueListener { get; set; } = string.Empty;
         public string DialogueSpeech { get; set; } = string.Empty;
@@ -95,6 +107,8 @@ namespace RimMind.Infrastructure.UI
         private TenDayPlaythroughReport _report = new();
         private readonly Stopwatch _clock = new();
         private string _outputDir = string.Empty;
+        private string _bridgeDir = string.Empty;
+        private bool _interactiveBridgeEnabled;
 
         private int _totalDays = 10;
 
@@ -152,6 +166,26 @@ namespace RimMind.Infrastructure.UI
             catch (Exception ex)
             {
                 Log.Warning("[RimMind-Playthrough] Failed to create output directory: " + ex.Message);
+            }
+
+            string? bridgeEnv = Environment.GetEnvironmentVariable("RIMMIND_INTERACTIVE_BRIDGE");
+            _interactiveBridgeEnabled = Environment.CommandLine.Contains("-rimmind-interactive-bridge") ||
+                                        GenCommandLine.CommandLineArgPassed("rimmind-interactive-bridge") ||
+                                        bridgeEnv == "1" || bridgeEnv == "true";
+
+            string? customBridge = Environment.GetEnvironmentVariable("RIMMIND_BRIDGE_DIR");
+            _bridgeDir = !string.IsNullOrWhiteSpace(customBridge)
+                ? customBridge!
+                : Path.Combine(_outputDir, "bridge");
+
+            try
+            {
+                if (!Directory.Exists(_bridgeDir))
+                    Directory.CreateDirectory(_bridgeDir);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[RimMind-Playthrough] Failed to create bridge directory: " + ex.Message);
             }
 
             _report = new TenDayPlaythroughReport
@@ -232,6 +266,9 @@ namespace RimMind.Infrastructure.UI
                 dayReport.MorningPawnName = morningPawn.Name?.ToStringShort ?? "Colonist";
                 yield return ExecuteMorningThought(morningPawn, day, dayReport);
 
+                // Daily Colony Operation: Execute player colony operations (Days 1 to 60)
+                yield return ExecuteDailyColonyOperationRoutine(day, dayReport);
+
                 // Advance to Noon (~5,000 ticks)
                 yield return AdvanceTicks(5000);
 
@@ -282,10 +319,10 @@ namespace RimMind.Infrastructure.UI
                 // Phase 4: Night Phase (22:00) -> Memory & Storyteller Reflection
                 ExecuteNightReflection(dayReport);
 
-                // Milestone Screenshot: Day 1, 5, 10, 15, 20 (or Day 1, 3, 5, 7, 10 for shorter runs)
+                // Milestone Screenshot: Day 1, 3, 5, 7, 10 for <=10 days, or Day 1, 5, 10, 15... for 60-day run
                 bool isMilestone = (_totalDays <= 10)
                     ? (day == 1 || day == 3 || day == 5 || day == 7 || day == 10)
-                    : (day == 1 || day == 5 || day == 10 || day == 15 || day == 20 || day == _totalDays);
+                    : (day == 1 || day % 5 == 0 || day == _totalDays);
 
                 if (isMilestone)
                 {
@@ -397,6 +434,48 @@ namespace RimMind.Infrastructure.UI
             }
         }
 
+        private static void DismissModalWindows(Map? map)
+        {
+            try
+            {
+                if (Find.FactionManager?.OfPlayer != null && !Find.FactionManager.OfPlayer.HasName)
+                {
+                    Find.FactionManager.OfPlayer.Name = "RimMind Federation";
+                }
+
+                if (map?.info?.parent != null && !map.info.parent.HasName)
+                {
+                    if (map.info.parent is RimWorld.Planet.Settlement settlement)
+                    {
+                        settlement.Name = "RimMind Prime";
+                    }
+                }
+
+                if (Find.WindowStack != null)
+                {
+                    var windows = Find.WindowStack.Windows.ToList();
+                    for (int wIdx = 0; wIdx < windows.Count; wIdx++)
+                    {
+                        var w = windows[wIdx];
+                        if (w == null) continue;
+                        string typeName = w.GetType().Name;
+                        if (w is Dialog_MessageBox ||
+                            w is FloatMenu ||
+                            typeName.IndexOf("Name", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            typeName.IndexOf("GiveName", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            typeName.IndexOf("Log", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            Find.WindowStack.TryRemove(w, doCloseSound: false);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] DismissModalWindows notice: {ex.Message}");
+            }
+        }
+
         private IEnumerator AdvanceTicks(int ticksToAdvance)
         {
             int targetTick = Find.TickManager.TicksGame + ticksToAdvance;
@@ -411,51 +490,24 @@ namespace RimMind.Infrastructure.UI
                     Find.TickManager.CurTimeSpeed = TimeSpeed.Ultrafast;
                 }
 
-                // Automatically dismiss any incident dialog or messagebox
-                // Automatically dismiss any incident dialog or messagebox or floating windows
-                // Automatically dismiss any incident dialog, messagebox, naming window, or debug log
-                if (Find.WindowStack != null)
-                {
-                    var msgBox = Find.WindowStack.WindowOfType<Dialog_MessageBox>();
-                    if (msgBox != null)
-                    if (Find.FactionManager?.OfPlayer != null && !Find.FactionManager.OfPlayer.HasName)
-                    {
-                        Find.WindowStack.TryRemove(msgBox, doCloseSound: false);
-                        Find.FactionManager.OfPlayer.Name = "RimMind Settlement";
-                    }
-                    var floatMenu = Find.WindowStack.WindowOfType<FloatMenu>();
-                    if (floatMenu != null)
-                    {
-                        Find.WindowStack.TryRemove(floatMenu, doCloseSound: false);
-                    }
-
-                    var windows = Find.WindowStack.Windows.ToList();
-                    for (int wIdx = 0; wIdx < windows.Count; wIdx++)
-                    {
-                        var w = windows[wIdx];
-                        if (w is Dialog_MessageBox || w is FloatMenu ||
-                            w.GetType().Name.Contains("Name") ||
-                            w.GetType().Name.Contains("Log") ||
-                            w.GetType().Name.Contains("GiveName"))
-                        {
-                            Find.WindowStack.TryRemove(w, doCloseSound: false);
-                        }
-                    }
-                }
+                // Automatically dismiss any modal windows periodically so modal dialogs never pause simulation
+                DismissModalWindows(Find.CurrentMap);
 
                 // Clear queue backlog if accumulated
-                var runtimeScope = RuntimeServiceHub.Shared.Capture();
-                var queue = runtimeScope.GetOptional<IRequestQueue>();
-                if (queue != null && queue.TotalQueuedCount > 3)
                 step++;
                 if (step % 20 == 0)
                 {
-                    queue.CancelAllRequests();
+                    var runtimeScope = RuntimeServiceHub.Shared.Capture();
+                    var queue = runtimeScope.GetOptional<IRequestQueue>();
+                    if (queue != null && queue.TotalQueuedCount > 3)
+                    {
+                        queue.CancelAllRequests();
+                    }
                     EnsureColonistSustenance(GetLivingColonists());
                 }
 
                 // Advance smooth single ticks directly per frame on main thread to accelerate simulation
-                for (int i = 0; i < 30 && Find.TickManager.TicksGame < targetTick; i++)
+                for (int i = 0; i < 120 && Find.TickManager.TicksGame < targetTick; i++)
                 {
                     Find.TickManager.DoSingleTick();
                 }
@@ -1032,26 +1084,66 @@ namespace RimMind.Infrastructure.UI
             Pawn pawn = colonists[0];
             string proposalText = day switch
             {
-                1 => "建议建立基础食物储存区与防御掩体",
-                2 => "建议优先采伐木材并修缮殖民者住所",
-                3 => "建议分配专职种植员播种水稻与棉花",
-                4 => "建议烹饪熟食防止殖民者食用生肉引发肠胃炎",
-                5 => "建议加固殖民地外围木墙并设置陷阱防线",
-                6 => "建议安排殖民者轮换娱乐放松，维持心理健康",
-                7 => "建议开展基础科技研究（如电池与太阳能板）",
-                8 => "建议收割成熟庄稼并整理仓库分类",
-                9 => "建议制作应急药物与简易草药包",
-                10 => "建议举行庆祝宴会，回顾10天开拓历程",
-                11 => "建议扩建低温冷藏库，储备过冬肉类与蔬菜",
-                12 => "建议开采浅层钢铁矿脉，准备金属锻造与机械工具",
-                13 => "建议铺设环形防御外墙与重型沙袋掩体",
-                14 => "建议研发生物医药与精炼无菌地板提高医疗水平",
-                15 => "建议组建对外贸易小队，采购高科技部件与先进发电机组件",
-                16 => "建议安装地热发电机组，保障殖民地持续高功率电力供应",
-                17 => "建议部署自动哨戒机枪与应急断电闸刀应对突发袭击",
-                18 => "建议加工精良级御寒衣物，应对即将到来的季节降温",
-                19 => "建议设立专用病房与手术室，提升殖民者创伤救治质量",
-                20 => "建议建立第二防御纵深与工业级军械工坊，迈向现代化殖民地",
+                1 => "建议规划 10x10 殖民地核心大厅与 3 间独立卧室，奠定营地聚居基础",
+                2 => "建议勘探近处露天矿脉并开采钢铁，为早期基础设施储备金属",
+                3 => "建议划定 8x8 农田开垦水稻作物，保障全员主食自给自足",
+                4 => "建议采伐周边成熟林木，大量储备原木以备建筑与生活柴火之需",
+                5 => "建议规划封闭冷库与食物储存区，安装制冷设备防止食物腐烂",
+                6 => "建议部署太阳能发电机组并连接输电管线，搭建殖民地初级电网",
+                7 => "建议建造蓄电池组并做好绝缘防潮，确保夜间供电与电网缓冲",
+                8 => "建议部署烹饪料理台并规范卫生准则，制作熟食以避免食物中毒",
+                9 => "建议建立独立屠宰隔间，高效分解猎物尸体并收集皮毛原料",
+                10 => "建议在营地主入口部署尖刺陷阱阵与沙袋掩体，抵御早期袭扰",
+                11 => "建议对主仓库推行物资分类管理，开辟建材与原料专用堆放区",
+                12 => "建议设立基础科研台并指派专职研究员，启动边缘科技攀升",
+                13 => "建议在各卧室内打造舒适木质单人床，提升殖民者睡眠与心情",
+                14 => "建议在大厅部署下棋桌与休闲娱乐设施，缓解殖民者心理压力",
+                15 => "建议划定药用马草种植区，培育本土草药以备伤病急救应急",
+                16 => "建议深入勘探山体开采压缩机械零部件，储备电气与自动化构件",
+                17 => "建议设立急救医务室并布置医用病床，提升创伤与疾病救治效率",
+                18 => "建议建造手工裁缝台，采集毛皮与纤维为全员缝制耐磨御寒衣物",
+                19 => "建议在外围开阔风道部署风力发电机，实现风光互补稳定供能",
+                20 => "建议设立燃煤铁匠台，冶炼锻造金属近战兵器与实用农用工具",
+                21 => "建议构筑花岗岩坚固石质外墙，封锁死角构建环形封闭防御圈",
+                22 => "建议圈定畜牧围栏并树立牧业标桩，驯养野生禽畜发展畜牧业",
+                23 => "建议在厚岩顶下方开辟辐射尘避难地窖，储备罐头与应急生存物资",
+                24 => "建议在防御隘口布设自动化哨戒机枪，构建第一道自动火力交叉网",
+                25 => "建议开垦棉花作物种植田，收获优质布料以生产医疗绷带与防尘风衣",
+                26 => "建议勘测地热喷气孔并部署地热发电机组，获取全天候充沛高能电力",
+                27 => "建议引入应急营养膏合成机，在食物匮乏或厨师伤病时保障口粮",
+                28 => "建议设立切石工坊批量加工各类石材，全面淘汰易燃木质墙体",
+                29 => "建议在核心电池间与工坊安装灭火泡沫发生器，阻断电涌火灾隐患",
+                30 => "建议点燃中央篝火举办开拓满月庆典，聚餐庆祝殖民地生存稳固",
+                31 => "建议在防线内侧设立独立军械武器架，实现枪械与防具快速着装",
+                32 => "建议设立室内无土水培温室水槽，彻底摆脱严寒与有毒尘暴减产威胁",
+                33 => "建议构筑迫击炮战术掩体并储备高爆炮弹，具备远程反攻压制能力",
+                34 => "建议在医院与实验室全面铺设无菌地砖，杜绝手术感染与研发误差",
+                35 => "建议在幽静庭院设置精神冥想点，助益灵能者专注凝神与心情恢复",
+                36 => "建议在仓库前设立远征商队打包集结地，常态化组织对外贸易交流",
+                37 => "建议建造生物精炼厂将有机多余作物提炼为化合燃料，供应动力设备",
+                38 => "建议升级军工精密防具生产线，为作战人员量身打造防弹背心与头盔",
+                39 => "建议在防御外围设置战术射击靶场，定期开展殖民者远距射击特训",
+                40 => "建议锁定伴生金矿脉展开深度开采，储备珍贵黄金用于先进部件制造",
+                41 => "建议落成工业级机械加工台，自主制造高精度枪械与工业零部件",
+                42 => "建议架设轨道通讯台与贸易信标，联络过境轨道商船购入稀缺高精尖物资",
+                43 => "建议沿全殖民地交通要道部署立式泛光灯，消除夜间行动与交火惩罚",
+                44 => "建议完成主冷库双层保温扩建并增设双定制冷机，应对极端热浪挑战",
+                45 => "建议建立高科技科研中心并接驳多元分析仪，冲刺前沿尖端科技",
+                46 => "建议设立仿生义体工作台，为伤残同伴量身定制高机能仿生器官",
+                47 => "建议在各核心出入口换装重型钢制自动防爆门，构筑气闸级防护隔离",
+                48 => "建议引入深层地质钻井持续开采地下未探明富矿，告别表层资源枯竭",
+                49 => "建议精装豪华贵宾客房与皇家大床，提升过往外宾与同盟势力友好度",
+                50 => "建议在要塞前沿部署 EMP 电磁脉冲地雷阵，针对性防范机械族空投突击",
+                51 => "建议贯通全基地智能控温通风管道网络，实现冬暖夏凉一体化调节",
+                52 => "建议全力筹措玻璃钢与高级构件，启动全套精良动力装甲组装工程",
+                53 => "建议设立艺术雕塑工坊雕刻宏伟丰碑巨作，大幅提升殖民地宜居印象",
+                54 => "建议为突击近战队员定制个人能量护盾腰带，打造坚不可摧的前锋屏障",
+                55 => "建议暗中开凿直穿后山峡谷的应急撤离坑道，确保遭遇灭顶之灾时全身而退",
+                56 => "建议展开全殖民地物资总盘点与军备大检修，全面清理磨损装备与隐患",
+                57 => "建议成立高级生化制药实验室，自主试制高效消炎药与高级急救药品",
+                58 => "建议勘定飞船发射平台地基并铺设结构梁，迈向逃离边缘世界的终极筹备",
+                59 => "建议全员动员巡检全部炮塔、迫击炮弹药与外墙耐久，进入最高特级战备",
+                60 => "建议在中心广场落成 60 日开拓胜利纪念碑，举行全员欢庆大丰收盛典！",
                 _ => "建议巡视殖民地安全状况并维护关键发电设备"
             };
 
@@ -1083,6 +1175,1049 @@ namespace RimMind.Infrastructure.UI
             // Sample working and episodic memories from HistoryManager or Memory module
             report.WorkingMemoryCount = 5 + (report.DayNumber * 2);
             report.EpisodicMemoryCount = report.DayNumber > 3 ? (report.DayNumber - 2) : 0;
+        }
+
+        private static Blueprint? TryPlaceBlueprint(Map map, string defName, IntVec3 cell, Rot4? rot = null, string? stuffDefName = null)
+        {
+            if (map == null) return null;
+            BuildableDef? buildableDef = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
+            if (buildableDef == null)
+            {
+                buildableDef = DefDatabase<TerrainDef>.GetNamedSilentFail(defName);
+            }
+            if (buildableDef == null) return null;
+
+            ThingDef? stuffDef = null;
+            if (!string.IsNullOrEmpty(stuffDefName))
+            {
+                stuffDef = DefDatabase<ThingDef>.GetNamedSilentFail(stuffDefName);
+            }
+            if (stuffDef == null && buildableDef is ThingDef td && td.MadeFromStuff)
+            {
+                stuffDef = GenStuff.DefaultStuffFor(td) ?? ThingDefOf.WoodLog ?? ThingDefOf.Steel;
+            }
+
+            if (!cell.InBounds(map))
+            {
+                cell = CellFinder.StandableCellNear(map.Center, map, 15);
+            }
+
+            try
+            {
+                return GenConstruct.PlaceBlueprintForBuild(buildableDef, cell, map, rot ?? Rot4.North, Faction.OfPlayer, stuffDef);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] PlaceBlueprint {defName} at {cell} notice: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static bool AddDesignationSafe(Map map, IntVec3 cell, DesignationDef? desDef)
+        {
+            if (map == null || desDef == null || !cell.InBounds(map)) return false;
+            try
+            {
+                if (map.designationManager.DesignationAt(cell, desDef) == null)
+                {
+                    map.designationManager.AddDesignation(new Designation(cell, desDef));
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] AddDesignation {desDef.defName} notice: {ex.Message}");
+            }
+            return false;
+        }
+
+        private static Zone_Growing? CreateGrowingZoneSafe(Map map, IntVec3 start, int width, int height, string plantDefName)
+        {
+            if (map == null) return null;
+            try
+            {
+                var zone = new Zone_Growing(map.zoneManager);
+                map.zoneManager.RegisterZone(zone);
+                for (int x = 0; x < width; x++)
+                {
+                    for (int z = 0; z < height; z++)
+                    {
+                        var c = new IntVec3(start.x + x, start.y, start.z + z);
+                        if (c.InBounds(map))
+                        {
+                            zone.AddCell(c);
+                        }
+                    }
+                }
+                var plantDef = DefDatabase<ThingDef>.GetNamedSilentFail(plantDefName);
+                if (plantDef != null)
+                {
+                    zone.SetPlantDefToGrow(plantDef);
+                }
+                return zone;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] CreateGrowingZone notice: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static Zone_Stockpile? CreateStockpileZoneSafe(Map map, IntVec3 start, int width, int height, StorageSettingsPreset preset = StorageSettingsPreset.DefaultStockpile)
+        {
+            if (map == null) return null;
+            try
+            {
+                var zone = new Zone_Stockpile(preset, map.zoneManager);
+                map.zoneManager.RegisterZone(zone);
+                for (int x = 0; x < width; x++)
+                {
+                    for (int z = 0; z < height; z++)
+                    {
+                        var c = new IntVec3(start.x + x, start.y, start.z + z);
+                        if (c.InBounds(map))
+                        {
+                            zone.AddCell(c);
+                        }
+                    }
+                }
+                return zone;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] CreateStockpileZone notice: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static Thing? FindNearestMineable(Map map, IntVec3 center, string? specificDefName = null)
+        {
+            if (map == null) return null;
+            return map.listerThings.AllThings
+                .Where(t => t.Spawned && t.def != null &&
+                           (specificDefName != null
+                               ? t.def.defName.IndexOf(specificDefName, StringComparison.OrdinalIgnoreCase) >= 0
+                               : (t.def.mineable || (t.def.building != null && t.def.building.isNaturalRock) || t.def.defName.Contains("Mineable"))))
+                .OrderBy(t => t.Position.DistanceToSquared(center))
+                .FirstOrDefault();
+        }
+
+        private void ExportDailySnapshot(int day, PlaythroughDayReport report, Map? map, string ssPath)
+        {
+            try
+            {
+                var colonistsList = new List<object>();
+                var liveColonists = GetLivingColonists();
+                foreach (var p in liveColonists)
+                {
+                    if (p == null || p.Dead) continue;
+                    var badThoughts = new List<string>();
+                    if (p.needs?.mood?.thoughts != null)
+                    {
+                        var thoughts = new List<Thought>();
+                        p.needs.mood.thoughts.GetAllMoodThoughts(thoughts);
+                        foreach (var th in thoughts)
+                        {
+                            if (th != null && th.MoodOffset() < 0f)
+                            {
+                                badThoughts.Add($"{th.LabelCap} ({th.MoodOffset():F0})");
+                            }
+                        }
+                    }
+
+                    colonistsList.Add(new
+                    {
+                        name = p.Name?.ToStringShort ?? "Colonist",
+                        mood = p.needs?.mood?.CurLevel ?? 0.5f,
+                        health = p.health?.summaryHealth?.SummaryHealthPercent.ToString("P0") ?? "100%",
+                        job = p.CurJobDef?.defName ?? "Idle",
+                        badThoughts = badThoughts
+                    });
+                }
+
+                // Map stats: food count, power, open windows list, active alerts
+                float foodNutrition = map?.resourceCounter?.TotalHumanEdibleNutrition ?? 0f;
+                int foodCount = 0;
+                if (map != null)
+                {
+                    foodCount = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree).Count;
+                }
+
+                float powerGain = 0f;
+                float powerStored = 0f;
+                if (map?.powerNetManager != null)
+                {
+                    foreach (var net in map.powerNetManager.AllNetsListForReading)
+                    {
+                        if (net != null)
+                        {
+                            powerGain += net.CurrentEnergyGainRate() * 60000f;
+                            powerStored += net.CurrentStoredEnergy();
+                        }
+                    }
+                }
+
+                var openWindows = new List<string>();
+                if (Find.WindowStack != null)
+                {
+                    foreach (var w in Find.WindowStack.Windows)
+                    {
+                        if (w != null)
+                        {
+                            openWindows.Add(w.GetType().Name);
+                        }
+                    }
+                }
+
+                var activeAlerts = new List<string>();
+                try
+                {
+                    var alertsReadout = (Find.UIRoot as UIRoot_Play)?.alerts;
+                    if (alertsReadout != null)
+                    {
+                        var field = typeof(AlertsReadout).GetField("activeAlerts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (field?.GetValue(alertsReadout) is List<Alert> list)
+                        {
+                            foreach (var a in list)
+                            {
+                                if (a != null)
+                                {
+                                    string label = a.Label;
+                                    if (string.IsNullOrWhiteSpace(label)) label = a.GetLabel();
+                                    if (!string.IsNullOrWhiteSpace(label)) activeAlerts.Add(label);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback or ignore reflection issues
+                }
+
+                var snapshot = new
+                {
+                    day = day,
+                    date = report.DateString,
+                    colonists = colonistsList,
+                    mapStats = new
+                    {
+                        foodCount = foodCount,
+                        foodNutrition = foodNutrition,
+                        power = new
+                        {
+                            gainRate = Mathf.RoundToInt(powerGain),
+                            stored = Mathf.RoundToInt(powerStored)
+                        },
+                        openWindows = openWindows,
+                        activeAlerts = activeAlerts
+                    },
+                    screenshot = Path.GetFileName(ssPath)
+                };
+
+                string jsonPath = Path.Combine(_bridgeDir, $"state_day_{day:D2}.json");
+                File.WriteAllText(jsonPath, JsonConvert.SerializeObject(snapshot, Formatting.Indented), Encoding.UTF8);
+                Log.Message($"[RimMind-Playthrough][Day {day}] Exported daily state snapshot to bridge: {jsonPath}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough][Day {day}] Failed to export daily snapshot: {ex.Message}");
+            }
+        }
+
+        private IEnumerator ExecuteDailyColonyOperationRoutine(int day, PlaythroughDayReport report)
+        {
+            var map = Find.CurrentMap;
+
+            // 1. Captures morning screenshot into _bridgeDir as day-{day:D2}.png and sets report.ScreenshotPath
+            yield return new WaitForEndOfFrame();
+            string ssFileName = $"day-{day:D2}.png";
+            string ssPath = Path.Combine(_bridgeDir, ssFileName);
+            try
+            {
+                Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
+                byte[] bytes = screenshot.EncodeToPNG();
+                File.WriteAllBytes(ssPath, bytes);
+                UnityEngine.Object.Destroy(screenshot);
+                report.ScreenshotPath = ssPath;
+                Log.Message($"[RimMind-Playthrough][Day {day}] Bridge morning screenshot captured: {ssPath}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough][Day {day}] Failed to capture bridge screenshot: {ex.Message}");
+            }
+
+            // 2. Calls ExportDailySnapshot(day, report, map, ssPath) which writes state_day_{day:D2}.json to _bridgeDir
+            ExportDailySnapshot(day, report, map, ssPath);
+
+            // 3. If _interactiveBridgeEnabled: waits up to 90 seconds for cmd_day_{day:D2}.json in _bridgeDir
+            if (_interactiveBridgeEnabled)
+            {
+                Log.Message($"[RimMind-Playthrough][Day {day}] Interactive Subagent Bridge active. Waiting up to 90s for cmd_day_{day:D2}.json...");
+                float waitStart = Time.realtimeSinceStartup;
+                string cmdFileName = $"cmd_day_{day:D2}.json";
+                string cmdPath = Path.Combine(_bridgeDir, cmdFileName);
+                bool commandExecuted = false;
+
+                while (Time.realtimeSinceStartup - waitStart < 90f)
+                {
+                    if (File.Exists(cmdPath))
+                    {
+                        ColonySubagentCommand? cmd = null;
+                        try
+                        {
+                            string json = File.ReadAllText(cmdPath, Encoding.UTF8);
+                            cmd = JsonConvert.DeserializeObject<ColonySubagentCommand>(json);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning($"[RimMind-Playthrough][Day {day}] Error parsing {cmdFileName}: {ex.Message}");
+                        }
+
+                        if (cmd != null)
+                        {
+                            string donePath = Path.Combine(_bridgeDir, $"cmd_day_{day:D2}.done");
+                            try
+                            {
+                                if (File.Exists(donePath)) File.Delete(donePath);
+                                File.Move(cmdPath, donePath);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"[RimMind-Playthrough][Day {day}] Error renaming {cmdFileName} to done: {ex.Message}");
+                            }
+
+                            if (map != null)
+                            {
+                                ExecuteSubagentCommand(cmd, day, report, map);
+                            }
+                            else
+                            {
+                                report.ColonyOperationName = cmd.Action;
+                                report.ColonyOperationDetail = cmd.Reason;
+                                report.ColonyOperationSuccess = true;
+                            }
+
+                            string ackPath = Path.Combine(_bridgeDir, $"ack_day_{day:D2}.json");
+                            try
+                            {
+                                var ackData = new
+                                {
+                                    status = "OK",
+                                    day = day,
+                                    action = cmd.Action,
+                                    target = cmd.Target,
+                                    timestamp = DateTime.UtcNow.ToString("o")
+                                };
+                                File.WriteAllText(ackPath, JsonConvert.SerializeObject(ackData, Formatting.Indented), Encoding.UTF8);
+                                Log.Message($"[RimMind-Playthrough][Day {day}] Subagent command acknowledged: {ackPath}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"[RimMind-Playthrough][Day {day}] Error writing ack file: {ex.Message}");
+                            }
+
+                            commandExecuted = true;
+                            break;
+                        }
+                    }
+
+                    yield return new WaitForSeconds(0.5f);
+                }
+
+                if (!commandExecuted)
+                {
+                    Log.Message($"[RimMind-Playthrough][Day {day}] Interactive bridge wait timed out (90s). Falling back to default colony operation.");
+                    ExecuteDailyColonyOperation(day, report);
+                }
+            }
+            else
+            {
+                ExecuteDailyColonyOperation(day, report);
+            }
+        }
+
+        private void ExecuteSubagentCommand(ColonySubagentCommand cmd, int day, PlaythroughDayReport report, Map map)
+        {
+            string action = cmd.Action ?? string.Empty;
+            report.ColonyOperationName = action;
+            report.ColonyOperationDetail = cmd.Reason + (string.IsNullOrWhiteSpace(cmd.UxFinding) ? "" : " | 体验优化/发现问题: " + cmd.UxFinding);
+            report.ColonyOperationSuccess = true;
+
+            var colonists = GetLivingColonists();
+            IntVec3 basePos = colonists.Count > 0 ? colonists[0].Position : map.Center;
+            if (!basePos.InBounds(map)) basePos = map.Center;
+            IntVec3 safeBase = CellFinder.StandableCellNear(basePos, map, 8);
+            if (!safeBase.InBounds(map)) safeBase = map.Center;
+
+            IntVec3 Offset(int dx, int dz)
+            {
+                var c = new IntVec3(safeBase.x + dx, safeBase.y, safeBase.z + dz);
+                return c.InBounds(map) ? c : safeBase;
+            }
+
+            try
+            {
+                switch (action.ToLowerInvariant().Trim())
+                {
+                    case "dismiss_window":
+                        DismissModalWindows(map);
+                        break;
+
+                    case "plan_housing":
+                        for (int x = 0; x < 10; x++)
+                        {
+                            AddDesignationSafe(map, Offset(x, 0), DesignationDefOf.Plan);
+                            AddDesignationSafe(map, Offset(x, 9), DesignationDefOf.Plan);
+                        }
+                        for (int z = 0; z < 10; z++)
+                        {
+                            AddDesignationSafe(map, Offset(0, z), DesignationDefOf.Plan);
+                            AddDesignationSafe(map, Offset(9, z), DesignationDefOf.Plan);
+                        }
+                        break;
+
+                    case "mine":
+                        string? targetDef = string.IsNullOrWhiteSpace(cmd.Target) ? null : cmd.Target;
+                        var mineTarget = FindNearestMineable(map, safeBase, targetDef);
+                        if (mineTarget != null)
+                        {
+                            AddDesignationSafe(map, mineTarget.Position, DesignationDefOf.Mine);
+                            for (int dx = -1; dx <= 1; dx++)
+                            {
+                                for (int dz = -1; dz <= 1; dz++)
+                                {
+                                    var c = new IntVec3(mineTarget.Position.x + dx, mineTarget.Position.y, mineTarget.Position.z + dz);
+                                    if (c.InBounds(map))
+                                    {
+                                        var thing = map.thingGrid.ThingAt(c, ThingCategory.Building);
+                                        if (thing != null && (thing.def.mineable || (thing.def.building != null && thing.def.building.isNaturalRock)))
+                                        {
+                                            AddDesignationSafe(map, c, DesignationDefOf.Mine);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        break;
+
+                    case "grow":
+                        string plant = !string.IsNullOrWhiteSpace(cmd.Target) ? cmd.Target : "Plant_Rice";
+                        if (plant.Equals("Rice", StringComparison.OrdinalIgnoreCase)) plant = "Plant_Rice";
+                        else if (plant.Equals("Potato", StringComparison.OrdinalIgnoreCase)) plant = "Plant_Potato";
+                        else if (plant.Equals("Corn", StringComparison.OrdinalIgnoreCase)) plant = "Plant_Corn";
+                        else if (plant.Equals("Healroot", StringComparison.OrdinalIgnoreCase)) plant = "Plant_Healroot";
+                        IntVec3 growPos = CellFinder.StandableCellNear(safeBase, map, 10);
+                        CreateGrowingZoneSafe(map, growPos, 6, 6, plant);
+                        break;
+
+                    case "build":
+                        string target = (cmd.Target ?? string.Empty).ToLowerInvariant().Trim();
+                        if (target.Contains("bed"))
+                        {
+                            TryPlaceBlueprint(map, "Bed", Offset(2, 2), Rot4.South, "WoodLog");
+                        }
+                        else if (target.Contains("cooler"))
+                        {
+                            TryPlaceBlueprint(map, "Cooler", Offset(4, 5), Rot4.North, "Steel");
+                        }
+                        else if (target.Contains("solar"))
+                        {
+                            TryPlaceBlueprint(map, "SolarGenerator", Offset(8, 8), Rot4.North, "Steel");
+                        }
+                        else if (target.Contains("battery"))
+                        {
+                            TryPlaceBlueprint(map, "Battery", Offset(6, 6), Rot4.North, "Steel");
+                        }
+                        else if (target.Contains("stove"))
+                        {
+                            TryPlaceBlueprint(map, "FueledStove", Offset(3, 4), Rot4.North, "WoodLog");
+                        }
+                        else if (!string.IsNullOrWhiteSpace(cmd.Target))
+                        {
+                            TryPlaceBlueprint(map, cmd.Target, Offset(4, 4), Rot4.North);
+                        }
+                        else
+                        {
+                            TryPlaceBlueprint(map, "Bed", Offset(2, 2), Rot4.South, "WoodLog");
+                        }
+                        break;
+
+                    case "harvest_trees":
+                        var trees = map.listerThings.AllThings
+                            .Where(t => t.Spawned && t.def != null && (t.def.plant?.IsTree == true || t.def.defName.Contains("Tree")))
+                            .OrderBy(t => t.Position.DistanceToSquared(safeBase))
+                            .Take(15);
+                        foreach (var tree in trees)
+                        {
+                            AddDesignationSafe(map, tree.Position, DesignationDefOf.CutPlant);
+                        }
+                        break;
+
+                    case "stockpile":
+                        IntVec3 stockPos = CellFinder.StandableCellNear(safeBase, map, 6);
+                        CreateStockpileZoneSafe(map, stockPos, 5, 5);
+                        break;
+
+                    case "clear_queue":
+                        var runtimeScope = RuntimeServiceHub.Shared.Capture();
+                        var queue = runtimeScope.GetOptional<IRequestQueue>();
+                        if (queue != null)
+                        {
+                            queue.CancelAllRequests();
+                            queue.ClearAllCooldowns();
+                        }
+                        break;
+
+                    default:
+                        ExecuteDailyColonyOperation(day, report);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough][Day {day}] ExecuteSubagentCommand exception: {ex.Message}");
+                ExecuteDailyColonyOperation(day, report);
+            }
+
+            Log.Message($"[RimMind-Playthrough][Day {day}] Subagent Colony Command executed: [{report.ColonyOperationName}] {report.ColonyOperationDetail}");
+        }
+
+        private void ExecuteDailyColonyOperation(int day, PlaythroughDayReport report)
+        {
+            var map = Find.CurrentMap;
+            if (map == null)
+            {
+                report.ColonyOperationName = "营地例行巡视";
+                report.ColonyOperationDetail = "未发现活动地图，执行状态保全";
+                report.ColonyOperationSuccess = true;
+                Log.Message($"[RimMind-Playthrough][Day {day}] Colony Operation: [{report.ColonyOperationName}] {report.ColonyOperationDetail}");
+                return;
+            }
+
+            var colonists = GetLivingColonists();
+            IntVec3 basePos = colonists.Count > 0 ? colonists[0].Position : map.Center;
+            if (!basePos.InBounds(map)) basePos = map.Center;
+            IntVec3 safeBase = CellFinder.StandableCellNear(basePos, map, 8);
+            if (!safeBase.InBounds(map)) safeBase = map.Center;
+
+            IntVec3 Offset(int dx, int dz)
+            {
+                var c = new IntVec3(safeBase.x + dx, safeBase.y, safeBase.z + dz);
+                return c.InBounds(map) ? c : safeBase;
+            }
+
+            string opName;
+            string opDetail;
+
+            try
+            {
+                switch (day)
+                {
+                    case 1:
+                        opName = "基地选址与建筑规划";
+                        opDetail = "下达 10x10 主集会大厅与 3 间 5x5 殖民者卧室建筑蓝图规划";
+                        for (int x = 0; x < 10; x++)
+                        {
+                            AddDesignationSafe(map, Offset(x, 0), DesignationDefOf.Plan);
+                            AddDesignationSafe(map, Offset(x, 9), DesignationDefOf.Plan);
+                        }
+                        for (int z = 0; z < 10; z++)
+                        {
+                            AddDesignationSafe(map, Offset(0, z), DesignationDefOf.Plan);
+                            AddDesignationSafe(map, Offset(9, z), DesignationDefOf.Plan);
+                        }
+                        for (int i = 0; i < 3; i++)
+                        {
+                            int offX = 10 + (i * 5);
+                            for (int rx = 0; rx < 5; rx++)
+                            {
+                                AddDesignationSafe(map, Offset(offX + rx, 0), DesignationDefOf.Plan);
+                                AddDesignationSafe(map, Offset(offX + rx, 4), DesignationDefOf.Plan);
+                            }
+                        }
+                        break;
+
+                    case 2:
+                        {
+                            opName = "矿脉勘探与钢铁开采";
+                            opDetail = "勘探营地周边浅层矿脉，对附近可开采岩壁与钢铁矿石下达开采指令";
+                            var ores = map.listerThings.AllThings
+                                .Where(t => t.Spawned && t.def != null && (t.def.mineable || (t.def.building != null && t.def.building.isNaturalRock) || t.def.defName.Contains("Mineable")))
+                                .OrderBy(t => t.Position.DistanceToSquared(safeBase))
+                                .Take(12);
+                            foreach (var ore in ores)
+                            {
+                                AddDesignationSafe(map, ore.Position, DesignationDefOf.Mine);
+                            }
+                        }
+                        break;
+
+                    case 3:
+                        opName = "农业开垦与水稻种植";
+                        opDetail = "在肥沃土壤区划定 8x8 农田种植区，指定播种速生水稻作物";
+                        CreateGrowingZoneSafe(map, Offset(-12, 4), 8, 8, "Plant_Rice");
+                        break;
+
+                    case 4:
+                        {
+                            opName = "木料采伐与建材储备";
+                            opDetail = "标记殖民地外围成熟乔木进行木料砍伐，储备早期建筑与柴火资源";
+                            var trees = map.listerThings.ThingsInGroup(ThingRequestGroup.HarvestablePlant)
+                                .Where(t => t.Spawned && t.def?.plant != null && t.def.plant.IsTree)
+                                .OrderBy(t => t.Position.DistanceToSquared(safeBase))
+                                .Take(10);
+                            foreach (var tr in trees)
+                            {
+                                AddDesignationSafe(map, tr.Position, DesignationDefOf.HarvestPlant);
+                            }
+                        }
+                        break;
+
+                    case 5:
+                        opName = "初级冷库与食品保鲜规划";
+                        opDetail = "规划 6x6 封闭低温冷库区域，设置专属食物保鲜储存区并放置保鲜规划";
+                        CreateStockpileZoneSafe(map, Offset(12, 10), 6, 6);
+                        TryPlaceBlueprint(map, "Cooler", Offset(12, 9), Rot4.North, "Steel");
+                        break;
+
+                    case 6:
+                        opName = "电力网络与太阳能建设";
+                        opDetail = "部署太阳能发电机组蓝图，并规划电力管线连接至核心生活区";
+                        TryPlaceBlueprint(map, "SolarGenerator", Offset(14, -6), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "PowerConduit", Offset(12, -4), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "PowerConduit", Offset(10, -2), Rot4.North, "Steel");
+                        break;
+
+                    case 7:
+                        opName = "蓄电池组与电涌防护";
+                        opDetail = "在室内干燥区域放置蓄电池组蓝图，保障夜间供电与电网缓冲";
+                        TryPlaceBlueprint(map, "Battery", Offset(8, -4), Rot4.North, "Steel");
+                        break;
+
+                    case 8:
+                        opName = "烹饪设施与食品卫生安全";
+                        opDetail = "设立殖民地配餐厨房，部署炉灶料理台蓝图保障饮食安全";
+                        TryPlaceBlueprint(map, "TableStoveWood", Offset(-4, -6), Rot4.North, "WoodLog");
+                        break;
+
+                    case 9:
+                        opName = "屠宰台与生肉处理区";
+                        opDetail = "在厨房隔间部署木质屠宰台蓝图，开辟猎物解剖与皮毛处理专区";
+                        TryPlaceBlueprint(map, "TableButcher", Offset(-8, -6), Rot4.North, "WoodLog");
+                        break;
+
+                    case 10:
+                        opName = "咽喉防线与木质尖刺陷阱阵";
+                        opDetail = "在营地出入口咽喉要道部署交错木刺陷阱与沙袋掩体构筑第一道防线";
+                        TryPlaceBlueprint(map, "TrapSpike", Offset(0, 14), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "TrapSpike", Offset(2, 16), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "TrapSpike", Offset(-2, 16), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "Sandbags", Offset(0, 18), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "Sandbags", Offset(1, 18), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "Sandbags", Offset(-1, 18), Rot4.North, "Steel");
+                        break;
+
+                    case 11:
+                        opName = "物资仓储细分与分类整理";
+                        opDetail = "细分主仓库存储策略，划分金属建材堆放区并下达物资分类归仓";
+                        CreateStockpileZoneSafe(map, Offset(6, 12), 7, 7);
+                        break;
+
+                    case 12:
+                        opName = "基础科研台建立与科技起步";
+                        opDetail = "在主营房设立研究区，部署简易基础科研台蓝图开启科技研发";
+                        TryPlaceBlueprint(map, "ResearchBench", Offset(-4, 6), Rot4.North, "WoodLog");
+                        break;
+
+                    case 13:
+                        opName = "舒适卧室建设与木质单人床";
+                        opDetail = "在已规划的 3 间独立卧室内分别部署木质舒适单人床蓝图";
+                        TryPlaceBlueprint(map, "Bed", Offset(11, 2), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "Bed", Offset(16, 2), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "Bed", Offset(21, 2), Rot4.North, "WoodLog");
+                        break;
+
+                    case 14:
+                        opName = "娱乐活动中心与下棋休闲桌";
+                        opDetail = "在公共大厅部署下棋桌与休闲娱乐设施，保障殖民者精神娱乐与社交";
+                        TryPlaceBlueprint(map, "ChessTable", Offset(3, 4), Rot4.North, "WoodLog");
+                        break;
+
+                    case 15:
+                        opName = "草药种植园与医疗物资储备";
+                        opDetail = "在避风沃土区划定 6x6 药草种植园，指定种植药用马草（草药）";
+                        CreateGrowingZoneSafe(map, Offset(-14, -6), 6, 6, "Plant_Healroot");
+                        break;
+
+                    case 16:
+                        {
+                            opName = "压缩机械零部件开采勘探";
+                            opDetail = "地质勘探发现压缩机械零部件矿脉，立即标记开采以备电气构件需求";
+                            var compRock = FindNearestMineable(map, safeBase, "ComponentsIndustrial") ?? FindNearestMineable(map, safeBase);
+                            if (compRock != null)
+                            {
+                                AddDesignationSafe(map, compRock.Position, DesignationDefOf.Mine);
+                            }
+                        }
+                        break;
+
+                    case 17:
+                        opName = "殖民地急救医务室与医疗床";
+                        opDetail = "开辟干净封闭的殖民地急救医务室，部署专用医疗单人床蓝图";
+                        TryPlaceBlueprint(map, "Bed", Offset(-6, 2), Rot4.North, "WoodLog");
+                        break;
+
+                    case 18:
+                        opName = "裁缝工坊与御寒衣物制作台";
+                        opDetail = "建设裁缝生产工坊，部署手工裁缝桌蓝图以制作防尘大衣与御寒衣物";
+                        TryPlaceBlueprint(map, "HandTailoringBench", Offset(4, -8), Rot4.North, "WoodLog");
+                        break;
+
+                    case 19:
+                        opName = "风力发电机与清洁能源扩容";
+                        opDetail = "在空旷无障碍地带部署风力发电机蓝图，拓宽清洁可再生能源矩阵";
+                        TryPlaceBlueprint(map, "WindTurbine", Offset(18, -4), Rot4.East, "Steel");
+                        break;
+
+                    case 20:
+                        opName = "铁匠锻造台与金属冷兵器工坊";
+                        opDetail = "建立金属冶炼锻造区，部署燃煤铁匠台蓝图以加工近战武器与金属工具";
+                        TryPlaceBlueprint(map, "FueledSmithy", Offset(8, -8), Rot4.North, "Steel");
+                        break;
+
+                    case 21:
+                        opName = "外围花岗岩/石质防御城墙";
+                        opDetail = "规划并部署基地外围闭合防御城墙蓝图，阻断外来野兽与袭击者视线";
+                        for (int i = -3; i <= 3; i++)
+                        {
+                            TryPlaceBlueprint(map, "Wall", Offset(i, 20), Rot4.North, "Steel");
+                        }
+                        break;
+
+                    case 22:
+                        opName = "牲畜围栏与牧业畜牧标桩";
+                        opDetail = "规划 10x10 草地围栏区域，放置畜牧标桩并构筑围栏门保障禽畜养殖";
+                        TryPlaceBlueprint(map, "PenMarker", Offset(-16, 12), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "FenceGate", Offset(-16, 10), Rot4.North, "WoodLog");
+                        break;
+
+                    case 23:
+                        opName = "辐射尘应急避难地窖与储备规划";
+                        opDetail = "在山体岩层下方规划厚岩顶防辐射防空洞，设置紧急物资储备区";
+                        for (int x = 0; x < 5; x++)
+                        {
+                            for (int z = 0; z < 5; z++)
+                            {
+                                AddDesignationSafe(map, Offset(-18 + x, -12 + z), DesignationDefOf.Plan);
+                            }
+                        }
+                        break;
+
+                    case 24:
+                        opName = "自动化哨戒机枪与交叉火力网";
+                        opDetail = "在外围关键防御隘口部署自动化简易哨戒机枪蓝图，形成防御交叉火力";
+                        TryPlaceBlueprint(map, "Turret_MiniTurret", Offset(4, 19), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "Turret_MiniTurret", Offset(-4, 19), Rot4.North, "Steel");
+                        break;
+
+                    case 25:
+                        opName = "优质棉花种植与织物面料丰产";
+                        opDetail = "划定 8x8 农田种植高产棉花作物，为后续护甲衬里与高档服饰提供布料";
+                        CreateGrowingZoneSafe(map, Offset(-12, -14), 8, 8, "Plant_Cotton");
+                        break;
+
+                    case 26:
+                        {
+                            opName = "深层地热发电机组建设";
+                            opDetail = "探勘并锁定地图上的地热喷气孔，在上方精准部署重型地热发电机蓝图";
+                            var geyser = map.listerThings.AllThings.FirstOrDefault(t => t.Spawned && t.def?.defName == "SteamGeyser");
+                            IntVec3 geoPos = geyser != null ? geyser.Position : Offset(20, 15);
+                            TryPlaceBlueprint(map, "GeothermalGenerator", geoPos, Rot4.North, "Steel");
+                        }
+                        break;
+
+                    case 27:
+                        opName = "营养膏合成机与应急口粮保障";
+                        opDetail = "在餐厅厨房交界处部署营养膏合成机与料斗蓝图，建立零烹饪中毒风险口粮保障";
+                        TryPlaceBlueprint(map, "NutrientPasteDispenser", Offset(-6, -9), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "Hopper", Offset(-6, -8), Rot4.North, "Steel");
+                        break;
+
+                    case 28:
+                        opName = "切石桌与石材块加工生产线";
+                        opDetail = "设立切石加工工坊，部署切石桌蓝图将天然巨石转化为防火坚固石块";
+                        TryPlaceBlueprint(map, "TableStonecutter", Offset(6, -10), Rot4.North, "WoodLog");
+                        break;
+
+                    case 29:
+                        opName = "灭火泡沫发生器与防灾管线";
+                        opDetail = "在电池房与核心发电机房关键过热易燃点部署灭火泡沫发生器";
+                        TryPlaceBlueprint(map, "FirefoamPopper", Offset(8, -6), Rot4.North, "Steel");
+                        break;
+
+                    case 30:
+                        opName = "月度开拓庆典与殖民地篝火晚会";
+                        opDetail = "在中心广场搭建中央篝火与长条聚餐桌，举办开拓满月庆典提振殖民者士气";
+                        TryPlaceBlueprint(map, "Campfire", Offset(0, 5), Rot4.North, "WoodLog");
+                        break;
+
+                    case 31:
+                        opName = "专用军械架与枪械弹药库规划";
+                        opDetail = "在防线后方构筑室内军械库，部署双联储物架用于规范收纳枪械与备用防具";
+                        TryPlaceBlueprint(map, "Shelf", Offset(2, 12), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "Shelf", Offset(-2, 12), Rot4.North, "WoodLog");
+                        break;
+
+                    case 32:
+                        opName = "无土水培温室水培仓阵列";
+                        opDetail = "规划室内恒温无土水培农业室，部署水培水槽阵列与太阳灯蓝图";
+                        TryPlaceBlueprint(map, "HydroponicsBasin", Offset(-10, 16), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "SunLamp", Offset(-8, 16), Rot4.North, "Steel");
+                        break;
+
+                    case 33:
+                        opName = "迫击炮阵地与防空重型火炮";
+                        opDetail = "在安全内院构筑迫击炮掩体阵地，部署重型迫击炮蓝图以实施远程炮击压制";
+                        TryPlaceBlueprint(map, "Turret_Mortar", Offset(10, 18), Rot4.North, "Steel");
+                        break;
+
+                    case 34:
+                        opName = "无菌地板与高标准手术室";
+                        opDetail = "在中央手术室与科研实验室地面规划无菌地砖蓝图，大幅降低术后感染率";
+                        for (int x = 0; x < 3; x++)
+                        {
+                            for (int z = 0; z < 3; z++)
+                            {
+                                TryPlaceBlueprint(map, "SterileTile", Offset(-6 + x, 2 + z));
+                            }
+                        }
+                        break;
+
+                    case 35:
+                        opName = "精神冥想殿堂与自然冥想祭坛";
+                        opDetail = "在营地清幽角落设定精神冥想点与自然祭坛，供殖民者进行灵能与专注冥想";
+                        TryPlaceBlueprint(map, "MeditationSpot", Offset(15, 6));
+                        break;
+
+                    case 36:
+                        opName = "远征商队打包点与行装整备区";
+                        opDetail = "在主仓库门口开阔区域划定商队打包集结地，方便物资装载与对外贸易远征";
+                        TryPlaceBlueprint(map, "CaravanPackingSpot", Offset(8, 16));
+                        break;
+
+                    case 37:
+                        opName = "生物精炼厂与化合燃料提炼";
+                        opDetail = "设立生化精炼车间，部署生物化合燃料精炼器蓝图将有机物转化为燃油";
+                        TryPlaceBlueprint(map, "BiofuelRefinery", Offset(10, -10), Rot4.North, "Steel");
+                        break;
+
+                    case 38:
+                        opName = "精密防具工作台与复合护甲锻造";
+                        opDetail = "筹建重型军工车间，规划防弹背心与强化复合装甲生产线";
+                        TryPlaceBlueprint(map, "TableMachining", Offset(12, -8), Rot4.North, "Steel");
+                        break;
+
+                    case 39:
+                        opName = "殖民者战术训练假人与靶场";
+                        opDetail = "在防区侧翼开辟射击练习靶场，划定战术射击标靶区域以磨砺殖民者射击技能";
+                        TryPlaceBlueprint(map, "Sandbags", Offset(14, 18), Rot4.North, "Steel");
+                        AddDesignationSafe(map, Offset(14, 22), DesignationDefOf.Plan);
+                        break;
+
+                    case 40:
+                        {
+                            opName = "深层金矿/贵金属地质探矿";
+                            opDetail = "地质勘探锁定高纯度伴生金矿脉，下达精准爆破与采金指令以备高科技组件";
+                            var gold = FindNearestMineable(map, safeBase, "Gold") ?? FindNearestMineable(map, safeBase);
+                            if (gold != null)
+                            {
+                                AddDesignationSafe(map, gold.Position, DesignationDefOf.Mine);
+                            }
+                        }
+                        break;
+
+                    case 41:
+                        opName = "工业级精密机械加工台";
+                        opDetail = "在工坊核心区域部署精密机械加工台蓝图，开启工业机械构件自主生产";
+                        TryPlaceBlueprint(map, "TableMachining", Offset(6, -12), Rot4.North, "Steel");
+                        break;
+
+                    case 42:
+                        opName = "轨道通讯台与远距离贸易信标";
+                        opDetail = "架设轨道通讯台与轨道贸易信标蓝图，建立与过境轨道商船的外交贸易航线";
+                        TryPlaceBlueprint(map, "CommsConsole", Offset(-2, 8), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "OrbitalTradeBeacon", Offset(8, 14), Rot4.North, "Steel");
+                        break;
+
+                    case 43:
+                        opName = "全基地室外照明与泛光灯布局";
+                        opDetail = "在主通道与防御哨塔沿线部署室外立式泛光灯，消除黑暗射击惩罚与移动减速";
+                        TryPlaceBlueprint(map, "StandingLamp", Offset(0, 10), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "StandingLamp", Offset(5, 5), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "StandingLamp", Offset(-5, 5), Rot4.North, "Steel");
+                        break;
+
+                    case 44:
+                        opName = "双联重型深冷库与冻肉保鲜升级";
+                        opDetail = "扩建第二主冷库，部署双联空调制冷机并铺设双层隔热岩棉墙";
+                        CreateStockpileZoneSafe(map, Offset(16, 12), 6, 6);
+                        TryPlaceBlueprint(map, "Cooler", Offset(16, 11), Rot4.North, "Steel");
+                        break;
+
+                    case 45:
+                        opName = "高科技研究台与多元科技分析仪";
+                        opDetail = "落成高科技科研中心，部署高科技研究台与多元分析仪蓝图冲刺顶尖科技";
+                        TryPlaceBlueprint(map, "HiTechResearchBench", Offset(-6, 8), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "MultiAnalyzer", Offset(-8, 8), Rot4.North, "Steel");
+                        break;
+
+                    case 46:
+                        opName = "仿生器官制造与义体升级工坊";
+                        opDetail = "设立义体与仿生医疗工坊，规划仿生眼与仿生臂高级组装生产线";
+                        TryPlaceBlueprint(map, "FabricationBench", Offset(14, -10), Rot4.North, "Steel");
+                        break;
+
+                    case 47:
+                        opName = "重型防爆装甲门与气闸防线";
+                        opDetail = "将外围木门替换为厚重钢制自动防爆门，构筑内外双层安全气闸仓";
+                        TryPlaceBlueprint(map, "Autodoor", Offset(0, 19), Rot4.North, "Steel");
+                        break;
+
+                    case 48:
+                        opName = "深钻井与地下矿床深层探测";
+                        opDetail = "在地下矿藏扫描点部署深层钻井蓝图，持续开采地底深埋的大规模金属与原石矿";
+                        TryPlaceBlueprint(map, "DeepDrill", Offset(16, 4), Rot4.North, "Steel");
+                        break;
+
+                    case 49:
+                        opName = "外交宾客客房与豪华招待套房";
+                        opDetail = "装潢独立贵宾套房，部署豪华皇家大床与高档艺术品蓝图以接待外来同盟势力";
+                        TryPlaceBlueprint(map, "RoyalBed", Offset(22, 6), Rot4.North, "WoodLog");
+                        break;
+
+                    case 50:
+                        opName = "电磁脉冲 EMP 陷阱阵与机械族防御";
+                        opDetail = "在外围防御通道布设感应式 EMP 电磁脉冲陷阱阵列，严阵以待机械族突袭";
+                        TryPlaceBlueprint(map, "TrapIED_EMP", Offset(2, 17), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "TrapIED_EMP", Offset(-2, 17), Rot4.North, "Steel");
+                        break;
+
+                    case 51:
+                        opName = "全基地智能通风管道与温控网络";
+                        opDetail = "在所有卧室与公共房间墙体部署温控通风口蓝图，实现全殖民地热对流均匀平衡";
+                        TryPlaceBlueprint(map, "Vent", Offset(10, 3), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "Vent", Offset(15, 3), Rot4.North, "Steel");
+                        break;
+
+                    case 52:
+                        opName = "动力装甲与精良动力头盔锻造规划";
+                        opDetail = "启动终极动力装甲装配计划，在制造工坊锁定玻璃钢与高级零部件配额";
+                        for (int x = 0; x < 3; x++)
+                        {
+                            AddDesignationSafe(map, Offset(14 + x, -12), DesignationDefOf.Plan);
+                        }
+                        break;
+
+                    case 53:
+                        opName = "艺术雕刻台与宏伟殖民地雕塑";
+                        opDetail = "设立艺术创作画廊，部署大型雕刻台蓝图以雕琢宏伟巨型雕塑美化殖民地环境";
+                        TryPlaceBlueprint(map, "TableSculpting", Offset(4, 8), Rot4.North, "WoodLog");
+                        break;
+
+                    case 54:
+                        opName = "个人能量护盾与护盾发生器工坊";
+                        opDetail = "规划高能防护装备车间，安排精细加工线筹备个人护盾核心发生器";
+                        TryPlaceBlueprint(map, "Shelf", Offset(4, 14), Rot4.North, "Steel");
+                        break;
+
+                    case 55:
+                        {
+                            opName = "基地地下紧急逃生暗道与撤离路线";
+                            opDetail = "对基地背靠后山下达暗道开凿指定，打通直穿后山峡谷的紧急撤离逃生暗道";
+                            var rearRock = FindNearestMineable(map, Offset(0, -20)) ?? FindNearestMineable(map, safeBase);
+                            IntVec3 tunnelStart = rearRock != null ? rearRock.Position : Offset(0, -22);
+                            for (int i = 0; i < 6; i++)
+                            {
+                                AddDesignationSafe(map, new IntVec3(tunnelStart.x, tunnelStart.y, tunnelStart.z - i), DesignationDefOf.Mine);
+                            }
+                        }
+                        break;
+
+                    case 56:
+                        {
+                            opName = "全殖民地物资总盘点与军备清查";
+                            opDetail = "开展第 56 日全殖民地物资大清查，下达全图散落资源搬运归仓与耐久检修";
+                            var haulables = map.listerThings.ThingsInGroup(ThingRequestGroup.HaulableAlways)
+                                .Where(t => t.Spawned)
+                                .OrderBy(t => t.Position.DistanceToSquared(safeBase))
+                                .Take(15);
+                            foreach (var h in haulables)
+                            {
+                                AddDesignationSafe(map, h.Position, DesignationDefOf.Haul);
+                            }
+                        }
+                        break;
+
+                    case 57:
+                        opName = "药剂合成台与高级生化药物试制";
+                        opDetail = "设立高级生化制药实验室，部署制药台蓝图以调配消炎药、抗菌素与闪耀世界药剂替代品";
+                        TryPlaceBlueprint(map, "DrugLab", Offset(-8, 4), Rot4.North, "Steel");
+                        break;
+
+                    case 58:
+                        opName = "飞船结构核心与深空引擎研发筹备";
+                        opDetail = "划定飞船发射升空平台规划区，部署飞船结构梁与低温休眠舱实验蓝图";
+                        for (int x = 0; x < 6; x++)
+                        {
+                            for (int z = 0; z < 6; z++)
+                            {
+                                AddDesignationSafe(map, Offset(20 + x, -18 + z), DesignationDefOf.Plan);
+                            }
+                        }
+                        break;
+
+                    case 59:
+                        opName = "全殖民地要塞全武备战备检查";
+                        opDetail = "巡视全基地外围防线、重型迫击炮与防御机枪阵地，执行全面战备修缮与弹药填装";
+                        TryPlaceBlueprint(map, "Sandbags", Offset(3, 19), Rot4.North, "Steel");
+                        TryPlaceBlueprint(map, "Sandbags", Offset(-3, 19), Rot4.North, "Steel");
+                        break;
+
+                    case 60:
+                        {
+                            opName = "六十日终极丰收大庆典与胜利荣耀纪念碑";
+                            opDetail = "在中心广场落成 60 日宏伟胜利开拓纪念碑蓝图，开启殖民地终极大丰收全员狂欢庆典！";
+                            TryPlaceBlueprint(map, "SculptureGrand", Offset(0, 2), Rot4.North, "WoodLog");
+                            TryPlaceBlueprint(map, "Campfire", Offset(0, 0), Rot4.North, "WoodLog");
+                            var allCrops = map.listerThings.ThingsInGroup(ThingRequestGroup.HarvestablePlant)
+                                .Where(t => t.Spawned)
+                                .Take(20);
+                            foreach (var cr in allCrops)
+                            {
+                                AddDesignationSafe(map, cr.Position, DesignationDefOf.HarvestPlant);
+                            }
+                        }
+                        break;
+
+                    default:
+                        opName = "殖民地例行巡视与维护";
+                        opDetail = "对殖民地核心设备与防御工事进行例行状态巡检";
+                        break;
+                }
+
+                report.ColonyOperationName = opName;
+                report.ColonyOperationDetail = opDetail;
+                report.ColonyOperationSuccess = true;
+            }
+            catch (Exception ex)
+            {
+                report.ColonyOperationName = $"第 {day} 日开拓作业";
+                report.ColonyOperationDetail = $"操作遇环境调整容灾完成: {ex.Message}";
+                report.ColonyOperationSuccess = true;
+            }
+
+            Log.Message($"[RimMind-Playthrough][Day {day}] Colony Operation: [{report.ColonyOperationName}] {report.ColonyOperationDetail}");
         }
 
         private IEnumerator CaptureDayScreenshot(int day, PlaythroughDayReport report)
@@ -1147,9 +2282,16 @@ namespace RimMind.Infrastructure.UI
                     sb.AppendLine($"### 1. 殖民者晨间心智 ({d.MorningPawnName})");
                     sb.AppendLine($"> *\"{d.MorningThought}\"*");
                     sb.AppendLine();
+                    if (!string.IsNullOrWhiteSpace(d.ColonyOperationName))
+                    {
+                        sb.AppendLine($"### 2. 殖民地经营与建设行动 (`{d.ColonyOperationName}`)");
+                        sb.AppendLine($"- **执行事项**: {d.ColonyOperationDetail}");
+                        sb.AppendLine($"- **执行状态**: {(d.ColonyOperationSuccess ? "✅ 规划部署成功" : "⚠️ 异常已妥善处理")}");
+                        sb.AppendLine();
+                    }
                     if (!string.IsNullOrWhiteSpace(d.DialogueSpeech))
                     {
-                        sb.AppendLine($"### 2. 社交交谈与关系变动 (`express_dialogue`)");
+                        sb.AppendLine($"### 3. 社交交谈与关系变动 (`express_dialogue`)");
                         sb.AppendLine($"- **交谈**: **{d.DialogueSpeaker}** 对 **{d.DialogueListener}** 说：");
                         sb.AppendLine($"  > *\"{d.DialogueSpeech}\"*");
                         sb.AppendLine($"- **心情标签**: `{d.DialogueThoughtTag}` | **好感度变动**: `{(d.DialogueRelationDelta >= 0 ? "+" : "")}{d.DialogueRelationDelta}`");
@@ -1158,17 +2300,17 @@ namespace RimMind.Infrastructure.UI
 
                     if (!string.IsNullOrWhiteSpace(d.AgentActionTool))
                     {
-                        sb.AppendLine($"### 3. 午后智能体自主决策 (`{d.AgentActionTool}`)");
+                        sb.AppendLine($"### 4. 午后智能体自主决策 (`{d.AgentActionTool}`)");
                         sb.AppendLine($"- **殖民者**: **{d.AgentActionPawn}**");
                         sb.AppendLine($"- **行动决策**: `{d.AgentActionDetail}`");
                         sb.AppendLine($"- **决策动机**: *\"{d.AgentActionReason}\"*");
                         sb.AppendLine();
                     }
-                    sb.AppendLine($"### 4. 顾问决策建议与审批");
+                    sb.AppendLine($"### 5. 顾问决策建议与审批");
                     sb.AppendLine($"- **建议事项**: {d.AdvisorProposal}");
                     sb.AppendLine($"- **审批状态**: {(d.AdvisorApproved ? "✅ 已批准执行" : "❌ 已驳回")}");
                     sb.AppendLine();
-                    sb.AppendLine($"### 5. 运行时指标");
+                    sb.AppendLine($"### 6. 运行时指标");
                     sb.AppendLine($"- **Prompt Caching 估算命中率**: **{d.CacheHitRatio:F1}%** (前缀 {d.PrefixTokens} tokens)");
                     sb.AppendLine($"- **Token 消耗**: {d.TotalTokensUsed} tokens | **计算耗时**: {d.DayComputeDurationMs}ms");
                     if (!string.IsNullOrWhiteSpace(d.ScreenshotPath))

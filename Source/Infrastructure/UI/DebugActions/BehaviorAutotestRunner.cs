@@ -102,17 +102,37 @@ namespace RimMind.Infrastructure.UI
             _startupChecked = true;
 
             string? ptRunId = null;
-            if (GenCommandLine.TryGetCommandLineArg("rimmind-10day-playthrough", out ptRunId) ||
-                GenCommandLine.TryGetCommandLineArg("rimmind-playthrough", out ptRunId))
+            bool isPlaythrough = GenCommandLine.TryGetCommandLineArg("rimmind-10day-playthrough", out ptRunId) ||
+                                 GenCommandLine.TryGetCommandLineArg("rimmind-playthrough", out ptRunId) ||
+                                 GenCommandLine.CommandLineArgPassed("rimmind-playthrough") ||
+                                 GenCommandLine.CommandLineArgPassed("rimmind-10day-playthrough");
+
+            if (isPlaythrough)
             {
                 int totalDays = 10;
-                if (GenCommandLine.TryGetCommandLineArg("rimmind-playthrough-days", out string daysArg) && int.TryParse(daysArg, out int parsedDays) && parsedDays > 0)
+                if ((GenCommandLine.TryGetCommandLineArg("rimmind-playthrough-days", out string daysArg) ||
+                     GenCommandLine.TryGetCommandLineArg("totalDays", out daysArg)) && int.TryParse(daysArg, out int parsedDays) && parsedDays > 0)
                 {
                     totalDays = parsedDays;
                 }
-                else if (int.TryParse(Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_DAYS"), out int envDays) && envDays > 0)
+                else
                 {
-                    totalDays = envDays;
+                    string[] args = Environment.GetCommandLineArgs();
+                    for (int i = 0; i < args.Length - 1; i++)
+                    {
+                        if ((string.Compare(args[i], "-totalDays", true) == 0 ||
+                             string.Compare(args[i], "-rimmind-playthrough-days", true) == 0 ||
+                             string.Compare(args[i], "totalDays", true) == 0) &&
+                            int.TryParse(args[i + 1], out int spacedDays) && spacedDays > 0)
+                        {
+                            totalDays = spacedDays;
+                            break;
+                        }
+                    }
+                    if (totalDays == 10 && int.TryParse(Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_DAYS"), out int envDays) && envDays > 0)
+                    {
+                        totalDays = envDays;
+                    }
                 }
                 TenDayPlaythroughRunner.StartPlaythrough(ptRunId, totalDays);
                 return;
