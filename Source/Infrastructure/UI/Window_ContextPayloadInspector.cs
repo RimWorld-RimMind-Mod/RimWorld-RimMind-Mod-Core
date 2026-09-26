@@ -93,6 +93,14 @@ namespace RimMind.Infrastructure.UI
             doCloseX = true;
         }
 
+        internal void SetViewForTest(Pawn? pawn, int scenarioIndex, int tabIndex)
+        {
+            _selectedPawn = pawn;
+            _selectedScenarioIndex = scenarioIndex;
+            _selectedTab = tabIndex;
+            RebuildEnvelope();
+        }
+
         public override void PostOpen()
         {
             base.PostOpen();
