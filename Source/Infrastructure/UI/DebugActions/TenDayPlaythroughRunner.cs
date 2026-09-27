@@ -178,6 +178,13 @@ namespace RimMind.Infrastructure.UI
                 ? customBridge!
                 : Path.Combine(_outputDir, "bridge");
 
+            // Suppress Learning Helper tutorial overlay during playthrough to prevent HUD occlusion
+            try
+            {
+                Prefs.AdaptiveTrainingEnabled = false;
+            }
+            catch { }
+
             try
             {
                 if (!Directory.Exists(_bridgeDir))
@@ -232,7 +239,7 @@ namespace RimMind.Infrastructure.UI
             {
                 var daySw = Stopwatch.StartNew();
                 int dayStartTick = Find.TickManager.TicksGame;
-                string dateStr = GenDate.DateFullStringAt(dayStartTick, Find.WorldGrid.LongLatOf(Find.CurrentMap.Tile));
+                string dateStr = GenDate.DateFullStringAt(GenTicks.TicksAbs, Find.WorldGrid.LongLatOf(Find.CurrentMap.Tile));
 
                 Log.Message($"[RimMind-Playthrough] >>> Starting Day {day}/{_totalDays} (GameTick: {dayStartTick}, Date: {dateStr}) <<<");
 
