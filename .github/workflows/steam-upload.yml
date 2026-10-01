@@ -157,7 +157,7 @@ jobs:
     environment: steam-production  # 需要配置环境保护规则
     steps:
       - name: Download Package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: steam-mod-package
           path: /tmp/steam-upload/
