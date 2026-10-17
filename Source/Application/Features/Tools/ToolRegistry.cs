@@ -46,7 +46,35 @@ namespace RimMind.Application.Features.Tools
 
         public IToolHandler? FindById(string toolId)
         {
-            return _handlers.TryGetValue(toolId, out var h) ? h : null;
+            if (string.IsNullOrEmpty(toolId)) return null;
+            if (_handlers.TryGetValue(toolId, out var h)) return h;
+
+            // Direct candidate variations
+            if (toolId.Contains("."))
+            {
+                if (_handlers.TryGetValue(toolId.Replace('.', '_'), out h)) return h;
+            }
+            if (toolId.StartsWith("actions_", StringComparison.OrdinalIgnoreCase))
+            {
+                var actionsCandidate = "actions." + toolId.Substring(8);
+                if (_handlers.TryGetValue(actionsCandidate, out h)) return h;
+            }
+            if (toolId.Contains("_"))
+            {
+                if (_handlers.TryGetValue(toolId.Replace('_', '.'), out h)) return h;
+            }
+
+            // Universal canonical fallback (normalizing both to underscores, case-insensitive)
+            var targetNormalized = toolId.Replace('.', '_');
+            foreach (var kvp in _handlers)
+            {
+                if (string.Equals(kvp.Key.Replace('.', '_'), targetNormalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Value;
+                }
+            }
+
+            return null;
         }
 
         public IReadOnlyList<IToolHandler> All => _handlers.Values.ToList();

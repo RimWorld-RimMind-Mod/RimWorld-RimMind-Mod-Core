@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <RimMind_GenericAction.reportString>正在执行 AI 决策</RimMind_GenericAction.reportString>
+  <RimMind_Rest.reportString>休息中（AI 决策）</RimMind_Rest.reportString>
+  <RimMind_Work.reportString>工作中（AI 决策）</RimMind_Work.reportString>
+  <RimMind_Socialize.reportString>社交中（AI 决策）</RimMind_Socialize.reportString>
+  <RimMind_EmergencyTend.reportString>紧急救治中（AI 决策）</RimMind_EmergencyTend.reportString>
+</LanguageData>

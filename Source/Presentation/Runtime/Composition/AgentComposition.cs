@@ -45,7 +45,8 @@ namespace RimMind.Presentation.Runtime.Composition
             INpcManagerAccessor npcManagers,
             ICompletionFence completionFence,
             Func<Pawn, AgentIdentity?> identityProvider,
-            IThoughtInjector? thoughtInjector = null)
+            IThoughtInjector? thoughtInjector = null,
+            IGameContextBuilder? existingGameContextBuilder = null)
         {
             services.Bind<IAgentIdentityProvider>(new AgentIdentityProviderAdapter(identityProvider));
 
@@ -84,11 +85,19 @@ namespace RimMind.Presentation.Runtime.Composition
             var scopedAgentManager = new ScopedAgentManager(scopedAgentFactory, agentLoopScheduler);
             services.Bind<IScopedAgentManager>(scopedAgentManager);
 
-            var gameContextBuilder = new GameContextBuilder(
-                new PawnContextBuilder(resolvedSettings, logSink),
-                new MapContextBuilder(resolvedSettings),
-                npcManagers);
-            services.Bind<IGameContextBuilder>(gameContextBuilder);
+            IGameContextBuilder gameContextBuilder;
+            if (existingGameContextBuilder != null)
+            {
+                gameContextBuilder = existingGameContextBuilder;
+            }
+            else
+            {
+                gameContextBuilder = new GameContextBuilder(
+                    new PawnContextBuilder(resolvedSettings, logSink),
+                    new MapContextBuilder(resolvedSettings),
+                    npcManagers);
+                services.Bind<IGameContextBuilder>(gameContextBuilder);
+            }
 
             var responseDispatcher = new ResponseDispatcher(agentBus);
             services.Bind<IResponseDispatcher>(responseDispatcher);

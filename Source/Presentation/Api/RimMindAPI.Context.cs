@@ -32,6 +32,7 @@ namespace RimMind.Presentation.Api
             public static string ScenarioPersonality => ScenarioIds.Personality;
             public static string ScenarioStoryteller => ScenarioIds.Storyteller;
             public static string ScenarioMemory => ScenarioIds.Memory;
+            public static string ScenarioCrisisDialogue => ScenarioIds.CrisisDialogue;
 
             // ── ScenarioRegistry ──
 

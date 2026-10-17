@@ -40,6 +40,7 @@ namespace RimMind.Application
             var agentBus = new AgentBusImpl();
 
             var toolRegistry = new ToolRegistry();
+            toolRegistry.Register(new QueryToolHelpTool(toolRegistry));
 
             var parameterStore = new FlywheelParameterStore();
 

@@ -18,13 +18,22 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             int defaultMaxTokens,
             bool stream = false)
         {
+            int effectiveMaxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : defaultMaxTokens;
+            if (!string.IsNullOrEmpty(modelName) &&
+                (modelName.IndexOf("deepseek-v4", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 modelName.IndexOf("reasoner", System.StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                effectiveMaxTokens = System.Math.Max(effectiveMaxTokens, 2048);
+            }
+
             var body = new OpenAIRequestDto
             {
                 model = modelName,
                 messages = BuildMessages(envelope),
-                max_tokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : defaultMaxTokens,
+                max_tokens = effectiveMaxTokens,
                 temperature = envelope.Temperature,
                 stream = stream,
+                stream_options = stream ? new StreamOptionsDto() : null,
             };
 
             if (TryParseJson(envelope.JsonSchema, out var parsedSchema))
@@ -45,7 +54,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     {
                         Function = new ToolFunctionDto
                         {
-                            Name = t.Name,
+                            Name = t.Name?.Replace('.', '_') ?? "",
                             Description = t.Description,
                             Parameters = t.Parameters != null
                                 ? JsonConvert.DeserializeObject(t.Parameters)

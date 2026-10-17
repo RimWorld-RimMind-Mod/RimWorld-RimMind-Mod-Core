@@ -27,8 +27,11 @@ namespace RimMind.Application.Features.Pipeline.Bus
             }
             finally
             {
-                var elapsed = (DateTime.UtcNow - start).TotalMilliseconds;
-                _log?.Message($"[BusTelemetry] Event {context.Event?.GetType().Name} published in {elapsed:F0}ms");
+                if (_log != null && _log.GetType().Name != "VerseLogSink")
+                {
+                    var elapsed = (DateTime.UtcNow - start).TotalMilliseconds;
+                    _log.Message($"[BusTelemetry] Event {context.Event?.GetType().Name} published in {elapsed:F0}ms");
+                }
             }
         }
     }

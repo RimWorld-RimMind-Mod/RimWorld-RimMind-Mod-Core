@@ -142,7 +142,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                             type = "function",
                             function = new
                             {
-                                name = t.Name,
+                                name = t.Name?.Replace('.', '_') ?? "",
                                 description = t.Description,
                                 parameters = t.Parameters != null
                                     ? JsonConvert.DeserializeObject(t.Parameters)

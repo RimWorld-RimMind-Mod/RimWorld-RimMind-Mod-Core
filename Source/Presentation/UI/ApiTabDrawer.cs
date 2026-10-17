@@ -594,6 +594,163 @@ namespace RimMind.Presentation.UI
             listing.Gap(4f);
             listing.LabelWithTooltip("RimMind.Settings.ModelName".Translate(), "RimMind.Settings.ModelName.Desc".Translate());
             s.ModelName = listing.TextEntryWithTooltip(s.ModelName, "RimMind.Settings.ModelName.Desc".Translate());
+
+            listing.Gap(8f);
+            DrawBackupEndpointsSection(listing);
+        }
+
+        private static int _editingBackupKeyIndex = -1;
+
+        private static string TrSafe(string key, string fallback)
+        {
+            return key.CanTranslate() ? key.Translate().ToString() : fallback;
+        }
+
+        private static void DrawBackupEndpointsSection(Listing_Standard listing)
+        {
+            var coreSettings = RimMindCoreMod.Settings;
+            if (coreSettings == null) return;
+            coreSettings.backupEndpoints ??= new List<BackupEndpointEntry>();
+            var list = coreSettings.backupEndpoints;
+
+            string headerLabel = TrSafe("RimMind.Settings.BackupEndpoints", "Backup API Failover Nodes");
+            string headerDesc = TrSafe("RimMind.Settings.BackupEndpoints.Desc",
+                "Ordered failover list of backup API endpoints. When the primary endpoint fails, RimMind automatically switches to the next healthy backup node.");
+
+            Rect headerRow = listing.GetRect(26f);
+            float btnW = 148f;
+            Rect titleRect = new Rect(headerRow.x, headerRow.y + 2f, headerRow.width - (btnW * 2f + 12f), headerRow.height);
+            Rect addOpenCodeRect = new Rect(headerRow.xMax - (btnW * 2f + 6f), headerRow.y, btnW, 24f);
+            Rect addCustomRect = new Rect(headerRow.xMax - btnW, headerRow.y, btnW, 24f);
+
+            Widgets.Label(titleRect, headerLabel + $" ({list.Count})");
+            TooltipHandler.TipRegion(titleRect, headerDesc);
+
+            if (Widgets.ButtonText(addOpenCodeRect, TrSafe("RimMind.Settings.BackupEndpoints.AddOpenCode", "+ OpenCode Go Backup")))
+            {
+                list.Add(new BackupEndpointEntry
+                {
+                    name = $"OpenCode Go #{list.Count + 1}",
+                    provider = "opencode",
+                    apiEndpoint = "https://opencode.ai/zen/go/v1",
+                    modelName = "deepseek-v4.1-flash",
+                    apiKey = string.Empty,
+                    enabled = true
+                });
+            }
+            TooltipHandler.TipRegion(addOpenCodeRect, headerDesc);
+
+            if (Widgets.ButtonText(addCustomRect, TrSafe("RimMind.Settings.BackupEndpoints.AddCustom", "+ Custom Backup")))
+            {
+                list.Add(new BackupEndpointEntry
+                {
+                    name = $"Backup #{list.Count + 1}",
+                    provider = "openai",
+                    apiEndpoint = "https://api.deepseek.com/v1",
+                    modelName = "deepseek-chat",
+                    apiKey = string.Empty,
+                    enabled = true
+                });
+            }
+            TooltipHandler.TipRegion(addCustomRect, headerDesc);
+
+            if (list.Count == 0)
+            {
+                Rect emptyRow = listing.GetRect(22f);
+                GUI.color = new Color(0.6f, 0.65f, 0.72f, 0.8f);
+                Widgets.Label(emptyRow, TrSafe("RimMind.Settings.BackupEndpoints.Empty", "No backup nodes configured."));
+                GUI.color = Color.white;
+                TooltipHandler.TipRegion(emptyRow, headerDesc);
+                return;
+            }
+
+            int removeIdx = -1;
+            int moveUpIdx = -1;
+            int moveDownIdx = -1;
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                var entry = list[i];
+                if (entry == null) continue;
+
+                listing.Gap(4f);
+                Rect cardRow1 = listing.GetRect(24f);
+                Widgets.DrawBoxSolid(cardRow1, new Color(0.08f, 0.10f, 0.14f, 0.55f));
+
+                Rect enableRect = new Rect(cardRow1.x + 4f, cardRow1.y, 24f, 24f);
+                Widgets.Checkbox(enableRect.x, enableRect.y, ref entry.enabled);
+
+                Rect badgeRect = new Rect(enableRect.xMax + 4f, cardRow1.y + 2f, 34f, 20f);
+                Widgets.Label(badgeRect, $"#{i + 1}");
+
+                float actionBtnsW = 92f;
+                float fieldGap = 6f;
+                float remainingW = cardRow1.width - 70f - actionBtnsW - fieldGap * 3f;
+                float endpointW = remainingW * 0.56f;
+                float modelW = remainingW * 0.44f;
+
+                Rect epRect = new Rect(badgeRect.xMax + 4f, cardRow1.y + 1f, endpointW, 22f);
+                entry.apiEndpoint = Widgets.TextField(epRect, entry.apiEndpoint ?? string.Empty);
+                TooltipHandler.TipRegion(epRect, "RimMind.Settings.ApiEndpoint.Desc".Translate());
+                if (entry.apiEndpoint.IndexOf("opencode.ai", StringComparison.OrdinalIgnoreCase) >= 0)
+                    entry.provider = "opencode";
+
+                Rect modelRect = new Rect(epRect.xMax + fieldGap, cardRow1.y + 1f, modelW, 22f);
+                entry.modelName = Widgets.TextField(modelRect, entry.modelName ?? string.Empty);
+                TooltipHandler.TipRegion(modelRect, "RimMind.Settings.ModelName.Desc".Translate());
+
+                Rect upBtn = new Rect(cardRow1.xMax - actionBtnsW, cardRow1.y + 1f, 26f, 22f);
+                Rect downBtn = new Rect(upBtn.xMax + 3f, cardRow1.y + 1f, 26f, 22f);
+                Rect delBtn = new Rect(downBtn.xMax + 3f, cardRow1.y + 1f, 30f, 22f);
+
+                if (i > 0 && Widgets.ButtonText(upBtn, "↑")) moveUpIdx = i;
+                if (i < list.Count - 1 && Widgets.ButtonText(downBtn, "↓")) moveDownIdx = i;
+                if (Widgets.ButtonText(delBtn, "×")) removeIdx = i;
+
+                Rect cardRow2 = listing.GetRect(24f);
+                float showBtnW = 52f;
+                Rect keyField = new Rect(cardRow2.x + 32f, cardRow2.y + 1f, cardRow2.width - 32f - showBtnW - 4f, 22f);
+                Rect showToggle = new Rect(keyField.xMax + 4f, cardRow2.y + 1f, showBtnW, 22f);
+
+                bool showingThisKey = _editingBackupKeyIndex == i;
+                if (showingThisKey)
+                {
+                    entry.apiKey = Widgets.TextField(keyField, entry.apiKey ?? string.Empty);
+                }
+                else
+                {
+                    Widgets.DrawBoxSolid(keyField, new Color(0.04f, 0.05f, 0.08f, 0.6f));
+                    string keyPreview = string.IsNullOrEmpty(entry.apiKey)
+                        ? "RimMind.Settings.ApiKey.EmptyPlaceholder".Translate().ToString()
+                        : "RimMind.Settings.ApiKey.Saved".Translate(entry.apiKey.Length).ToString();
+                    Widgets.Label(new Rect(keyField.x + 6f, keyField.y + 2f, keyField.width - 12f, keyField.height), keyPreview);
+                    if (Widgets.ButtonInvisible(keyField))
+                        _editingBackupKeyIndex = i;
+                }
+                TooltipHandler.TipRegion(keyField, "RimMind.Settings.ApiKey.Desc".Translate());
+                if (Widgets.ButtonText(showToggle, showingThisKey ? "RimMind.Settings.Hide".Translate() : "RimMind.Settings.Show".Translate()))
+                {
+                    _editingBackupKeyIndex = showingThisKey ? -1 : i;
+                }
+            }
+
+            if (removeIdx >= 0 && removeIdx < list.Count)
+            {
+                list.RemoveAt(removeIdx);
+                if (_editingBackupKeyIndex == removeIdx) _editingBackupKeyIndex = -1;
+            }
+            else if (moveUpIdx > 0 && moveUpIdx < list.Count)
+            {
+                var tmp = list[moveUpIdx - 1];
+                list[moveUpIdx - 1] = list[moveUpIdx];
+                list[moveUpIdx] = tmp;
+            }
+            else if (moveDownIdx >= 0 && moveDownIdx < list.Count - 1)
+            {
+                var tmp = list[moveDownIdx + 1];
+                list[moveDownIdx + 1] = list[moveDownIdx];
+                list[moveDownIdx] = tmp;
+            }
         }
 
         private static void DrawPlayer2Section(

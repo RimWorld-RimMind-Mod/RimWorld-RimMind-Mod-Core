@@ -107,6 +107,16 @@ namespace RimWorld
 
     /// <summary>Stub for RimWorld.MainTabWindow used in UI base class tests.</summary>
     public class MainTabWindow : Verse.Window { }
+
+    public class Faction
+    {
+        public static Faction OfPlayer = new();
+    }
+
+    public static class KidnapAIUtility
+    {
+        public static bool IsKidnapped(this Verse.Pawn pawn) => false;
+    }
 }
 
 namespace Verse
@@ -137,12 +147,22 @@ namespace Verse
         public virtual void ExposeData() { }
     }
 
+    public class RaceProperties
+    {
+        public bool Animal;
+    }
+
     /// <summary>Stub for RimWorld Verse.Pawn used in test compilation.</summary>
     public class Pawn : ThingWithComps
     {
         public int thingIDNumber;
         public bool Dead;
+        public bool Destroyed;
+        public bool Spawned = true;
         public bool IsColonist = true;
+        public bool IsPrisoner = false;
+        public bool IsSlave = false;
+        public RimWorld.Faction? Faction = RimWorld.Faction.OfPlayer;
         public bool Downed = false;
         public object? MentalState = null;
         public Map? Map { get; set; }
@@ -152,6 +172,7 @@ namespace Verse
         public string LabelCap => LabelShortCap;
         public string ThingID => "Pawn_" + thingIDNumber;
         public object jobs = new();
+        public RaceProperties RaceProps = new();
 
         public T? GetComp<T>() where T : ThingComp
         {
@@ -190,6 +211,8 @@ namespace Verse
         public List<Pawn> AllPawnsSpawned = new();
         public List<Pawn> AllPawns = new();
         public List<Pawn> FreeColonists = new();
+        public List<Pawn> FreeColonistsSpawned = new();
+        public List<Pawn> SpawnedColonyAnimals = new();
     }
 
     public class WorldPawns
@@ -211,6 +234,18 @@ namespace Verse
     /// <summary>Stub for Verse.ThingWithComps base class.</summary>
     public class ThingWithComps
     {
+        public List<ThingComp> AllComps = new();
+        public T? TryGetComp<T>() where T : ThingComp
+        {
+            if (AllComps != null)
+            {
+                for (int i = 0; i < AllComps.Count; i++)
+                {
+                    if (AllComps[i] is T match) return match;
+                }
+            }
+            return null;
+        }
         public bool DestroyedOrNull() => false;
     }
 
@@ -465,9 +500,12 @@ namespace Verse
     /// <summary>Stub for Verse.Translate extension method.</summary>
     public static class TranslateStub
     {
+        public static bool CanTranslate(this string key) => true;
         public static string Translate(this string key) => key;
         public static string Translate(this string key, string arg1) => $"{key}:{arg1}";
         public static string Translate(this string key, object arg1) => $"{key}:{arg1}";
+        public static string Translate(this string key, params object[] args)
+            => args == null || args.Length == 0 ? key : $"{key}:{string.Join(",", args)}";
     }
 
     /// <summary>Stub for Verse.IExposable used in test compilation.</summary>
@@ -591,6 +629,9 @@ namespace RimMind.Presentation.Agent
         Pawn Pawn { get; }
         new Verse.AI.Job? ConsumePendingJob();
         void SetPendingJob(Verse.AI.Job job);
+        RimMind.Infrastructure.Verse.AgentIntentSession? ActiveIntentSession { get; }
+        void StartIntentSession(RimMind.Infrastructure.Verse.AgentIntentSession session);
+        void ClearIntentSession();
     }
 
     /// <summary>Stub for IPawnAgentFactoryVerse used in test compilation.</summary>
@@ -604,6 +645,9 @@ namespace RimMind.Presentation.Agent
     {
         Verse.AI.Job? ConsumePendingJob();
         void SetPendingJob(Verse.AI.Job job);
+        RimMind.Infrastructure.Verse.AgentIntentSession? ActiveIntentSession { get; }
+        void StartIntentSession(RimMind.Infrastructure.Verse.AgentIntentSession session);
+        void ClearIntentSession();
     }
 }
 

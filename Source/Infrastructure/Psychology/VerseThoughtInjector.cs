@@ -57,13 +57,33 @@ namespace RimMind.Infrastructure.Psychology
 
         private static Pawn? FindPawn(int pawnId)
         {
-            foreach (var map in Find.Maps)
+            var cached = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+            if (cached != null) return cached;
+
+            if (UnityData.IsInMainThread)
             {
-                var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                if (pawn != null) return pawn;
+                if (Find.Maps != null)
+                {
+                    foreach (var map in Find.Maps)
+                    {
+                        var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
+                        if (pawn != null)
+                        {
+                            Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
+                            return pawn;
+                        }
+                    }
+                }
+
+                var worldPawn = Find.WorldPawns?.AllPawnsAlive?.FirstOrDefault(p => p.thingIDNumber == pawnId);
+                if (worldPawn != null)
+                {
+                    Presentation.Api.RimMindPawnLookup.CachePawn(worldPawn);
+                    return worldPawn;
+                }
             }
-            var worldPawn = Find.WorldPawns?.AllPawnsAlive.FirstOrDefault(p => p.thingIDNumber == pawnId);
-            return worldPawn;
+
+            return null;
         }
     }
 }

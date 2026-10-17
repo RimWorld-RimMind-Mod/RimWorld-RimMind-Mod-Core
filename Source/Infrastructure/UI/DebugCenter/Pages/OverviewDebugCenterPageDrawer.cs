@@ -498,7 +498,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     {
                         comp.Agent.ForceThink();
                         comp.Agent.Tick();
-                        Messages.Message(string.Format("RimMind.UI.Hub.AgentTickTriggered".Translate(), selectedPawn.LabelShortCap), MessageTypeDefOf.TaskCompletion, false);
+                        Messages.Message("RimMind.UI.Hub.AgentTickTriggered".Translate(selectedPawn.LabelShortCap), MessageTypeDefOf.TaskCompletion, false);
                     }
                     else
                     {
@@ -627,7 +627,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             };
         private static void ActivateAllLivingColonistAgents()
         {
-            var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList();
+            var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetEligibleColonists(Find.CurrentMap);
             int count = 0;
             if (colonists != null)
             {
@@ -644,7 +644,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     }
                 }
             }
-            Messages.Message(string.Format("RimMind.UI.Hub.AllAgentsActivated".Translate(), count), MessageTypeDefOf.TaskCompletion, false);
+            Messages.Message("RimMind.UI.Hub.AllAgentsActivated".Translate(count), MessageTypeDefOf.TaskCompletion, false);
         }
     }
 }

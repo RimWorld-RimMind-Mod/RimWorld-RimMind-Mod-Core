@@ -7,10 +7,33 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 {
     public partial class OpenAIClient
     {
-        private string BuildEnvelopeRequestJson(RimMind.Domain.Llm.LlmRequestEnvelope envelope, bool stream = false)
+        private string BuildEnvelopeRequestJson(
+            RimMind.Domain.Llm.LlmRequestEnvelope envelope,
+            bool stream = false,
+            string? modelNameOverride = null,
+            string? endpointOverride = null)
         {
+            string rawModel = !string.IsNullOrWhiteSpace(modelNameOverride) ? modelNameOverride! : _settings.ModelName;
+            string model = NormalizeModelNameForEndpoint(endpointOverride ?? _settings.ApiEndpoint, rawModel);
             return OpenAIRequestSerializer.BuildRequestJson(
-                envelope, _settings.ModelName, _settings.MaxTokens, stream);
+                envelope, model, _settings.MaxTokens, stream);
+        }
+
+        internal static string NormalizeModelNameForEndpoint(string? endpoint, string? modelName)
+        {
+            if (string.IsNullOrWhiteSpace(modelName))
+                return string.Empty;
+
+            string trimmedModel = modelName!.Trim();
+            if (!string.IsNullOrWhiteSpace(endpoint) &&
+                endpoint!.IndexOf("opencode.ai", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                trimmedModel.EndsWith("-free", StringComparison.OrdinalIgnoreCase) &&
+                trimmedModel.Length > 5)
+            {
+                return trimmedModel.Substring(0, trimmedModel.Length - 5);
+            }
+
+            return trimmedModel;
         }
 
         private static void EnsureJsonKeyword(List<MessageDto> messages)

@@ -59,15 +59,17 @@ namespace RimMind.Application.Common.Behaviours
             }
 
             var snapshot = _middlewares;
-            int index = 0;
-            async Task Next(TContext ctx)
+            MiddlewareDelegate<TContext> InvokeStep(int stepIndex)
             {
-                if (ctx.IsShortCircuited) return;
-                if (index >= snapshot.Count) return;
-                var mw = snapshot[index++];
-                await mw.InvokeAsync(ctx, Next).ConfigureAwait(false);
+                return async ctx =>
+                {
+                    if (ctx.IsShortCircuited) return;
+                    if (stepIndex >= snapshot.Count) return;
+                    var mw = snapshot[stepIndex];
+                    await mw.InvokeAsync(ctx, InvokeStep(stepIndex + 1)).ConfigureAwait(false);
+                };
             }
-            await Next(context).ConfigureAwait(false);
+            await InvokeStep(0)(context).ConfigureAwait(false);
         }
 
         private void MergeExtensions()

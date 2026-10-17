@@ -54,7 +54,8 @@ namespace RimMind.Infrastructure.UI
         {
             bool selected = _selectedScope == scope;
             GUI.color = selected ? new Color(0.45f, 0.85f, 1f) : Color.white;
-            if (Widgets.ButtonText(new Rect(x, y, width, BtnHeight), labelKey.Translate()))
+            string btnLabel = labelKey.CanTranslate() ? (string)labelKey.Translate() : labelKey;
+            if (Widgets.ButtonText(new Rect(x, y, width, BtnHeight), btnLabel))
             {
                 if (_selectedScope != scope)
                 {
@@ -94,11 +95,10 @@ namespace RimMind.Infrastructure.UI
             {
                 GUI.color = new Color(0.4f, 1f, 0.4f);
                 Widgets.Label(new Rect(Padding, y, w - Padding * 2, LineH),
-                    string.Format(
-                        "RimMind.UI.AgentFlowLab.ScopedAgentActive".Translate().ToString(),
+                    "RimMind.UI.AgentFlowLab.ScopedAgentActive".Translate(
                         _scopedAgent.ScopeType,
                         _scopedAgent.ScopeId,
-                        _scopedAgent.State));
+                        _scopedAgent.State.ToString()));
                 GUI.color = Color.white;
             }
             else

@@ -77,7 +77,7 @@ namespace RimMind.Application.Features.Requests.Queue
             _completionInbox.Drain(LogHandler);
             CheckActiveRequestTimeouts();
             int now = CurrentTick;
-            if (now - _lastQueueProcessTick >= QueueProcessInterval) { _lastQueueProcessTick = now; ProcessAllQueues(now); }
+            if (now < _lastQueueProcessTick || now - _lastQueueProcessTick >= QueueProcessInterval) { _lastQueueProcessTick = now; ProcessAllQueues(now); }
         }
 
         public void Reset()
@@ -167,7 +167,7 @@ namespace RimMind.Application.Features.Requests.Queue
                     TrackingId = trackingId, Envelope = envelope, Callback = callback,
                     Executor = ct => client.SendAsync(CloneWithCancellationToken(envelope, ct)), Client = client,
                     IsLocalEndpointSnapshot = client.IsLocalEndpoint, State = AIRequestState.Processing,
-                    EnqueuedAtTick = CurrentTick, StartedProcessingAtTick = CurrentTick, AttemptCount = 1, MaxAttempts = 1,
+                    EnqueuedAtTick = CurrentTick, StartedProcessingAtTick = CurrentTick, StartedProcessingAtUtc = DateTime.UtcNow, AttemptCount = 1, MaxAttempts = 1,
                 };
                 _activeRequests[trackingId] = tracked;
                 _requestIdToActive[envelope.RequestId] = tracked;
@@ -216,7 +216,7 @@ namespace RimMind.Application.Features.Requests.Queue
                     queue.RemoveAt(0);
                     int cooldownTicks = _circuitBreaker.GetModCooldownTicks(modId);
                     _circuitBreaker.SetCooldown(modId, now + cooldownTicks);
-                    tracked.State = AIRequestState.Processing; tracked.StartedProcessingAtTick = now;
+                    tracked.State = AIRequestState.Processing; tracked.StartedProcessingAtTick = now; tracked.StartedProcessingAtUtc = DateTime.UtcNow;
                     _activeRequests[tracked.TrackingId] = tracked; _requestIdToActive[tracked.Envelope.RequestId] = tracked;
                     if (tracked.IsLocalEndpointSnapshot) _isProcessingLocalRequest = true;
                     if (Settings.DebugLogging)
@@ -290,16 +290,24 @@ namespace RimMind.Application.Features.Requests.Queue
             lock (_queueLock)
             {
                 if (_activeRequests.Count == 0) return;
-                int now = CurrentTick; int timeoutMs = Settings.RequestTimeoutMs; int timeoutTicks = timeoutMs / (int)TicksPerMillisecond;
+                var nowUtc = DateTime.UtcNow;
+                int timeoutMs = Settings.RequestTimeoutMs;
                 var timedOut = new List<TrackedRequest>();
-                foreach (var kvp in _activeRequests) { if (kvp.Value.StartedProcessingAtTick > 0 && now - kvp.Value.StartedProcessingAtTick > timeoutTicks) timedOut.Add(kvp.Value); }
+                foreach (var kvp in _activeRequests)
+                {
+                    if (kvp.Value.StartedProcessingAtUtc != default &&
+                        (nowUtc - kvp.Value.StartedProcessingAtUtc).TotalMilliseconds > timeoutMs)
+                    {
+                        timedOut.Add(kvp.Value);
+                    }
+                }
                 foreach (var tracked in timedOut)
                 {
                     tracked.CancellationSource?.Cancel();
                     var errResult = Result<LlmResponse, RimMindError>.Err(
-                        new RimMindError(RimMindErrorCode.Timeout, $"Request {tracked.Envelope.RequestId} timed out after {timeoutTicks} ticks"));
+                        new RimMindError(RimMindErrorCode.Timeout, $"Request {tracked.Envelope.RequestId} timed out after {timeoutMs}ms"));
                     Complete(tracked, errResult);
-                    if (Settings.DebugLogging) EnqueueLog($"[RimMind-Core] Request {tracked.Envelope.RequestId} timed out after {timeoutTicks} ticks");
+                    if (Settings.DebugLogging) EnqueueLog($"[RimMind-Core] Request {tracked.Envelope.RequestId} timed out after {timeoutMs}ms");
                 }
             }
         }

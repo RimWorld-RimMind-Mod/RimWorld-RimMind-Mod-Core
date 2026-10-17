@@ -36,8 +36,14 @@ namespace RimMind.Presentation.Context
             INpcManagerAccessor? npcManagers = null)
         {
             var ctx = contextKeyProvider;
-            string? Translate(string key, params object[] args) =>
-                translationService?.Translate(key, args);
+            string? Translate(string key, params object[] args)
+            {
+                if (translationService == null) return null;
+                if (args == null || args.Length == 0) return translationService.Translate(key);
+                if (args.Length == 1) return translationService.Translate(key, args[0]);
+                if (args.Length == 2) return translationService.Translate(key, args[0], args[1]);
+                return translationService.Translate(key, args[0], args[1], args[2]);
+            }
 
             // ── L0_Static (stalenessTicks: 0 — always fresh, scenario-dependent) ──
 
@@ -53,7 +59,7 @@ namespace RimMind.Presentation.Context
                             "Output must be valid JSON matching the IncidentOutput schema.";
                     if (pctx.Scenario == ScenarioIds.Decision)
                         return null;
-                    if (pctx.Scenario == ScenarioIds.Dialogue)
+                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
                         return null;
                     var pawn = ResolvePawn(pctx.PawnId);
                     if (pawn == null) return null;
@@ -72,7 +78,7 @@ namespace RimMind.Presentation.Context
                 {
                     if (pctx.Scenario == ScenarioIds.Decision)
                         return null;
-                    if (pctx.Scenario == ScenarioIds.Dialogue)
+                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
                         return null;
                     var pawn = ResolvePawn(pctx.PawnId);
                     if (pawn == null) return null;
@@ -97,7 +103,7 @@ namespace RimMind.Presentation.Context
                 provider: async (pctx, ct) =>
                 {
                     if (pctx.Scenario == ScenarioIds.Decision) return null;
-                    if (pctx.Scenario == ScenarioIds.Dialogue) return null;
+                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue) return null;
                     var pawn = ResolvePawn(pctx.PawnId);
                     if (pawn == null) return null;
                     var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
@@ -152,7 +158,7 @@ namespace RimMind.Presentation.Context
                         return "Select the most fitting incident for the colony's current state. Return structured JSON with defName, reason, and optional params.";
                     if (pctx.Scenario == ScenarioIds.Decision)
                         return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
-                    if (pctx.Scenario == ScenarioIds.Dialogue)
+                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
                         return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
                     return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.Base"));
                 },
@@ -347,6 +353,20 @@ namespace RimMind.Presentation.Context
                     var pawn = ResolvePawn(pctx.PawnId);
                     if (pawn == null) return null;
                     return NullIfEmpty(ctx.ExtractMood(pawn));
+                },
+                ownerMod: "Core",
+                stalenessTicks: 750,
+                cacheScope: CacheScope.Pawn));
+
+            registry.Register(new ContextProviderDef(
+                key: "mood_thoughts",
+                layer: ContextLayer.L3_State,
+                priority: 0.28f,
+                provider: async (pctx, ct) =>
+                {
+                    var pawn = ResolvePawn(pctx.PawnId);
+                    if (pawn == null) return null;
+                    return NullIfEmpty(ctx.ExtractMoodThoughts(pawn));
                 },
                 ownerMod: "Core",
                 stalenessTicks: 750,

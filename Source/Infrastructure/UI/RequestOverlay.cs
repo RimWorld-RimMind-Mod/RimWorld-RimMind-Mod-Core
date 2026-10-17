@@ -52,6 +52,8 @@ namespace RimMind.Infrastructure.UI
         private const float EntryLineH = 22f;
         private const float BtnHeight = 22f;
         private const float BtnPadding = 4f;
+        private const float AlertsMargin = RequestOverlayLayoutEvaluator.AlertsMargin;
+        private const float TopColonistBarMargin = RequestOverlayLayoutEvaluator.TopColonistBarMargin;
 
         public static void Register(RequestEntry entry)
         {
@@ -125,27 +127,50 @@ namespace RimMind.Infrastructure.UI
             var pending = overlayService?.GetPendingRequests() ?? EmptyPending;
             bool autoHide = settings.RequestOverlayAutoHideWhenEmpty;
 
+            Rect pillRect = new Rect(_windowRect.x, _windowRect.y, RequestOverlayLayoutEvaluator.MiniPillWidth, RequestOverlayLayoutEvaluator.MiniPillHeight);
+            Rect interactionRect = _isExpanded ? _windowRect : pillRect;
+            bool isMouseOver = Mouse.IsOver(interactionRect);
+
             bool shouldCollapse = RequestOverlayLayoutEvaluator.ShouldCollapse(
                 pending.Count,
                 autoHide,
                 _isExpanded,
-                Mouse.IsOver(_windowRect),
+                isMouseOver,
                 _isDragging,
                 _isResizing);
             _isExpanded = !shouldCollapse;
 
             bool isCollapsed = !_isExpanded;
-            Rect pillRect = new Rect(_windowRect.x, _windowRect.y, RequestOverlayLayoutEvaluator.MiniPillWidth, RequestOverlayLayoutEvaluator.MiniPillHeight);
 
             if (!isCollapsed)
             {
+                float maxAllowedWidth = Mathf.Max(MinWidth, global::Verse.UI.screenWidth - AlertsMargin);
+                if (_windowRect.width > maxAllowedWidth)
+                    _windowRect.width = maxAllowedWidth;
+
                 Vector2 clamped = RequestOverlayLayoutEvaluator.ClampPosition(
                     _windowRect.position,
                     _windowRect.size,
                     global::Verse.UI.screenWidth,
-                    global::Verse.UI.screenHeight);
+                    global::Verse.UI.screenHeight,
+                    AlertsMargin,
+                    TopColonistBarMargin);
                 _windowRect.x = clamped.x;
                 _windowRect.y = clamped.y;
+            }
+            else
+            {
+                Vector2 clamped = RequestOverlayLayoutEvaluator.ClampPosition(
+                    _windowRect.position,
+                    pillRect.size,
+                    global::Verse.UI.screenWidth,
+                    global::Verse.UI.screenHeight,
+                    AlertsMargin,
+                    TopColonistBarMargin);
+                _windowRect.x = clamped.x;
+                _windowRect.y = clamped.y;
+                pillRect.x = clamped.x;
+                pillRect.y = clamped.y;
             }
 
             HandleInput(isCollapsed, pillRect, settings);
@@ -156,7 +181,7 @@ namespace RimMind.Infrastructure.UI
             }
             else
             {
-                bool isMouseOver = Mouse.IsOver(_windowRect);
+                bool isMouseOverExpanded = Mouse.IsOver(_windowRect);
                 GUI.BeginGroup(_windowRect);
                 try
                 {
@@ -166,7 +191,7 @@ namespace RimMind.Infrastructure.UI
 
                     DrawEntries(inRect, pending, overlayService, operation);
 
-                    if (isMouseOver)
+                    if (isMouseOverExpanded || _isDragging || _isResizing)
                     {
                         DrawOptionsBar(inRect, windowService);
 
@@ -431,7 +456,7 @@ namespace RimMind.Infrastructure.UI
                     float desiredWidth = currentEvent.mousePosition.x - _windowRect.x;
                     float desiredHeight = currentEvent.mousePosition.y - _windowRect.y;
 
-                    float maxWidth = global::Verse.UI.screenWidth - _windowRect.x;
+                    float maxWidth = Mathf.Max(MinWidth, global::Verse.UI.screenWidth - _windowRect.x - AlertsMargin);
                     float maxHeight = global::Verse.UI.screenHeight - _windowRect.y;
 
                     _windowRect.width = Mathf.Clamp(desiredWidth, MinWidth, maxWidth);
@@ -452,7 +477,9 @@ namespace RimMind.Infrastructure.UI
                         _windowRect.position,
                         new Vector2(curW, curH),
                         global::Verse.UI.screenWidth,
-                        global::Verse.UI.screenHeight);
+                        global::Verse.UI.screenHeight,
+                        AlertsMargin,
+                        TopColonistBarMargin);
                     _windowRect.x = clamped.x;
                     _windowRect.y = clamped.y;
                     _needsPersistOnInteractionEnd = true;

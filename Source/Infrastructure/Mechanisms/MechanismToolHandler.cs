@@ -101,7 +101,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 }
                 case MechanismOperationType.List:
                 {
-                    var pawnId = MechanismToolHelper.ExtractInt(_jsonExtractor, args.ArgumentsJson, "pawn_id");
+                    var pawnId = MechanismToolHelper.ResolvePawnId(_jsonExtractor, args, "pawn_id");
                     var r = await _reader.ExecuteListAsync(pawnId, ct).ConfigureAwait(false);
                     return r.IsOk
                         ? Result<object?, RimMindError>.Ok(r.Value)
@@ -117,7 +117,7 @@ namespace RimMind.Infrastructure.Mechanisms
             return new MechanismReadArgs
             {
                 MechanismId = _metadata.MechanismId,
-                PawnId = MechanismToolHelper.ExtractInt(_jsonExtractor, args.ArgumentsJson, "pawn_id"),
+                PawnId = MechanismToolHelper.ResolvePawnId(_jsonExtractor, args, "pawn_id"),
                 MapId = MechanismToolHelper.ExtractNullableInt(_jsonExtractor, args.ArgumentsJson, "map_id"),
                 DefName = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "filter_def_name") ?? MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "def_name"),
                 TraceId = args.TraceId
@@ -129,7 +129,7 @@ namespace RimMind.Infrastructure.Mechanisms
             return new MechanismWriteArgs
             {
                 MechanismId = _metadata.MechanismId,
-                PawnId = MechanismToolHelper.ExtractInt(_jsonExtractor, args.ArgumentsJson, "pawn_id"),
+                PawnId = MechanismToolHelper.ResolvePawnId(_jsonExtractor, args, "pawn_id"),
                 MapId = MechanismToolHelper.ExtractNullableInt(_jsonExtractor, args.ArgumentsJson, "map_id"),
                 DefName = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "def_name"),
                 Action = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "action") ?? _operation.ToString().ToLowerInvariant(),

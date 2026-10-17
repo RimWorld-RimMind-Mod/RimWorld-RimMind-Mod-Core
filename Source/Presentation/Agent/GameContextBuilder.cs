@@ -82,6 +82,7 @@ namespace RimMind.Presentation.Agent
         public string ExtractColonyStatus(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractColonyStatus(p) : "";
         public string ExtractHealth(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractHealth(p) : "";
         public string ExtractMood(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractMood(p) : "";
+        public string ExtractMoodThoughts(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractMoodThoughts(p) : "";
         public string ExtractCurrentJob(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractCurrentJob(p) : "";
         public string ExtractCombatStatus(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractCombatStatus(p) : "";
         public string ExtractTargetInfo(object pawn) => pawn is Pawn p ? _pawnBuilder.ExtractTargetInfo(p) : "";

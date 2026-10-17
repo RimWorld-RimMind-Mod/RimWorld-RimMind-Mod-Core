@@ -49,6 +49,7 @@ namespace RimMind.Presentation.Agent
         {
             var pawn = _agent.Pawn;
             if (pawn == null || pawn.Dead) return;
+            RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
 
             _sensedHediffs.Clear();
 

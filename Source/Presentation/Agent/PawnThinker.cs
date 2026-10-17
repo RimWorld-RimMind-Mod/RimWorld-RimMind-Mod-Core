@@ -44,6 +44,7 @@ namespace RimMind.Presentation.Agent
         private volatile bool _thinking;
         private IReadOnlyList<PerceptionBufferEntry> _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
         private int _requestSentTick;
+        private DateTime _requestSentUtc;
         private volatile bool _hasPendingCallback;
         private Result<LlmResponse, RimMindError> _pendingResult;
         private LlmRequestContext? _pendingContext;
@@ -109,6 +110,7 @@ namespace RimMind.Presentation.Agent
             _thinking = false;
             _hasPendingCallback = false;
             _requestSentTick = 0;
+            _requestSentUtc = default;
             _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
             _pendingTraceId = null;
             _pendingCompletionFence = null;
@@ -119,13 +121,13 @@ namespace RimMind.Presentation.Agent
         {
             if (_agent.State != AgentState.Active) return;
             if (_hasPendingCallback) { _hasPendingCallback = false; ProcessPendingCallback(); }
-            if (_thinking && _requestSentTick > 0)
+            if (_thinking && _requestSentUtc != default)
             {
-                var elapsed = Find.TickManager.TicksGame - _requestSentTick;
-                if (elapsed > RimMindDefaults.ThinkRequestTimeoutTicks)
+                var elapsedSec = (DateTime.UtcNow - _requestSentUtc).TotalSeconds;
+                if (elapsedSec > 120.0)
                 {
-                    _log?.Warning($"[RimMind.Thinker] action=ThinkTimeout npcId={_agent.Identity.NpcId} modeId={_agent.CurrentModeId.Value} elapsed={elapsed}");
-                    _thinking = false; _requestSentTick = 0;
+                    _log?.Warning($"[RimMind.Thinker] action=ThinkTimeout npcId={_agent.Identity.NpcId} modeId={_agent.CurrentModeId.Value} elapsedSec={elapsedSec:F1}");
+                    _thinking = false; _requestSentTick = 0; _requestSentUtc = default;
                     _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
                 }
             }
@@ -142,6 +144,7 @@ namespace RimMind.Presentation.Agent
             {
                 var pawn = _agent.Pawn;
                 if (pawn == null || pawn.Dead) { _thinking = false; return; }
+                RimMindPawnLookup.CachePawn(pawn);
                 var entries = _agent.PerceptionBuffer.Flush();
                 _cachedPerceptions = entries;
                 var mode = _agent.CurrentMode;
@@ -157,6 +160,7 @@ namespace RimMind.Presentation.Agent
                 var envelope = strategy.BuildEnvelope(_agent, entries, availableTools);
                 EnrichEnvelope(envelope, voiceText);
                 _requestSentTick = Find.TickManager.TicksGame;
+                _requestSentUtc = DateTime.UtcNow;
                 SendThinkRequest(envelope, strategy, availableTools, 0);
             }
             catch (Exception ex)
@@ -239,7 +243,11 @@ namespace RimMind.Presentation.Agent
             var availableTools = _pendingAvailableTools!;
             var toolCallRound = _pendingToolCallRound;
             var followUpEnvelope = strategy.BuildEnvelope(_agent, _cachedPerceptions, availableTools);
-            _contextEnricher.EnrichEnvelope(followUpEnvelope, _agent.Identity.NpcId, null);
+            EnrichEnvelope(followUpEnvelope, null);
+            if (_pendingContext?.ToolCallResults != null && _pendingContext.ToolCallResults.Count > 0)
+            {
+                _contextEnricher.EnrichWithToolCallResults(followUpEnvelope, _pendingContext.ToolCallResults, toolCallRound + 1);
+            }
             SendThinkRequest(followUpEnvelope, strategy, availableTools, toolCallRound + 1);
         }
 

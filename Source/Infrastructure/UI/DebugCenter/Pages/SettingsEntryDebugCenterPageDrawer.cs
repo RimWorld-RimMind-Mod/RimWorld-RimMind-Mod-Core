@@ -158,11 +158,11 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             {
                 "openai" => "OpenAI",
                 "player2" => "Player2",
+                "extended_service" => "ExtendedService",
                 _ => providerId
             };
             string key = $"RimMind.Settings.Provider.{normalized}";
-            var translation = key.Translate();
-            return translation == key ? providerId : translation;
+            return key.CanTranslate() ? (string)key.Translate() : providerId;
         }
     }
 }

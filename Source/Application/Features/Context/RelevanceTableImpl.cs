@@ -62,6 +62,17 @@ namespace RimMind.Application.Features.Context
                     {"working_memory", 0.6f}, {"memory_narrator", 0.3f}
                 });
 
+                RegisterBatch(ScenarioIds.CrisisDialogue, new Dictionary<string, float>
+                {
+                    {"health", 0.9f}, {"mood", 1.0f}, {"current_job", 0.6f},
+                    {"combat_status", 0.8f}, {"target_info", 0.4f}, {"task_progress", 0.2f},
+                    {"nearby_pawns", 0.85f}, {"colony_status", 0.6f}, {"current_area", 0.6f},
+                    {"weather", 0.4f}, {"time_of_day", 0.3f}, {"season", 0.2f},
+                    {"map_structure", 0.3f}, {"pawn_base_info", 0.8f}, {"fixed_relations", 0.9f},
+                    {"ideology", 0.7f}, {"skills_summary", 0.4f}, {"memory_pawn", 0.8f},
+                    {"working_memory", 0.85f}, {"memory_narrator", 0.3f}
+                });
+
                 RegisterBatch(ScenarioIds.Personality, new Dictionary<string, float>
                 {
                     {"health", 0.5f}, {"mood", 0.85f}, {"current_job", 0.6f},

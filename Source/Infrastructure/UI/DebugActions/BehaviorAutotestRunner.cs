@@ -884,10 +884,12 @@ namespace RimMind.Infrastructure.UI
                     break;
 
                 case "actions.stabilize_rest":
+                case "actions_stabilize_rest":
                     dict["reason"] = "Autotest stabilization";
                     break;
 
                 case "actions.triage_patient":
+                case "actions_triage_patient":
                     dict["patient_id"] = pawnId;
                     dict["reason"] = "Autotest triage";
                     break;
@@ -926,7 +928,7 @@ namespace RimMind.Infrastructure.UI
                     }
                 }
 
-                if (toolId == "actions.stabilize_rest" && pawn?.jobs != null && pawn.jobs.curJob?.def == JobDefOf.LayDown)
+                if ((toolId == "actions.stabilize_rest" || toolId == "actions_stabilize_rest") && pawn?.jobs != null && pawn.jobs.curJob?.def == JobDefOf.LayDown)
                 {
                     pawn.jobs.EndCurrentJob(global::Verse.AI.JobCondition.InterruptForced);
                 }

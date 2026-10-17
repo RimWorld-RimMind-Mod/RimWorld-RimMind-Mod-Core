@@ -32,7 +32,10 @@ namespace RimMind.Infrastructure.Verse
         private void OnPerception(PerceptionEvent e)
         {
             _cacheManager.InvalidateNpc(e.NpcId);
-            _logSink.Message($"[ContextInvalidation] Invalidated cache for NpcId={e.NpcId} on PerceptionType={e.PerceptionType}");
+            if (_logSink.GetType().Name != "VerseLogSink")
+            {
+                _logSink.Message($"[ContextInvalidation] Invalidated cache for NpcId={e.NpcId} on PerceptionType={e.PerceptionType}");
+            }
         }
     }
 }

@@ -32,16 +32,21 @@ namespace RimMind.Application.Features.Pipeline.Unified
         public async Task InvokeAsync(LlmRequestContext context, MiddlewareDelegate<LlmRequestContext> next)
         {
             int maxAttempts = context.Envelope?.MaxRetryCount ?? _maxRetries;
+            Result<LlmResponse, RimMindError>? lastResult = null;
             for (int attempt = 0; attempt <= maxAttempts; attempt++)
             {
                 try
                 {
                     await next(context);
+                    if (context.Result.HasValue)
+                        lastResult = context.Result;
                     if (context.Result?.IsOk == true)
                         return;
                     if (context.Result.HasValue && context.Result.Value.IsErr && context.Result.Value.Error.Code == RimMindErrorCode.ClientPermanentFailure)
                         return;
-                    if (context.IsShortCircuited && context.ShortCircuitReason != "transient_error")
+                    if (context.IsShortCircuited
+                        && context.ShortCircuitReason != "transient_error"
+                        && context.ShortCircuitReason != "output_guardrail:empty_response")
                         return;
                 }
                 catch (OperationCanceledException)
@@ -50,6 +55,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 }
                 catch (Exception ex)
                 {
+                    lastResult = Result<LlmResponse, RimMindError>.Err(
+                        new RimMindError(RimMindErrorCode.ClientTransientFailure, ex.Message) { InnerException = ex });
                     _log?.Warning($"[UnifiedRetry] Attempt {attempt + 1}/{maxAttempts + 1} failed: {ex.Message}");
                 }
 
@@ -57,9 +64,15 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 {
                     context.RetryCount = attempt + 1;
                     context.Result = null;
+                    context.ClearShortCircuit();
                     _log?.Message($"[UnifiedRetry] Retrying request {context.Envelope?.RequestId}, attempt {attempt + 2}");
                     await Task.Delay(_delay, context.Ct);
                 }
+            }
+
+            if (context.Result == null && lastResult.HasValue)
+            {
+                context.Result = lastResult;
             }
         }
     }

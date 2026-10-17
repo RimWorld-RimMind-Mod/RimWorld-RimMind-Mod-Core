@@ -3,6 +3,7 @@ using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.Agent;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.Enums;
 using RimMind.Infrastructure.UI;
 using RimMind.Presentation.Agent;
@@ -43,6 +44,8 @@ namespace RimMind.Infrastructure.Verse
                 EnsureAgentLoopRegistration();
             }
         }
+
+        public AgentAutonomyPolicy AutonomyPolicy { get; } = AgentAutonomyPolicy.CreateDefault();
 
         private Texture2D? _agentIcon;
         private Texture2D? _agentDevIcon;
@@ -159,6 +162,27 @@ namespace RimMind.Infrastructure.Verse
                 Agent.Destroy();
                 Agent = null;
             }
+
+            var survivalLevel = AutonomyPolicy.GetLevel(AutonomyDomain.EmergencySurvival);
+            var resourceLevel = AutonomyPolicy.GetLevel(AutonomyDomain.ResourceMarking);
+            var billsLevel = AutonomyPolicy.GetLevel(AutonomyDomain.WorktableBills);
+            var blueprintLevel = AutonomyPolicy.GetLevel(AutonomyDomain.BlueprintPlacement);
+            var highRiskLevel = AutonomyPolicy.GetLevel(AutonomyDomain.HighRiskOperations);
+
+            Scribe_Values.Look(ref survivalLevel, "autonomySurvival", AutonomyLevel.FullAutonomous);
+            Scribe_Values.Look(ref resourceLevel, "autonomyResource", AutonomyLevel.FullAutonomous);
+            Scribe_Values.Look(ref billsLevel, "autonomyBills", AutonomyLevel.RequireApproval);
+            Scribe_Values.Look(ref blueprintLevel, "autonomyBlueprints", AutonomyLevel.RequireApproval);
+            Scribe_Values.Look(ref highRiskLevel, "autonomyHighRisk", AutonomyLevel.RequireApproval);
+
+            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                AutonomyPolicy.SetLevel(AutonomyDomain.EmergencySurvival, survivalLevel);
+                AutonomyPolicy.SetLevel(AutonomyDomain.ResourceMarking, resourceLevel);
+                AutonomyPolicy.SetLevel(AutonomyDomain.WorktableBills, billsLevel);
+                AutonomyPolicy.SetLevel(AutonomyDomain.BlueprintPlacement, blueprintLevel);
+                AutonomyPolicy.SetLevel(AutonomyDomain.HighRiskOperations, highRiskLevel);
+            }
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
@@ -194,6 +218,41 @@ namespace RimMind.Infrastructure.Verse
 
         private Texture2D AgentDevIcon =>
             _agentDevIcon ??= ContentFinder<Texture2D>.Get("UI/AgentDevIcon", reportFailure: false) ?? BaseContent.BadTex;
+
+        private AgentIntentSession? _localIntentSession;
+
+        public AgentIntentSession? ActiveIntentSession => Agent?.ActiveIntentSession ?? _localIntentSession;
+
+        public void StartIntentSession(AgentIntentSession session)
+        {
+            if (Agent != null)
+            {
+                Agent.StartIntentSession(session);
+            }
+            _localIntentSession = session;
+        }
+
+        public void ClearIntentSession()
+        {
+            Agent?.ClearIntentSession();
+            _localIntentSession = null;
+        }
+
+        public bool HasActiveIntentSession
+        {
+            get
+            {
+                var session = ActiveIntentSession;
+                if (session == null) return false;
+                int currentTick = Find.TickManager?.TicksGame ?? 0;
+                if (!session.IsActive(Pawn, currentTick))
+                {
+                    ClearIntentSession();
+                    return false;
+                }
+                return true;
+            }
+        }
 
         public global::Verse.AI.Job? ConsumePendingJob()
         {

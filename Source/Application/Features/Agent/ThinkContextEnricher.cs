@@ -90,8 +90,16 @@ namespace RimMind.Application.Features.Agent
             sb.AppendLine("<behavior_history>");
             foreach (var record in history)
             {
-                var status = record.Success ? "Success" : "Fail";
-                sb.AppendLine($"- {record.Action} → {status}: {record.Reason}");
+                var status = record.Success
+                    ? "Success"
+                    : (!string.IsNullOrWhiteSpace(record.ResultReason) ? $"Fail ({record.ResultReason})" : "Fail");
+                string reason = (record.Reason ?? "").Replace("\r\n", " ").Replace('\n', ' ').Trim();
+                if (reason.Length > 160)
+                    reason = reason.Substring(0, 160) + "...";
+                string line = $"- {record.Action} → {status}: {reason}";
+                if (sb.Length + line.Length + 96 > 1200)
+                    break;
+                sb.AppendLine(line);
             }
 
             if (successRate < 0.4f)

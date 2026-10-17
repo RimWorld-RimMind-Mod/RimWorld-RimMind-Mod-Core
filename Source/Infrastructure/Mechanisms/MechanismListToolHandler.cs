@@ -36,7 +36,7 @@ namespace RimMind.Infrastructure.Mechanisms
 
         public async Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
         {
-            var pawnId = MechanismToolHelper.ExtractNullableInt(_jsonExtractor, args.ArgumentsJson, "pawn_id");
+            var pawnId = MechanismToolHelper.ResolveNullablePawnId(_jsonExtractor, args, "pawn_id");
             var category = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "category");
 
             var result = await _reader.ExecuteListAsync(pawnId, ct).ConfigureAwait(false);

@@ -35,6 +35,11 @@
   <RimMind.Settings.ApiEndpoint.Desc>AI service API address. Supports OpenAI-compatible interfaces (e.g. DeepSeek, local Ollama).</RimMind.Settings.ApiEndpoint.Desc>
   <RimMind.Settings.ModelName>Model Name</RimMind.Settings.ModelName>
   <RimMind.Settings.ModelName.Desc>The model ID to use, e.g. deepseek-v4-flash or gpt-4o-mini.</RimMind.Settings.ModelName.Desc>
+  <RimMind.Settings.BackupEndpoints>Backup API Failover Nodes</RimMind.Settings.BackupEndpoints>
+  <RimMind.Settings.BackupEndpoints.Desc>Ordered failover list of backup API endpoints. When the primary endpoint fails (HTTP 503/502/429, timeout, or empty response), RimMind automatically switches to the next healthy backup node and isolates the failing node for 60s.</RimMind.Settings.BackupEndpoints.Desc>
+  <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go Backup</RimMind.Settings.BackupEndpoints.AddOpenCode>
+  <RimMind.Settings.BackupEndpoints.AddCustom>+ Custom Backup</RimMind.Settings.BackupEndpoints.AddCustom>
+  <RimMind.Settings.BackupEndpoints.Empty>No backup nodes configured. Click "+ OpenCode Go Backup" or "+ Custom Backup" to add automatic failover protection.</RimMind.Settings.BackupEndpoints.Empty>
   <RimMind.Settings.ForceJsonMode>Force JSON Mode (response_format)</RimMind.Settings.ForceJsonMode>
   <RimMind.Settings.ForceJsonModeDesc>Append response_format=json_object to the API request, forcing the model to return JSON. Disable this for local models that don't support this parameter.</RimMind.Settings.ForceJsonModeDesc>
   <RimMind.Settings.MaxTokens>Max Tokens</RimMind.Settings.MaxTokens>
@@ -197,6 +202,7 @@
   <RimMind.Context.IncludeWeather.Desc>Inject the current weather conditions into AI context.</RimMind.Context.IncludeWeather.Desc>
   <RimMind.Context.IncludeThreats>Threat Level</RimMind.Context.IncludeThreats>
   <RimMind.Context.IncludeThreats.Desc>Inject the current map threat level into AI context.</RimMind.Context.IncludeThreats.Desc>
+  <RimMind.Context.Budget>Context Budget &amp; Lifecycle</RimMind.Context.Budget>
   <RimMind.Context.ContextBudget>Context Budget Ratio</RimMind.Context.ContextBudget>
   <RimMind.Context.ContextBudget.Desc>Controls the maximum ratio of the model's context window allocated for prompt context (recommended: 0.8, leaving a 20% margin for thinking and generation; values above 1.0 are only intended for high-capacity models).</RimMind.Context.ContextBudget.Desc>
   <RimMind.Settings.ContextDiffLifetime>Context Diff Lifetime</RimMind.Settings.ContextDiffLifetime>
@@ -216,6 +222,8 @@
   <RimMind.Prompt.WealthWithThreat>Wealth: {0} (Threat: {1})</RimMind.Prompt.WealthWithThreat>
   <RimMind.Prompt.ThreatLevel>Threat Level: {0}</RimMind.Prompt.ThreatLevel>
   <RimMind.Prompt.FoodStorage>Food Storage: ~{0} nutrition</RimMind.Prompt.FoodStorage>
+  <RimMind.Prompt.KeyResources>Key Resources: Wood {0}, Steel {1}, Medicine {2}</RimMind.Prompt.KeyResources>
+  <RimMind.Prompt.PendingConstruction>Pending Construction: {0} blueprints/frames (Shortage Notice: gather wood/minerals if materials are low)</RimMind.Prompt.PendingConstruction>
   <RimMind.Prompt.Season>Season: {0}</RimMind.Prompt.Season>
   <RimMind.Prompt.Weather>Weather: {0}</RimMind.Prompt.Weather>
   <!-- GameContextBuilder.cs - Pawn context -->
@@ -419,6 +427,7 @@
   <RimMind.Agent.ITab.CreateAgent>Create/Get Agent</RimMind.Agent.ITab.CreateAgent>
   <RimMind.Agent.ITab.CreateFailed>Cannot create agent: factory not available</RimMind.Agent.ITab.CreateFailed>
   <RimMind.Agent.ITab.Status>Status</RimMind.Agent.ITab.Status>
+  <RimMind.Agent.ITab.Mode>Mode</RimMind.Agent.ITab.Mode>
   <RimMind.Agent.ITab.Goals>Goals</RimMind.Agent.ITab.Goals>
   <RimMind.Agent.ITab.Strategy>Strategy Weights</RimMind.Agent.ITab.Strategy>
   <RimMind.Agent.ITab.History>Behavior History</RimMind.Agent.ITab.History>
@@ -783,4 +792,40 @@
   <RimMind.UI.Hub.ShortcutsTitle>Quick Actions</RimMind.UI.Hub.ShortcutsTitle>
   <RimMind.UI.Hub.QueueCountLabel>Request Queue</RimMind.UI.Hub.QueueCountLabel>
   <RimMind.UI.Hub.ActiveRequests>active</RimMind.UI.Hub.ActiveRequests>
+  <!-- Inner Voice -->
+  <RimMind.InnerVoice.DialogTitle>Send Inner Voice ({0})</RimMind.InnerVoice.DialogTitle>
+  <RimMind.InnerVoice.Inject>Send Inner Voice to {0}</RimMind.InnerVoice.Inject>
+  <!-- Remote Sync -->
+  <RimMind.RemoteSync.Unavailable>Remote sync service unavailable</RimMind.RemoteSync.Unavailable>
+  <RimMind.RemoteSync.PullNpc>Pull NPC</RimMind.RemoteSync.PullNpc>
+  <RimMind.RemoteSync.PushNpc>Push NPC</RimMind.RemoteSync.PushNpc>
+  <RimMind.RemoteSync.Syncing>Syncing...</RimMind.RemoteSync.Syncing>
+  <RimMind.RemoteSync.PullSuccess>Pull successful</RimMind.RemoteSync.PullSuccess>
+  <RimMind.RemoteSync.PullFailed>Pull failed</RimMind.RemoteSync.PullFailed>
+  <RimMind.RemoteSync.PushQueued>Push queued</RimMind.RemoteSync.PushQueued>
+  <RimMind.RemoteSync.PushFailed>Push failed</RimMind.RemoteSync.PushFailed>
+  <RimMind.Application.Scenario.CrisisDialogue>Emergency crisis dialogue scenario</RimMind.Application.Scenario.CrisisDialogue>
+  <RimMind.Prompt.ColonyWorktables>Worktables: [{0}] (Queue bills via actions_add_worktable_bill)</RimMind.Prompt.ColonyWorktables>
+  <RimMind.Prompt.StoredApparel>AvailableApparel: [{0}] (Equip protective/thermal gear via actions_manage_equipment)</RimMind.Prompt.StoredApparel>
+  <RimMind.UI.Hub.Tab.Legacy>Legacy Debug Views</RimMind.UI.Hub.Tab.Legacy>
+  <RimMind.Inspector.TokenBudgetTitle>=== Token Budget &amp; Structure Analysis ===</RimMind.Inspector.TokenBudgetTitle>
+  <RimMind.Inspector.TotalTokensLine>• Estimated Total Input Tokens : ~{0} tokens ({1} chars)</RimMind.Inspector.TotalTokensLine>
+  <RimMind.Inspector.SystemTokensLine>  - System Rules &amp; Declarations (System) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.SystemTokensLine>
+  <RimMind.Inspector.StaticTokensLine>  - Static Background &amp; Traits (Static) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.StaticTokensLine>
+  <RimMind.Inspector.DynamicTokensLine>  - Dynamic State &amp; Perception (Dynamic): ~{0} tokens ({1:F1}%)</RimMind.Inspector.DynamicTokensLine>
+  <RimMind.Inspector.ToolTokensLine>  - Tool Declarations (Tools)            : ~{0} tokens ({1:F1}%)</RimMind.Inspector.ToolTokensLine>
+  <RimMind.Inspector.RedundancyTitle>=== Redundancy &amp; Optimization Warnings ===</RimMind.Inspector.RedundancyTitle>
+  <RimMind.Inspector.NoRedundancy>  (No obvious redundancy detected; prompt structure is healthy)</RimMind.Inspector.NoRedundancy>
+  <RimMind.Inspector.SufficiencyTitle>=== Information Sufficiency Assessment ===</RimMind.Inspector.SufficiencyTitle>
+  <RimMind.Inspector.LiveTestStatus>=== Live Test Status: {0} ===</RimMind.Inspector.LiveTestStatus>
+  <RimMind.Inspector.LiveTestElapsed>Elapsed: {0} ms</RimMind.Inspector.LiveTestElapsed>
+  <RimMind.Inspector.LiveTestError>Error: {0}</RimMind.Inspector.LiveTestError>
+  <RimMind.Inspector.LiveTestReplyTitle>--- Model Natural Language Reply ---</RimMind.Inspector.LiveTestReplyTitle>
+  <RimMind.Inspector.LiveTestNoReply>(No output yet; click [Send Live Test] below to test)</RimMind.Inspector.LiveTestNoReply>
+  <RimMind.Inspector.LiveTestToolCallsTitle>--- Returned ToolCalls Actions ---</RimMind.Inspector.LiveTestToolCallsTitle>
+  <RimMind.Inspector.LiveTestNoToolCalls>(No tool calls)</RimMind.Inspector.LiveTestNoToolCalls>
+  <RimMind.Inspector.WarnLowSkills>Contains 4+ very low skills (level &lt; 3). Consider filtering irrelevant weak skills during non-work decisions.</RimMind.Inspector.WarnLowSkills>
+  <RimMind.Inspector.SuffHealth>Physical &amp; health state complete: includes pain, bleeding, and severe illness severity filtering.</RimMind.Inspector.SuffHealth>
+  <RimMind.Inspector.SuffPathing>Spatial &amp; pathing closed-loop: C# JobDispatcher resolves pathfinding automatically without dumping full-map coordinates into prompts.</RimMind.Inspector.SuffPathing>
+  <RimMind.Inspector.SuffSocial>Social relations supported: direct relations and partner information included.</RimMind.Inspector.SuffSocial>
 </LanguageData>

@@ -44,6 +44,7 @@ namespace RimMind.Infrastructure.UI
         {
             ScenarioIds.Decision,
             ScenarioIds.Dialogue,
+            ScenarioIds.CrisisDialogue,
             ScenarioIds.Personality,
             ScenarioIds.Memory
         };
@@ -52,6 +53,7 @@ namespace RimMind.Infrastructure.UI
         {
             "Decision",
             "Dialogue",
+            "CrisisDialogue",
             "Personality",
             "DarkMemory"
         };
@@ -296,12 +298,12 @@ namespace RimMind.Infrastructure.UI
         {
             var r = _cachedAnalysis;
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("=== Token 预算与结构消耗分析 ===");
-            sb.AppendLine($"• 预估总输入 Token : ~{r.TotalTokens} tokens ({r.TotalChars} 字符)");
-            sb.AppendLine($"  - 系统规则与声明 (System) : ~{r.SystemTokens} tokens ({(r.TotalTokens > 0 ? r.SystemTokens * 100f / r.TotalTokens : 0):F1}%)");
-            sb.AppendLine($"  - 静态背景与特征 (Static) : ~{r.StaticTokens} tokens ({(r.TotalTokens > 0 ? r.StaticTokens * 100f / r.TotalTokens : 0):F1}%)");
-            sb.AppendLine($"  - 动态状态与感知 (Dynamic): ~{r.DynamicTokens} tokens ({(r.TotalTokens > 0 ? r.DynamicTokens * 100f / r.TotalTokens : 0):F1}%)");
-            sb.AppendLine($"  - 工具结构声明 (Tools)    : ~{r.ToolTokens} tokens ({(r.TotalTokens > 0 ? r.ToolTokens * 100f / r.TotalTokens : 0):F1}%)");
+            sb.AppendLine("RimMind.Inspector.TokenBudgetTitle".Translate());
+            sb.AppendLine("RimMind.Inspector.TotalTokensLine".Translate(r.TotalTokens, r.TotalChars));
+            sb.AppendLine("RimMind.Inspector.SystemTokensLine".Translate(r.SystemTokens, (r.TotalTokens > 0 ? r.SystemTokens * 100f / r.TotalTokens : 0f)));
+            sb.AppendLine("RimMind.Inspector.StaticTokensLine".Translate(r.StaticTokens, (r.TotalTokens > 0 ? r.StaticTokens * 100f / r.TotalTokens : 0f)));
+            sb.AppendLine("RimMind.Inspector.DynamicTokensLine".Translate(r.DynamicTokens, (r.TotalTokens > 0 ? r.DynamicTokens * 100f / r.TotalTokens : 0f)));
+            sb.AppendLine("RimMind.Inspector.ToolTokensLine".Translate(r.ToolTokens, (r.TotalTokens > 0 ? r.ToolTokens * 100f / r.TotalTokens : 0f)));
             sb.AppendLine();
             sb.AppendLine("RimMind.Inspector.PromptCachingTitle".Translate());
             int prefixTokens = r.SystemTokens + r.StaticTokens + r.ToolTokens;
@@ -315,10 +317,10 @@ namespace RimMind.Infrastructure.UI
             sb.AppendLine("RimMind.Inspector.EstimatedHit".Translate(hitRatio));
             sb.AppendLine("RimMind.Inspector.TailIsolated".Translate());
             sb.AppendLine();
-            sb.AppendLine("=== 冗余与优化提示 (Redundancy & Warnings) ===");
+            sb.AppendLine("RimMind.Inspector.RedundancyTitle".Translate());
             if (r.Warnings.Count == 0)
             {
-                sb.AppendLine("  (未检测到明显冗余，结构配比健康)");
+                sb.AppendLine("RimMind.Inspector.NoRedundancy".Translate());
             }
             else
             {
@@ -328,7 +330,7 @@ namespace RimMind.Infrastructure.UI
                 }
             }
             sb.AppendLine();
-            sb.AppendLine("=== 信息充足度评估 (Information Sufficiency) ===");
+            sb.AppendLine("RimMind.Inspector.SufficiencyTitle".Translate());
             foreach (var s in r.SufficiencyPoints)
             {
                 sb.AppendLine($"[✓] {s}");
@@ -340,21 +342,21 @@ namespace RimMind.Infrastructure.UI
         private void DrawLiveTestTab(Rect rect)
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine($"=== 实机测试运行状态: {_testStatus} ===");
+            sb.AppendLine("RimMind.Inspector.LiveTestStatus".Translate(_testStatus));
             if (_testElapsedMs > 0)
             {
-                sb.AppendLine($"耗时: {_testElapsedMs} ms");
+                sb.AppendLine("RimMind.Inspector.LiveTestElapsed".Translate(_testElapsedMs));
             }
             if (!string.IsNullOrEmpty(_testError))
             {
-                sb.AppendLine($"错误: {_testError}");
+                sb.AppendLine("RimMind.Inspector.LiveTestError".Translate(_testError));
             }
             sb.AppendLine();
-            sb.AppendLine("--- 模型自然语言回复 ---");
-            sb.AppendLine(string.IsNullOrEmpty(_testResponseContent) ? "(暂无输出，点击下方 [发送实机测试请求] 测试)" : _testResponseContent);
+            sb.AppendLine("RimMind.Inspector.LiveTestReplyTitle".Translate());
+            sb.AppendLine(string.IsNullOrEmpty(_testResponseContent) ? (string)"RimMind.Inspector.LiveTestNoReply".Translate() : _testResponseContent);
             sb.AppendLine();
-            sb.AppendLine("--- 返回的 ToolCalls 动作 ---");
-            sb.AppendLine(string.IsNullOrEmpty(_testToolCallsJson) ? "(无工具调用)" : _testToolCallsJson);
+            sb.AppendLine("RimMind.Inspector.LiveTestToolCallsTitle".Translate());
+            sb.AppendLine(string.IsNullOrEmpty(_testToolCallsJson) ? (string)"RimMind.Inspector.LiveTestNoToolCalls".Translate() : _testToolCallsJson);
 
             DrawScrollableText(rect, sb.ToString());
         }
@@ -566,7 +568,7 @@ namespace RimMind.Infrastructure.UI
             // Redundancy & Cache checks
             if (pawn.skills != null && pawn.skills.skills.Count(s => s.Level < 3) > 4)
             {
-                rep.Warnings.Add("包含 4+ 个极低技能 (等级 < 3)。建议非工作决策时过滤无意义弱势技能。");
+                rep.Warnings.Add("RimMind.Inspector.WarnLowSkills".Translate());
             }
             if (backstoryLen > 0)
             {
@@ -574,9 +576,9 @@ namespace RimMind.Infrastructure.UI
             }
 
             // Sufficiency check
-            rep.SufficiencyPoints.Add("生理与健康状态完备：包含疼痛、出血、严重疾病严重度过滤。");
-            rep.SufficiencyPoints.Add("空间与路径闭环：由底层 C# JobDispatcher 自动解析目标寻路，无需在 Prompt 中堆砌全图坐标。");
-            rep.SufficiencyPoints.Add("社交关系支持：直接关系人与伴侣信息已包含。");
+            rep.SufficiencyPoints.Add("RimMind.Inspector.SuffHealth".Translate());
+            rep.SufficiencyPoints.Add("RimMind.Inspector.SuffPathing".Translate());
+            rep.SufficiencyPoints.Add("RimMind.Inspector.SuffSocial".Translate());
 
             return rep;
         }

@@ -10,6 +10,7 @@ namespace RimMind.Infrastructure.Verse
 
         public override void GameComponentUpdate()
         {
+            RimMind.Infrastructure.Services.Verse.VerseLogSink.FlushPendingOnMainThread();
             RimMind.Infrastructure.UI.Layout.UiCaptureRunner.CheckStartup();
             RimMind.Infrastructure.UI.BehaviorAutotestRunner.CheckStartup();
             RimMind.Infrastructure.UI.DebugActions.ShowcaseSceneCaptureRunner.CheckStartup();

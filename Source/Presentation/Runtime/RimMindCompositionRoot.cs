@@ -181,7 +181,7 @@ namespace RimMind.Presentation.Runtime
                 services.Bind<IRequestSubmissionService>(requestSubmission);
 
                 var actionExecutor = ToolMechanismComposition.ComposeActionExecutor(
-                    services, infraBag.MechanismRegistry);
+                    services, infraBag.MechanismRegistry, appBag.ToolRegistry);
                 var agentServices = AgentComposition.ComposeAgents(
                     services,
                     extensions,
@@ -194,7 +194,8 @@ namespace RimMind.Presentation.Runtime
                     logSink,
                     npcManagers,
                     lifetime,
-                    pawn => runtime?.GetAgentIdentity(pawn));
+                    pawn => runtime?.GetAgentIdentity(pawn),
+                    existingGameContextBuilder: contextServices.GameContextBuilder);
 
                 SettingsComposition.ComposeDefaultExtensionRegistries(services, extensions);
                 appBag.Queue.ModCooldowns = extensions.GetExtensionRegistry<IModCooldown>();

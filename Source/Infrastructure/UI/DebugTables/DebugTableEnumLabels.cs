@@ -7,18 +7,24 @@ namespace RimMind.Infrastructure.UI.DebugTables
     public static class DebugTableEnumLabels
     {
         public static string For(MechanismScope value)
-            => ("RimMind.UI.Enum.MechanismScope." + value).Translate();
+            => TranslateEnum("RimMind.UI.Enum.MechanismScope.", value.ToString());
 
         public static string For(MechanismRisk value)
-            => ("RimMind.UI.Enum.MechanismRisk." + value).Translate();
+            => TranslateEnum("RimMind.UI.Enum.MechanismRisk.", value.ToString());
 
         public static string For(MechanismOperationType value)
-            => ("RimMind.UI.Enum.MechanismOperation." + value).Translate();
+            => TranslateEnum("RimMind.UI.Enum.MechanismOperation.", value.ToString());
 
         public static string For(ContextLayer value)
-            => ("RimMind.UI.Enum.ContextLayer." + value).Translate();
+            => TranslateEnum("RimMind.UI.Enum.ContextLayer.", value.ToString());
 
         public static string For(CacheScope value)
-            => ("RimMind.UI.Enum.CacheScope." + value).Translate();
+            => TranslateEnum("RimMind.UI.Enum.CacheScope.", value.ToString());
+
+        private static string TranslateEnum(string prefix, string name)
+        {
+            string key = prefix + name;
+            return key.CanTranslate() ? (string)key.Translate() : name;
+        }
     }
 }

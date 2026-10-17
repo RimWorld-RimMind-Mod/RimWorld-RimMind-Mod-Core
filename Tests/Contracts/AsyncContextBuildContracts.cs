@@ -144,6 +144,14 @@ namespace RimMind.Tests.Contracts
             Assert.Contains(snapshot.Messages, message => message.Content == "current query");
         }
 
+        [Fact]
+        public void DefaultContextKeyProvider_implements_ExtractMoodThoughts()
+        {
+            IContextKeyProvider provider = new DefaultContextKeyProvider();
+            Assert.Equal("", provider.ExtractMoodThoughts(null!));
+            Assert.Equal("", provider.ExtractMoodThoughts("pawn"));
+        }
+
         internal sealed class ContextRuntime
         {
             public AgentBusImpl Bus { get; } = new();

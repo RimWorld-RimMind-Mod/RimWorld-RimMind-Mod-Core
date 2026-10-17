@@ -353,8 +353,7 @@ namespace RimMind.Presentation.UI
         internal static string GetProviderLabel(string p)
         {
             string key = $"RimMind.Settings.Provider.{NormalizeProviderTranslationSuffix(p)}";
-            var translation = key.Translate();
-            return translation == key ? p : translation;
+            return key.CanTranslate() ? (string)key.Translate() : p;
         }
 
         private static string NormalizeProviderTranslationSuffix(string providerId)

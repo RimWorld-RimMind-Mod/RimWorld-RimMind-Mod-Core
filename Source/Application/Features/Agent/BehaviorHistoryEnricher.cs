@@ -27,7 +27,9 @@ namespace RimMind.Application.Features.Agent
             sb.AppendLine("<behavior_history>");
             foreach (var record in recentHistory)
             {
-                var status = record.Success ? "Success" : "Fail";
+                var status = record.Success
+                    ? "Success"
+                    : (!string.IsNullOrWhiteSpace(record.ResultReason) ? $"Fail ({record.ResultReason})" : "Fail");
                 sb.AppendLine($"- {record.Action} → {status}: {record.Reason}");
             }
 

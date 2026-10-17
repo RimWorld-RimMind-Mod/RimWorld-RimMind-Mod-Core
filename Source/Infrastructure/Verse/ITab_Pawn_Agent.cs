@@ -60,10 +60,10 @@ namespace RimMind.Infrastructure.Verse
                 agent.State == AgentState.Active,
                 agent.State == AgentState.Paused);
             string stateKey = $"RimMind.Agent.State.{agent.State}";
-            string stateLabel = stateKey.Translate();
+            string stateLabel = stateKey.CanTranslate() ? (string)stateKey.Translate() : agent.State.ToString();
             curY = RimMindUI.DrawStatusBadge(contentRect, curY, stateLabel, stateTextColor, stateBgColor);
 
-            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "Mode", agent.CurrentModeId.Value);
+            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "RimMind.Agent.ITab.Mode".Translate(), agent.CurrentModeId.Value);
 
             curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "WorkflowPhase", agent.WorkflowPhase.ToString());
             curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "Autonomy", agent.AutonomyLevel.ToString());
