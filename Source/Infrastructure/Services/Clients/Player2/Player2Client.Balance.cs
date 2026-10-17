@@ -1,4 +1,6 @@
 using System;
+using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces;
@@ -7,7 +9,6 @@ using RimMind.Application.Common.Models;
 using RimMind.Domain.ValueObjects;
 using Newtonsoft.Json;
 using RimWorld;
-using UnityEngine.Networking;
 using Verse;
 
 namespace RimMind.Infrastructure.Services.Clients.Player2
@@ -29,26 +30,19 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
             try
             {
+                if (Current.Game == null) return -1f;
                 string endpoint = $"{CurrentApiUrl}/v1/balance";
-                using var webRequest = UnityWebRequest.Get(endpoint);
-                webRequest.downloadHandler = new DownloadHandlerBuffer();
-                webRequest.SetRequestHeader("Authorization", $"Bearer {_apiKey}");
-                webRequest.SetRequestHeader("player2-game-key", GameClientId);
-                webRequest.timeout = RimMindDefaults.Player2BalanceQueryTimeout;
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(BalanceQueryTimeoutSec));
+                using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+                request.Headers.TryAddWithoutValidation("player2-game-key", GameClientId);
 
-                var asyncOp = webRequest.SendWebRequest();
-                while (!asyncOp.isDone)
-                {
-                    if (Current.Game == null) return -1f;
-                    await Task.Delay(BalancePollingDelayMs);
-                }
-
-                if (webRequest.result == UnityWebRequest.Result.ConnectionError ||
-                    webRequest.result == UnityWebRequest.Result.ProtocolError)
+                using var response = await SharedHttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
                     return -1f;
 
-                var balance = JsonConvert.DeserializeObject<Player2JoulesBalance>(
-                    webRequest.downloadHandler.text);
+                string text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var balance = JsonConvert.DeserializeObject<Player2JoulesBalance>(text);
                 return balance?.Balance ?? -1f;
             }
             catch (Exception ex)

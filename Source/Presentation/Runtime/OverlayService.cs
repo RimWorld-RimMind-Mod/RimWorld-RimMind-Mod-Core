@@ -79,17 +79,32 @@ namespace RimMind.Presentation.Runtime
         {
             int now = Find.TickManager.TicksGame;
             List<RequestEntry>? expired = null;
+            List<RequestEntry>? deadPawnDismissed = null;
             lock (_pendingRequests)
             {
                 for (var i = _pendingRequests.Count - 1; i >= 0; i--)
                 {
                     var entry = _pendingRequests[i];
+                    if (entry.pawn is Pawn p && (p.Dead || p.Destroyed))
+                    {
+                        deadPawnDismissed ??= new List<RequestEntry>();
+                        deadPawnDismissed.Add(entry);
+                        _pendingRequests.RemoveAt(i);
+                        continue;
+                    }
+
                     if (entry.ExpireAtTicks <= 0 || now < entry.ExpireAtTicks) continue;
 
                     expired ??= new List<RequestEntry>();
                     expired.Add(entry);
                     _pendingRequests.RemoveAt(i);
                 }
+            }
+
+            if (deadPawnDismissed != null)
+            {
+                foreach (var entry in deadPawnDismissed)
+                    CompleteSafely(entry, null, RequestCompletionReason.Dismissed);
             }
 
             CompleteWithFallback(expired, RequestCompletionReason.Expired);

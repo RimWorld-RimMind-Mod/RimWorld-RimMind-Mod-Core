@@ -325,7 +325,7 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("cell.Standable(map)", code, StringComparison.Ordinal);
                     Assert.Contains("pawn.CanReach(cell, PathEndMode.OnCell, Danger.Deadly)", code, StringComparison.Ordinal);
                 })),
-                ("JobActionDispatcher HandleEatFood returns Err when food is null", (Action)(() =>
+                ("JobActionDispatcher HandleEatFood returns Err when food is null and checks CanReserveAndReach and WillIngestStackCountOf", (Action)(() =>
                 {
                     string root = FindRepoRoot();
                     string path = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Mechanisms", "Pawn", "Job", "JobActionDispatcher.cs");
@@ -333,6 +333,42 @@ namespace RimMind.Tests.Contracts
 
                     Assert.Contains("if (food == null)", code, StringComparison.Ordinal);
                     Assert.Contains("Result<bool, RimMindError>.Err", code, StringComparison.Ordinal);
+                    Assert.Contains("CanReserveAndReach", code, StringComparison.Ordinal);
+                    Assert.Contains("FoodUtility.WillIngestStackCountOf", code, StringComparison.Ordinal);
+                    Assert.Contains("RestUtility.FindBedFor(targetPawn, pawn", code, StringComparison.Ordinal);
+                })),
+                ("CompPawnAgent and NpcManager enforce IsActiveSpawnedColonist and UncachePawn lifecycle cleanup", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string compCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Verse", "CompPawnAgent.cs"));
+                    string npcCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Verse", "NpcManager.cs"));
+
+                    Assert.Contains("RimMindPawnLookup.IsActiveSpawnedColonist(pawn)", compCode, StringComparison.Ordinal);
+                    Assert.Contains("RimMindPawnLookup.UncachePawn(pawn)", compCode, StringComparison.Ordinal);
+                    Assert.Contains("RimMindPawnLookup.UncachePawn(thingId)", npcCode, StringComparison.Ordinal);
+                })),
+                ("MechanismToolHandler populates ToolDefinition.Manifest with RiskLevel and RequiresApproval", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string handlerCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Mechanisms", "MechanismToolHandler.cs"));
+
+                    Assert.Contains("Manifest = new ToolManifest", handlerCode, StringComparison.Ordinal);
+                    Assert.Contains("RiskLevel = MapRisk(mechanismRisk)", handlerCode, StringComparison.Ordinal);
+                    Assert.Contains("RequiresApproval = mechanismRisk >= MechanismRisk.Dangerous", handlerCode, StringComparison.Ordinal);
+                })),
+                ("Player2Client uses SharedHttpClient off main thread and RimMindRuntimeGameComponent stops health check", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string p2Dir = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Services", "Clients", "Player2");
+                    foreach (var file in new[] { "Player2Client.Discovery.cs", "Player2Client.HealthCheck.cs", "Player2Client.Balance.cs", "Player2Client.RawRequests.cs" })
+                    {
+                        string code = File.ReadAllText(Path.Combine(p2Dir, file));
+                        Assert.DoesNotContain("UnityWebRequest", code, StringComparison.Ordinal);
+                        Assert.Contains("SharedHttpClient", code, StringComparison.Ordinal);
+                    }
+
+                    string runtimeCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Presentation", "Runtime", "RimMindRuntimeGameComponent.cs"));
+                    Assert.Contains("Player2Client.StopHealthCheck()", runtimeCode, StringComparison.Ordinal);
                 }))
             );
         }

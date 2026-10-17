@@ -68,6 +68,7 @@ namespace RimMind.Infrastructure.Verse
         public void UnindexPawn(int thingId)
         {
             _pawnIndex.TryRemove(thingId, out _);
+            RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(thingId);
         }
 
         internal void ClearPawnIndex()

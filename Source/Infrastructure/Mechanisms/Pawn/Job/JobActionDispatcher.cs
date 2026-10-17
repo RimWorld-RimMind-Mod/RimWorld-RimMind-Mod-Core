@@ -182,7 +182,8 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 
         public static Result<bool, RimMindError> HandleEatFood(VersePawn pawn, MechanismWriteArgs args)
         {
-            var food = pawn.inventory?.innerContainer?.FirstOrDefault(t => t.def.IsNutritionGivingIngestible);
+            var food = pawn.inventory?.innerContainer?.FirstOrDefault(
+                t => t != null && !t.Destroyed && t.def.IsNutritionGivingIngestible && t.IngestibleNow);
             if (food == null)
             {
                 var map = pawn.Map ?? Find.CurrentMap;
@@ -192,7 +193,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
                     {
                         if (entry.Key.IsNutritionGivingIngestible && entry.Value > 0)
                         {
-                            food = map.listerThings?.ThingsOfDef(entry.Key)?.FirstOrDefault();
+                            food = map.listerThings?.ThingsOfDef(entry.Key)?.FirstOrDefault(
+                                t => t != null && !t.Destroyed && t.Spawned && !t.IsForbidden(pawn) && t.IngestibleNow
+                                     && pawn.CanReserveAndReach(t, PathEndMode.OnCell, Danger.Deadly));
                             if (food != null) break;
                         }
                     }
@@ -205,6 +208,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             }
 
             var job = JobMaker.MakeJob(JobDefOf.Ingest, new LocalTargetInfo(food));
+            job.count = System.Math.Max(1, FoodUtility.WillIngestStackCountOf(pawn, food.def, food.GetStatValue(StatDefOf.Nutrition)));
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             return Result<bool, RimMindError>.Ok(true);
         }
@@ -224,7 +228,11 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             if (targetPawn == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
+            if (!pawn.CanReserveAndReach(targetPawn, PathEndMode.Touch, Danger.Deadly))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "tend_pawn: cannot reserve or reach target pawn"));
+
             var job = JobMaker.MakeJob(JobDefOf.TendPatient, new LocalTargetInfo(targetPawn));
+            job.count = 1;
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             return Result<bool, RimMindError>.Ok(true);
         }
@@ -236,7 +244,12 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             if (targetPawn == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
-            var job = JobMaker.MakeJob(JobDefOf.Rescue, new LocalTargetInfo(targetPawn));
+            Building_Bed bed = RestUtility.FindBedFor(targetPawn, pawn, checkSocialProperness: false, ignoreOtherReservations: false, targetPawn.GuestStatus);
+            if (bed == null || !pawn.CanReserveAndReach(targetPawn, PathEndMode.OnCell, Danger.Deadly))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "rescue_pawn: no available bed or cannot reserve/reach target pawn"));
+
+            var job = JobMaker.MakeJob(JobDefOf.Rescue, targetPawn, bed);
+            job.count = 1;
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             return Result<bool, RimMindError>.Ok(true);
         }
@@ -248,7 +261,12 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             if (targetPawn == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
-            var job = JobMaker.MakeJob(JobDefOf.Arrest, new LocalTargetInfo(targetPawn));
+            Building_Bed bed = RestUtility.FindBedFor(targetPawn, pawn, checkSocialProperness: false, ignoreOtherReservations: false, GuestStatus.Prisoner);
+            if (bed == null || !pawn.CanReserveAndReach(targetPawn, PathEndMode.OnCell, Danger.Deadly))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "arrest_pawn: no available prisoner bed or cannot reserve/reach target pawn"));
+
+            var job = JobMaker.MakeJob(JobDefOf.Arrest, targetPawn, bed);
+            job.count = 1;
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             return Result<bool, RimMindError>.Ok(true);
         }

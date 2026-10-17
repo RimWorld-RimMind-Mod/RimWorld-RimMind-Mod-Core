@@ -1,11 +1,11 @@
 using System;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Models;
 using RimMind.Domain.ValueObjects;
 using RimWorld;
-using UnityEngine.Networking;
 using Verse;
 
 namespace RimMind.Infrastructure.Services.Clients.Player2
@@ -53,22 +53,17 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
             try
             {
-                using var webRequest = UnityWebRequest.Get($"{CurrentApiUrl}/v1/health");
-                webRequest.downloadHandler = new DownloadHandlerBuffer();
-                webRequest.SetRequestHeader("Authorization", $"Bearer {_apiKey}");
-                webRequest.SetRequestHeader("player2-game-key", GameClientId);
+                if (Current.Game == null) return;
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"{CurrentApiUrl}/v1/health");
+                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+                request.Headers.TryAddWithoutValidation("player2-game-key", GameClientId);
 
-                var asyncOp = webRequest.SendWebRequest();
-                while (!asyncOp.isDone)
-                {
-                    if (Current.Game == null) return;
-                    await Task.Delay(HealthCheckPollingDelayMs);
-                }
-
+                using var response = await SharedHttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
                 _lastHealthCheck = DateTime.Now;
-                if (webRequest.responseCode != 200)
+                if ((int)response.StatusCode != 200)
                     _logSink?.LogFromBackground(
-                        $"[RimMind-Core] Player2 health check failed: {webRequest.responseCode}", isWarning: true);
+                        $"[RimMind-Core] Player2 health check failed: {(int)response.StatusCode}", isWarning: true);
             }
             catch (Exception ex)
             {
@@ -80,7 +75,13 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         public static void StopHealthCheck()
         {
             _healthCheckActive = false;
-            _healthCheckCts.Cancel();
+            try
+            {
+                _healthCheckCts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         public static void CheckPlayer2StatusAndNotify()
@@ -90,10 +91,14 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                 bool isAvailable = await IsPlayer2LocalAppAvailableAsync();
                 LongEventHandler.ExecuteWhenFinished(() =>
                 {
+                    string key = isAvailable
+                        ? "RimMind.Infrastructure.Player2.LocalDetected"
+                        : "RimMind.Infrastructure.Player2.LocalNotFound";
+                    string message = key.CanTranslate()
+                        ? (string)key.Translate()
+                        : (isAvailable ? "Player2 local app detected." : "Player2 local app not found.");
                     Messages.Message(
-                        isAvailable
-                            ? "RimMind.Infrastructure.Player2.LocalDetected".Translate()
-                            : "RimMind.Infrastructure.Player2.LocalNotFound".Translate(),
+                        message,
                         isAvailable ? MessageTypeDefOf.PositiveEvent : MessageTypeDefOf.CautionInput);
                 });
             });
@@ -103,15 +108,10 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                using var webRequest = UnityWebRequest.Get($"{LocalUrl}/v1/health");
-                webRequest.timeout = LocalAvailabilityTimeoutSec;
-                var asyncOp = webRequest.SendWebRequest();
-                while (!asyncOp.isDone)
-                {
-                    if (Current.Game == null) return false;
-                    await Task.Delay(50);
-                }
-                return webRequest.responseCode == 200;
+                if (Current.Game == null) return false;
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(LocalAvailabilityTimeoutSec));
+                using var response = await SharedHttpClient.GetAsync($"{LocalUrl}/v1/health", cts.Token).ConfigureAwait(false);
+                return (int)response.StatusCode == 200;
             }
             catch (Exception ex) { RimMindErrors.Warn($"[RimMind-Core] Player2 local availability check failed: {ex.Message}"); return false; }
         }

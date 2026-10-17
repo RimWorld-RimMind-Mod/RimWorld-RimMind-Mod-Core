@@ -90,6 +90,7 @@ namespace RimWorld
     {
         public static MessageTypeDef RejectInput = new();
         public static MessageTypeDef PositiveEvent = new();
+        public static MessageTypeDef CautionInput = new();
     }
 
     public class LetterDef { }
@@ -498,8 +499,8 @@ namespace Verse
             => string.IsNullOrEmpty(text);
     }
 
-    /// <summary>Stub for Verse.Translate extension method.</summary>
-    public static class TranslateStub
+    /// <summary>Stub for Verse.Translator extension methods.</summary>
+    public static class Translator
     {
         public static bool CanTranslate(this string key) => true;
         public static string Translate(this string key) => key;

@@ -59,18 +59,19 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         public static Player2Client Create(ISettingsProvider settings, ILogSink? logSink = null)
         {
-            if (!string.IsNullOrEmpty(_cachedLocalKey))
+            GetDiscoveryState(out var cachedKey, out _);
+            if (!string.IsNullOrEmpty(cachedKey))
             {
-                return new Player2Client(_cachedLocalKey, isLocal: true, settings, logSink);
+                return new Player2Client(cachedKey!, isLocal: true, settings, logSink);
             }
 
             if (!string.IsNullOrEmpty(settings?.ApiKey))
             {
-                return new Player2Client(settings.ApiKey, isLocal: false, settings, logSink);
+                return new Player2Client(settings!.ApiKey, isLocal: false, settings, logSink);
             }
 
-            var client = new Player2Client(string.Empty, isLocal: false, settings, logSink);
-            TriggerBackgroundDiscovery(client, settings, logSink);
+            var client = new Player2Client(string.Empty, isLocal: false, settings!, logSink);
+            TriggerBackgroundDiscovery(client, settings!, logSink);
             return client;
         }
 
@@ -79,24 +80,25 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                if (!string.IsNullOrEmpty(_cachedLocalKey))
+                GetDiscoveryState(out var cachedKey, out _);
+                if (!string.IsNullOrEmpty(cachedKey))
                 {
-                    return new Player2Client(_cachedLocalKey, isLocal: true, settings, logSink);
+                    return new Player2Client(cachedKey!, isLocal: true, settings, logSink);
                 }
 
                 if (!string.IsNullOrEmpty(settings?.ApiKey))
                 {
-                    return new Player2Client(settings.ApiKey, isLocal: false, settings, logSink);
+                    return new Player2Client(settings!.ApiKey, isLocal: false, settings, logSink);
                 }
 
                 string? localKey = await ProbeLocalPlayer2KeyAsync(logSink).ConfigureAwait(false);
                 if (!string.IsNullOrEmpty(localKey))
                 {
-                    return new Player2Client(localKey!, isLocal: true, settings, logSink);
+                    return new Player2Client(localKey!, isLocal: true, settings!, logSink);
                 }
 
                 ShowNotification("RimMind.Infrastructure.Player2.LocalNotFound");
-                return new Player2Client(string.Empty, isLocal: false, settings, logSink);
+                return new Player2Client(string.Empty, isLocal: false, settings!, logSink);
             }
             catch (Exception ex)
             {
@@ -122,13 +124,25 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         public async Task<Result<RimMind.Domain.Llm.LlmResponse, RimMindError>> SendAsync(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
         {
-            if (!IsConfigured() && _activeProbeTask != null && !_activeProbeTask.IsCompleted)
+            if (!IsConfigured())
             {
-                try
+                GetDiscoveryState(out var cachedKey, out var activeTask);
+                if (!string.IsNullOrEmpty(cachedKey))
                 {
-                    await _activeProbeTask.ConfigureAwait(false);
+                    UpdateDiscoveredKey(cachedKey!, isLocal: true);
                 }
-                catch { }
+                else if (activeTask != null)
+                {
+                    try
+                    {
+                        string? key = await activeTask.ConfigureAwait(false);
+                        if (!string.IsNullOrEmpty(key))
+                        {
+                            UpdateDiscoveredKey(key!, isLocal: true);
+                        }
+                    }
+                    catch { }
+                }
             }
 
             if (!IsConfigured())
@@ -200,7 +214,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             {
                 await EnsureHealthCheck();
 
-                (string responseText, long httpStatusCode) = await PostAsync(endpoint, json);
+                (string responseText, long httpStatusCode) = await PostAsync(endpoint, json, envelope.Ct);
                 var parsed = JsonConvert.DeserializeObject<Player2ResponseDto>(responseText);
                 string content = parsed?.Choices?[0]?.Message?.Content ?? string.Empty;
                 int tokens = parsed?.Usage?.TotalTokens ?? 0;
@@ -252,13 +266,25 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         public async Task<Result<RimMind.Domain.Llm.LlmResponse, RimMindError>> SendStreamAsync(RimMind.Domain.Llm.LlmRequestEnvelope envelope, Action<RimMind.Domain.Llm.LlmChunk> onChunk, CancellationToken ct)
         {
-            if (!IsConfigured() && _activeProbeTask != null && !_activeProbeTask.IsCompleted)
+            if (!IsConfigured())
             {
-                try
+                GetDiscoveryState(out var cachedKey, out var activeTask);
+                if (!string.IsNullOrEmpty(cachedKey))
                 {
-                    await _activeProbeTask.ConfigureAwait(false);
+                    UpdateDiscoveredKey(cachedKey!, isLocal: true);
                 }
-                catch { }
+                else if (activeTask != null)
+                {
+                    try
+                    {
+                        string? key = await activeTask.ConfigureAwait(false);
+                        if (!string.IsNullOrEmpty(key))
+                        {
+                            UpdateDiscoveredKey(key!, isLocal: true);
+                        }
+                    }
+                    catch { }
+                }
             }
 
             if (!IsConfigured())
@@ -516,12 +542,12 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             return merged;
         }
 
-        private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody)
+        private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody, CancellationToken ct = default)
         {
             bool isLocal = _isLocalConnection;
             float connectTimeout = isLocal ? LocalConnectTimeout : RemoteConnectTimeout;
             return await HttpTransport.PostAsync(url, jsonBody, $"Bearer {_apiKey}",
-                "player2-game-key", GameClientId, connectTimeout: connectTimeout);
+                "player2-game-key", GameClientId, connectTimeout: connectTimeout, cancellationToken: ct);
         }
     }
 }

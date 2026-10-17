@@ -21,7 +21,9 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
         public string ProviderId => AIProviders.OpenAI;
         public bool RequiresApiKey => true;
-        public string DisplayLabel => global::Verse.Translator.Translate("RimMind.Settings.Provider.OpenAI");
+        public string DisplayLabel => global::Verse.Translator.CanTranslate("RimMind.Settings.Provider.OpenAI")
+            ? (string)global::Verse.Translator.Translate("RimMind.Settings.Provider.OpenAI")
+            : "OpenAI Compatible";
         public string? DefaultEndpoint => "https://api.openai.com/v1";
         public string? DefaultModelName => "gpt-4o-mini";
         public int OrderWeight => 10;

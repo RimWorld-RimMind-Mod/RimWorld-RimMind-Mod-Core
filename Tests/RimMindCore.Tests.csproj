@@ -87,6 +87,7 @@
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIRequestSerializer.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.RequestBuilding.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/Player2/*.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/HttpTransport.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/Shared/*.cs" />
     <Compile Include="../Source/Presentation/Settings/ApiKeyObfuscator.cs" />
