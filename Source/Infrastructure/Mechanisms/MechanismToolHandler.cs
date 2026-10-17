@@ -168,15 +168,29 @@ namespace RimMind.Infrastructure.Mechanisms
             var toolId = $"{metadata.MechanismId}.{OperationSuffix(operation)}";
             var description = BuildDescription(metadata, operation);
             var schema = BuildParameterSchema(metadata, operation);
+            var mechanismRisk = metadata.GetRiskForOperation(operation);
 
             return new ToolDefinition
             {
                 Id = toolId,
                 Description = description,
                 ParametersSchema = schema,
-                Category = metadata.Scope.ToString().ToLowerInvariant()
+                Category = metadata.Scope.ToString().ToLowerInvariant(),
+                Manifest = new ToolManifest
+                {
+                    RiskLevel = MapRisk(mechanismRisk),
+                    RequiresApproval = mechanismRisk >= MechanismRisk.Dangerous
+                }
             };
         }
+
+        private static RiskLevel MapRisk(MechanismRisk risk) => risk switch
+        {
+            MechanismRisk.Safe => RiskLevel.Low,
+            MechanismRisk.Moderate => RiskLevel.Medium,
+            MechanismRisk.Dangerous => RiskLevel.High,
+            _ => RiskLevel.Medium
+        };
 
         private static string BuildDescription(IMechanismMetadata metadata, MechanismOperationType operation)
         {

@@ -19,7 +19,9 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
         public string ProviderId => AIProviders.Player2;
         public bool RequiresApiKey => false;
-        public string DisplayLabel => global::Verse.Translator.Translate("RimMind.Settings.Provider.Player2");
+        public string DisplayLabel => global::Verse.Translator.CanTranslate("RimMind.Settings.Provider.Player2")
+            ? (string)global::Verse.Translator.Translate("RimMind.Settings.Provider.Player2")
+            : "Player2 (Local / Cloud)";
         public string? DefaultEndpoint => null;
         public string? DefaultModelName => null;
         public int OrderWeight => 30;
@@ -33,7 +35,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             catch (System.Exception)
             {
-                return null;
+                return null!;
             }
         }
     }

@@ -133,6 +133,7 @@ namespace RimMind.Presentation.Runtime
 
         internal static void StopGameServices()
         {
+            RimMind.Infrastructure.Services.Clients.Player2.Player2Client.StopHealthCheck();
             RimMindPawnLookup.ClearCache();
             GameServiceHub.Shared.Stop();
         }

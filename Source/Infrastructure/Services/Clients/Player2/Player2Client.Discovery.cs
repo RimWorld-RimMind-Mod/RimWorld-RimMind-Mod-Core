@@ -1,5 +1,7 @@
 using System;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
@@ -7,7 +9,6 @@ using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Domain.ValueObjects;
 using Newtonsoft.Json;
 using RimWorld;
-using UnityEngine.Networking;
 using Verse;
 
 namespace RimMind.Infrastructure.Services.Clients.Player2
@@ -17,11 +18,25 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         private const int LocalHealthTimeoutSec = 2;
         private const int LocalLoginTimeoutSec = 3;
 
+        private static readonly HttpClient SharedHttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
+
         private static string? _cachedLocalKey;
         private static DateTime _lastProbeUtc = DateTime.MinValue;
         private static readonly TimeSpan ProbeCooldown = TimeSpan.FromSeconds(60);
         private static Task<string?>? _activeProbeTask;
         private static readonly object _probeLock = new object();
+
+        private static void GetDiscoveryState(out string? cachedKey, out Task<string?>? activeTask)
+        {
+            lock (_probeLock)
+            {
+                cachedKey = _cachedLocalKey;
+                activeTask = _activeProbeTask;
+            }
+        }
 
         public static void ResetDiscoveryCache()
         {
@@ -53,18 +68,27 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                         var key = await TryGetLocalPlayer2Key(logSink).ConfigureAwait(false);
                         if (!string.IsNullOrEmpty(key))
                         {
-                            _cachedLocalKey = key;
+                            lock (_probeLock)
+                            {
+                                _cachedLocalKey = key;
+                            }
                             ShowNotification("RimMind.Infrastructure.Player2.LocalDetected");
                         }
                         else
                         {
-                            _lastProbeUtc = DateTime.UtcNow;
+                            lock (_probeLock)
+                            {
+                                _lastProbeUtc = DateTime.UtcNow;
+                            }
                         }
                         return key;
                     }
                     catch (Exception ex)
                     {
-                        _lastProbeUtc = DateTime.UtcNow;
+                        lock (_probeLock)
+                        {
+                            _lastProbeUtc = DateTime.UtcNow;
+                        }
                         logSink?.LogFromBackground($"[RimMind-Core] Player2 probe error: {ex.Message}");
                         return null;
                     }
@@ -100,27 +124,29 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(LocalHealthTimeoutSec));
-                using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(LocalHealthTimeoutSec) };
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(LocalHealthTimeoutSec));
 
                 // 1. Health probe
-                System.Net.Http.HttpResponseMessage healthResp;
+                HttpResponseMessage healthResp;
                 try
                 {
-                    healthResp = await client.GetAsync($"{LocalUrl}/v1/health", cts.Token).ConfigureAwait(false);
+                    healthResp = await SharedHttpClient.GetAsync($"{LocalUrl}/v1/health", cts.Token).ConfigureAwait(false);
                 }
                 catch
                 {
                     return null;
                 }
 
-                if (!healthResp.IsSuccessStatusCode)
-                    return null;
+                using (healthResp)
+                {
+                    if (!healthResp.IsSuccessStatusCode)
+                        return null;
+                }
 
                 // 2. Login probe
-                using var loginCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(LocalLoginTimeoutSec));
-                using var loginContent = new System.Net.Http.StringContent("{}", Encoding.UTF8, "application/json");
-                var loginResp = await client.PostAsync($"{LocalUrl}/v1/login/web/{GameClientId}", loginContent, loginCts.Token).ConfigureAwait(false);
+                using var loginCts = new CancellationTokenSource(TimeSpan.FromSeconds(LocalLoginTimeoutSec));
+                using var loginContent = new StringContent("{}", Encoding.UTF8, "application/json");
+                using var loginResp = await SharedHttpClient.PostAsync($"{LocalUrl}/v1/login/web/{GameClientId}", loginContent, loginCts.Token).ConfigureAwait(false);
                 if (!loginResp.IsSuccessStatusCode)
                     return null;
 

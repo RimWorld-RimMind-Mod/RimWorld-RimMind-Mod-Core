@@ -145,8 +145,12 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 _canaryInProgress = false;
             }
 
-            // In OnFailure(), do NOT increment failures or trip circuit breaker if error is RimMindErrorCode.Cancelled
-            if (error != null && error.Code == RimMindErrorCode.Cancelled)
+            // Do NOT increment failures or trip circuit breaker on cancellation or non-transport/local errors
+            if (error != null && (
+                error.Code == RimMindErrorCode.Cancelled ||
+                error.Code == RimMindErrorCode.ClientNotConfigured ||
+                error.Code == RimMindErrorCode.PipelineShortCircuited ||
+                error.Code == RimMindErrorCode.ContextBuildFailed))
             {
                 return;
             }

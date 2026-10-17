@@ -60,7 +60,7 @@ namespace RimMind.Infrastructure.Verse
 
             var tickSettings = RuntimeServiceHub.Shared.Capture().GetOptional<IAgentTickSettings>();
             if (tickSettings?.AutoActivateColonistAgents == true
-                && Pawn.IsColonist && !Pawn.Dead && Pawn.Map != null
+                && RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(Pawn)
                 && _agent != null && _agent.State == AgentState.Dormant)
             {
                 _agent.TransitionTo(AgentState.Active);
@@ -140,6 +140,10 @@ namespace RimMind.Infrastructure.Verse
 
         public override void PostDestroy(DestroyMode mode, Map previousMap)
         {
+            if (parent is Pawn pawn)
+            {
+                RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(pawn);
+            }
             UnregisterFromAgentLoop();
             base.PostDestroy(mode, previousMap);
         }
@@ -266,6 +270,8 @@ namespace RimMind.Infrastructure.Verse
 
         public static bool IsAgentActive(Pawn pawn)
         {
+            if (!RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+                return false;
             var comp = GetComp(pawn);
             return comp?.Agent?.IsActive == true;
         }

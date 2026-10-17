@@ -333,7 +333,9 @@ namespace RimMind.Presentation.Api
             if (map == null) return new List<Pawn>();
             if (UnityData.IsInMainThread && map.mapPawns != null)
             {
-                var prisoners = map.mapPawns.AllPawnsSpawned?.Where(p => p != null && p.IsPrisoner).ToList();
+                var prisoners = map.mapPawns.AllPawnsSpawned?
+                    .Where(p => p != null && !p.Dead && !p.Destroyed && p.IsPrisoner)
+                    .ToList();
                 if (prisoners != null)
                 {
                     foreach (var p in prisoners) CachePawn(p);
@@ -342,7 +344,7 @@ namespace RimMind.Presentation.Api
             }
 
             return PawnByNumberCache.Values
-                .Where(p => p != null && !p.DestroyedOrNull() && p.Map == map && p.Spawned && p.IsPrisoner)
+                .Where(p => p != null && !p.Dead && !p.Destroyed && !p.DestroyedOrNull() && p.Map == map && p.Spawned && p.IsPrisoner)
                 .ToList();
         }
 

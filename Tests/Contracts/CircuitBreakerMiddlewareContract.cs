@@ -27,7 +27,13 @@ namespace RimMind.Tests.Contracts
                     var context = CreateContext($"req-cancel-{i}");
                     await middleware.InvokeAsync(context, ctx =>
                     {
-                        ctx.Result = Result<LlmResponse, RimMindError>.Err(RimMindErrors.Cancelled());
+                        var err = (i % 3) switch
+                        {
+                            0 => RimMindErrors.Cancelled(),
+                            1 => RimMindErrors.ClientNotConfigured("No API key"),
+                            _ => RimMindErrors.PipelineShortCircuited("dedup")
+                        };
+                        ctx.Result = Result<LlmResponse, RimMindError>.Err(err);
                         return Task.CompletedTask;
                     });
 

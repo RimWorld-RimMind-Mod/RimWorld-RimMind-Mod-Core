@@ -1,11 +1,12 @@
 using System;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Models;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimWorld;
-using UnityEngine.Networking;
 using Verse;
 
 namespace RimMind.Infrastructure.Services.Clients.Player2
@@ -35,25 +36,24 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             string endpoint = $"{CurrentApiUrl}{path}";
             try
             {
-                using var webRequest = new UnityWebRequest(endpoint, method);
+                if (Current.Game == null)
+                    return RawResponse.Err(RimMindErrors.ClientTransient("Game exiting"));
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(RawRequestTimeoutSec));
+                using var request = new HttpRequestMessage(new HttpMethod(method), endpoint);
                 if (jsonBody != null)
-                    webRequest.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonBody));
+                    request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
                 else if (method == "POST")
-                    webRequest.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes("{}"));
-                webRequest.downloadHandler = new DownloadHandlerBuffer();
-                webRequest.SetRequestHeader("Content-Type", "application/json");
-                webRequest.SetRequestHeader("Authorization", $"Bearer {_apiKey}");
-                webRequest.SetRequestHeader("player2-game-key", GameClientId);
-                webRequest.timeout = RawRequestTimeoutSec;
+                    request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
 
-                var asyncOp = webRequest.SendWebRequest();
-                while (!asyncOp.isDone) { if (Current.Game == null) { return RawResponse.Err(RimMindErrors.ClientTransient("Game exiting")); } await Task.Delay(RawRequestPollingDelayMs); }
+                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+                request.Headers.TryAddWithoutValidation("player2-game-key", GameClientId);
 
-                string? content = webRequest.downloadHandler?.text;
-                bool ok = webRequest.result != UnityWebRequest.Result.ConnectionError
-                          && webRequest.result != UnityWebRequest.Result.ProtocolError;
-                if (ok) return RawResponse.Ok(content);
-                return RawResponse.Err(RimMindErrors.ClientTransient(webRequest.error));
+                using var response = await SharedHttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
+                string? content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (response.IsSuccessStatusCode)
+                    return RawResponse.Ok(content);
+                return RawResponse.Err(RimMindErrors.ClientTransient(response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}"));
             }
             catch (Exception ex) { return RawResponse.Err(RimMindErrors.ClientTransient(ex.Message, ex)); }
         }
