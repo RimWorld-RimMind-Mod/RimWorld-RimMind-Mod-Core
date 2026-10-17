@@ -23,6 +23,11 @@ namespace RimMind.Presentation.Api
         public static void CachePawn(Pawn? pawn)
         {
             if (pawn == null) return;
+            if (pawn.Dead || pawn.DestroyedOrNull())
+            {
+                UncachePawn(pawn);
+                return;
+            }
             if (pawn.thingIDNumber > 0)
             {
                 PawnByNumberCache[pawn.thingIDNumber] = pawn;
@@ -30,6 +35,72 @@ namespace RimMind.Presentation.Api
             if (!string.IsNullOrEmpty(pawn.ThingID))
             {
                 PawnByIdCache[pawn.ThingID] = pawn;
+            }
+        }
+
+        /// <summary>
+        /// Explicitly unregisters a pawn from the thread-safe lookup cache by numeric ID.
+        /// </summary>
+        public static void UncachePawn(int thingIDNumber)
+        {
+            if (thingIDNumber <= 0) return;
+            if (PawnByNumberCache.TryRemove(thingIDNumber, out var pawn))
+            {
+                if (pawn != null && !string.IsNullOrEmpty(pawn.ThingID))
+                {
+                    PawnByIdCache.TryRemove(pawn.ThingID, out _);
+                }
+            }
+            else
+            {
+                foreach (var kvp in PawnByIdCache)
+                {
+                    if (kvp.Value?.thingIDNumber == thingIDNumber)
+                    {
+                        PawnByIdCache.TryRemove(kvp.Key, out _);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Explicitly unregisters a pawn from the thread-safe lookup cache by string ThingID.
+        /// </summary>
+        public static void UncachePawn(string? thingId)
+        {
+            if (string.IsNullOrEmpty(thingId)) return;
+            if (PawnByIdCache.TryRemove(thingId, out var pawn))
+            {
+                if (pawn != null && pawn.thingIDNumber > 0)
+                {
+                    PawnByNumberCache.TryRemove(pawn.thingIDNumber, out _);
+                }
+            }
+            else
+            {
+                foreach (var kvp in PawnByNumberCache)
+                {
+                    if (kvp.Value?.ThingID == thingId)
+                    {
+                        PawnByNumberCache.TryRemove(kvp.Key, out _);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Explicitly unregisters a pawn instance from the thread-safe lookup cache.
+        /// </summary>
+        public static void UncachePawn(Pawn? pawn)
+        {
+            if (pawn == null) return;
+            if (pawn.thingIDNumber > 0)
+            {
+                PawnByNumberCache.TryRemove(pawn.thingIDNumber, out _);
+            }
+            if (!string.IsNullOrEmpty(pawn.ThingID))
+            {
+                PawnByIdCache.TryRemove(pawn.ThingID, out _);
             }
         }
 
@@ -50,9 +121,14 @@ namespace RimMind.Presentation.Api
         {
             if (string.IsNullOrEmpty(pawnId)) return null;
 
-            if (PawnByIdCache.TryGetValue(pawnId, out var cached) && cached != null && !cached.DestroyedOrNull())
+            if (PawnByIdCache.TryGetValue(pawnId, out var cached))
             {
-                return cached;
+                if (cached != null && !cached.Dead && !cached.DestroyedOrNull())
+                {
+                    return cached;
+                }
+                UncachePawn(cached?.thingIDNumber ?? 0);
+                PawnByIdCache.TryRemove(pawnId, out _);
             }
 
             // In RimWorld 1.6, accessing Find.Maps or mapPawns off the main thread triggers
@@ -67,7 +143,7 @@ namespace RimMind.Presentation.Api
                 foreach (var map in Find.Maps)
                 {
                     var pawn = map.mapPawns?.AllPawns?
-                        .FirstOrDefault(p => p.ThingID == pawnId);
+                        .FirstOrDefault(p => p.ThingID == pawnId && !p.Dead && !p.DestroyedOrNull());
                     if (pawn != null)
                     {
                         CachePawn(pawn);
@@ -81,7 +157,7 @@ namespace RimMind.Presentation.Api
                 foreach (var caravan in Find.WorldObjects.Caravans)
                 {
                     var pawn = caravan.PawnsListForReading?
-                        .FirstOrDefault(p => p.ThingID == pawnId);
+                        .FirstOrDefault(p => p.ThingID == pawnId && !p.Dead && !p.DestroyedOrNull());
                     if (pawn != null)
                     {
                         CachePawn(pawn);
@@ -90,8 +166,8 @@ namespace RimMind.Presentation.Api
                 }
             }
 
-            var worldPawn = Find.WorldPawns?.AllPawnsAliveOrDead?
-                .FirstOrDefault(p => p.ThingID == pawnId);
+            var worldPawn = Find.WorldPawns?.AllPawnsAlive?
+                .FirstOrDefault(p => p.ThingID == pawnId && !p.Dead && !p.DestroyedOrNull());
             if (worldPawn != null)
             {
                 CachePawn(worldPawn);
@@ -110,9 +186,13 @@ namespace RimMind.Presentation.Api
         {
             if (thingIDNumber <= 0) return null;
 
-            if (PawnByNumberCache.TryGetValue(thingIDNumber, out var cached) && cached != null && !cached.DestroyedOrNull())
+            if (PawnByNumberCache.TryGetValue(thingIDNumber, out var cached))
             {
-                return cached;
+                if (cached != null && !cached.Dead && !cached.DestroyedOrNull())
+                {
+                    return cached;
+                }
+                UncachePawn(thingIDNumber);
             }
 
             // In RimWorld 1.6, accessing Find.Maps or mapPawns off the main thread triggers
@@ -123,7 +203,7 @@ namespace RimMind.Presentation.Api
             }
 
             var pawn = Find.CurrentMap?.mapPawns?.FreeColonists?
-                .FirstOrDefault(p => p.thingIDNumber == thingIDNumber);
+                .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
             if (pawn != null)
             {
                 CachePawn(pawn);
@@ -135,7 +215,7 @@ namespace RimMind.Presentation.Api
                 foreach (var map in Find.Maps)
                 {
                     pawn = map.mapPawns?.FreeColonists?
-                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber);
+                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
                     if (pawn != null)
                     {
                         CachePawn(pawn);
@@ -143,7 +223,7 @@ namespace RimMind.Presentation.Api
                     }
 
                     pawn = map.mapPawns?.SpawnedColonyAnimals?
-                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber);
+                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
                     if (pawn != null)
                     {
                         CachePawn(pawn);
@@ -157,7 +237,7 @@ namespace RimMind.Presentation.Api
                 foreach (var caravan in Find.WorldObjects.Caravans)
                 {
                     pawn = caravan.PawnsListForReading?
-                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber);
+                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
                     if (pawn != null)
                     {
                         CachePawn(pawn);
@@ -167,7 +247,7 @@ namespace RimMind.Presentation.Api
             }
 
             pawn = Find.WorldPawns?.AllPawnsAlive?
-                .FirstOrDefault(p => p.thingIDNumber == thingIDNumber);
+                .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
             if (pawn != null)
             {
                 CachePawn(pawn);

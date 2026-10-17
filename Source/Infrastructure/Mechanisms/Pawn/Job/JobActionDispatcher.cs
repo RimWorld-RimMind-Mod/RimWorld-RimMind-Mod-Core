@@ -158,9 +158,22 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             if (cellX == 0 && cellZ == 0)
                 return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: missing cell_x/cell_z"));
 
+            var map = pawn.Map;
+            if (map == null)
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: pawn has no map"));
+
             var cell = new IntVec3(cellX, 0, cellZ);
-            if (!cell.IsValid || !cell.InBounds(Find.CurrentMap))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: invalid cell"));
+            if (!cell.IsValid || !cell.InBounds(map))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: invalid or out of bounds cell"));
+
+            if (cell.Fogged(map))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cell is fogged"));
+
+            if (!cell.Standable(map))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cell is not standable"));
+
+            if (!pawn.CanReach(cell, PathEndMode.OnCell, Danger.Deadly))
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cannot reach cell"));
 
             var job = JobMaker.MakeJob(JobDefOf.Goto, new LocalTargetInfo(cell));
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
@@ -172,7 +185,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             var food = pawn.inventory?.innerContainer?.FirstOrDefault(t => t.def.IsNutritionGivingIngestible);
             if (food == null)
             {
-                var map = Find.CurrentMap;
+                var map = pawn.Map ?? Find.CurrentMap;
                 if (map != null)
                 {
                     foreach (var entry in map.resourceCounter.AllCountedAmounts)
@@ -186,7 +199,12 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
                 }
             }
 
-            var job = food != null ? JobMaker.MakeJob(JobDefOf.Ingest, new LocalTargetInfo(food)) : JobMaker.MakeJob(JobDefOf.Ingest);
+            if (food == null)
+            {
+                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "eat_food: no available food found"));
+            }
+
+            var job = JobMaker.MakeJob(JobDefOf.Ingest, new LocalTargetInfo(food));
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             return Result<bool, RimMindError>.Ok(true);
         }
@@ -260,7 +278,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         private static VersePawn? FindPawnById(int pawnId)
         {
             var pawn = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
-            if (pawn != null) return pawn;
+            if (pawn != null && pawn.Spawned && pawn.Map != null && !pawn.Dead && !pawn.DestroyedOrNull()) return pawn;
 
             if (UnityData.IsInMainThread)
             {
@@ -268,19 +286,13 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
                 {
                     foreach (var map in Find.Maps)
                     {
-                        pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                        if (pawn != null)
+                        pawn = map.mapPawns?.AllPawns?.FirstOrDefault(p => p.thingIDNumber == pawnId);
+                        if (pawn != null && pawn.Spawned && pawn.Map != null && !pawn.Dead && !pawn.DestroyedOrNull())
                         {
                             Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
                             return pawn;
                         }
                     }
-                }
-                var worldPawn = Find.WorldPawns?.AllPawnsAlive?.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                if (worldPawn != null)
-                {
-                    Presentation.Api.RimMindPawnLookup.CachePawn(worldPawn);
-                    return worldPawn;
                 }
             }
 

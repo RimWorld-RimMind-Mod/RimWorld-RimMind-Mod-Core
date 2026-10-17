@@ -82,7 +82,7 @@ namespace RimMind.Infrastructure.UI
             => _pages
                 .Select(page => new TabbedPageTabModel(
                     page.Descriptor.Id,
-                    page.Descriptor.LabelKey.Translate(),
+                    page.Descriptor.LabelKey.CanTranslate() ? (string)page.Descriptor.LabelKey.Translate() : page.Descriptor.Id,
                     page.Descriptor.LabelKey,
                     _pageId == page.Descriptor.Id,
                     enabled: true,

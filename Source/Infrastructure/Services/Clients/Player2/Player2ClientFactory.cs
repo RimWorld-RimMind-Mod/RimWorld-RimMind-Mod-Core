@@ -29,8 +29,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                var client = Player2Client.CreateAsync(settings, _logSink).GetAwaiter().GetResult();
-                return client;
+                return Player2Client.Create(settings, _logSink);
             }
             catch (System.Exception)
             {

@@ -55,7 +55,11 @@ namespace RimMind.Infrastructure.UI.Framework
                     }
 
                     if (!string.IsNullOrEmpty(tab.TooltipKey))
-                        TooltipHandler.TipRegion(tabRect.Rect, tab.TooltipKey.Translate());
+                    {
+                        string tooltipKey = tab.TooltipKey!;
+                        string tip = tooltipKey.CanTranslate() ? tooltipKey.Translate().ToString() : tooltipKey;
+                        TooltipHandler.TipRegion(tabRect.Rect, tip);
+                    }
                 }
             }
             finally

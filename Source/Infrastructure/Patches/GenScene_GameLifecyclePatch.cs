@@ -1,4 +1,5 @@
 using HarmonyLib;
+using RimMind.Presentation.Api;
 using RimMind.Presentation.Runtime;
 using Verse;
 
@@ -11,6 +12,7 @@ namespace RimMind.Infrastructure.Patches
         private static void StopGameServicesBeforeReturningToMainMenu()
         {
             RimMindRuntimeGameComponent.StopGameServices();
+            RimMindPawnLookup.ClearCache();
         }
     }
 }

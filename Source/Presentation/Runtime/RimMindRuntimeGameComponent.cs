@@ -5,6 +5,7 @@ using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
+using RimMind.Presentation.Api;
 using RimMind.Presentation.Runtime.Services;
 using RimWorld;
 using Verse;
@@ -54,6 +55,7 @@ namespace RimMind.Presentation.Runtime
         public override void StartedNewGame()
         {
             base.StartedNewGame();
+            RimMindPawnLookup.ClearCache();
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
@@ -63,10 +65,17 @@ namespace RimMind.Presentation.Runtime
         public override void LoadedGame()
         {
             base.LoadedGame();
+            RimMindPawnLookup.ClearCache();
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
             CheckMissingApiKeyNotification();
+        }
+
+        public override void FinalizeInit()
+        {
+            base.FinalizeInit();
+            RimMindPawnLookup.ClearCache();
         }
 
         private void CheckMissingApiKeyNotification()
@@ -124,6 +133,7 @@ namespace RimMind.Presentation.Runtime
 
         internal static void StopGameServices()
         {
+            RimMindPawnLookup.ClearCache();
             GameServiceHub.Shared.Stop();
         }
 

@@ -16,7 +16,7 @@ namespace RimMind.Presentation.UI
     {
         public string Id => "remotesync";
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
-        public string Label => "RimMind.Settings.Tab.RemoteSync".Translate();
+        public string Label => "RimMind.Settings.Tab.RemoteSync".CanTranslate() ? (string)"RimMind.Settings.Tab.RemoteSync".Translate() : "Remote Sync";
 
         private readonly RuntimeServiceRef<RemoteSyncSettings> _settings =
             RuntimeServiceRef<RemoteSyncSettings>.Required();

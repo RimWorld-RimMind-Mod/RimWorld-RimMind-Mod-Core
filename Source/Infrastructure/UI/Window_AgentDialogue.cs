@@ -358,14 +358,17 @@ namespace RimMind.Infrastructure.UI
         }
 
         private static string LocalizeRequestState(DialogueRequestTerminalState state)
-            => (state switch
+        {
+            string key = state switch
             {
                 DialogueRequestTerminalState.Streaming => "RimMind.UI.AgentDialogue.State.Streaming",
                 DialogueRequestTerminalState.Completed => "RimMind.UI.AgentDialogue.State.Completed",
                 DialogueRequestTerminalState.Failed => "RimMind.UI.AgentDialogue.State.Failed",
                 DialogueRequestTerminalState.Discarded => "RimMind.UI.AgentDialogue.State.Discarded",
                 _ => "RimMind.UI.AgentDialogue.State.Idle"
-            }).Translate();
+            };
+            return key.CanTranslate() ? (string)key.Translate() : state.ToString();
+        }
 
         private enum DialogueRequestTerminalState
         {

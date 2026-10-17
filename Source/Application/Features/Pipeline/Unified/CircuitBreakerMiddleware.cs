@@ -20,13 +20,14 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
         private readonly ICircuitBreakerSettings? _settings;
         private readonly ILogSink? _log;
+        private readonly object _syncRoot = new object();
 
         private int FailureThreshold => _settings != null && _settings.CircuitBreakerFailureThreshold > 0
             ? _settings.CircuitBreakerFailureThreshold
             : RimMindDefaults.CircuitBreakerFailureThreshold;
 
         private TimeSpan OpenDuration => TimeSpan.FromSeconds(
-            _settings != null && _settings.CircuitBreakerOpenDurationSec > 0
+            _settings != null && _settings.CircuitBreakerOpenDurationSec >= 0
             ? _settings.CircuitBreakerOpenDurationSec
             : RimMindDefaults.CircuitBreakerOpenDurationSec);
 
@@ -35,6 +36,11 @@ namespace RimMind.Application.Features.Pipeline.Unified
         private CircuitState _state = CircuitState.Closed;
         private int _consecutiveFailures;
         private DateTime _openedAtUtc;
+        private bool _canaryInProgress;
+
+        internal string CurrentStateName { get { lock (_syncRoot) return _state.ToString(); } }
+        internal int ConsecutiveFailuresCount { get { lock (_syncRoot) return _consecutiveFailures; } }
+        internal bool IsCanaryInProgress { get { lock (_syncRoot) return _canaryInProgress; } }
 
         public CircuitBreakerMiddleware(ICircuitBreakerSettings? settings = null, ILogSink? log = null)
         {
@@ -44,44 +50,115 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
         public async Task InvokeAsync(LlmRequestContext context, MiddlewareDelegate<LlmRequestContext> next)
         {
-            switch (_state)
+            bool isCanary = false;
+
+            lock (_syncRoot)
             {
-                case CircuitState.Open:
+                if (_state == CircuitState.Open)
+                {
                     if (DateTime.UtcNow - _openedAtUtc >= OpenDuration)
                     {
                         _state = CircuitState.HalfOpen;
+                        _canaryInProgress = false;
                         _log?.Message("[UnifiedCircuitBreaker] Transitioning to HalfOpen");
                     }
                     else
                     {
-                        _log?.Warning("[UnifiedCircuitBreaker] Circuit open, short-circuiting request");
-                        context.Result = Result<LlmResponse, RimMindError>.Err(RimMindErrors.CircuitOpen());
-                        context.ShortCircuit("circuit_open");
+                        ShortCircuitOpen(context);
                         return;
                     }
-                    break;
+                }
+
+                if (_state == CircuitState.HalfOpen)
+                {
+                    if (_canaryInProgress)
+                    {
+                        _log?.Warning("[UnifiedCircuitBreaker] HalfOpen canary already in progress, short-circuiting request");
+                        ShortCircuitOpen(context);
+                        return;
+                    }
+
+                    _canaryInProgress = true;
+                    isCanary = true;
+                    _log?.Message("[UnifiedCircuitBreaker] Allowing single canary probe through");
+                }
             }
 
-            await next(context).ConfigureAwait(false);
-
-            if (context.Result?.IsErr == true)
+            try
             {
-                OnFailure();
+                await next(context).ConfigureAwait(false);
             }
-            else
+            catch (OperationCanceledException)
             {
-                OnSuccess();
+                lock (_syncRoot)
+                {
+                    if (isCanary)
+                    {
+                        _canaryInProgress = false;
+                    }
+                }
+                throw;
+            }
+            catch (Exception)
+            {
+                lock (_syncRoot)
+                {
+                    OnFailureLocked(new RimMindError(RimMindErrorCode.ClientTransientFailure, "Downstream middleware threw exception"), isCanary);
+                }
+                throw;
+            }
+
+            lock (_syncRoot)
+            {
+                if (context.Result?.IsErr == true)
+                {
+                    OnFailureLocked(context.Result.Value.Error, isCanary);
+                }
+                else
+                {
+                    OnSuccessLocked(isCanary);
+                }
             }
         }
 
-        private void OnSuccess()
+        private void ShortCircuitOpen(LlmRequestContext context)
+        {
+            _log?.Warning("[UnifiedCircuitBreaker] Circuit open, short-circuiting request");
+            context.Result = Result<LlmResponse, RimMindError>.Err(RimMindErrors.CircuitOpen());
+            context.ShortCircuit("circuit_open");
+        }
+
+        private void OnSuccessLocked(bool isCanary)
         {
             _consecutiveFailures = 0;
             _state = CircuitState.Closed;
+            if (isCanary)
+            {
+                _canaryInProgress = false;
+            }
         }
 
-        private void OnFailure()
+        private void OnFailureLocked(RimMindError? error, bool isCanary)
         {
+            if (isCanary)
+            {
+                _canaryInProgress = false;
+            }
+
+            // In OnFailure(), do NOT increment failures or trip circuit breaker if error is RimMindErrorCode.Cancelled
+            if (error != null && error.Code == RimMindErrorCode.Cancelled)
+            {
+                return;
+            }
+
+            if (_state == CircuitState.HalfOpen)
+            {
+                _state = CircuitState.Open;
+                _openedAtUtc = DateTime.UtcNow;
+                _log?.Warning("[UnifiedCircuitBreaker] Canary probe failed. Circuit reopening.");
+                return;
+            }
+
             _consecutiveFailures++;
             if (_consecutiveFailures >= FailureThreshold)
             {

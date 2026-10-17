@@ -22,7 +22,8 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                     RimMindUI.BtnHeight);
                 scope?.Record(button, $"ToolGrid:Button:{tools[i].LabelKey}");
 
-                if (Widgets.ButtonText(button, tools[i].LabelKey.Translate()))
+                string label = tools[i].LabelKey.CanTranslate() ? (string)tools[i].LabelKey.Translate() : tools[i].LabelKey;
+                if (Widgets.ButtonText(button, label))
                     tools[i].Action();
             }
         }
