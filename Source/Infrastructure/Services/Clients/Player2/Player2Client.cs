@@ -28,8 +28,8 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         public const string GameClientId = "019a8368-b00b-72bc-b367-2825079dc6fb";
         private static string LocalUrl => $"http://localhost:{RimMindDefaults.Player2LocalPort}";
 
-        private readonly string _apiKey;
-        private readonly bool _isLocalConnection;
+        private volatile string _apiKey;
+        private volatile bool _isLocalConnection;
         private readonly ISettingsProvider _settings;
         private readonly ILogSink? _logSink;
 
@@ -50,23 +50,49 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             InitiateHealthCheckIfNeeded();
         }
 
+        internal void UpdateDiscoveredKey(string key, bool isLocal)
+        {
+            _apiKey = key;
+            _isLocalConnection = isLocal;
+            InitiateHealthCheckIfNeeded();
+        }
+
+        public static Player2Client Create(ISettingsProvider settings, ILogSink? logSink = null)
+        {
+            if (!string.IsNullOrEmpty(_cachedLocalKey))
+            {
+                return new Player2Client(_cachedLocalKey, isLocal: true, settings, logSink);
+            }
+
+            if (!string.IsNullOrEmpty(settings?.ApiKey))
+            {
+                return new Player2Client(settings.ApiKey, isLocal: false, settings, logSink);
+            }
+
+            var client = new Player2Client(string.Empty, isLocal: false, settings, logSink);
+            TriggerBackgroundDiscovery(client, settings, logSink);
+            return client;
+        }
+
         public static async Task<Player2Client> CreateAsync(ISettingsProvider settings,
             ILogSink? logSink = null)
         {
             try
             {
-                string? localKey = await TryGetLocalPlayer2Key(logSink);
-                if (!string.IsNullOrEmpty(localKey))
+                if (!string.IsNullOrEmpty(_cachedLocalKey))
                 {
-                    logSink?.LogFromBackground("[RimMind-Core] Player2 local app detected.");
-                    ShowNotification("RimMind.Infrastructure.Player2.LocalDetected");
-                    return new Player2Client(localKey!, isLocal: true, settings, logSink);
+                    return new Player2Client(_cachedLocalKey, isLocal: true, settings, logSink);
                 }
 
-                if (!string.IsNullOrEmpty(settings.ApiKey))
+                if (!string.IsNullOrEmpty(settings?.ApiKey))
                 {
-                    logSink?.LogFromBackground("[RimMind-Core] Using manual Player2 API key.");
                     return new Player2Client(settings.ApiKey, isLocal: false, settings, logSink);
+                }
+
+                string? localKey = await ProbeLocalPlayer2KeyAsync(logSink).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(localKey))
+                {
+                    return new Player2Client(localKey!, isLocal: true, settings, logSink);
                 }
 
                 ShowNotification("RimMind.Infrastructure.Player2.LocalNotFound");
@@ -96,6 +122,15 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         public async Task<Result<RimMind.Domain.Llm.LlmResponse, RimMindError>> SendAsync(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
         {
+            if (!IsConfigured() && _activeProbeTask != null && !_activeProbeTask.IsCompleted)
+            {
+                try
+                {
+                    await _activeProbeTask.ConfigureAwait(false);
+                }
+                catch { }
+            }
+
             if (!IsConfigured())
                 return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Err(RimMindErrors.ClientNotConfigured(nameof(Player2Client)));
 
@@ -217,6 +252,15 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         public async Task<Result<RimMind.Domain.Llm.LlmResponse, RimMindError>> SendStreamAsync(RimMind.Domain.Llm.LlmRequestEnvelope envelope, Action<RimMind.Domain.Llm.LlmChunk> onChunk, CancellationToken ct)
         {
+            if (!IsConfigured() && _activeProbeTask != null && !_activeProbeTask.IsCompleted)
+            {
+                try
+                {
+                    await _activeProbeTask.ConfigureAwait(false);
+                }
+                catch { }
+            }
+
             if (!IsConfigured())
                 return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Err(RimMindErrors.ClientNotConfigured(nameof(Player2Client)));
 

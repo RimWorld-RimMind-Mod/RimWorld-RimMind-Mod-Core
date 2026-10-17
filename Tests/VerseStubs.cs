@@ -144,6 +144,7 @@ namespace Verse
         public virtual void GameComponentTick() { }
         public virtual void StartedNewGame() { }
         public virtual void LoadedGame() { }
+        public virtual void FinalizeInit() { }
         public virtual void ExposeData() { }
     }
 
@@ -246,7 +247,7 @@ namespace Verse
             }
             return null;
         }
-        public bool DestroyedOrNull() => false;
+        public bool DestroyedOrNull() => this is Pawn p && p.Destroyed;
     }
 
     public enum DestroyMode
@@ -502,6 +503,7 @@ namespace Verse
     {
         public static bool CanTranslate(this string key) => true;
         public static string Translate(this string key) => key;
+        public static string Resolve(this string s) => s;
         public static string Translate(this string key, string arg1) => $"{key}:{arg1}";
         public static string Translate(this string key, object arg1) => $"{key}:{arg1}";
         public static string Translate(this string key, params object[] args)

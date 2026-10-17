@@ -192,6 +192,151 @@ namespace RimMind.Tests.Contracts
             );
         }
 
+        [Fact]
+        public void PawnLookup_cache_eviction_and_dead_pawn_prevention_contracts()
+        {
+            ContractCaseRunner.Run(
+                ("CachePawn rejects dead or destroyed pawns", (Action)(() =>
+                {
+                    RimMindPawnLookup.ClearCache();
+                    UnityData.IsInMainThread = false;
+
+                    var deadPawn = new Pawn { thingIDNumber = 101, Dead = true };
+                    RimMindPawnLookup.CachePawn(deadPawn);
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(101));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_101"));
+
+                    var destroyedPawn = new Pawn { thingIDNumber = 102, Destroyed = true };
+                    RimMindPawnLookup.CachePawn(destroyedPawn);
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(102));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_102"));
+                })),
+                ("FindPawnByNumber and FindPawnById reject and evict dead cached pawns", (Action)(() =>
+                {
+                    RimMindPawnLookup.ClearCache();
+                    UnityData.IsInMainThread = false;
+
+                    var pawn = new Pawn { thingIDNumber = 201 };
+                    RimMindPawnLookup.CachePawn(pawn);
+                    Assert.Same(pawn, RimMindPawnLookup.FindPawnByNumber(201));
+                    Assert.Same(pawn, RimMindPawnLookup.FindPawnById("Pawn_201"));
+
+                    // Pawn dies in gameplay
+                    pawn.Dead = true;
+
+                    // Lookup must NOT return dead pawn and must cleanly evict
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(201));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_201"));
+                })),
+                ("FindPawnByNumber and FindPawnById reject and evict destroyed cached pawns", (Action)(() =>
+                {
+                    RimMindPawnLookup.ClearCache();
+                    UnityData.IsInMainThread = false;
+
+                    var pawn = new Pawn { thingIDNumber = 202 };
+                    RimMindPawnLookup.CachePawn(pawn);
+                    Assert.Same(pawn, RimMindPawnLookup.FindPawnByNumber(202));
+                    Assert.Same(pawn, RimMindPawnLookup.FindPawnById("Pawn_202"));
+
+                    // Pawn gets destroyed
+                    pawn.Destroyed = true;
+
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(202));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_202"));
+                })),
+                ("UncachePawn cleanly removes pawn from number and string caches", (Action)(() =>
+                {
+                    RimMindPawnLookup.ClearCache();
+                    UnityData.IsInMainThread = false;
+
+                    var pawn1 = new Pawn { thingIDNumber = 301 };
+                    var pawn2 = new Pawn { thingIDNumber = 302 };
+                    RimMindPawnLookup.CachePawn(pawn1);
+                    RimMindPawnLookup.CachePawn(pawn2);
+
+                    Assert.NotNull(RimMindPawnLookup.FindPawnByNumber(301));
+                    Assert.NotNull(RimMindPawnLookup.FindPawnById("Pawn_301"));
+                    Assert.NotNull(RimMindPawnLookup.FindPawnByNumber(302));
+                    Assert.NotNull(RimMindPawnLookup.FindPawnById("Pawn_302"));
+
+                    RimMindPawnLookup.UncachePawn(301);
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(301));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_301"));
+                    Assert.NotNull(RimMindPawnLookup.FindPawnByNumber(302));
+
+                    RimMindPawnLookup.UncachePawn("Pawn_302");
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(302));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_302"));
+                })),
+                ("ClearCache empties all registered pawns", (Action)(() =>
+                {
+                    RimMindPawnLookup.ClearCache();
+                    UnityData.IsInMainThread = false;
+
+                    var pawn = new Pawn { thingIDNumber = 401 };
+                    RimMindPawnLookup.CachePawn(pawn);
+                    Assert.Same(pawn, RimMindPawnLookup.FindPawnByNumber(401));
+
+                    RimMindPawnLookup.ClearCache();
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(401));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_401"));
+                }))
+            );
+        }
+
+        [Fact]
+        public void Lifecycle_and_dispatcher_static_invariants_contracts()
+        {
+            ContractCaseRunner.Run(
+                ("GenScene_GameLifecyclePatch invokes RimMindPawnLookup.ClearCache", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string path = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Patches", "GenScene_GameLifecyclePatch.cs");
+                    string code = File.ReadAllText(path);
+
+                    Assert.Contains("RimMindPawnLookup.ClearCache()", code, StringComparison.Ordinal);
+                })),
+                ("AgentActiveChecker uses RimMindPawnLookup.FindPawnById and avoids PawnsFinder", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string path = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Verse", "AgentActiveChecker.cs");
+                    string code = File.ReadAllText(path);
+
+                    Assert.Contains("RimMindPawnLookup.FindPawnById", code, StringComparison.Ordinal);
+                    Assert.DoesNotContain("PawnsFinder", code, StringComparison.Ordinal);
+                })),
+                ("JobActionDispatcher avoids WorldPawns traversal in FindPawnById", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string path = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Mechanisms", "Pawn", "Job", "JobActionDispatcher.cs");
+                    string code = File.ReadAllText(path);
+
+                    Assert.DoesNotContain("Find.WorldPawns", code, StringComparison.Ordinal);
+                })),
+                ("JobActionDispatcher HandleMoveTo verifies pawn.Map, InBounds, Fogged, Standable, and CanReach", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string path = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Mechanisms", "Pawn", "Job", "JobActionDispatcher.cs");
+                    string code = File.ReadAllText(path);
+
+                    Assert.Contains("pawn.Map", code, StringComparison.Ordinal);
+                    Assert.Contains("cell.InBounds(map)", code, StringComparison.Ordinal);
+                    Assert.Contains("cell.Fogged(map)", code, StringComparison.Ordinal);
+                    Assert.Contains("cell.Standable(map)", code, StringComparison.Ordinal);
+                    Assert.Contains("pawn.CanReach(cell, PathEndMode.OnCell, Danger.Deadly)", code, StringComparison.Ordinal);
+                })),
+                ("JobActionDispatcher HandleEatFood returns Err when food is null", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string path = Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Mechanisms", "Pawn", "Job", "JobActionDispatcher.cs");
+                    string code = File.ReadAllText(path);
+
+                    Assert.Contains("if (food == null)", code, StringComparison.Ordinal);
+                    Assert.Contains("Result<bool, RimMindError>.Err", code, StringComparison.Ordinal);
+                }))
+            );
+        }
+
         private static string FindRepoRoot()
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);

@@ -196,7 +196,8 @@ namespace RimMind.Infrastructure.UI.Framework
                     layout.Header.height,
                     horizontalScroll,
                     CellPadding);
-                Widgets.Label(headerRect, headerKeys[c].Translate());
+                string headerText = headerKeys[c].CanTranslate() ? (string)headerKeys[c].Translate() : headerKeys[c];
+                Widgets.Label(headerRect, headerText);
             }
             GUI.EndGroup();
             GUI.color = oldColor;
