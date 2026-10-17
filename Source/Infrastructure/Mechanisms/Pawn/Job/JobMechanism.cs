@@ -65,7 +65,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 
             var result = args.Action switch
             {
-                "assign_work" => JobActionDispatcher.HandleAssignWork(pawn, args),
+                "assign_work" or "take_job" => JobActionDispatcher.HandleAssignWork(pawn, args),
                 "move_to" => JobActionDispatcher.HandleMoveTo(pawn, args),
                 "eat_food" => JobActionDispatcher.HandleEatFood(pawn, args),
                 "force_rest" => JobActionDispatcher.HandleForceRest(pawn, args),

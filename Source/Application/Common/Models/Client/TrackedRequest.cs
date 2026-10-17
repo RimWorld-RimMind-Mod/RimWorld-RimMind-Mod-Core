@@ -23,6 +23,7 @@ namespace RimMind.Application.Common.Models.Client
         public DomainAIRequestState State;
         public int EnqueuedAtTick;
         public int StartedProcessingAtTick;
+        public DateTime StartedProcessingAtUtc;
         public int AttemptCount;
         public int MaxAttempts;
 

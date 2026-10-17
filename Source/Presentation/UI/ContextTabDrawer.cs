@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Domain.Enums;
@@ -114,7 +114,9 @@ namespace RimMind.Presentation.UI
             string labelKey, string descKey)
         {
             var v = getter(ctx);
-            listing.CheckboxLabeled(labelKey.Translate(), ref v, descKey.Translate());
+            string label = labelKey.CanTranslate() ? (string)labelKey.Translate() : labelKey;
+            string desc = descKey.CanTranslate() ? (string)descKey.Translate() : descKey;
+            listing.CheckboxLabeled(label, ref v, desc);
             setter(ctx, v);
         }
 
@@ -171,7 +173,8 @@ namespace RimMind.Presentation.UI
                 var preset = presets[i];
                 bool selected = _selectedPreset == preset;
                 Rect box = new Rect(row.x + (w + gap) * i, row.y, w, h);
-                string label = $"RimMind.Context.Preset.{preset}".Translate();
+                string presetKey = $"RimMind.Context.Preset.{preset}";
+                string label = presetKey.CanTranslate() ? (string)presetKey.Translate() : preset.ToString();
 
                 if (selected)
                 {
@@ -198,7 +201,8 @@ namespace RimMind.Presentation.UI
                     }
                 }
 
-                TooltipHandler.TipRegion(box, $"RimMind.Context.Preset.{preset}.Desc".Translate());
+                string presetDescKey = $"RimMind.Context.Preset.{preset}.Desc";
+                TooltipHandler.TipRegion(box, presetDescKey.CanTranslate() ? (string)presetDescKey.Translate() : preset.ToString());
             }
             listing.Gap(4f);
         }

@@ -18,6 +18,7 @@ namespace RimMind.Application.Common.Interfaces.Context
         string ExtractColonyStatus(object pawn);
         string ExtractHealth(object pawn);
         string ExtractMood(object pawn);
+        string ExtractMoodThoughts(object pawn);
         string ExtractCurrentJob(object pawn);
         string ExtractCombatStatus(object pawn);
         string ExtractTargetInfo(object pawn);

@@ -35,10 +35,31 @@ namespace RimMind.Infrastructure.Verse
             Refresh();
         }
 
+        private int _pausedVirtualTicks;
+        private float _pausedTickAccumulator;
+
         public override void GameComponentTick()
         {
             Refresh();
+            _pausedVirtualTicks = 0;
+            _pausedTickAccumulator = 0f;
             _tickCoordinator?.Tick(Find.TickManager.TicksGame);
+        }
+
+        public override void GameComponentUpdate()
+        {
+            if (Find.TickManager == null || !Find.TickManager.Paused)
+                return;
+
+            Refresh();
+            _pausedTickAccumulator += UnityEngine.Time.unscaledDeltaTime * 60f;
+            int stepTicks = (int)_pausedTickAccumulator;
+            if (stepTicks > 0)
+            {
+                _pausedTickAccumulator -= stepTicks;
+                _pausedVirtualTicks += stepTicks;
+                _tickCoordinator?.Tick(Find.TickManager.TicksGame + _pausedVirtualTicks);
+            }
         }
 
         private IDisposable? Bind(RuntimeServiceScope scope)

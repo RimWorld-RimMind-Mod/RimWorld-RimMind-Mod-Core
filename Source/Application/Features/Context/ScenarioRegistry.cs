@@ -73,6 +73,9 @@ namespace RimMind.Application.Features.Context
             Register(ScenarioIds.Dialogue, 10, Translate(translationService, "RimMind.Application.Scenario.Dialogue"),
                 defaultBudget: 0.6f, l4Mode: L4Mode.BudgetControlled,
                 defaultExcludeKeys: new[] { "combat_status", "task_progress" }, logSink: logSink);
+            Register(ScenarioIds.CrisisDialogue, 8, Translate(translationService, "RimMind.Application.Scenario.CrisisDialogue"),
+                defaultBudget: 0.7f, l4Mode: L4Mode.BudgetControlled,
+                defaultExcludeKeys: new[] { "task_progress" }, logSink: logSink);
             Register(ScenarioIds.Decision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
                 defaultBudget: 0.5f, l4Mode: L4Mode.None,
                 defaultExcludeKeys: new string[0], logSink: logSink);

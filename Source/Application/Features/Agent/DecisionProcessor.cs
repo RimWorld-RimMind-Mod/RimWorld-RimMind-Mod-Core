@@ -133,13 +133,24 @@ namespace RimMind.Application.Features.Agent
             var execResult = _executeDecision(decision.Value);
             var execSuccess = execResult.IsOk;
 
+            if (!execSuccess)
+            {
+                _log?.Warning($"[RimMind.DecisionProcessor] Action execution failed for npcId={_agent.NpcId} action={decision.Value.ActionIntent} error={execResult.Error.Message}");
+                _agentBus.Publish(new DecisionFailedEvent(
+                    _agent.NpcId,
+                    _getPawnId(),
+                    decision.Value.ActionIntent ?? "action",
+                    execResult.Error.Message));
+            }
+
             _transitionWorkflow(AgentWorkflowPhase.Recording);
 
             _agent.RecordBehavior(new BehaviorRecordDto
             {
-                Action = decision.Value.ActionIntent,
-                Reason = decision.Value.Reason,
+                Action = decision.Value.ActionIntent ?? "action",
+                Reason = decision.Value.Reason ?? "",
                 Success = execSuccess,
+                ResultReason = execSuccess ? "" : (execResult.Error?.Message ?? "Action failed"),
                 Timestamp = _tickProvider.TicksGame
             });
 

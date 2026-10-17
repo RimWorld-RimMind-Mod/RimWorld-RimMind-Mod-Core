@@ -19,6 +19,7 @@ namespace RimMind.Application.Features.Context
         public string ExtractColonyStatus(object pawn) => "";
         public string ExtractHealth(object pawn) => "";
         public string ExtractMood(object pawn) => "";
+        public string ExtractMoodThoughts(object pawn) => "";
         public string ExtractCurrentJob(object pawn) => "";
         public string ExtractCombatStatus(object pawn) => "";
         public string ExtractTargetInfo(object pawn) => "";

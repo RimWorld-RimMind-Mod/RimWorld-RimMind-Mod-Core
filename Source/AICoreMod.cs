@@ -38,8 +38,14 @@ namespace RimMind.Presentation
         {
             Instance = this;
             AssemblyLoadGuard.AssertAssembliesLoaded();
-            RimMindErrors.OnWarn = (msg, ex) => Verse.Log.Warning(ex != null ? $"[RimMind] {msg}\n{ex}" : $"[RimMind] {msg}");
-            RimMindErrors.OnError = (msg, ex) => Verse.Log.Error(ex != null ? $"[RimMind] {msg}\n{ex}" : $"[RimMind] {msg}");
+            RimMindErrors.OnWarn = (msg, ex) =>
+                RimMind.Infrastructure.Services.Verse.VerseLogSink.EnqueueOrLog(
+                    ex != null ? $"[RimMind] {msg}\n{ex}" : $"[RimMind] {msg}",
+                    RimMind.Infrastructure.Services.Verse.VerseLogSink.LevelWarning);
+            RimMindErrors.OnError = (msg, ex) =>
+                RimMind.Infrastructure.Services.Verse.VerseLogSink.EnqueueOrLog(
+                    ex != null ? $"[RimMind] {msg}\n{ex}" : $"[RimMind] {msg}",
+                    RimMind.Infrastructure.Services.Verse.VerseLogSink.LevelError);
 
             Settings = GetSettings<RimMindCoreSettings>();
             var sp = new SettingsProvider(Settings);

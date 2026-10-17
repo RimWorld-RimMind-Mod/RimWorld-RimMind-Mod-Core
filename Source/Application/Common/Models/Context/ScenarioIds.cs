@@ -7,5 +7,6 @@ namespace RimMind.Application.Common.Models.Context
         public const string Personality = "Personality";
         public const string Storyteller = "Storyteller";
         public const string Memory = "Memory";
+        public const string CrisisDialogue = "CrisisDialogue";
     }
 }

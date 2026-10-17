@@ -52,6 +52,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             public int MaxTokens => _settings.MaxTokens;
             public float DefaultTemperature => _settings.DefaultTemperature;
             public bool DebugLogging => _settings.DebugLogging;
+            public System.Collections.Generic.IReadOnlyList<RimMind.Application.Common.Models.Client.BackupEndpointNode>? BackupEndpoints => _settings.BackupEndpoints;
             public bool IsConfigured() => _settings.IsOpenAIConfigured();
         }
     }

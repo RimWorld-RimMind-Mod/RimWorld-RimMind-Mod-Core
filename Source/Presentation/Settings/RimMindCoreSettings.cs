@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using RimMind.Domain.Common;
 using RimMind.Domain.Enums;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Models;
+using RimMind.Application.Common.Models.Client;
 using Verse;
 
 namespace RimMind.Presentation.Settings
@@ -21,6 +24,7 @@ namespace RimMind.Presentation.Settings
         public string apiEndpoint = DefaultApiEndpoint;
         public string modelName = DefaultModelName;
         public string player2RemoteUrl = "https://api.player2.game";
+        public List<BackupEndpointEntry> backupEndpoints = new List<BackupEndpointEntry>();
 
         public bool forceJsonMode = true;
 
@@ -41,7 +45,7 @@ namespace RimMind.Presentation.Settings
 
         public bool requestOverlayEnabled = true;
         public float requestOverlayX = 20f;
-        public float requestOverlayY = 20f;
+        public float requestOverlayY = 100f;
         public float requestOverlayW = 300f;
         public float requestOverlayH = 200f;
         public bool showAgentProgressFloat = false;
@@ -80,16 +84,35 @@ namespace RimMind.Presentation.Settings
         int IOpenAISettings.MaxTokens => maxTokens;
         float IOpenAISettings.DefaultTemperature => defaultTemperature;
         bool IOpenAISettings.DebugLogging => debugLogging;
+        IReadOnlyList<BackupEndpointNode>? IOpenAISettings.BackupEndpoints => GetBackupEndpointNodes();
+
+        public IReadOnlyList<BackupEndpointNode> GetBackupEndpointNodes()
+        {
+            if (backupEndpoints == null || backupEndpoints.Count == 0)
+                return Array.Empty<BackupEndpointNode>();
+            var list = new List<BackupEndpointNode>(backupEndpoints.Count);
+            for (int i = 0; i < backupEndpoints.Count; i++)
+            {
+                var entry = backupEndpoints[i];
+                if (entry != null)
+                    list.Add(entry.ToNode());
+            }
+            return list;
+        }
 
         public bool IsConfigured()
         {
             if (!AIProviderRegistry.RequiresApiKey(provider))
                 return true;
-            return !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiEndpoint);
+            return IsOpenAIConfigured();
         }
 
-        public bool IsOpenAIConfigured() =>
-            !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiEndpoint);
+        public bool IsOpenAIConfigured()
+        {
+            if (!string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiEndpoint))
+                return true;
+            return backupEndpoints != null && backupEndpoints.Any(b => b != null && b.enabled && !string.IsNullOrWhiteSpace(b.apiKey) && !string.IsNullOrWhiteSpace(b.apiEndpoint));
+        }
 
         public override void ExposeData()
         {
@@ -102,6 +125,8 @@ namespace RimMind.Presentation.Settings
             Scribe_Values.Look(ref apiEndpoint, "apiEndpoint", DefaultApiEndpoint);
             Scribe_Values.Look(ref modelName, "modelName", DefaultModelName);
             Scribe_Values.Look(ref player2RemoteUrl, "player2RemoteUrl", "https://api.player2.game");
+            Scribe_Collections.Look(ref backupEndpoints, "backupEndpoints", LookMode.Deep);
+            backupEndpoints ??= new List<BackupEndpointEntry>();
             Scribe_Values.Look(ref forceJsonMode, "forceJsonMode", true);
             Scribe_Values.Look(ref maxTokens, "maxTokens", RimMindDefaults.MaxTokens);
             Scribe_Values.Look(ref defaultTemperature, "defaultTemperature", RimMindDefaults.DefaultTemperature);
@@ -114,7 +139,7 @@ namespace RimMind.Presentation.Settings
             Scribe_Values.Look(ref contextCalibrateInterval, "contextCalibrateInterval", RimMindDefaults.FlywheelCalibrateInterval);
             Scribe_Values.Look(ref requestOverlayEnabled, "requestOverlayEnabled", true);
             Scribe_Values.Look(ref requestOverlayX, "requestOverlayX", 20f);
-            Scribe_Values.Look(ref requestOverlayY, "requestOverlayY", 20f);
+            Scribe_Values.Look(ref requestOverlayY, "requestOverlayY", 100f);
             Scribe_Values.Look(ref requestOverlayW, "requestOverlayW", 300f);
             Scribe_Values.Look(ref requestOverlayH, "requestOverlayH", 200f);
             Scribe_Values.Look(ref showAgentProgressFloat, "showAgentProgressFloat", false);

@@ -117,7 +117,7 @@ namespace RimMind.Infrastructure.UI
             y = RimMindUI.DrawSectionHeader(viewRect, y, "RimMind.UI.AgentStateDebug.SectionState".Translate());
 
             string stateKey = $"RimMind.Agent.State.{scopedAgent.State}";
-            string stateLabel = stateKey.Translate();
+            string stateLabel = stateKey.CanTranslate() ? (string)stateKey.Translate() : scopedAgent.State.ToString();
             var (stateTextColor, stateBgColor) = RimMindUI.GetStateBadgeColors(
                 scopedAgent.State == AgentState.Active,
                 scopedAgent.State == AgentState.Paused);
@@ -329,7 +329,7 @@ namespace RimMind.Infrastructure.UI
                     agent.State == AgentState.Active,
                     agent.State == AgentState.Paused);
                 string stateKey = $"RimMind.Agent.State.{agent.State}";
-                string stateLabel = stateKey.Translate();
+                string stateLabel = stateKey.CanTranslate() ? (string)stateKey.Translate() : agent.State.ToString();
                 y = RimMindUI.DrawStatusBadge(viewRect, y, stateLabel, stateTextColor, stateBgColor);
 
                 y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentStateDebug.Mode".Translate(), (string)agent.CurrentModeId);

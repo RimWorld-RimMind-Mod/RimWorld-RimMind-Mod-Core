@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <RimMind_AIFocus.label>AI 专注增强</RimMind_AIFocus.label>
+  <RimMind_AIFocus.description>该殖民者正在 AI 心智引导下运作，注意力与决策效率得到提升。</RimMind_AIFocus.description>
+
+  <RimMind_AIDecisionCooldown.label>AI 决策冷却</RimMind_AIDecisionCooldown.label>
+  <RimMind_AIDecisionCooldown.description>该殖民者近期刚完成一次 AI 引导决策，正处于短暂冷却期。</RimMind_AIDecisionCooldown.description>
+</LanguageData>

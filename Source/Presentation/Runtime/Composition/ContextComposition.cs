@@ -8,6 +8,7 @@ using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Features.Agent.InnerVoice;
 using RimMind.Application.Features.Context;
 using RimMind.Domain.Interfaces;
+using RimMind.Presentation.Agent;
 using RimMind.Presentation.Context;
 using RimMind.Presentation.Runtime.Services;
 
@@ -20,6 +21,7 @@ namespace RimMind.Presentation.Runtime.Composition
         public IContextEngine ContextEngine { get; init; } = null!;
         public IContextKeyRegistry ContextKeyRegistry { get; init; } = null!;
         public IContextKeyProvider ContextKeyProvider { get; init; } = null!;
+        public IGameContextBuilder GameContextBuilder { get; init; } = null!;
         public IContextCacheManager CacheManager { get; init; } = null!;
         public IContextDiffTracker DiffTracker { get; init; } = null!;
         public IContextLayerBuilder LayerBuilder { get; init; } = null!;
@@ -54,7 +56,11 @@ namespace RimMind.Presentation.Runtime.Composition
 
             var cacheManager = new ContextCacheManager(logSink, embedCache);
             var diffTracker = new ContextDiffTracker(logSink);
-            var keyProvider = new DefaultContextKeyProvider();
+            var gameContextBuilder = new GameContextBuilder(
+                new PawnContextBuilder(resolvedSettings, logSink),
+                new MapContextBuilder(resolvedSettings),
+                npcManagers);
+            IContextKeyProvider keyProvider = gameContextBuilder;
             var layerBuilder = new ContextLayerBuilder();
             var providerCache = new ProviderCache(agentBus, logSink, tickProvider);
             var keyRegistryImpl = new ContextKeyRegistryImpl(logSink, providerCache);
@@ -95,6 +101,7 @@ namespace RimMind.Presentation.Runtime.Composition
 
             services.Bind<IContextEngine>(contextEngine);
             services.Bind<IContextKeyProvider>(keyProvider);
+            services.Bind<IGameContextBuilder>(gameContextBuilder);
             services.Bind<IContextBuilder>(contextEngine);
             services.Bind<IContextCache>(contextEngine);
 
@@ -105,6 +112,7 @@ namespace RimMind.Presentation.Runtime.Composition
                 ContextEngine = contextEngine,
                 ContextKeyRegistry = keyRegistryImpl,
                 ContextKeyProvider = keyProvider,
+                GameContextBuilder = gameContextBuilder,
                 CacheManager = cacheManager,
                 DiffTracker = diffTracker,
                 LayerBuilder = layerBuilder,

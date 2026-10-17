@@ -34,12 +34,22 @@ namespace RimMind.Infrastructure.Mechanisms.Map.Wealth
             if (map == null)
                 return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.MapNotFound(args.MapId ?? 0)));
 
+            int pawnCount = 0;
+            if (UnityData.IsInMainThread)
+            {
+                pawnCount = map.mapPawns?.FreeColonistsCount ?? 0;
+            }
+            else
+            {
+                pawnCount = Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map).Count;
+            }
+
             var wealthInfo = new
             {
                 totalWealth = map.wealthWatcher?.WealthTotal ?? 0f,
                 itemsWealth = map.wealthWatcher?.WealthItems ?? 0f,
                 buildingsWealth = map.wealthWatcher?.WealthBuildings ?? 0f,
-                pawnCount = map.mapPawns?.FreeColonistsCount ?? 0,
+                pawnCount = pawnCount,
                 threatPoints = StorytellerUtility.DefaultThreatPointsNow(map)
             };
 

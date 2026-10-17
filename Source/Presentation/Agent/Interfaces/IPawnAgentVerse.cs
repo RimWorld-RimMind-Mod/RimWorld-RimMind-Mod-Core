@@ -12,5 +12,8 @@ namespace RimMind.Presentation.Agent
         Pawn Pawn { get; }
         new Verse.AI.Job? ConsumePendingJob();
         void SetPendingJob(Verse.AI.Job job);
+        RimMind.Infrastructure.Verse.AgentIntentSession? ActiveIntentSession { get; }
+        void StartIntentSession(RimMind.Infrastructure.Verse.AgentIntentSession session);
+        void ClearIntentSession();
     }
 }

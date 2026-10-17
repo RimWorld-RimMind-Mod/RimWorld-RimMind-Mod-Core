@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models;
+using RimMind.Application.Common.Models.Client;
 using RimMind.Domain.Enums;
 
 namespace RimMind.Application.Features.Requests.Queue
@@ -34,6 +36,7 @@ namespace RimMind.Application.Features.Requests.Queue
         public string ApiKey { get => ""; set { } }
         public string ApiEndpoint { get => ""; set { } }
         public string Player2RemoteUrl { get => ""; set { } }
+        public IReadOnlyList<BackupEndpointNode>? BackupEndpoints => null;
         public bool DebugLogging { get => false; set { } }
         public int CircuitBreakerFailureThreshold => kCircuitBreakerFailureThreshold;
         public int CircuitBreakerOpenDurationSec => kCircuitBreakerOpenDurationSec;

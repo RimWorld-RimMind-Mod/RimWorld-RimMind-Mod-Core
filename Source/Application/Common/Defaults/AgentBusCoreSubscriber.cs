@@ -45,6 +45,8 @@ public sealed class AgentBusCoreSubscriber : IDisposable
 
     private void OnPerception(PerceptionEvent e)
     {
+        if (_logSink.GetType().Name == "VerseLogSink")
+            return;
         _logSink.Message($"[AgentBus] Perception: NpcId={e.NpcId}, PawnId={e.PawnId}, Type={e.PerceptionType}");
     }
 

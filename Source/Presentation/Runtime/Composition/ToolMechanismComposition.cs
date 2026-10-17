@@ -32,9 +32,10 @@ namespace RimMind.Presentation.Runtime.Composition
 
         public static IActionExecutor ComposeActionExecutor(
             RuntimeServiceBuilder services,
-            IGameMechanismRegistry mechanismRegistry)
+            IGameMechanismRegistry mechanismRegistry,
+            RimMind.Application.Common.Interfaces.Tools.IToolRegistry? toolRegistry = null)
         {
-            var actionExecutor = new RimMind.Infrastructure.Agent.MechanismActionExecutor(mechanismRegistry);
+            var actionExecutor = new RimMind.Infrastructure.Agent.MechanismActionExecutor(mechanismRegistry, toolRegistry);
             services.Bind<IActionExecutor>(actionExecutor);
             return actionExecutor;
         }

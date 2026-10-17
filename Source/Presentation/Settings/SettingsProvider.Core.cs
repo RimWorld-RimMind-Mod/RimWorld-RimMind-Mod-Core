@@ -200,6 +200,7 @@ namespace RimMind.Presentation.Settings
         }
 
         // IApiCredentialSettings
+        public System.Collections.Generic.IReadOnlyList<RimMind.Application.Common.Models.Client.BackupEndpointNode>? BackupEndpoints => _settings.GetBackupEndpointNodes();
         public bool IsConfigured => _settings.IsConfigured();
         public bool IsOpenAIConfigured() => _settings.IsOpenAIConfigured();
     }

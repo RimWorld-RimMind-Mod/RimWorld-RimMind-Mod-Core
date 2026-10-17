@@ -30,10 +30,32 @@ namespace RimMind.Application.Features.Agent
                 paramsDict["target_pawn_id"] = decision.TargetPawnId;
             }
 
+            string? defName = null;
+            if (paramsDict != null)
+            {
+                if (paramsDict.TryGetValue("def_name", out var dn) && !string.IsNullOrEmpty(dn))
+                    defName = dn;
+                else if (paramsDict.TryGetValue("work_type", out var wt) && !string.IsNullOrEmpty(wt))
+                    defName = wt;
+                else if (paramsDict.TryGetValue("job_type", out var jt) && !string.IsNullOrEmpty(jt))
+                    defName = jt;
+
+                if (mechanismId == "pawn.work")
+                {
+                    if (paramsDict.TryGetValue("priority", out var prio) && !string.IsNullOrEmpty(prio))
+                        valueJson = prio;
+                    else if (paramsDict.TryGetValue("value", out var val) && !string.IsNullOrEmpty(val))
+                        valueJson = val;
+                    else
+                        valueJson = "1";
+                }
+            }
+
             return new MechanismWriteArgs
             {
                 MechanismId = mechanismId,
                 PawnId = pawnId,
+                DefName = defName,
                 Action = action,
                 ValueJson = valueJson,
                 Params = paramsDict,
@@ -71,6 +93,13 @@ namespace RimMind.Application.Features.Agent
         {
             if (string.IsNullOrEmpty(actionIntent))
                 return ("pawn.job", "");
+
+            if (string.Equals(actionIntent, "prioritize_work", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(actionIntent, "set_work_priority", System.StringComparison.OrdinalIgnoreCase))
+                return ("pawn.work", "set_priority");
+
+            if (string.Equals(actionIntent, "take_job", System.StringComparison.OrdinalIgnoreCase))
+                return ("pawn.job", "assign_work");
 
             var lastDot = actionIntent.LastIndexOf('.');
             if (lastDot <= 0)

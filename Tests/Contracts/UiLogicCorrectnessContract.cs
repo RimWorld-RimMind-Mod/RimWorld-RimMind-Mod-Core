@@ -126,6 +126,11 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(1620f, c2.x);
                     Assert.Equal(880f, c2.y);
 
+                    // Off-screen right with AlertsMargin (245f) clearance clamps to (screenWidth - winW - 245f)
+                    Vector2 cMargin = RequestOverlayLayoutEvaluator.ClampPosition(new Vector2(2500f, 1500f), winSize, screenW, screenH, RequestOverlayLayoutEvaluator.AlertsMargin);
+                    Assert.Equal(1375f, cMargin.x);
+                    Assert.Equal(880f, cMargin.y);
+
                     // Inside screen stays intact
                     Vector2 c3 = RequestOverlayLayoutEvaluator.ClampPosition(new Vector2(500f, 300f), winSize, screenW, screenH);
                     Assert.Equal(500f, c3.x);

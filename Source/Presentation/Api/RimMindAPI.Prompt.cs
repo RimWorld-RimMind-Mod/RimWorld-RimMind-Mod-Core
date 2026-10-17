@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Features.Json;
 using RimMind.Application.Features.Prompt;
+using RimMind.Presentation.Runtime.Services;
 
 namespace RimMind.Presentation.Api
 {
@@ -14,6 +15,9 @@ namespace RimMind.Presentation.Api
         /// </summary>
         public static class Prompt
         {
+            private static readonly RuntimeServiceRef<ITranslationService> TranslationServices =
+                RuntimeServiceRef<ITranslationService>.Optional();
+
             // ── PromptSanitizer ──
 
             public static string Sanitize(string input)
@@ -31,7 +35,7 @@ namespace RimMind.Presentation.Api
             // ── TaskInstructionBuilder ──
 
             public static string BuildTaskInstruction(string keyPrefix, ITranslationService? translationService, params string[] subKeys)
-                => TaskInstructionBuilder.Build(keyPrefix, translationService, subKeys);
+                => TaskInstructionBuilder.Build(keyPrefix, translationService ?? TranslationServices.ValueOrDefault, subKeys);
 
             public static TaskInstructionBuilder CreateInstructionBuilder()
                 => new TaskInstructionBuilder();

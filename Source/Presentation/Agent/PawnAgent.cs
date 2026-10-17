@@ -128,9 +128,15 @@ namespace RimMind.Presentation.Agent
         public void Tick()
         {
             if (State != AgentState.Active) return;
-            if (Pawn == null || Pawn.Dead)
+            if (Pawn == null || Pawn.Dead || Pawn.Destroyed)
             {
                 TransitionTo(AgentState.Terminated);
+                return;
+            }
+
+            if (!Pawn.Spawned || Pawn.Map == null || Pawn.IsKidnapped())
+            {
+                // Pawn is off-map, kidnapped, or in world transit; skip agent execution
                 return;
             }
 
@@ -226,6 +232,18 @@ namespace RimMind.Presentation.Agent
             return _actor.ConsumePendingJob();
         }
 
+        public RimMind.Infrastructure.Verse.AgentIntentSession? ActiveIntentSession => _actor.ActiveIntentSession;
+
+        public void StartIntentSession(RimMind.Infrastructure.Verse.AgentIntentSession session)
+        {
+            _actor.StartIntentSession(session);
+        }
+
+        public void ClearIntentSession()
+        {
+            _actor.ClearIntentSession();
+        }
+
         object? IJobProvider.ConsumePendingJob() => ConsumePendingJob();
 
         public void SetPendingJob(Verse.AI.Job job)
@@ -244,7 +262,58 @@ namespace RimMind.Presentation.Agent
                 return Result<Unit, RimMindError>.Ok(Unit.Value);
             }
 
-            return _actor.ExecuteDecision(decision);
+            var result = _actor.ExecuteDecision(decision);
+            int nowTick = Find.TickManager?.TicksGame ?? 0;
+            if (!result.IsOk)
+            {
+                string failText = $"[Action Failed] {decision.ActionIntent} failed: {result.Error.Message}";
+                _log?.Warning($"[RimMind.Agent] Action '{decision.ActionIntent}' execution failed for {Pawn?.LabelShort ?? Identity?.DisplayName}: {result.Error.Message}");
+                PerceptionBuffer.Add(new PerceptionBufferEntry
+                {
+                    PerceptionType = "ActionFailed",
+                    Content = failText,
+                    Timestamp = nowTick,
+                    Tick = nowTick,
+                    Importance = 0.85f,
+                    Priority = 0.85f,
+                    PawnId = Pawn?.thingIDNumber ?? -1,
+                    Source = "PawnAgent"
+                });
+                try
+                {
+                    if (Pawn != null && Verse.ModsConfig.IsActive("mcocdaa.RimMindMemory"))
+                    {
+                        RimMindAPI.Memory.AddPawnMemory(
+                            failText,
+                            RimMind.Application.Common.Models.Memory.MemoryKind.Event,
+                            nowTick,
+                            0.75f,
+                            Pawn.thingIDNumber.ToString());
+                    }
+                }
+                catch (Exception) { }
+            }
+            else if (!string.IsNullOrEmpty(decision.ActionIntent) &&
+                     !string.Equals(decision.ActionIntent, "dialogue.free", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    if (Pawn != null && Verse.ModsConfig.IsActive("mcocdaa.RimMindMemory"))
+                    {
+                        string summary = string.IsNullOrWhiteSpace(decision.Reason)
+                            ? $"[Action Executed] {decision.ActionIntent}"
+                            : $"[Action Executed] {decision.ActionIntent}: {decision.Reason}";
+                        RimMindAPI.Memory.AddPawnMemory(
+                            summary,
+                            RimMind.Application.Common.Models.Memory.MemoryKind.Work,
+                            nowTick,
+                            0.55f,
+                            Pawn.thingIDNumber.ToString());
+                    }
+                }
+                catch (Exception) { }
+            }
+            return result;
         }
 
         private void SubmitDecisionForApproval(AgentDecision decision, RiskLevel riskLevel)

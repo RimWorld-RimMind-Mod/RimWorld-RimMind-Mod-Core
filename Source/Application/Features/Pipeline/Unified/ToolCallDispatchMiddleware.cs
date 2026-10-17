@@ -46,7 +46,6 @@ namespace RimMind.Application.Features.Pipeline.Unified
             if (context.IsShortCircuited) return;
             if (context.Envelope?.ToolDispatchMode == ToolCallDispatchMode.Manual)
             {
-                _log?.Message($"[UnifiedToolCallDispatch] Manual dispatch requested for request {context.Envelope?.RequestId}; leaving tool_calls for owner.");
                 return;
             }
 
@@ -55,6 +54,14 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
             var toolCalls = ParseToolCalls(response.ToolCallsJson);
             if (toolCalls == null || toolCalls.Count == 0) return;
+
+            if (string.Equals(context.Envelope?.ScenarioId, RimMind.Application.Common.Models.Context.ScenarioIds.Decision, System.StringComparison.OrdinalIgnoreCase))
+            {
+                toolCalls = toolCalls
+                    .Where(tc => RimMind.Application.Features.Agent.Modes.ThinkStrategyHelper.IsQueryToolName(tc.FunctionName))
+                    .ToList();
+                if (toolCalls.Count == 0) return;
+            }
 
             _log?.Message($"[UnifiedToolCallDispatch] Dispatching {toolCalls.Count} tool call(s) for request {context.Envelope?.RequestId}");
 

@@ -10,6 +10,9 @@ using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.Common;
 using RimMind.Domain.Enums;
 using RimMind.Domain.Llm;
+using RimMind.Domain.ValueObjects;
+using RimMind.Application.Common.Interfaces.Tools;
+using RimMind.Application.Common.Models.Tools;
 using RimMind.Testing;
 using Xunit;
 
@@ -233,6 +236,33 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(42, args.PawnId);
                     Assert.Equal("99", args.Params!["target_pawn_id"]);
                     Assert.Equal("call-7", args.TraceId);
+                }),
+                ("prioritize_work maps to pawn.work set_priority with DefName and priority ValueJson", () =>
+                {
+                    var parsed = DecisionMapper.ParseActionIntent("prioritize_work");
+                    Assert.Equal("pawn.work", parsed.mechanismId);
+                    Assert.Equal("set_priority", parsed.action);
+                    AgentDecision decision = new(
+                        "prioritize_work",
+                        "build beds",
+                        null,
+                        "{\"work_type\":\"Construction\",\"priority\":1}");
+                    var args = DecisionMapper.ToWriteArgs(decision, 7);
+                    Assert.Equal("Construction", args.DefName);
+                    Assert.Equal("1", args.ValueJson);
+                }),
+                ("take_job maps to pawn.job assign_work with DefName from job_type", () =>
+                {
+                    var parsed = DecisionMapper.ParseActionIntent("take_job");
+                    Assert.Equal("pawn.job", parsed.mechanismId);
+                    Assert.Equal("assign_work", parsed.action);
+                    AgentDecision decision = new(
+                        "take_job",
+                        "haul items",
+                        null,
+                        "{\"job_type\":\"HaulGeneral\"}");
+                    var args = DecisionMapper.ToWriteArgs(decision, 7);
+                    Assert.Equal("HaulGeneral", args.DefName);
                 }));
         }
 
@@ -329,7 +359,84 @@ namespace RimMind.Tests.Contracts
                     Assert.True(parsed.IsOk);
                     Assert.Equal("42", parsed.Value.TargetPawnId);
                     Assert.Equal("urgent", parsed.Value.Param);
+                }),
+                ("native terminal tool call extracts intent, arguments, and sets WantsMoreToolCalls false", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "",
+                        ToolCallsJson = "[{\"id\":\"call_1\",\"function\":{\"name\":\"place_blueprint\",\"arguments\":\"{\\\"building_def\\\":\\\"Bed\\\",\\\"reason\\\":\\\"Need sleep\\\"}\"}}]"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("place_blueprint", parsed.Value.ActionIntent);
+                    Assert.Equal("Need sleep", parsed.Value.Reason);
+                    Assert.Equal("call_1", parsed.Value.ToolCallId);
+                    Assert.Contains("\"building_def\":\"Bed\"", parsed.Value.Param, StringComparison.Ordinal);
+                    Assert.False(parsed.Value.WantsMoreToolCalls);
+                }),
+                ("native sensory query tool call sets WantsMoreToolCalls true", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "",
+                        ToolCallsJson = "[{\"id\":\"call_q1\",\"function\":{\"name\":\"actions_query_buildable_structures\",\"arguments\":\"{\\\"category\\\":\\\"Furniture\\\"}\"}}]"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("actions_query_buildable_structures", parsed.Value.ActionIntent);
+                    Assert.Equal("call_q1", parsed.Value.ToolCallId);
+                    Assert.True(parsed.Value.WantsMoreToolCalls);
                 }));
+        }
+
+        [Fact]
+        public void MechanismActionExecutor_wires_tool_registry_and_resolves_aliases()
+        {
+            ContractCaseRunner.Run(
+                ("MechanismActionExecutor supports IToolRegistry injection", () =>
+                {
+                    var source = ReadSource("Infrastructure/Agent/MechanismActionExecutor.cs");
+                    Assert.Contains("IToolRegistry? toolRegistry = null", source, StringComparison.Ordinal);
+                    Assert.Contains("_toolRegistry?.FindById(toolId)", source, StringComparison.Ordinal);
+                }),
+                ("MechanismActionExecutor resolves designate_map_order, place_blueprint, and composite tool aliases", () =>
+                {
+                    var source = ReadSource("Infrastructure/Agent/MechanismActionExecutor.cs");
+                    Assert.Contains("actions_designate_resources", source, StringComparison.Ordinal);
+                    Assert.Contains("designate_map_order", source, StringComparison.Ordinal);
+                    Assert.Contains("actions_place_blueprint", source, StringComparison.Ordinal);
+                    Assert.Contains("actions.eat_and_recreation", source, StringComparison.Ordinal);
+                    Assert.Contains("actions.stabilize_rest", source, StringComparison.Ordinal);
+                    Assert.Contains("execResult.Value.IsError", source, StringComparison.Ordinal);
+                }),
+                ("ToolMechanismComposition passes tool registry to executor", () =>
+                {
+                    var source = ReadSource("Presentation/Runtime/Composition/ToolMechanismComposition.cs");
+                    Assert.Contains("IToolRegistry? toolRegistry = null", source, StringComparison.Ordinal);
+                    Assert.Contains("new RimMind.Infrastructure.Agent.MechanismActionExecutor(mechanismRegistry, toolRegistry)", source, StringComparison.Ordinal);
+                }),
+                ("RimMindCompositionRoot binds tool registry to action executor", () =>
+                {
+                    var source = ReadSource("Presentation/Runtime/RimMindCompositionRoot.cs");
+                    Assert.Contains("ToolMechanismComposition.ComposeActionExecutor(", source, StringComparison.Ordinal);
+                    Assert.Contains("appBag.ToolRegistry", source, StringComparison.Ordinal);
+                }));
+        }
+
+        private static string ReadSource(string relativePath) =>
+            System.IO.File.ReadAllText(System.IO.Path.Combine(SourceRoot(), relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+
+        private static string SourceRoot()
+        {
+            var dir = AppContext.BaseDirectory;
+            while (!string.IsNullOrEmpty(dir))
+            {
+                var candidate = System.IO.Path.Combine(dir, "Source");
+                if (System.IO.Directory.Exists(candidate)) return candidate;
+                var parent = System.IO.Path.GetDirectoryName(dir);
+                if (parent == dir) break;
+                dir = parent;
+            }
+            return System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "../../../../Source"));
         }
 
         private static LlmResponse SampleResponse()

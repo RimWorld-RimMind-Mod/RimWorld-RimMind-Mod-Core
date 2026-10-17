@@ -12,9 +12,16 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         public int max_tokens;
         public float temperature;
         public bool stream;
+        public StreamOptionsDto? stream_options;
         public ResponseFormatDto? response_format;
         public List<ToolDto>? tools;
         public object? tool_choice;
+    }
+
+    internal class StreamOptionsDto
+    {
+        [JsonProperty("include_usage")]
+        public bool include_usage = true;
     }
 
     internal class OpenAIResponseDto

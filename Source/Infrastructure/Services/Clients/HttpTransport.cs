@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RimMind.Infrastructure.Services.Clients
@@ -33,8 +34,15 @@ namespace RimMind.Infrastructure.Services.Clients
         public static async Task<(string body, long statusCode)> PostAsync(
             string url, string jsonBody, string? authHeader = null,
             string? headerName = null, string? headerValue = null,
-            float connectTimeout = 60f)
+            float connectTimeout = 60f,
+            CancellationToken cancellationToken = default)
         {
+            using var timeoutCts = connectTimeout > 0 ? new CancellationTokenSource(TimeSpan.FromSeconds(connectTimeout)) : null;
+            using var linkedCts = timeoutCts != null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+                : null;
+            var effectiveToken = linkedCts?.Token ?? cancellationToken;
+
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
             request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
             if (authHeader != null)
@@ -44,7 +52,7 @@ namespace RimMind.Infrastructure.Services.Clients
 
             EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
 
-            using var response = await _http.SendAsync(request);
+            using var response = await _http.SendAsync(request, effectiveToken);
             string body = await response.Content.ReadAsStringAsync();
             long statusCode = (long)response.StatusCode;
 
@@ -57,8 +65,15 @@ namespace RimMind.Infrastructure.Services.Clients
         public static async Task<(string body, long statusCode)> GetAsync(
             string url, string? authHeader = null,
             string? headerName = null, string? headerValue = null,
-            float connectTimeout = 60f)
+            float connectTimeout = 60f,
+            CancellationToken cancellationToken = default)
         {
+            using var timeoutCts = connectTimeout > 0 ? new CancellationTokenSource(TimeSpan.FromSeconds(connectTimeout)) : null;
+            using var linkedCts = timeoutCts != null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+                : null;
+            var effectiveToken = linkedCts?.Token ?? cancellationToken;
+
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             if (authHeader != null)
                 request.Headers.TryAddWithoutValidation("Authorization", authHeader);
@@ -67,7 +82,7 @@ namespace RimMind.Infrastructure.Services.Clients
 
             EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
 
-            using var response = await _http.SendAsync(request);
+            using var response = await _http.SendAsync(request, effectiveToken);
             string body = await response.Content.ReadAsStringAsync();
             long statusCode = (long)response.StatusCode;
 

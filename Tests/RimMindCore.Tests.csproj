@@ -30,9 +30,11 @@
     <Compile Include="../Source/Domain/**/*.cs" Exclude="../Source/Domain/**/obj/**;../Source/Domain/Common/NetStandardCompat.cs;../Source/Domain/Common/IsExternalInit.cs" />
     <Compile Include="../Source/Application/**/*.cs" Exclude="../Source/Application/**/obj/**;../Source/Application/DependencyInjection.cs;../Source/Application/Common/IsExternalInit.cs" />
     <Compile Include="../Source/Infrastructure/Verse/CompPawnAgent.cs" />
+    <Compile Include="../Source/Infrastructure/Verse/AgentIntentSession.cs" />
     <Compile Include="../Source/Infrastructure/Verse/AIRequestTraceLog.cs" />
     <Compile Include="../Source/Infrastructure/Verse/HistoryManagerGameComponent.cs" />
     <Compile Include="../Source/Infrastructure/Cache/EmbedCache.cs" />
+    <Compile Include="../Source/Presentation/Agent/PerceptionBuffer.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgent.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgentFactory.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgentManager.cs" />
@@ -70,6 +72,7 @@
     <Compile Include="../Source/Presentation/Context/ContextOrchestrator.cs" />
     <Compile Include="../Source/Presentation/Context/HistoryManager.cs" />
     <Compile Include="../Source/Presentation/Api/RimMindAPI.Memory.cs" />
+    <Compile Include="../Source/Presentation/Api/RimMindAPI.Autonomy.cs" />
     <Compile Include="../Source/Presentation/UI/Layout/LayoutConflict.cs" />
     <Compile Include="../Source/Presentation/UI/Layout/LayoutTraceRecorder.cs" />
     <Compile Include="../Source/Presentation/UI/Layout/LayoutConflictStore.cs" />
@@ -82,8 +85,12 @@
     <Compile Include="../Source/Infrastructure/UI/RimMindMainTabWindowBase.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/MessageDto.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIRequestSerializer.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.RequestBuilding.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/HttpTransport.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/Shared/*.cs" />
+    <Compile Include="../Source/Presentation/Settings/ApiKeyObfuscator.cs" />
+    <Compile Include="../Source/Presentation/Settings/BackupEndpointEntry.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/GameMechanismRegistry.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHandler.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismListToolHandler.cs" />

@@ -33,10 +33,55 @@ namespace RimMind.Application.Features.Pipeline.Unified
             if (string.IsNullOrWhiteSpace(response.Content)
                 && string.IsNullOrEmpty(response.ToolCallsJson))
             {
+                if (context.Items.TryGetValue("fallback_content", out var fb) && fb is string fallbackStr && !string.IsNullOrWhiteSpace(fallbackStr))
+                {
+                    context.Result = Result<LlmResponse, RimMindError>.Ok(response.With(content: fallbackStr));
+                    return;
+                }
+
                 context.ShortCircuit("output_guardrail:empty_response");
                 context.Result = Result<LlmResponse, RimMindError>.Err(
                     RimMindErrors.PipelineShortCircuited("Output guardrail: LLM returned empty response with no tool calls"));
                 return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(response.Content))
+            {
+                var declaredTools = context.Envelope?.Tools;
+                if (string.IsNullOrWhiteSpace(response.ToolCallsJson)
+                    && declaredTools != null
+                    && declaredTools.Count > 0)
+                {
+                    var (_, extractedToolName, extractedArgsJson, _) =
+                        RimMind.Application.Features.Agent.Modes.ThinkStrategyHelper.TryExtractToolCallFromContent(response.Content);
+                    if (!string.IsNullOrWhiteSpace(extractedToolName)
+                        && !string.IsNullOrWhiteSpace(extractedArgsJson)
+                        && declaredTools.Any(t => string.Equals(t.Name, extractedToolName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        string synthesizedToolCallsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new[]
+                        {
+                            new
+                            {
+                                id = "call_pseudo_0",
+                                type = "function",
+                                function = new
+                                {
+                                    name = extractedToolName,
+                                    arguments = extractedArgsJson
+                                }
+                            }
+                        });
+                        response = response.With(toolCallsJson: synthesizedToolCallsJson);
+                        context.Result = Result<LlmResponse, RimMindError>.Ok(response);
+                    }
+                }
+
+                var cleanedContent = StripResidualModelXmlTags(response.Content!);
+                if (!string.IsNullOrWhiteSpace(cleanedContent) && !string.Equals(cleanedContent, response.Content, StringComparison.Ordinal))
+                {
+                    response = response.With(content: cleanedContent);
+                    context.Result = Result<LlmResponse, RimMindError>.Ok(response);
+                }
             }
 
             if (IsRepetitiveAction(context))
@@ -46,6 +91,61 @@ namespace RimMind.Application.Features.Pipeline.Unified
                     RimMindErrors.PipelineShortCircuited("Output guardrail: Repetitive action detected, short-circuiting"));
                 return;
             }
+        }
+
+        internal static string StripResidualModelXmlTags(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+                return string.Empty;
+
+            string result = content;
+            if (result.IndexOf("<thinking>", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                result = System.Text.RegularExpressions.Regex.Replace(
+                    result,
+                    @"<thinking>[\s\S]*?</thinking>",
+                    string.Empty,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+
+            if (result.IndexOf('<') >= 0 && result.IndexOf('>') >= 0)
+            {
+                result = System.Text.RegularExpressions.Regex.Replace(
+                    result,
+                    @"</?(?:tool_call|speech|thought|dialogue|response|monologue|reply|thinking)\b[^>]*>",
+                    string.Empty,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+
+            result = result.Trim();
+
+            if (result.IndexOf('(') > 0)
+            {
+                var (_, _, argsJson, _) =
+                    RimMind.Application.Features.Agent.Modes.ThinkStrategyHelper.TryExtractToolCallFromContent(result);
+                if (!string.IsNullOrWhiteSpace(argsJson))
+                {
+                    try
+                    {
+                        var obj = Newtonsoft.Json.Linq.JObject.Parse(argsJson!);
+                        string? innerText = obj["speech"]?.ToString()
+                                         ?? obj["thought"]?.ToString()
+                                         ?? obj["reply"]?.ToString()
+                                         ?? obj["dialogue"]?.ToString()
+                                         ?? obj["content"]?.ToString()
+                                         ?? obj["text"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(innerText))
+                        {
+                            result = innerText!.Trim();
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            return result.Trim();
         }
 
         private bool IsRepetitiveAction(LlmRequestContext context)

@@ -35,6 +35,11 @@
   <RimMind.Settings.ApiEndpoint.Desc>AI 服务的 API 地址。支持 OpenAI 兼容接口（如 DeepSeek、本地 Ollama 等）。</RimMind.Settings.ApiEndpoint.Desc>
   <RimMind.Settings.ModelName>模型名称</RimMind.Settings.ModelName>
   <RimMind.Settings.ModelName.Desc>要使用的模型 ID，如 deepseek-v4-flash、gpt-4o-mini 等。</RimMind.Settings.ModelName.Desc>
+  <RimMind.Settings.BackupEndpoints>备用 API 容灾节点列表 (Failover List)</RimMind.Settings.BackupEndpoints>
+  <RimMind.Settings.BackupEndpoints.Desc>按顺序排列的备用 API 节点列表。当主 API 节点请求失败（如 HTTP 503/502/429、超时或空响应）时，RimMind 会在单次请求内自动平滑切换至列表中的下一个可用备用节点，并对故障节点执行 60 秒临时隔离。</RimMind.Settings.BackupEndpoints.Desc>
+  <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go 备用</RimMind.Settings.BackupEndpoints.AddOpenCode>
+  <RimMind.Settings.BackupEndpoints.AddCustom>+ 自定义备用</RimMind.Settings.BackupEndpoints.AddCustom>
+  <RimMind.Settings.BackupEndpoints.Empty>暂未配置备用节点。点击「+ OpenCode Go 备用」或「+ 自定义备用」添加自动容灾保护。</RimMind.Settings.BackupEndpoints.Empty>
   <RimMind.Settings.ForceJsonMode>强制 JSON 模式（response_format）</RimMind.Settings.ForceJsonMode>
   <RimMind.Settings.ForceJsonModeDesc>向 API 追加 response_format=json_object，强制模型返回 JSON。不支持该参数的本地模型请关闭。</RimMind.Settings.ForceJsonModeDesc>
   <RimMind.Settings.MaxTokens>最大 Token 数</RimMind.Settings.MaxTokens>
@@ -197,6 +202,7 @@
   <RimMind.Context.IncludeWeather.Desc>将当前天气状况注入 AI 上下文。</RimMind.Context.IncludeWeather.Desc>
   <RimMind.Context.IncludeThreats>威胁等级</RimMind.Context.IncludeThreats>
   <RimMind.Context.IncludeThreats.Desc>将当前地图的威胁等级注入 AI 上下文。</RimMind.Context.IncludeThreats.Desc>
+  <RimMind.Context.Budget>上下文预算与生命周期</RimMind.Context.Budget>
   <RimMind.Context.ContextBudget>上下文预算比例</RimMind.Context.ContextBudget>
   <RimMind.Context.ContextBudget.Desc>控制 AI 请求中上下文占用总窗口的最大比例（推荐 0.8，即保留 20% 空间供模型思考与输出；超过 1.0 时仅允许在超大窗口模型下放宽限制）。</RimMind.Context.ContextBudget.Desc>
   <RimMind.Settings.ContextDiffLifetime>上下文变更保留时长</RimMind.Settings.ContextDiffLifetime>
@@ -216,6 +222,8 @@
   <RimMind.Prompt.WealthWithThreat>财富：{0}（威胁等级{1}）</RimMind.Prompt.WealthWithThreat>
   <RimMind.Prompt.ThreatLevel>威胁等级：{0}</RimMind.Prompt.ThreatLevel>
   <RimMind.Prompt.FoodStorage>食物储量：约 {0} 营养</RimMind.Prompt.FoodStorage>
+  <RimMind.Prompt.KeyResources>关键物资：木材 {0}，钢铁 {1}，医药 {2}</RimMind.Prompt.KeyResources>
+  <RimMind.Prompt.PendingConstruction>待建工程：{0} 处蓝图/框架（材料缺口提醒：若资源不足请先伐木/采矿）</RimMind.Prompt.PendingConstruction>
   <RimMind.Prompt.Season>季节：{0}</RimMind.Prompt.Season>
   <RimMind.Prompt.Weather>天气：{0}</RimMind.Prompt.Weather>
   <!-- GameContextBuilder.cs - Pawn context -->
@@ -419,6 +427,7 @@
   <RimMind.Agent.ITab.CreateAgent>创建/获取 Agent</RimMind.Agent.ITab.CreateAgent>
   <RimMind.Agent.ITab.CreateFailed>无法创建 Agent：工厂不可用</RimMind.Agent.ITab.CreateFailed>
   <RimMind.Agent.ITab.Status>状态</RimMind.Agent.ITab.Status>
+  <RimMind.Agent.ITab.Mode>模式</RimMind.Agent.ITab.Mode>
   <RimMind.Agent.ITab.Goals>目标</RimMind.Agent.ITab.Goals>
   <RimMind.Agent.ITab.Strategy>策略权重</RimMind.Agent.ITab.Strategy>
   <RimMind.Agent.ITab.History>行为历史</RimMind.Agent.ITab.History>
@@ -783,4 +792,40 @@
   <RimMind.UI.Hub.ShortcutsTitle>快速操作</RimMind.UI.Hub.ShortcutsTitle>
   <RimMind.UI.Hub.QueueCountLabel>请求队列</RimMind.UI.Hub.QueueCountLabel>
   <RimMind.UI.Hub.ActiveRequests>进行中</RimMind.UI.Hub.ActiveRequests>
+  <!-- Inner Voice -->
+  <RimMind.InnerVoice.DialogTitle>发送心声 ({0})</RimMind.InnerVoice.DialogTitle>
+  <RimMind.InnerVoice.Inject>向 {0} 发送心声</RimMind.InnerVoice.Inject>
+  <!-- Remote Sync -->
+  <RimMind.RemoteSync.Unavailable>远程同步服务不可用</RimMind.RemoteSync.Unavailable>
+  <RimMind.RemoteSync.PullNpc>拉取 NPC</RimMind.RemoteSync.PullNpc>
+  <RimMind.RemoteSync.PushNpc>推送 NPC</RimMind.RemoteSync.PushNpc>
+  <RimMind.RemoteSync.Syncing>正在同步...</RimMind.RemoteSync.Syncing>
+  <RimMind.RemoteSync.PullSuccess>拉取成功</RimMind.RemoteSync.PullSuccess>
+  <RimMind.RemoteSync.PullFailed>拉取失败</RimMind.RemoteSync.PullFailed>
+  <RimMind.RemoteSync.PushQueued>推送已入队</RimMind.RemoteSync.PushQueued>
+  <RimMind.RemoteSync.PushFailed>推送失败</RimMind.RemoteSync.PushFailed>
+  <RimMind.Application.Scenario.CrisisDialogue>紧急危机对话场景</RimMind.Application.Scenario.CrisisDialogue>
+  <RimMind.Prompt.ColonyWorktables>工作台: [{0}] (可通过 actions_add_worktable_bill 下达加工清单)</RimMind.Prompt.ColonyWorktables>
+  <RimMind.Prompt.StoredApparel>库存衣物: [{0}] (可通过 actions_manage_equipment 穿戴防寒/防护装备)</RimMind.Prompt.StoredApparel>
+  <RimMind.UI.Hub.Tab.Legacy>旧版调试视图</RimMind.UI.Hub.Tab.Legacy>
+  <RimMind.Inspector.TokenBudgetTitle>=== Token 预算与结构消耗分析 ===</RimMind.Inspector.TokenBudgetTitle>
+  <RimMind.Inspector.TotalTokensLine>• 预估总输入 Token : ~{0} tokens ({1} 字符)</RimMind.Inspector.TotalTokensLine>
+  <RimMind.Inspector.SystemTokensLine>  - 系统规则与声明 (System) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.SystemTokensLine>
+  <RimMind.Inspector.StaticTokensLine>  - 静态背景与特征 (Static) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.StaticTokensLine>
+  <RimMind.Inspector.DynamicTokensLine>  - 动态状态与感知 (Dynamic): ~{0} tokens ({1:F1}%)</RimMind.Inspector.DynamicTokensLine>
+  <RimMind.Inspector.ToolTokensLine>  - 工具结构声明 (Tools)    : ~{0} tokens ({1:F1}%)</RimMind.Inspector.ToolTokensLine>
+  <RimMind.Inspector.RedundancyTitle>=== 冗余与优化提示 (Redundancy &amp; Warnings) ===</RimMind.Inspector.RedundancyTitle>
+  <RimMind.Inspector.NoRedundancy>  (未检测到明显冗余，结构配比健康)</RimMind.Inspector.NoRedundancy>
+  <RimMind.Inspector.SufficiencyTitle>=== 信息充足度评估 (Information Sufficiency) ===</RimMind.Inspector.SufficiencyTitle>
+  <RimMind.Inspector.LiveTestStatus>=== 实机测试运行状态: {0} ===</RimMind.Inspector.LiveTestStatus>
+  <RimMind.Inspector.LiveTestElapsed>耗时: {0} ms</RimMind.Inspector.LiveTestElapsed>
+  <RimMind.Inspector.LiveTestError>错误: {0}</RimMind.Inspector.LiveTestError>
+  <RimMind.Inspector.LiveTestReplyTitle>--- 模型自然语言回复 ---</RimMind.Inspector.LiveTestReplyTitle>
+  <RimMind.Inspector.LiveTestNoReply>(暂无输出，点击下方 [发送实机测试] 测试)</RimMind.Inspector.LiveTestNoReply>
+  <RimMind.Inspector.LiveTestToolCallsTitle>--- 返回的 ToolCalls 动作 ---</RimMind.Inspector.LiveTestToolCallsTitle>
+  <RimMind.Inspector.LiveTestNoToolCalls>(无工具调用)</RimMind.Inspector.LiveTestNoToolCalls>
+  <RimMind.Inspector.WarnLowSkills>包含 4+ 个极低技能 (等级 &lt; 3)。建议非工作决策时过滤无意义弱势技能。</RimMind.Inspector.WarnLowSkills>
+  <RimMind.Inspector.SuffHealth>生理与健康状态完备：包含疼痛、出血、严重疾病严重度过滤。</RimMind.Inspector.SuffHealth>
+  <RimMind.Inspector.SuffPathing>空间与路径闭环：由底层 C# JobDispatcher 自动解析目标寻路，无需在 Prompt 中堆砌全图坐标。</RimMind.Inspector.SuffPathing>
+  <RimMind.Inspector.SuffSocial>社交关系支持：直接关系人与伴侣信息已包含。</RimMind.Inspector.SuffSocial>
 </LanguageData>

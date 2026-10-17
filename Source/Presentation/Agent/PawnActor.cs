@@ -21,6 +21,7 @@ namespace RimMind.Presentation.Agent
         private readonly IPawnAgentVerse _agent;
         private readonly IActionExecutor? _actionExecutor;
         private Verse.AI.Job? _pendingJob;
+        private RimMind.Infrastructure.Verse.AgentIntentSession? _activeIntentSession;
         private int _lastActionTick;
         private int _actionCooldown = RimMindDefaults.DefaultActionCooldown;
 
@@ -31,6 +32,18 @@ namespace RimMind.Presentation.Agent
         }
 
         public bool HasPendingJob => _pendingJob != null;
+
+        public RimMind.Infrastructure.Verse.AgentIntentSession? ActiveIntentSession => _activeIntentSession;
+
+        public void StartIntentSession(RimMind.Infrastructure.Verse.AgentIntentSession session)
+        {
+            _activeIntentSession = session;
+        }
+
+        public void ClearIntentSession()
+        {
+            _activeIntentSession = null;
+        }
 
         public void SetPendingJob(Verse.AI.Job job)
         {

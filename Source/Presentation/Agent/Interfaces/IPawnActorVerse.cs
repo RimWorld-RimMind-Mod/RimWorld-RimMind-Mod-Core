@@ -11,5 +11,8 @@ namespace RimMind.Presentation.Agent
     {
         Job? ConsumePendingJob();
         void SetPendingJob(Job job);
+        RimMind.Infrastructure.Verse.AgentIntentSession? ActiveIntentSession { get; }
+        void StartIntentSession(RimMind.Infrastructure.Verse.AgentIntentSession session);
+        void ClearIntentSession();
     }
 }

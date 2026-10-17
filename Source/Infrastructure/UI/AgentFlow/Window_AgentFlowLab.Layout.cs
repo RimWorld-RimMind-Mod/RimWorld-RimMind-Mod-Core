@@ -27,7 +27,7 @@ namespace RimMind.Infrastructure.UI
         {
             GUI.color = new Color(0.7f, 0.8f, 1f);
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, y, w, LineH + 4f), key.Translate());
+            Widgets.Label(new Rect(0f, y, w, LineH + 4f), key.CanTranslate() ? (string)key.Translate() : key);
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
             y += LineH + Padding;
@@ -39,7 +39,8 @@ namespace RimMind.Infrastructure.UI
             var color = StepStatusColor(step);
             GUI.color = color;
             Text.Font = GameFont.Small;
-            string headerText = $"{symbol} {key.Translate()}";
+            string label = key.CanTranslate() ? (string)key.Translate() : key;
+            string headerText = $"{symbol} {label}";
             Widgets.Label(new Rect(Padding, y, w - Padding * 2, LineH), headerText);
             GUI.color = Color.white;
             y += LineH;
@@ -48,7 +49,7 @@ namespace RimMind.Infrastructure.UI
         private void DrawSectionLabel(ref float y, float w, string key)
         {
             GUI.color = new Color(0.6f, 0.75f, 1f);
-            Widgets.Label(new Rect(Padding, y, w - Padding * 2, LineH), key.Translate());
+            Widgets.Label(new Rect(Padding, y, w - Padding * 2, LineH), key.CanTranslate() ? (string)key.Translate() : key);
             GUI.color = Color.white;
             y += LineH;
         }

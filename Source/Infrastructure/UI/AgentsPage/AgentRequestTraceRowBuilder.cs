@@ -287,7 +287,9 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             string cleaned = Regex.Replace(rawPrompt, @"\[L\d+\]\s*", string.Empty);
 
             // Check if it's auto trigger template before stripping
-            string autoTriggerPrompt = "RimMind.Dialogue.Prompt.AutoTrigger".Translate();
+            string autoTriggerPrompt = "RimMind.Dialogue.Prompt.AutoTrigger".CanTranslate()
+                ? (string)"RimMind.Dialogue.Prompt.AutoTrigger".Translate()
+                : string.Empty;
             if ((!string.IsNullOrWhiteSpace(autoTriggerPrompt) && cleaned.Contains(autoTriggerPrompt))
                 || rawPrompt.IndexOf("dialogue_trigger", StringComparison.OrdinalIgnoreCase) >= 0)
             {

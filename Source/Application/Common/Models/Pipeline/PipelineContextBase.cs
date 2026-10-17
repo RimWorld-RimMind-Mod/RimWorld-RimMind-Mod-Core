@@ -26,5 +26,11 @@ namespace RimMind.Application.Common.Models.Pipeline
             IsShortCircuited = true;
             ShortCircuitReason = reason;
         }
+
+        public void ClearShortCircuit()
+        {
+            IsShortCircuited = false;
+            ShortCircuitReason = null;
+        }
     }
 }

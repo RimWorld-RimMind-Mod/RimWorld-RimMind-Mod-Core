@@ -167,6 +167,13 @@ namespace RimMind.Infrastructure.Verse
 
         public Pawn? FindProxyPawnForMap(Map map)
         {
+            if (map == null) return null;
+
+            if (!UnityData.IsInMainThread)
+            {
+                return RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map).FirstOrDefault();
+            }
+
             var colonist = map.mapPawns?.FreeColonists?
                 .FirstOrDefault(p => p.IsFreeNonSlaveColonist && !p.Dead);
             if (colonist != null) return colonist;

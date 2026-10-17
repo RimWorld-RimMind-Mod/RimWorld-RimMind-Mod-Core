@@ -49,7 +49,7 @@ namespace RimMind.Application.Features.Requests.Queue
                     }
                 }
             }
-            return _cooldowns.GetModCooldownTicks(modId);
+            return 0;
         }
 
         public void SetCooldown(string modId, int ticksRemaining)

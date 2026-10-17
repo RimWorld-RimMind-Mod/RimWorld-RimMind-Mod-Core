@@ -71,7 +71,22 @@ namespace RimMind.Application.Features.Prompt
 
         private static string StripDiacritics(string text)
         {
-            string normalized = text.Normalize(NormalizationForm.FormD);
+            if (string.IsNullOrEmpty(text)) return text;
+            var sbPre = new StringBuilder(text.Length);
+            foreach (char c in text)
+            {
+                switch (c)
+                {
+                    case 'ð': case 'Ð': sbPre.Append('d'); break;
+                    case 'þ': case 'Þ': sbPre.Append('t'); break;
+                    case 'Ƒ': case 'ƒ': sbPre.Append('f'); break;
+                    case 'к': case 'К': sbPre.Append('k'); break;
+                    case 'ſ': sbPre.Append('s'); break;
+                    case 'ƞ': case 'Ƞ': sbPre.Append('n'); break;
+                    default: sbPre.Append(c); break;
+                }
+            }
+            string normalized = sbPre.ToString().Normalize(NormalizationForm.FormD);
             var sb = new StringBuilder(normalized.Length);
             foreach (char c in normalized)
             {

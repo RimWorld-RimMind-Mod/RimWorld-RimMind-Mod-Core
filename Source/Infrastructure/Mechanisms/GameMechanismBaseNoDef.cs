@@ -52,14 +52,23 @@ namespace RimMind.Infrastructure.Mechanisms
 
         protected static VersePawn? FindPawn(int pawnId)
         {
-            foreach (var map in Find.Maps)
+            var cached = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+            if (cached != null) return cached;
+
+            if (UnityData.IsInMainThread && Find.Maps != null)
             {
-                var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                if (pawn != null) return pawn;
+                foreach (var map in Find.Maps)
+                {
+                    var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
+                    if (pawn != null)
+                    {
+                        RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
+                        return pawn;
+                    }
+                }
             }
 
-            var worldPawn = Find.WorldPawns?.AllPawnsAlive.FirstOrDefault(p => p.thingIDNumber == pawnId);
-            return worldPawn;
+            return null;
         }
 
         protected static VerseMap? ResolveMap(MechanismReadArgs args)

@@ -24,6 +24,8 @@ namespace RimMind.Presentation.UI.Framework
         public const float EntryLineH = 22f;
         public const float BtnHeight = 22f;
         public const float BtnPadding = 4f;
+        public const float AlertsMargin = 245f;
+        public const float TopColonistBarMargin = 96f;
 
         /// <summary>
         /// Determines whether mouse movement from the initial down position exceeds the drag threshold (4px).
@@ -37,14 +39,17 @@ namespace RimMind.Presentation.UI.Framework
 
         /// <summary>
         /// Clamps window position coordinates within screen bounds, preventing off-screen loss.
+        /// When rightMargin is specified, ensures the right boundary clears UI elements such as AlertsReadout.
+        /// When topMargin is specified, ensures the top boundary clears UI elements such as ColonistBar.
         /// </summary>
-        public static Vector2 ClampPosition(Vector2 pos, Vector2 windowSize, float screenWidth, float screenHeight)
+        public static Vector2 ClampPosition(Vector2 pos, Vector2 windowSize, float screenWidth, float screenHeight, float rightMargin = 0f, float topMargin = 0f)
         {
-            float maxX = Mathf.Max(0f, screenWidth - windowSize.x);
-            float maxY = Mathf.Max(0f, screenHeight - windowSize.y);
+            float maxX = Mathf.Max(0f, screenWidth - windowSize.x - rightMargin);
+            float minY = Mathf.Max(0f, topMargin);
+            float maxY = Mathf.Max(minY, screenHeight - windowSize.y);
             return new Vector2(
                 Mathf.Clamp(pos.x, 0f, maxX),
-                Mathf.Clamp(pos.y, 0f, maxY)
+                Mathf.Clamp(pos.y, minY, maxY)
             );
         }
 

@@ -6,6 +6,7 @@ using Verse;
 using Verse.AI;
 using RimWorld;
 using VersePawn = Verse.Pawn;
+using VerseJob = global::Verse.AI.Job;
 
 namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 {
@@ -13,21 +14,141 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
     {
         public static Result<bool, RimMindError> HandleAssignWork(VersePawn pawn, MechanismWriteArgs args)
         {
-            var workType = ExtractParam(args, "work_type");
+            var workType = ExtractParam(args, "work_type") ?? ExtractParam(args, "job_type") ?? args.DefName;
             if (string.IsNullOrEmpty(workType))
                 return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "assign_work: missing work_type"));
 
-            var workGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail(workType);
-            if (workGiver?.Worker == null)
+            var candidateGivers = ResolveCandidateWorkGivers(workType!);
+            if (candidateGivers.Count == 0)
                 return Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(workType ?? ""));
 
-            var scanner = workGiver.Worker as WorkGiver_Scanner;
-            var job = scanner?.JobOnThing(pawn, pawn, true) ?? scanner?.JobOnCell(pawn, pawn.Position, true);
-            if (job == null)
-                return Result<bool, RimMindError>.Err(RimMindErrors.Internal($"No job available for work type '{workType}'"));
+            foreach (var workGiver in candidateGivers)
+            {
+                if (workGiver?.Worker == null) continue;
+                if (workGiver.workType != null && pawn.WorkTypeIsDisabled(workGiver.workType)) continue;
 
-            pawn.jobs.StartJob(job, JobCondition.InterruptForced);
-            return Result<bool, RimMindError>.Ok(true);
+                var job = TryFindJobFromGiver(pawn, workGiver);
+                if (job != null)
+                {
+                    job.workGiverDef = workGiver;
+                    pawn.jobs.StartJob(job, JobCondition.InterruptForced);
+                    return Result<bool, RimMindError>.Ok(true);
+                }
+            }
+
+            return Result<bool, RimMindError>.Err(RimMindErrors.Internal($"No actionable target on map for work/job '{workType}'"));
+        }
+
+        private static System.Collections.Generic.List<WorkGiverDef> ResolveCandidateWorkGivers(string rawType)
+        {
+            var list = new System.Collections.Generic.List<WorkGiverDef>();
+            var trimmed = rawType.Trim();
+
+            var direct = DefDatabase<WorkGiverDef>.GetNamedSilentFail(trimmed);
+            if (direct != null)
+            {
+                list.Add(direct);
+                return list;
+            }
+
+            string normalized = trimmed.ToLowerInvariant() switch
+            {
+                "haultostorage" or "haul" or "hauling" => "HaulGeneral",
+                "clean" or "cleaning" or "cleanfilth" => "CleanFilth",
+                "repair" => "Repair",
+                "construct" or "construction" or "build" => "ConstructFinishFrames",
+                "deliver" or "deliverresources" => "ConstructDeliverResourcesToBlueprints",
+                "plantcut" or "cutplants" or "chopwood" => "PlantsCut",
+                "harvest" => "GrowerHarvest",
+                "sow" or "grow" or "growing" => "GrowerSow",
+                "cook" or "cooking" => "DoBillsCook",
+                "mine" or "mining" => "Mine",
+                "research" or "researching" => "Research",
+                "doctor" or "tend" => "DoctorTendToHumanlikes",
+                _ => trimmed
+            };
+
+            var mapped = DefDatabase<WorkGiverDef>.GetNamedSilentFail(normalized);
+            if (mapped != null) list.Add(mapped);
+
+            // Also include any WorkGiverDef matching the WorkTypeDef name or prefix
+            foreach (var wg in DefDatabase<WorkGiverDef>.AllDefsListForReading)
+            {
+                if (wg == null || list.Contains(wg)) continue;
+                if (string.Equals(wg.defName, trimmed, System.StringComparison.OrdinalIgnoreCase) ||
+                    (wg.workType != null && (string.Equals(wg.workType.defName, trimmed, System.StringComparison.OrdinalIgnoreCase) ||
+                                             string.Equals(wg.workType.labelShort, trimmed, System.StringComparison.OrdinalIgnoreCase))))
+                {
+                    list.Add(wg);
+                }
+            }
+
+            return list;
+        }
+
+        private static VerseJob? TryFindJobFromGiver(VersePawn pawn, WorkGiverDef workGiver)
+        {
+            VerseJob? job = null;
+            if (workGiver.Worker is WorkGiver_Scanner scanner)
+            {
+                job = scanner.NonScanJob(pawn);
+                if (job == null && scanner.def.scanThings)
+                {
+                    var potentialThings = scanner.PotentialWorkThingsGlobal(pawn);
+                    if (potentialThings != null)
+                    {
+                        foreach (var t in potentialThings)
+                        {
+                            if (t != null && !t.IsForbidden(pawn) && scanner.HasJobOnThing(pawn, t) && pawn.CanReach(t, scanner.PathEndMode, Danger.Deadly))
+                            {
+                                job = scanner.JobOnThing(pawn, t, true);
+                                if (job != null) break;
+                            }
+                        }
+                    }
+                    else if (pawn.Map != null)
+                    {
+                        var target = GenClosest.ClosestThingReachable(
+                            pawn.Position,
+                            pawn.Map,
+                            scanner.PotentialWorkThingRequest,
+                            scanner.PathEndMode,
+                            TraverseParms.For(pawn, Danger.Deadly),
+                            9999f,
+                            t => !t.IsForbidden(pawn) && scanner.HasJobOnThing(pawn, t));
+                        if (target != null)
+                        {
+                            job = scanner.JobOnThing(pawn, target, true);
+                        }
+                    }
+                }
+
+                if (job == null && scanner.def.scanCells)
+                {
+                    var potentialCells = scanner.PotentialWorkCellsGlobal(pawn);
+                    if (potentialCells != null)
+                    {
+                        foreach (var c in potentialCells)
+                        {
+                            if (!c.IsForbidden(pawn) && scanner.HasJobOnCell(pawn, c) && pawn.CanReach(c, scanner.PathEndMode, Danger.Deadly))
+                            {
+                                job = scanner.JobOnCell(pawn, c, true);
+                                if (job != null) break;
+                            }
+                        }
+                    }
+                    else if (pawn.Map != null && scanner.HasJobOnCell(pawn, pawn.Position))
+                    {
+                        job = scanner.JobOnCell(pawn, pawn.Position, true);
+                    }
+                }
+            }
+            else
+            {
+                job = workGiver.Worker.NonScanJob(pawn);
+            }
+
+            return job;
         }
 
         public static Result<bool, RimMindError> HandleMoveTo(VersePawn pawn, MechanismWriteArgs args)
@@ -73,7 +194,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         public static Result<bool, RimMindError> HandleForceRest(VersePawn pawn, MechanismWriteArgs args)
         {
             var bed = RestUtility.FindBedFor(pawn);
-            var job = bed != null ? JobMaker.MakeJob(JobDefOf.LayDown, new LocalTargetInfo(bed)) : JobMaker.MakeJob(JobDefOf.LayDown, pawn);
+            var job = bed != null ? JobMaker.MakeJob(JobDefOf.LayDown, new LocalTargetInfo(bed)) : JobMaker.MakeJob(JobDefOf.LayDown, pawn.Position);
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             return Result<bool, RimMindError>.Ok(true);
         }
@@ -138,12 +259,32 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 
         private static VersePawn? FindPawnById(int pawnId)
         {
-            foreach (var map in Find.Maps)
+            var pawn = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+            if (pawn != null) return pawn;
+
+            if (UnityData.IsInMainThread)
             {
-                var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                if (pawn != null) return pawn;
+                if (Find.Maps != null)
+                {
+                    foreach (var map in Find.Maps)
+                    {
+                        pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
+                        if (pawn != null)
+                        {
+                            Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
+                            return pawn;
+                        }
+                    }
+                }
+                var worldPawn = Find.WorldPawns?.AllPawnsAlive?.FirstOrDefault(p => p.thingIDNumber == pawnId);
+                if (worldPawn != null)
+                {
+                    Presentation.Api.RimMindPawnLookup.CachePawn(worldPawn);
+                    return worldPawn;
+                }
             }
-            return Find.WorldPawns?.AllPawnsAlive.FirstOrDefault(p => p.thingIDNumber == pawnId);
+
+            return null;
         }
     }
 }

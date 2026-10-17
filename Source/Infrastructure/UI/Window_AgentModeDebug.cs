@@ -173,7 +173,8 @@ namespace RimMind.Infrastructure.UI
 
             var (stateTextColor, stateBgColor) = RimMindUI.GetStateBadgeColors(agent.IsActive, agent.State == Domain.Enums.AgentState.Paused);
             string stateKey = $"RimMind.Agent.State.{agent.State}";
-            y = RimMindUI.DrawStatusBadge(viewRect, y, stateKey.Translate(), stateTextColor, stateBgColor);
+            string stateLabel = stateKey.CanTranslate() ? (string)stateKey.Translate() : agent.State.ToString();
+            y = RimMindUI.DrawStatusBadge(viewRect, y, stateLabel, stateTextColor, stateBgColor);
 
             y = RimMindUI.DrawKeyValueRow(viewRect, y, "RimMind.UI.AgentModeDebug.Mode".Translate(), (string)agent.CurrentModeId);
 

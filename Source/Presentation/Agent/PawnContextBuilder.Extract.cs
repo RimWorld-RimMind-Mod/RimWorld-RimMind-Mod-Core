@@ -100,7 +100,7 @@ namespace RimMind.Presentation.Agent
             if (pawn == null) return "";
             var data = PawnDataExtractor.Extract(pawn, _logSink);
             if (!data.HasMap) return "";
-            return "RimMind.Prompt.Colony.Status".Translate(data.ColonistCount, $"{data.ColonyWealth:F0}", data.ThreatCount);
+            return Tr("RimMind.Prompt.Colony.Status", data.ColonistCount, $"{data.ColonyWealth:F0}", data.ThreatCount);
         }
 
         public string ExtractHealth(Pawn pawn)
@@ -112,7 +112,7 @@ namespace RimMind.Presentation.Agent
                 .Select(h => h.HediffLabel)
                 .Take(MaxHealthTagDisplay)
                 .ToList();
-            return notable.Count > 0 ? string.Join(", ", notable) : "RimMind.Prompt.Health.Healthy".Translate();
+            return notable.Count > 0 ? string.Join(", ", notable) : Tr("RimMind.Prompt.Health.Healthy");
         }
 
         public string ExtractMood(Pawn pawn)
@@ -121,15 +121,37 @@ namespace RimMind.Presentation.Agent
             var data = PawnDataExtractor.Extract(pawn, _logSink);
             if (data.MoodString == null) return "";
             if (data.InMentalState)
-                return "RimMind.Prompt.Mood.MentalBreak".Translate(data.MentalStateInspectLine ?? "");
+                return Tr("RimMind.Prompt.Mood.MentalBreak", data.MentalStateInspectLine ?? "");
             return $"{data.MoodPercent:F0}%";
+        }
+
+        public string ExtractMoodThoughts(Pawn pawn)
+        {
+            if (pawn == null) return "";
+            var data = PawnDataExtractor.Extract(pawn, _logSink);
+            if (data.MoodThoughts == null || data.MoodThoughts.Count == 0) return "";
+            bool moodStable = data.MoodPercent >= 0.50f;
+            var top = data.MoodThoughts
+                .Where(t => !string.IsNullOrEmpty(t.Label))
+                .Take(8)
+                .Select(t =>
+                {
+                    int rounded = Mathf.RoundToInt(t.Offset);
+                    string sign = t.Offset > 0 ? "+" : "";
+                    if (moodStable && t.Offset < 0f && t.Offset >= -5f)
+                    {
+                        return $"{t.Label} ({sign}{rounded}, minor/routine)";
+                    }
+                    return $"{t.Label} ({sign}{rounded})";
+                });
+            return string.Join(", ", top);
         }
 
         public string ExtractCurrentJob(Pawn pawn)
         {
             if (pawn == null) return "";
             var data = PawnDataExtractor.Extract(pawn, _logSink);
-            return data.CurrentJobReport ?? data.CurrentJobDefLabel ?? "RimMind.Prompt.Job.Idle".Translate();
+            return data.CurrentJobReport ?? data.CurrentJobDefLabel ?? ("RimMind.Prompt.Job.Idle".CanTranslate() ? Tr("RimMind.Prompt.Job.Idle") : "Idle");
         }
 
         public string ExtractCombatStatus(Pawn pawn)
@@ -137,10 +159,10 @@ namespace RimMind.Presentation.Agent
             if (pawn == null) return "";
             var data = PawnDataExtractor.Extract(pawn, _logSink);
             var parts = new List<string>();
-            if (data.Drafted) parts.Add("RimMind.Prompt.Combat.Drafted".Translate());
+            if (data.Drafted) parts.Add(Tr("RimMind.Prompt.Combat.Drafted"));
             if (data.EnemyTargetLabel != null)
-                parts.Add("RimMind.Prompt.Combat.Fighting".Translate(data.EnemyTargetLabel));
-            return parts.Count > 0 ? string.Join(" | ", parts) : "RimMind.Prompt.Combat.NotInCombat".Translate();
+                parts.Add(Tr("RimMind.Prompt.Combat.Fighting", data.EnemyTargetLabel));
+            return parts.Count > 0 ? string.Join(" | ", parts) : Tr("RimMind.Prompt.Combat.NotInCombat");
         }
 
         public string ExtractTargetInfo(Pawn pawn)
@@ -151,7 +173,7 @@ namespace RimMind.Presentation.Agent
             string label = data.EnemyTargetHpPercent.HasValue
                 ? $"{data.EnemyTargetLabel} (HP:{data.EnemyTargetHpPercent.Value:F0}%)"
                 : data.EnemyTargetLabel;
-            return "RimMind.Prompt.Target.Info".Translate(label);
+            return Tr("RimMind.Prompt.Target.Info", label);
         }
     }
 }
