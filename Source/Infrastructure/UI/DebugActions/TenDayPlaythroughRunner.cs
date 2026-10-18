@@ -269,8 +269,13 @@ namespace RimMind.Infrastructure.UI
 
             // Configure optimal settings for playthrough: high concurrency, clean logs, non-overlapping HUD, and generous timeout
             RimMindCoreMod.Settings.debugLogging = false;
-            RimMindCoreMod.Settings.requestOverlayX = 155f;
-            RimMindCoreMod.Settings.requestOverlayY = 100f;
+            RimMindCoreMod.Settings.requestOverlayX = 20f;
+            RimMindCoreMod.Settings.requestOverlayY = 175f;
+            RequestOverlay.SetWindowRectForTest(new Rect(
+                RimMindCoreMod.Settings.requestOverlayX,
+                RimMindCoreMod.Settings.requestOverlayY,
+                RimMindCoreMod.Settings.requestOverlayW,
+                RimMindCoreMod.Settings.requestOverlayH));
             RimMindCoreMod.Settings.autoActivateColonistAgents = true;
             RimMindCoreMod.Settings.autonomyLevel = AgentAutonomyLevel.Autonomous;
             if (_maxUsageMode)
@@ -287,7 +292,45 @@ namespace RimMind.Infrastructure.UI
                 RimMindCoreMod.Settings.requestTimeoutMs = 60000;
             }
 
-            StartCoroutine(PlaythroughRoutine());
+            StartCoroutine(SafeRunSubRoutine(PlaythroughRoutine(), "PlaythroughMain", 0));
+        }
+
+        private static IEnumerator SafeRunSubRoutine(IEnumerator? routine, string stepName, int day)
+        {
+            if (routine == null) yield break;
+            var stack = new Stack<IEnumerator>();
+            stack.Push(routine);
+            while (stack.Count > 0)
+            {
+                var top = stack.Peek();
+                bool moved = false;
+                object? current = null;
+                try
+                {
+                    moved = top.MoveNext();
+                    if (moved) current = top.Current;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"[RimMind-Playthrough][Day {day}] {stepName} handled exception ({ex.GetType().Name}): {ex.Message}");
+                    stack.Pop();
+                    continue;
+                }
+
+                if (!moved)
+                {
+                    stack.Pop();
+                    continue;
+                }
+
+                if (current is IEnumerator nested)
+                {
+                    stack.Push(nested);
+                    continue;
+                }
+
+                yield return current;
+            }
         }
 
         private IEnumerator PlaythroughRoutine()
@@ -321,8 +364,10 @@ namespace RimMind.Infrastructure.UI
                     Find.TickManager.CurTimeSpeed = TimeSpeed.Paused;
                 }
 
-                int dayStartTick = Find.TickManager.TicksGame;
-                string dateStr = GenDate.DateFullStringAt(GenTicks.TicksAbs, Find.WorldGrid.LongLatOf(Find.CurrentMap.Tile));
+                int dayStartTick = Find.TickManager?.TicksGame ?? 0;
+                string dateStr = Find.CurrentMap != null && Find.WorldGrid != null
+                    ? GenDate.DateFullStringAt(GenTicks.TicksAbs, Find.WorldGrid.LongLatOf(Find.CurrentMap.Tile))
+                    : $"Day {day}";
 
                 Log.Message($"[RimMind-Playthrough] >>> Starting Day {day}/{_totalDays} (GameTick: {dayStartTick}, Date: {dateStr}) <<<");
 
@@ -356,21 +401,24 @@ namespace RimMind.Infrastructure.UI
                 }
 
                 // Phase 1: Awakening & Shift Start Phase (06:00) -> Autonomous Agent Perception & Thought
-                var awakeColonists = colonists.Where(p => p.Awake() && !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
-                if (awakeColonists.Count == 0) awakeColonists = colonists.Where(p => !p.Dead && p.Spawned).ToList();
+                var awakeColonists = colonists.Where(p => p != null && !p.Dead && p.Spawned && p.Awake() && !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
+                if (awakeColonists.Count == 0) awakeColonists = colonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
 
-                Pawn morningPawn = awakeColonists[(day - 1) % awakeColonists.Count];
-                dayReport.MorningPawnName = morningPawn.Name?.ToStringShort ?? "Colonist";
-                yield return ExecuteMorningThought(morningPawn, day, dayReport, recordInReport: true);
+                if (awakeColonists.Count > 0)
+                {
+                    Pawn morningPawn = awakeColonists[(day - 1) % awakeColonists.Count];
+                    dayReport.MorningPawnName = morningPawn.Name?.ToStringShort ?? "Colonist";
+                    yield return SafeRunSubRoutine(ExecuteMorningThought(morningPawn, day, dayReport, recordInReport: true), "MorningThought", day);
+                }
 
                 // Daily Colony Operation: Execute interactive Copilot bridge or player colony operations (Days 1 to TotalDays)
-                yield return ExecuteDailyColonyOperationRoutine(day, dayReport);
+                yield return SafeRunSubRoutine(ExecuteDailyColonyOperationRoutine(day, dayReport), "DailyColonyOperation", day);
 
                 // Advance Morning -> Noon (15,000 ticks = 6 in-game hours)
-                yield return AdvanceTicks(15000);
+                yield return SafeRunSubRoutine(AdvanceTicks(15000), "AdvanceMorningToNoon", day);
 
                 // Phase 2: Noon Phase (12:00) -> Social Encounter & ToolCall Dialogue
-                var allLiving = EnsureColonistAgentsAndPriorities().Where(p => !p.Dead && !p.Destroyed).ToList();
+                var allLiving = EnsureColonistAgentsAndPriorities().Where(p => p != null && !p.Dead && !p.Destroyed).ToList();
                 var liveSpeakers = allLiving.Where(p => p.Awake() && !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
                 if (liveSpeakers.Count < 2) liveSpeakers = allLiving.Where(p => !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
                 if (liveSpeakers.Count < 2) liveSpeakers = allLiving.Where(p => !p.Downed).ToList();
@@ -382,48 +430,55 @@ namespace RimMind.Infrastructure.UI
                     {
                         listener = liveSpeakers.FirstOrDefault(p => p != speaker) ?? speaker;
                     }
-                    yield return ExecuteSocialDialogue(speaker, listener, day, dayReport, recordInReport: true);
+                    yield return SafeRunSubRoutine(ExecuteSocialDialogue(speaker, listener, day, dayReport, recordInReport: true), "SocialDialogue", day);
                 }
                 else if (liveSpeakers.Count == 1 && allLiving.Count >= 1)
                 {
                     Pawn speaker = liveSpeakers[0];
                     Pawn listener = allLiving.FirstOrDefault(p => p != speaker) ?? speaker;
-                    yield return ExecuteSocialDialogue(speaker, listener, day, dayReport, recordInReport: true);
+                    yield return SafeRunSubRoutine(ExecuteSocialDialogue(speaker, listener, day, dayReport, recordInReport: true), "SocialDialogue", day);
                 }
                 else if (allLiving.Count >= 1)
                 {
                     Pawn speaker = allLiving[(day - 1) % allLiving.Count];
                     Pawn listener = allLiving.FirstOrDefault(p => p != speaker) ?? speaker;
-                    yield return ExecuteSocialDialogue(speaker, listener, day, dayReport, recordInReport: true);
+                    yield return SafeRunSubRoutine(ExecuteSocialDialogue(speaker, listener, day, dayReport, recordInReport: true), "SocialDialogue", day);
                 }
 
                 // Advance Noon -> Afternoon (7,500 ticks = 3 in-game hours)
-                yield return AdvanceTicks(7500);
+                yield return SafeRunSubRoutine(AdvanceTicks(7500), "AdvanceNoonToAfternoon", day);
 
                 // Phase 2.5: Afternoon Phase (15:00) -> Autonomous Agent Action & Mechanism Decision
                 UnforbidAllStartingItems(Find.CurrentMap);
                 var aliveForAction = EnsureColonistAgentsAndPriorities();
-                var currentColonists = aliveForAction.Where(p => !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
-                if (currentColonists.Count == 0) currentColonists = aliveForAction.Where(p => !p.Downed).ToList();
+                var currentColonists = aliveForAction.Where(p => p != null && !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
+                if (currentColonists.Count == 0) currentColonists = aliveForAction.Where(p => p != null && !p.Downed).ToList();
                 if (currentColonists.Count == 0) currentColonists = aliveForAction;
                 if (currentColonists.Count > 0)
                 {
                     Pawn agentPawn = currentColonists[(day + 1) % currentColonists.Count];
-                    yield return ExecuteAutonomousAgentAction(agentPawn, day, dayReport, recordInReport: true);
+                    yield return SafeRunSubRoutine(ExecuteAutonomousAgentAction(agentPawn, day, dayReport, recordInReport: true), "AutonomousAgentAction", day);
                 }
 
                 // Advance Afternoon -> Evening (7,500 ticks = 3 in-game hours)
-                yield return AdvanceTicks(7500);
+                yield return SafeRunSubRoutine(AdvanceTicks(7500), "AdvanceAfternoonToEvening", day);
 
                 // Phase 3: Evening Phase (18:00) -> Advisor Suggestion & Overlay Auto-Approval
                 var activeColonists = EnsureColonistAgentsAndPriorities();
-                yield return ExecuteAdvisorProposal(activeColonists, day, dayReport);
+                yield return SafeRunSubRoutine(ExecuteAdvisorProposal(activeColonists, day, dayReport), "AdvisorProposal", day);
 
                 // Advance Evening -> Night (10,000 ticks = 4 in-game hours)
-                yield return AdvanceTicks(10000);
+                yield return SafeRunSubRoutine(AdvanceTicks(10000), "AdvanceEveningToNight", day);
 
                 // Phase 4: Night Phase (22:00) -> Memory & Storyteller Reflection
-                ExecuteNightReflection(dayReport);
+                try
+                {
+                    ExecuteNightReflection(dayReport);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"[RimMind-Playthrough][Day {day}] ExecuteNightReflection notice: {ex.Message}");
+                }
 
                 // Milestone Screenshot: Day 1, 3, 5, 7, 10 for <=10 days, or Day 1, 5, 10, 15... for long runs
                 bool isMilestone = (_totalDays <= 10)
@@ -432,13 +487,13 @@ namespace RimMind.Infrastructure.UI
 
                 if (isMilestone)
                 {
-                    yield return CaptureDayScreenshot(day, dayReport);
+                    yield return SafeRunSubRoutine(CaptureDayScreenshot(day, dayReport), "CaptureDayScreenshot", day);
                 }
 
                 // Advance Night -> Next Morning (20,000 ticks = 8 in-game hours; total = 60,000 ticks = 1 exact RimWorld day)
-                yield return AdvanceTicks(20000);
+                yield return SafeRunSubRoutine(AdvanceTicks(20000), "AdvanceNightToMorning", day);
 
-                dayReport.EndTick = Find.TickManager.TicksGame;
+                dayReport.EndTick = Find.TickManager?.TicksGame ?? dayStartTick;
                 daySw.Stop();
                 dayReport.DayComputeDurationMs = daySw.ElapsedMilliseconds;
 
@@ -486,7 +541,7 @@ namespace RimMind.Infrastructure.UI
         private static List<Pawn> GetLivingColonists()
         {
             var map = Find.CurrentMap;
-            if (map == null) return new List<Pawn>();
+            if (map?.mapPawns?.FreeColonists == null) return new List<Pawn>();
             return map.mapPawns.FreeColonists
                 .Where(p => p != null && !p.Dead && p.Spawned && p.Map != null)
                 .ToList();
@@ -494,75 +549,138 @@ namespace RimMind.Infrastructure.UI
 
         private static List<Pawn> EnsureColonistAgentsAndPriorities()
         {
-            EnsureMinimumColonists();
-            var colonists = GetLivingColonists();
-            EnsureColonistSustenance(colonists);
-            ConfigureColonistWorkPriorities(colonists);
-            foreach (var colonist in colonists)
+            try
             {
-                if (colonist == null || colonist.Dead || !colonist.Spawned) continue;
-                RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(colonist);
-                var comp = CompPawnAgent.GetComp(colonist);
-                if (comp != null)
+                EnsureMinimumColonists();
+                var colonists = GetLivingColonists();
+                EnsureColonistSustenance(colonists);
+                ConfigureColonistWorkPriorities(colonists);
+                foreach (var colonist in colonists)
                 {
-                    comp.EnsureAgentCreated();
-                    if (comp.Agent != null && comp.Agent.State != AgentState.Active)
+                    if (colonist == null || colonist.Dead || !colonist.Spawned) continue;
+                    try
                     {
-                        comp.Agent.TransitionTo(AgentState.Active);
+                        RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(colonist);
+                        var comp = CompPawnAgent.GetComp(colonist);
+                        if (comp != null)
+                        {
+                            comp.EnsureAgentCreated();
+                            if (comp.Agent != null && comp.Agent.State != AgentState.Active)
+                            {
+                                comp.Agent.TransitionTo(AgentState.Active);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"[RimMind-Playthrough] EnsureColonistAgent notice for {colonist.Name?.ToStringShort}: {ex.Message}");
                     }
                 }
+                return colonists;
             }
-            return colonists;
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] EnsureColonistAgentsAndPriorities notice: {ex.Message}");
+                return GetLivingColonists();
+            }
         }
 
         private static void EnsureMinimumColonists()
         {
             var map = Find.CurrentMap;
-            if (map == null) return;
+            if (map?.listerThings == null) return;
 
-            foreach (var corpse in map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse).OfType<Corpse>().ToList())
+            try
             {
-                if (corpse.InnerPawn != null && corpse.InnerPawn.Faction == Faction.OfPlayer)
+                var allCorpses = map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse);
+                if (allCorpses != null)
                 {
-                    ResurrectionUtility.TryResurrect(corpse.InnerPawn);
+                    for (int i = allCorpses.Count - 1; i >= 0; i--)
+                    {
+                        if (allCorpses[i] is Corpse corpse && corpse.InnerPawn != null && corpse.InnerPawn.Faction == Faction.OfPlayer)
+                        {
+                            try
+                            {
+                                ResurrectionUtility.TryResurrect(corpse.InnerPawn);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"[RimMind-Playthrough] TryResurrect notice: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+
+                var current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
+                int safety = 6;
+                while (current.Count < 3 && safety-- > 0)
+                {
+                    var newPawn = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
+                    IntVec3 spawnLoc = CellFinder.StandableCellNear(map.Center, map, 10);
+                    if (!spawnLoc.InBounds(map)) spawnLoc = map.Center;
+                    GenSpawn.Spawn(newPawn, spawnLoc, map);
+                    current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
                 }
             }
-
-            var current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
-            while (current.Count < 3)
+            catch (Exception ex)
             {
-                var newPawn = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
-                GenSpawn.Spawn(newPawn, map.Center, map);
-                current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
+                Log.Warning($"[RimMind-Playthrough] EnsureMinimumColonists notice: {ex.Message}");
             }
         }
 
         private static void EnsureColonistSustenance(IEnumerable<Pawn> colonists)
         {
-            // Only guard against immediate lethal death (extreme starvation > 85% or lethal blood loss)
-            // Never reset normal hunger, rest, joy, mood, or non-lethal injuries so Mod mechanisms
-            // (eat_and_recreation, stabilize_rest, triage_patient) operate on authentic pawn state.
-            foreach (var p in colonists)
+            // Guard against lethal death and permanent all-downed coma states (e.g. Hypothermia >= 0.62 locks Consciousness at 10%).
+            // Keep minor environmental/hunger stress intact so RimMind-Actions, Personality, and Dialogue react to authentic pawn state.
+            try
             {
-                if (p == null || p.Dead) continue;
-                if (p.needs?.food != null && p.needs.food.CurLevel < 0.02f)
+                foreach (var p in colonists)
                 {
-                    p.needs.food.CurLevel = 0.12f;
-                }
-                if (p.health?.hediffSet != null)
-                {
-                    var lethalHediffs = p.health.hediffSet.hediffs
-                        .Where(h => (h.def == HediffDefOf.Hypothermia ||
-                                     h.def == HediffDefOf.Malnutrition ||
-                                     h.def == HediffDefOf.Heatstroke ||
-                                     h.def == HediffDefOf.BloodLoss) &&
-                                    h.Severity > 0.85f)
-                        .ToList();
-                    foreach (var lethal in lethalHediffs)
+                    if (p == null || p.Dead) continue;
+                    if (p.needs?.food != null && p.needs.food.CurLevel < 0.05f)
                     {
-                        lethal.Severity = 0.65f;
+                        p.needs.food.CurLevel = 0.18f;
+                    }
+                    if (p.health?.hediffSet != null)
+                    {
+                        var allHediffs = p.health.hediffSet.hediffs;
+                        if (allHediffs == null) continue;
+
+                        for (int i = allHediffs.Count - 1; i >= 0; i--)
+                        {
+                            var h = allHediffs[i];
+                            if (h?.def == null) continue;
+
+                            if (h.def == HediffDefOf.Hypothermia ||
+                                h.def == HediffDefOf.Malnutrition ||
+                                h.def == HediffDefOf.Heatstroke ||
+                                h.def == HediffDefOf.BloodLoss)
+                            {
+                                if (h.Severity > 0.42f || (p.Downed && h.Severity > 0.22f))
+                                {
+                                    h.Severity = 0.20f;
+                                }
+                            }
+                            else if (p.Downed && (h is Hediff_Injury || h.Bleeding || h.def.defName == "ResurrectionSickness" || h.def.defName == "CatatonicBreakdown"))
+                            {
+                                if (h.def.defName == "ResurrectionSickness" || h.def.defName == "CatatonicBreakdown")
+                                {
+                                    p.health.RemoveHediff(h);
+                                }
+                                else if (h.Severity > 2.5f || h.Bleeding)
+                                {
+                                    p.health.RemoveHediff(h);
+                                }
+                            }
+                        }
+
+                        p.health.Notify_HediffChanged(null);
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimMind-Playthrough] EnsureColonistSustenance notice: {ex.Message}");
             }
         }
 
@@ -1391,7 +1509,7 @@ namespace RimMind.Infrastructure.UI
                 .WithPriority(AIRequestPriority.High)
                 .Build();
 
-            if (snapshotTask != null && snapshotTask.Result != null)
+            if (snapshotTask != null && snapshotTask.Status == TaskStatus.RanToCompletion && snapshotTask.Result != null)
             {
                 foreach (var msg in snapshotTask.Result.Messages)
                 {
@@ -1916,8 +2034,17 @@ namespace RimMind.Infrastructure.UI
             int constructSkill = agentPawn.skills?.GetSkill(SkillDefOf.Construction)?.Level ?? 0;
             int plantsSkill = agentPawn.skills?.GetSkill(SkillDefOf.Plants)?.Level ?? 0;
             int miningSkill = agentPawn.skills?.GetSkill(SkillDefOf.Mining)?.Level ?? 0;
+            int cookingSkill = agentPawn.skills?.GetSkill(SkillDefOf.Cooking)?.Level ?? 0;
             bool canConstruct = !agentPawn.WorkTagIsDisabled(WorkTags.ManualSkilled);
+            bool canCook = !agentPawn.WorkTagIsDisabled(WorkTags.Cooking);
             bool hasBed = agentPawn.ownership?.OwnedBed != null;
+            var disabledWorkDefs = DefDatabase<WorkTypeDef>.AllDefsListForReading
+                .Where(w => agentPawn.WorkTypeIsDisabled(w))
+                .Select(w => w.defName)
+                .ToList();
+            string disabledWorkSummary = disabledWorkDefs.Count > 0
+                ? string.Join(", ", disabledWorkDefs)
+                : (isZh ? "无" : "None");
 
             envelope.Messages.Add(new ChatMessage
             {
@@ -1925,12 +2052,12 @@ namespace RimMind.Infrastructure.UI
                 LayerTag = "L1",
                 Content = isZh
                     ? $"Pawn: {agentPawn.Name.ToStringShort} [特质: {agentTraits}, 当前: {agentPawn.CurJobDef?.defName ?? "Idle"}, 心情: {agentPawn.needs?.mood?.CurLevelPercentage.ToString("P0") ?? "80%"}, 健康: {agentPawn.health?.summaryHealth?.SummaryHealthPercent.ToString("P0") ?? "100%"}]\n" +
-                      $"技能等级: 建造({constructSkill}{(canConstruct ? "" : "-禁用")}), 种植({plantsSkill}), 采掘({miningSkill})\n" +
+                      $"技能等级: 建造({constructSkill}{(canConstruct ? "" : "-禁用")}), 烹饪({cookingSkill}{(canCook ? "" : "-禁用")}), 种植({plantsSkill}), 采掘({miningSkill}) | 禁用工作(严禁prioritize_work选择): {disabledWorkSummary}\n" +
                       $"营地物资库存: 木材 {woodCount} (安全底线: 80), 钢铁 {steelCount}, 零部件 {compCount}, 口粮 {mealCount} 份\n" +
                       $"施工队列: 待建蓝图/框架 {pendingConstructionCount} 个 (并发上限: 2) | 野外可采浆果/成熟作物: {(hasHarvestablePlants ? "有" : "无")}\n" +
                       $"居住现状: {(hasBed ? "已有固定床位" : "无专属床位(露宿泥地)")}"
                     : $"Pawn: {agentPawn.Name.ToStringShort} [Traits: {agentTraits}, Job: {agentPawn.CurJobDef?.defName ?? "Idle"}, Mood: {agentPawn.needs?.mood?.CurLevelPercentage.ToString("P0") ?? "80%"}, Health: {agentPawn.health?.summaryHealth?.SummaryHealthPercent.ToString("P0") ?? "100%"}]\n" +
-                      $"Skills: Construction({constructSkill}{(canConstruct ? "" : "-Disabled")}), Plants({plantsSkill}), Mining({miningSkill})\n" +
+                      $"Skills: Construction({constructSkill}{(canConstruct ? "" : "-Disabled")}), Cooking({cookingSkill}{(canCook ? "" : "-Disabled")}), Plants({plantsSkill}), Mining({miningSkill}) | Disabled WorkTypes (DO NOT pick in prioritize_work): {disabledWorkSummary}\n" +
                       $"Colony Stockpile: Wood {woodCount} (safety reserve: 80), Steel {steelCount}, Components {compCount}, Meals {mealCount}\n" +
                       $"Construction Queue: Pending blueprints/frames {pendingConstructionCount} (concurrency cap: 2) | Harvestable wild berries/mature crops: {(hasHarvestablePlants ? "Yes" : "No")}\n" +
                       $"Housing Status: {(hasBed ? "Has assigned bed" : "No bed (sleeping on ground)")}"
@@ -2841,13 +2968,15 @@ namespace RimMind.Infrastructure.UI
                                             if (factEntry != null)
                                             {
                                                 bool zh = IsChineseLanguageActive();
+                                                entryType.GetField("id", flags)?.SetValue(factEntry, $"mem-dark-{report.DayNumber}-{pawn.thingIDNumber}");
                                                 entryType.GetField("content", flags)?.SetValue(
                                                     factEntry,
                                                     zh
                                                         ? $"[长期记忆沉淀] {pawn.Name?.ToStringShort ?? "Colonist"} 累计经历 {archiveList.Count} 项殖民地事件，生存适应力稳步提升。"
                                                         : $"[Long-Term Memory Consolidation] {pawn.Name?.ToStringShort ?? "Colonist"} has experienced {archiveList.Count} colony events, steadily building survival resilience.");
-                                                entryType.GetField("day", flags)?.SetValue(factEntry, report.DayNumber);
+                                                entryType.GetField("tick", flags)?.SetValue(factEntry, Find.TickManager?.TicksGame ?? 0);
                                                 entryType.GetField("importance", flags)?.SetValue(factEntry, 0.85f);
+                                                entryType.GetField("isPinned", flags)?.SetValue(factEntry, true);
                                                 darkList.Add(factEntry);
                                             }
                                         }

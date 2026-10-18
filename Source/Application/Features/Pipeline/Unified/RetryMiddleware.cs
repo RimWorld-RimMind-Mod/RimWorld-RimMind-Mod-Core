@@ -42,7 +42,11 @@ namespace RimMind.Application.Features.Pipeline.Unified
                         lastResult = context.Result;
                     if (context.Result?.IsOk == true)
                         return;
-                    if (context.Result.HasValue && context.Result.Value.IsErr && context.Result.Value.Error.Code == RimMindErrorCode.ClientPermanentFailure)
+                    if (context.Ct.IsCancellationRequested)
+                        return;
+                    if (context.Result.HasValue && context.Result.Value.IsErr &&
+                        (context.Result.Value.Error.Code == RimMindErrorCode.ClientPermanentFailure ||
+                         context.Result.Value.Error.Code == RimMindErrorCode.Cancelled))
                         return;
                     if (context.IsShortCircuited
                         && context.ShortCircuitReason != "transient_error"

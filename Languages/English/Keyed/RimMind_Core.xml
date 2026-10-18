@@ -758,12 +758,12 @@
   <RimMind.Inspector.Copied>Full AI request payload successfully copied to clipboard!</RimMind.Inspector.Copied>
   <RimMind.Inspector.OpenButton>Inspect Payload</RimMind.Inspector.OpenButton>
   <RimMind.Inspector.PromptCachingTitle>=== Prompt Caching (KV-Cache) Prefix Stability ===</RimMind.Inspector.PromptCachingTitle>
-  <RimMind.Inspector.PrefixTokens>• Stable Cached Prefix (Static Prefix) : ~{0} tokens ({1:F1}% of prompt)</RimMind.Inspector.PrefixTokens>
+  <RimMind.Inspector.PrefixTokens>• Stable Cached Prefix (Static Prefix) : ~{0} tokens ({1}% of prompt)</RimMind.Inspector.PrefixTokens>
   <RimMind.Inspector.Zone1Tokens>  - Zone 1 Static Axioms &amp; Directives : ~{0} tokens (100% globally cached)</RimMind.Inspector.Zone1Tokens>
   <RimMind.Inspector.Zone2Tokens>  - Zone 2 Agent Baseline Profile : ~{0} tokens (100% cached per colonist)</RimMind.Inspector.Zone2Tokens>
   <RimMind.Inspector.ToolsTokens>  - Deterministic Tool Declarations : ~{0} tokens (alphabetically aligned)</RimMind.Inspector.ToolsTokens>
-  <RimMind.Inspector.VolatileTokens>• Volatile Tail (Dynamic Suffix) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.VolatileTokens>
-  <RimMind.Inspector.EstimatedHit>• Estimated Turn 2+ Cache Hit Rate : ~{0:F1}%</RimMind.Inspector.EstimatedHit>
+  <RimMind.Inspector.VolatileTokens>• Volatile Tail (Dynamic Suffix) : ~{0} tokens ({1}%)</RimMind.Inspector.VolatileTokens>
+  <RimMind.Inspector.EstimatedHit>• Estimated Turn 2+ Cache Hit Rate : ~{0}%</RimMind.Inspector.EstimatedHit>
   <RimMind.Inspector.TailIsolated>  [✓] Boundary strictly isolated: time_of_day, weather, and mood are at the tail, never invalidating prefix cache!</RimMind.Inspector.TailIsolated>
   <RimMind.Inspector.ProfileAligned>Colonist profile and backstory aligned to Zone 2 stable prefix, enjoying 100% KV-Cache hits across turns.</RimMind.Inspector.ProfileAligned>
   <RimMind.UI.ResetToDefaults>Reset to Defaults</RimMind.UI.ResetToDefaults>
@@ -810,10 +810,10 @@
   <RimMind.UI.Hub.Tab.Legacy>Legacy Debug Views</RimMind.UI.Hub.Tab.Legacy>
   <RimMind.Inspector.TokenBudgetTitle>=== Token Budget &amp; Structure Analysis ===</RimMind.Inspector.TokenBudgetTitle>
   <RimMind.Inspector.TotalTokensLine>• Estimated Total Input Tokens : ~{0} tokens ({1} chars)</RimMind.Inspector.TotalTokensLine>
-  <RimMind.Inspector.SystemTokensLine>  - System Rules &amp; Declarations (System) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.SystemTokensLine>
-  <RimMind.Inspector.StaticTokensLine>  - Static Background &amp; Traits (Static) : ~{0} tokens ({1:F1}%)</RimMind.Inspector.StaticTokensLine>
-  <RimMind.Inspector.DynamicTokensLine>  - Dynamic State &amp; Perception (Dynamic): ~{0} tokens ({1:F1}%)</RimMind.Inspector.DynamicTokensLine>
-  <RimMind.Inspector.ToolTokensLine>  - Tool Declarations (Tools)            : ~{0} tokens ({1:F1}%)</RimMind.Inspector.ToolTokensLine>
+  <RimMind.Inspector.SystemTokensLine>  - System Rules &amp; Declarations (System) : ~{0} tokens ({1}%)</RimMind.Inspector.SystemTokensLine>
+  <RimMind.Inspector.StaticTokensLine>  - Static Background &amp; Traits (Static) : ~{0} tokens ({1}%)</RimMind.Inspector.StaticTokensLine>
+  <RimMind.Inspector.DynamicTokensLine>  - Dynamic State &amp; Perception (Dynamic): ~{0} tokens ({1}%)</RimMind.Inspector.DynamicTokensLine>
+  <RimMind.Inspector.ToolTokensLine>  - Tool Declarations (Tools)            : ~{0} tokens ({1}%)</RimMind.Inspector.ToolTokensLine>
   <RimMind.Inspector.RedundancyTitle>=== Redundancy &amp; Optimization Warnings ===</RimMind.Inspector.RedundancyTitle>
   <RimMind.Inspector.NoRedundancy>  (No obvious redundancy detected; prompt structure is healthy)</RimMind.Inspector.NoRedundancy>
   <RimMind.Inspector.SufficiencyTitle>=== Information Sufficiency Assessment ===</RimMind.Inspector.SufficiencyTitle>
