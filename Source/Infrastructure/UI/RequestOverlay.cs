@@ -274,11 +274,15 @@ namespace RimMind.Infrastructure.UI
 
                 float contentH = 0f;
                 CachedHeights.Clear();
+                float descWidth = Mathf.Max(80f, contentRect.width - 16f - TextPadding * 2f);
                 for (int i = 0; i < pending.Count; i++)
                 {
                     float h = EntryLineH;
                     if (!pending[i].description.NullOrEmpty())
-                        h += EntryLineH;
+                    {
+                        float descH = Mathf.Max(EntryLineH, Text.CalcHeight(pending[i].description, descWidth) + 2f);
+                        h += descH;
+                    }
                     h += BtnHeight + BtnPadding * 2f;
                     CachedHeights.Add(h);
                     contentH += h;
@@ -310,10 +314,11 @@ namespace RimMind.Infrastructure.UI
                         float descY = entryRect.y + EntryLineH;
                         if (!entry.description.NullOrEmpty())
                         {
+                            float descH = entryH - EntryLineH - (BtnHeight + BtnPadding * 2f);
                             GUI.color = new Color(0.7f, 0.7f, 0.7f);
-                            Widgets.Label(new Rect(entryRect.x + TextPadding, descY, entryRect.width - TextPadding * 2, EntryLineH), entry.description);
+                            Widgets.Label(new Rect(entryRect.x + TextPadding, descY, entryRect.width - TextPadding * 2, descH), entry.description);
                             GUI.color = Color.white;
-                            descY += EntryLineH;
+                            descY += descH;
                         }
 
                         float btnY = descY + BtnPadding;
