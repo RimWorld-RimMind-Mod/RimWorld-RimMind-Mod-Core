@@ -419,11 +419,16 @@ namespace RimMind.Infrastructure.UI
             var map = Find.CurrentMap;
             if (map == null) return;
 
-            foreach (Pawn pawn in map.mapPawns.AllPawns)
+            var allPawns = map.mapPawns?.AllPawns;
+            if (allPawns != null)
             {
-                var comp = CompPawnAgent.GetComp(pawn);
-                if (comp?.Agent != null)
-                    _cachedPawns.Add(pawn);
+                for (int i = 0; i < allPawns.Count; i++)
+                {
+                    Pawn pawn = allPawns[i];
+                    var comp = CompPawnAgent.GetComp(pawn);
+                    if (comp?.Agent != null)
+                        _cachedPawns.Add(pawn);
+                }
             }
 
             if (_initialPawn != null && _selectedPawnIndex < 0)

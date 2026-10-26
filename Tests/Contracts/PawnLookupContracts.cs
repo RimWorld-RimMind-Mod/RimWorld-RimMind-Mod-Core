@@ -9,6 +9,7 @@ using Xunit;
 
 namespace RimMind.Tests.Contracts
 {
+    [Collection("UI drawing")]
     public sealed class PawnLookupContracts : IDisposable
     {
         public PawnLookupContracts()
@@ -280,6 +281,70 @@ namespace RimMind.Tests.Contracts
                     RimMindPawnLookup.ClearCache();
                     Assert.Null(RimMindPawnLookup.FindPawnByNumber(401));
                     Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_401"));
+                })),
+                ("ExpiringNegativeCache suppresses rescans until TTL expires or Forget is called", (Action)(() =>
+                {
+                    long nowMs = 1000;
+                    var negCache = new RimMind.Application.Common.Helpers.ExpiringNegativeCache<int>(
+                        TimeSpan.FromSeconds(4),
+                        maxEntries: 16,
+                        clockMs: () => nowMs);
+
+                    Assert.False(negCache.IsRecentMiss(501));
+                    negCache.RecordMiss(501);
+                    Assert.True(negCache.IsRecentMiss(501));
+
+                    nowMs += 3999;
+                    Assert.True(negCache.IsRecentMiss(501));
+
+                    nowMs += 1;
+                    Assert.False(negCache.IsRecentMiss(501));
+
+                    negCache.RecordMiss(502);
+                    Assert.True(negCache.IsRecentMiss(502));
+                    negCache.Forget(502);
+                    Assert.False(negCache.IsRecentMiss(502));
+                })),
+                ("FindPawnByNumber and FindPawnById negatively cache misses until CachePawn or ClearCache", (Action)(() =>
+                {
+                    RimMindPawnLookup.ClearCache();
+                    UnityData.IsInMainThread = true;
+                    var map = new Map();
+                    Find.CurrentMap = map;
+
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(601));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_601"));
+
+                    var latePawn = new Pawn { thingIDNumber = 601 };
+                    map.mapPawns.AllPawns.Add(latePawn);
+
+                    // Suppressed by negative cache while within MissTtl
+                    Assert.Null(RimMindPawnLookup.FindPawnByNumber(601));
+                    Assert.Null(RimMindPawnLookup.FindPawnById("Pawn_601"));
+
+                    // Explicit CachePawn forgets the negative cache entry immediately
+                    RimMindPawnLookup.CachePawn(latePawn);
+                    Assert.Same(latePawn, RimMindPawnLookup.FindPawnByNumber(601));
+                    Assert.Same(latePawn, RimMindPawnLookup.FindPawnById("Pawn_601"));
+                })),
+                ("MechanismToolHelper.ResolvePawnId never substitutes fallbackId when explicit pawn_id is > 0", (Action)(() =>
+                {
+                    var extractor = new RimMind.Infrastructure.Mechanisms.MechanismToolHelper.FallbackJsonExtractor();
+                    var explicitArgs = new RimMind.Application.Common.Models.Tools.ToolCallArgs
+                    {
+                        ArgumentsJson = "{\"pawn_id\":\"999\"}",
+                        PawnId = 42,
+                        NpcId = "Pawn_42"
+                    };
+                    Assert.Equal(999, RimMind.Infrastructure.Mechanisms.MechanismToolHelper.ResolvePawnId(extractor, explicitArgs));
+
+                    var omittedArgs = new RimMind.Application.Common.Models.Tools.ToolCallArgs
+                    {
+                        ArgumentsJson = "{}",
+                        PawnId = 42,
+                        NpcId = "Pawn_42"
+                    };
+                    Assert.Equal(42, RimMind.Infrastructure.Mechanisms.MechanismToolHelper.ResolvePawnId(extractor, omittedArgs));
                 }))
             );
         }
@@ -369,6 +434,18 @@ namespace RimMind.Tests.Contracts
 
                     string runtimeCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Presentation", "Runtime", "RimMindRuntimeGameComponent.cs"));
                     Assert.Contains("Player2Client.StopHealthCheck()", runtimeCode, StringComparison.Ordinal);
+                })),
+                ("VersePawnSleepDetector and Window_AgentProgressFloat follow pawn lookup and thread-safety invariants", (Action)(() =>
+                {
+                    string root = FindRepoRoot();
+                    string sleepCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Social", "VersePawnSleepDetector.cs"));
+                    Assert.Contains("RimMindPawnLookup.FindPawnById", sleepCode, StringComparison.Ordinal);
+                    Assert.DoesNotContain("WorldPawns", sleepCode, StringComparison.Ordinal);
+
+                    string floatCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "UI", "Window_AgentProgressFloat.cs"));
+                    Assert.Contains("RimMindPawnLookup.GetEligibleColonists(Find.CurrentMap)", floatCode, StringComparison.Ordinal);
+                    Assert.DoesNotContain("Find.CurrentMap.mapPawns.AllPawns", floatCode, StringComparison.Ordinal);
+                    Assert.Contains("_entriesDirty = true", floatCode, StringComparison.Ordinal);
                 }))
             );
         }

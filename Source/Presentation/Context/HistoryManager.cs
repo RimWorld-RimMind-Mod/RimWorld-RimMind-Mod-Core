@@ -52,6 +52,10 @@ namespace RimMind.Presentation.Context
             {
                 entries.Add(new HistoryEntry("user", userMessage, tick, scenario, turnId, isPending: true));
                 entries.Add(new HistoryEntry("assistant", assistantPlaceholder, tick, scenario, turnId, isPending: true));
+                if (entries.Count > MaxEntriesPerNpc && entries.Count(e => e.IsPending) > 2)
+                {
+                    EnforceCapacity(entries);
+                }
             }
         }
 

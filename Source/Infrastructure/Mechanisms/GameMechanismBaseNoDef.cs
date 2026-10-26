@@ -50,25 +50,45 @@ namespace RimMind.Infrastructure.Mechanisms
         public virtual Task<Result<bool, RimMindError>> ExecuteWatchAsync(MechanismWriteArgs args, CancellationToken ct)
             => Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.MechanismOperationNotSupported(MechanismId, "watch")));
 
+        /// <summary>
+        /// Lenient lookup for read/query operations: any live pawn on a loaded map or in a player caravan
+        /// (prisoners, visitors and animals included). Never scans WorldPawns; cache-only off the main thread.
+        /// </summary>
         protected static VersePawn? FindPawn(int pawnId)
+            => RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+
+        /// <summary>
+        /// Strict lookup for write operations whose actor pawn id comes from the LLM: the pawn must be an
+        /// active spawned player colonist (<see cref="RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist"/>).
+        /// Downed colonists are accepted only when <paramref name="allowDowned"/> is true.
+        /// Returns null and a descriptive <paramref name="error"/> otherwise.
+        /// </summary>
+        protected static VersePawn? FindWritableColonist(int pawnId, bool allowDowned, out RimMindError? error)
         {
-            var cached = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
-            if (cached != null) return cached;
-
-            if (UnityData.IsInMainThread && Find.Maps != null)
+            var pawn = FindPawn(pawnId);
+            if (pawn == null)
             {
-                foreach (var map in Find.Maps)
-                {
-                    var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                    if (pawn != null)
-                    {
-                        RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
-                        return pawn;
-                    }
-                }
+                error = RimMindErrors.PawnNotFound(pawnId);
+                return null;
             }
-
-            return null;
+            if (!RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+            {
+                error = RimMindErrors.PawnNotFound(pawnId) with
+                {
+                    Message = $"Pawn with ID {pawnId} is not an active spawned player colonist; prisoners, guests, enemies, dead, kidnapped or off-map pawns cannot be controlled"
+                };
+                return null;
+            }
+            if (!allowDowned && pawn.Downed)
+            {
+                error = RimMindErrors.PawnNotFound(pawnId) with
+                {
+                    Message = $"Pawn with ID {pawnId} is downed and cannot perform this action"
+                };
+                return null;
+            }
+            error = null;
+            return pawn;
         }
 
         protected static VerseMap? ResolveMap(MechanismReadArgs args)

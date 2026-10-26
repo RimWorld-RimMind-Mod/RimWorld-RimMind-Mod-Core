@@ -54,9 +54,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Draft
 
         public override Task<Result<bool, RimMindError>> ExecuteToggleAsync(MechanismWriteArgs args, CancellationToken ct)
         {
-            var pawn = FindPawn(args.PawnId);
+            var pawn = FindWritableColonist(args.PawnId, allowDowned: false, out var pawnError);
             if (pawn == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(args.PawnId)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(pawnError!));
 
             if (pawn.drafter == null)
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction(MechanismId, "drafter is null")));

@@ -88,6 +88,7 @@
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.RequestBuilding.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/Player2/*.cs" />
+    <Compile Include="../Source/Infrastructure/Services/Clients/Hybrid/HybridAIClient.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/HttpTransport.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/Shared/*.cs" />
     <Compile Include="../Source/Presentation/Settings/ApiKeyObfuscator.cs" />
@@ -97,6 +98,7 @@
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismListToolHandler.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHelper.cs" />
     <Compile Include="../Source/Presentation/Common/RimMindPawnLookup.cs" />
+    <Compile Include="../Source/Presentation/Api/RimMindAPI.MainThread.cs" />
   </ItemGroup>
 
 </Project>

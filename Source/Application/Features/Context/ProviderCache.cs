@@ -24,9 +24,12 @@ namespace RimMind.Application.Features.Context
         private readonly object _subscriptionSync = new object();
         private readonly ConcurrentDictionary<InvalidationSubscriptionKey, string> _invalidationSubscriptions = new();
 
+        private const int SweepIntervalTicks = 600;
+        private int _lastSweepTicks;
+
         private readonly record struct CacheKey(string Key, CacheScope Scope, string ScopeIdentity);
 
-        private readonly record struct CacheEntry(string? Value, int ComputedAtTicks, string NpcId, CacheScope Scope);
+        private readonly record struct CacheEntry(string? Value, int ComputedAtTicks, int StalenessTicks, string NpcId, CacheScope Scope);
 
         private readonly record struct InvalidationSubscriptionKey(string ProviderKey, string EventName);
 
@@ -115,27 +118,33 @@ namespace RimMind.Application.Features.Context
         {
             ct.ThrowIfCancellationRequested();
 
-            var cacheKey = new CacheKey(def.Key, def.CacheScope, GetScopeIdentity(def.CacheScope, ctx));
             var currentTicks = _tickProvider?.TicksGame ?? 0;
+            MaybeSweepExpired(currentTicks);
 
-            // StalenessTicks == 0 means "no caching" — always call the provider.
+            bool cacheable = def.StalenessTicks > 0 && IsCacheableScope(def.CacheScope, ctx);
+            var cacheKey = cacheable
+                ? new CacheKey(def.Key, def.CacheScope, GetScopeIdentity(def.CacheScope, ctx))
+                : default;
+
+            // StalenessTicks == 0 or uncacheable trace-fallback identity means "no caching" — always call the provider.
             // StalenessTicks > 0 means "cache for this many ticks" — return cached if within window.
-            if (def.StalenessTicks > 0 && _entries.TryGetValue(cacheKey, out var entry))
+            if (cacheable && _entries.TryGetValue(cacheKey, out var entry))
             {
                 if (currentTicks - entry.ComputedAtTicks < def.StalenessTicks)
                 {
                     return ProviderCacheResult.Succeeded(entry.Value);
                 }
+                _entries.TryRemove(cacheKey, out _);
             }
 
             try
             {
                 var value = await def.Provider(ctx, ct).ConfigureAwait(false);
 
-                // Only cache if StalenessTicks > 0 (caching enabled)
-                if (def.StalenessTicks > 0)
+                // Only cache if StalenessTicks > 0 and scope identity is stable (not trace-scoped fallback)
+                if (cacheable)
                 {
-                    _entries[cacheKey] = new CacheEntry(value, currentTicks, ctx.NpcId ?? string.Empty, def.CacheScope);
+                    _entries[cacheKey] = new CacheEntry(value, currentTicks, def.StalenessTicks, ctx.NpcId ?? string.Empty, def.CacheScope);
                 }
 
                 return ProviderCacheResult.Succeeded(value);
@@ -168,14 +177,43 @@ namespace RimMind.Application.Features.Context
         /// </summary>
         public void InvalidateNpc(string npcId)
         {
+            if (string.IsNullOrEmpty(npcId)) return;
             var keysToRemove = new List<CacheKey>();
             foreach (var kvp in _entries)
             {
-                if (kvp.Value.Scope == CacheScope.Pawn && kvp.Value.NpcId == npcId)
+                if (kvp.Value.Scope == CacheScope.Pawn &&
+                    (string.Equals(kvp.Value.NpcId, npcId, StringComparison.Ordinal) ||
+                     string.Equals(kvp.Key.ScopeIdentity, "pawn:npc:" + npcId, StringComparison.Ordinal) ||
+                     string.Equals(kvp.Key.ScopeIdentity, "pawn:" + npcId, StringComparison.Ordinal)))
+                {
                     keysToRemove.Add(kvp.Key);
+                }
             }
             foreach (var k in keysToRemove)
                 _entries.TryRemove(k, out _);
+        }
+
+        private void MaybeSweepExpired(int currentTicks)
+        {
+            if (currentTicks <= 0) return;
+            int last = _lastSweepTicks;
+            if (currentTicks - last < SweepIntervalTicks) return;
+            if (Interlocked.CompareExchange(ref _lastSweepTicks, currentTicks, last) != last) return;
+
+            foreach (var kvp in _entries)
+            {
+                if (kvp.Value.StalenessTicks > 0 && currentTicks - kvp.Value.ComputedAtTicks >= kvp.Value.StalenessTicks)
+                {
+                    _entries.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+
+        private static bool IsCacheableScope(CacheScope scope, ProviderContext ctx)
+        {
+            if (scope == CacheScope.Pawn && ctx.PawnId == 0 && string.IsNullOrWhiteSpace(ctx.NpcId))
+                return false;
+            return true;
         }
 
         public void Clear()

@@ -17,6 +17,9 @@ namespace RimMind.Presentation.Agent
         private readonly ITraitEvolver _traitEvolver;
         private readonly ILogSink? _log;
         private readonly ICompletionFence _completionFence;
+        private ProactiveBehaviorOrchestrator? _cachedOrchestrator;
+        private IProactiveExtensions? _cachedMode;
+        private int _cachedPawnId = int.MinValue;
 
         public ProactiveBehaviorExecutor(
             IAgentBus agentBus,
@@ -37,21 +40,26 @@ namespace RimMind.Presentation.Agent
         public void ExecuteProactiveExtensions(IPawnAgent agent, IAgentMode mode, int pawnId)
         {
             if (mode is not IProactiveExtensions proactive) return;
-            var orchestrator = new ProactiveBehaviorOrchestrator(
-                proactive.ReflectionStrategy,
-                proactive.DailyPlanner,
-                _dreamGenerator,
-                _dreamThoughtInjector,
-                proactive.TraitEvolutionEngine,
-                _traitEvolver,
-                _agentBus,
-                pawnId,
-                _log,
-                _completionFence);
-            orchestrator.ExecuteReflection(agent);
-            orchestrator.ExecutePlanning(agent);
-            orchestrator.ExecuteDream(agent);
-            orchestrator.ExecuteTraitEvolution(agent);
+            if (_cachedOrchestrator == null || !ReferenceEquals(_cachedMode, proactive) || _cachedPawnId != pawnId)
+            {
+                _cachedMode = proactive;
+                _cachedPawnId = pawnId;
+                _cachedOrchestrator = new ProactiveBehaviorOrchestrator(
+                    proactive.ReflectionStrategy,
+                    proactive.DailyPlanner,
+                    _dreamGenerator,
+                    _dreamThoughtInjector,
+                    proactive.TraitEvolutionEngine,
+                    _traitEvolver,
+                    _agentBus,
+                    pawnId,
+                    _log,
+                    _completionFence);
+            }
+            _cachedOrchestrator.ExecuteReflection(agent);
+            _cachedOrchestrator.ExecutePlanning(agent);
+            _cachedOrchestrator.ExecuteDream(agent);
+            _cachedOrchestrator.ExecuteTraitEvolution(agent);
         }
     }
 }

@@ -30,6 +30,7 @@ namespace RimMind.Infrastructure.UI
         private readonly RuntimeServiceRef<IScopedAgentManager> _scopedAgentManager = RuntimeServiceRef<IScopedAgentManager>.Optional();
         private long _cachedGeneration = long.MinValue;
         private int _lastRefreshTick;
+        private volatile bool _entriesDirty = true;
         private readonly List<AgentProgressEntry> _cachedEntries = new List<AgentProgressEntry>();
 
         public override Vector2 InitialSize => new Vector2(340f, 420f);
@@ -91,8 +92,9 @@ namespace RimMind.Infrastructure.UI
         {
             base.WindowUpdate();
             int now = Find.TickManager?.TicksGame ?? 0;
-            if (now - _lastRefreshTick >= 60)
+            if (_entriesDirty || now - _lastRefreshTick >= 60)
             {
+                _entriesDirty = false;
                 RefreshEntries();
                 _lastRefreshTick = now;
             }
@@ -246,11 +248,12 @@ namespace RimMind.Infrastructure.UI
 
         private void RefreshEntries()
         {
+            _entriesDirty = false;
             _cachedEntries.Clear();
 
             if (Find.CurrentMap == null) return;
 
-            foreach (Pawn pawn in Find.CurrentMap.mapPawns.AllPawns)
+            foreach (Pawn pawn in RimMind.Presentation.Api.RimMindPawnLookup.GetEligibleColonists(Find.CurrentMap))
             {
                 var comp = CompPawnAgent.GetComp(pawn);
                 if (comp?.Agent == null) continue;
@@ -353,7 +356,9 @@ namespace RimMind.Infrastructure.UI
 
         private void OnWorkflowPhaseChange(AgentBusEvent evt)
         {
-            RefreshEntries();
+            // WorkflowPhaseChange may be published from a background thread; defer Verse/map
+            // reads to the main thread in WindowUpdate.
+            _entriesDirty = true;
         }
 
         private static Color PhaseColor(AgentWorkflowPhase phase)

@@ -1,0 +1,34 @@
+name: CI & Architecture Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build (1.6 & 1.7) & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build Mod (1.6 & 1.7)
+        run: |
+          dotnet build Source/RimMindCore.csproj --configuration Release -p:GameVersion=1.6
+          dotnet build Source/RimMindCore.csproj --configuration Release -p:GameVersion=1.7
+
+      - name: Run Unit Tests
+        run: dotnet test Tests/RimMindCore.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Run Architecture Tests
+        run: dotnet test ArchTests/RimMindCore.ArchTests.csproj --configuration Release --verbosity normal

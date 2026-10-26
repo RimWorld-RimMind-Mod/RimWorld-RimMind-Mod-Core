@@ -1,4 +1,5 @@
 using RimMind.Application.Common.Interfaces;
+using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Flywheel;
@@ -35,9 +36,10 @@ namespace RimMind.Application
     {
         public static ApplicationServiceBag AddApplicationServices(
             ISettingsProvider? settingsProvider = null,
-            ICompletionFence? completionFence = null)
+            ICompletionFence? completionFence = null,
+            ILogSink? logSink = null)
         {
-            var agentBus = new AgentBusImpl();
+            var agentBus = new AgentBusImpl(logSink);
 
             var toolRegistry = new ToolRegistry();
             toolRegistry.Register(new QueryToolHelpTool(toolRegistry));
@@ -48,6 +50,7 @@ namespace RimMind.Application
 
             var queue = new RequestQueue(
                 () => settingsProvider,
+                logSink: logSink,
                 completionFence: completionFence);
 
             var jsonExtractor = new JsonExtractor();

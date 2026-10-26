@@ -51,6 +51,9 @@
   <RimMind.Settings.TestConnection>Test Connection</RimMind.Settings.TestConnection>
   <RimMind.Settings.Status.NotConfigured>⚠ API Key not configured</RimMind.Settings.Status.NotConfigured>
   <RimMind.Settings.Status.Testing>Testing...</RimMind.Settings.Status.Testing>
+  <RimMind.Settings.TestResult.Ok>OK ({0}ms) {1} ({2} tok)</RimMind.Settings.TestResult.Ok>
+  <RimMind.Settings.TestResult.Fail>FAIL ({0}ms) {1}</RimMind.Settings.TestResult.Fail>
+  <RimMind.Settings.TestResult.Exception>FAIL {0}</RimMind.Settings.TestResult.Exception>
   <RimMind.Settings.Show>Show</RimMind.Settings.Show>
   <RimMind.Settings.Hide>Hide</RimMind.Settings.Hide>
   <!-- Player2 -->
@@ -61,6 +64,7 @@
   <RimMind.Settings.Player2.NotAvailable>Player2 not available: local app not detected and no API Key configured</RimMind.Settings.Player2.NotAvailable>
   <RimMind.Settings.Player2.RemoteUrl>Remote API URL</RimMind.Settings.Player2.RemoteUrl>
   <RimMind.Settings.Player2.RemoteUrl.Desc>Player2 remote service URL. Defaults to https://api.player2.game, usually no need to change.</RimMind.Settings.Player2.RemoteUrl.Desc>
+  <RimMind.Settings.Player2.BalanceJoules>Joules: {0}</RimMind.Settings.Player2.BalanceJoules>
   <RimMind.Settings.Player2.BalanceUnknown>Balance: unknown</RimMind.Settings.Player2.BalanceUnknown>
   <RimMind.Settings.Player2.RefreshBalance>Refresh Balance</RimMind.Settings.Player2.RefreshBalance>
   <!-- Agent Gizmo -->
@@ -114,6 +118,7 @@
   <RimMind.Settings.Queue.ClearCooldowns>Clear Cooldowns</RimMind.Settings.Queue.ClearCooldowns>
   <RimMind.Settings.Queue.PerMod>Per-Mod Queues</RimMind.Settings.Queue.PerMod>
   <RimMind.Settings.Queue.NoMods>No registered mod queues</RimMind.Settings.Queue.NoMods>
+  <RimMind.Settings.Queue.MoreRequests>... +{0} more requests</RimMind.Settings.Queue.MoreRequests>
   <RimMind.Settings.Queue.Cooldown>Cooldown</RimMind.Settings.Queue.Cooldown>
   <RimMind.Settings.Queue.Ready>Ready</RimMind.Settings.Queue.Ready>
   <RimMind.Settings.Queue.QueueCount>Queued</RimMind.Settings.Queue.QueueCount>

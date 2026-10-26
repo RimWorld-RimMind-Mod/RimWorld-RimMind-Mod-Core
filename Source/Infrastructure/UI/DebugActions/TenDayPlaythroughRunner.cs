@@ -174,7 +174,7 @@ namespace RimMind.Infrastructure.UI
                     : "https://opencode.ai/zen/go/v1";
                 string resolvedModel = !string.IsNullOrWhiteSpace(backupModel)
                     ? backupModel!.Trim()
-                    : "deepseek-v4.1-flash";
+                    : "beam-free";
                 string resolvedProvider = !string.IsNullOrWhiteSpace(backupProvider)
                     ? backupProvider!.Trim()
                     : "opencode";
@@ -269,27 +269,29 @@ namespace RimMind.Infrastructure.UI
 
             // Configure optimal settings for playthrough: high concurrency, clean logs, non-overlapping HUD, and generous timeout
             RimMindCoreMod.Settings.debugLogging = false;
-            RimMindCoreMod.Settings.requestOverlayX = 20f;
-            RimMindCoreMod.Settings.requestOverlayY = 175f;
+            RimMindCoreMod.Settings.requestOverlayX = 155f;
+            RimMindCoreMod.Settings.circuitBreakerFailureThreshold = 8;
+            RimMindCoreMod.Settings.circuitBreakerOpenDurationSec = 10;
+            RimMindCoreMod.Settings.requestOverlayY = 100f;
             RequestOverlay.SetWindowRectForTest(new Rect(
                 RimMindCoreMod.Settings.requestOverlayX,
                 RimMindCoreMod.Settings.requestOverlayY,
                 RimMindCoreMod.Settings.requestOverlayW,
                 RimMindCoreMod.Settings.requestOverlayH));
-            RimMindCoreMod.Settings.autoActivateColonistAgents = true;
+            RimMindCoreMod.Settings.autoActivateColonistAgents = false;
             RimMindCoreMod.Settings.autonomyLevel = AgentAutonomyLevel.Autonomous;
             if (_maxUsageMode)
             {
                 RimMindCoreMod.Settings.activityFrequencyScale = 1.0f;
-                RimMindCoreMod.Settings.maxConcurrentRequests = 4;
-                RimMindCoreMod.Settings.requestTimeoutMs = 60000;
+                RimMindCoreMod.Settings.maxConcurrentRequests = 2;
+                RimMindCoreMod.Settings.requestTimeoutMs = 90000;
                 RimMindCoreMod.Settings.defaultModCooldownTicks = 2500;
                 RimMindCoreMod.Settings.thinkCooldownTicks = 60000;
             }
             else
             {
-                RimMindCoreMod.Settings.maxConcurrentRequests = 4;
-                RimMindCoreMod.Settings.requestTimeoutMs = 60000;
+                RimMindCoreMod.Settings.maxConcurrentRequests = 2;
+                RimMindCoreMod.Settings.requestTimeoutMs = 90000;
             }
 
             StartCoroutine(SafeRunSubRoutine(PlaythroughRoutine(), "PlaythroughMain", 0));
@@ -451,12 +453,13 @@ namespace RimMind.Infrastructure.UI
                 // Phase 2.5: Afternoon Phase (15:00) -> Autonomous Agent Action & Mechanism Decision
                 UnforbidAllStartingItems(Find.CurrentMap);
                 var aliveForAction = EnsureColonistAgentsAndPriorities();
+                Pawn? designatedAgent = aliveForAction.FirstOrDefault(p => p != null && !p.Dead && p.Spawned && CompPawnAgent.GetComp(p)?.Agent?.State == AgentState.Active);
                 var currentColonists = aliveForAction.Where(p => p != null && !p.Downed && !p.InMentalState && p.MentalStateDef == null).ToList();
                 if (currentColonists.Count == 0) currentColonists = aliveForAction.Where(p => p != null && !p.Downed).ToList();
                 if (currentColonists.Count == 0) currentColonists = aliveForAction;
-                if (currentColonists.Count > 0)
+                if (designatedAgent != null || currentColonists.Count > 0)
                 {
-                    Pawn agentPawn = currentColonists[(day + 1) % currentColonists.Count];
+                    Pawn agentPawn = designatedAgent ?? currentColonists[0];
                     yield return SafeRunSubRoutine(ExecuteAutonomousAgentAction(agentPawn, day, dayReport, recordInReport: true), "AutonomousAgentAction", day);
                 }
 
@@ -555,6 +558,10 @@ namespace RimMind.Infrastructure.UI
                 var colonists = GetLivingColonists();
                 EnsureColonistSustenance(colonists);
                 ConfigureColonistWorkPriorities(colonists);
+                Pawn? targetActiveColonist = colonists.FirstOrDefault(c =>
+                    c != null && !c.Dead && c.Spawned && CompPawnAgent.GetComp(c)?.Agent?.State == AgentState.Active)
+                    ?? colonists.FirstOrDefault(c => c != null && !c.Dead && c.Spawned);
+
                 foreach (var colonist in colonists)
                 {
                     if (colonist == null || colonist.Dead || !colonist.Spawned) continue;
@@ -565,9 +572,17 @@ namespace RimMind.Infrastructure.UI
                         if (comp != null)
                         {
                             comp.EnsureAgentCreated();
-                            if (comp.Agent != null && comp.Agent.State != AgentState.Active)
+                            if (ReferenceEquals(colonist, targetActiveColonist))
                             {
-                                comp.Agent.TransitionTo(AgentState.Active);
+                                if (comp.Agent != null && comp.Agent.State != AgentState.Active)
+                                {
+                                    comp.Agent.TransitionTo(AgentState.Active);
+                                    Log.Message($"[RimMind-Playthrough] Activated single Spawn Agent: {colonist.Name?.ToStringShort} (NPC-{colonist.thingIDNumber})");
+                                }
+                            }
+                            else if (comp.Agent != null && comp.Agent.State == AgentState.Active)
+                            {
+                                comp.Agent.TransitionTo(AgentState.Paused);
                             }
                         }
                     }
@@ -592,25 +607,6 @@ namespace RimMind.Infrastructure.UI
 
             try
             {
-                var allCorpses = map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse);
-                if (allCorpses != null)
-                {
-                    for (int i = allCorpses.Count - 1; i >= 0; i--)
-                    {
-                        if (allCorpses[i] is Corpse corpse && corpse.InnerPawn != null && corpse.InnerPawn.Faction == Faction.OfPlayer)
-                        {
-                            try
-                            {
-                                ResurrectionUtility.TryResurrect(corpse.InnerPawn);
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning($"[RimMind-Playthrough] TryResurrect notice: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-
                 var current = map.mapPawns.FreeColonists.Where(p => p != null && !p.Dead && p.Spawned).ToList();
                 int safety = 6;
                 while (current.Count < 3 && safety-- > 0)
@@ -1417,7 +1413,7 @@ namespace RimMind.Infrastructure.UI
             var queue = runtimeScope.GetOptional<IRequestQueue>();
             if (queue != null)
             {
-                if (queue.TotalQueuedCount > 0 || queue.ActiveRequestCount >= 2) queue.CancelAllRequests();
+                if (queue.TotalQueuedCount > 15) queue.CancelAllRequests();
                 queue.ClearAllCooldowns();
             }
 
@@ -1618,7 +1614,7 @@ namespace RimMind.Infrastructure.UI
             var queue = runtimeScope.GetOptional<IRequestQueue>();
             if (queue != null)
             {
-                if (queue.TotalQueuedCount > 0 || queue.ActiveRequestCount >= 2) queue.CancelAllRequests();
+                if (queue.TotalQueuedCount > 15) queue.CancelAllRequests();
                 queue.ClearAllCooldowns();
             }
 
@@ -1911,7 +1907,7 @@ namespace RimMind.Infrastructure.UI
             var queue = runtimeScope.GetOptional<IRequestQueue>();
             if (queue != null)
             {
-                if (queue.TotalQueuedCount > 0 || queue.ActiveRequestCount >= 2) queue.CancelAllRequests();
+                if (queue.TotalQueuedCount > 15) queue.CancelAllRequests();
                 queue.ClearAllCooldowns();
             }
 
@@ -1920,7 +1916,9 @@ namespace RimMind.Infrastructure.UI
             if (agentComp != null)
             {
                 agentComp.EnsureAgentCreated();
-                if (agentComp.Agent != null && agentComp.Agent.State != AgentState.Active)
+                bool anyOtherActive = GetLivingColonists().Any(c =>
+                    !ReferenceEquals(c, agentPawn) && CompPawnAgent.GetComp(c)?.Agent?.State == AgentState.Active);
+                if (!anyOtherActive && agentComp.Agent != null && agentComp.Agent.State != AgentState.Active)
                 {
                     agentComp.Agent.TransitionTo(AgentState.Active);
                 }
@@ -2069,7 +2067,7 @@ namespace RimMind.Infrastructure.UI
             bool isIdle = agentPawn.CurJobDef == null || agentPawn.CurJobDef == JobDefOf.Wait_Wander || agentPawn.CurJobDef == JobDefOf.GotoWander;
 
             bool sleptOnGround = agentPawn.needs?.mood?.thoughts?.memories?.Memories?
-                .Any(m => m.def.defName.Contains("SleptOnGround") || m.def.defName.Contains("SleptOutside")) ?? false;
+                .Any(m => m.def.defName.Contains("SleptOnGround")) == true && !hasBed;
 
             string statusContext;
             if (isZh)
@@ -2173,7 +2171,7 @@ namespace RimMind.Infrastructure.UI
                 return refuel == null || refuel.HasFuel;
             });
 
-            if (mealCount < 5 && hasStove)
+            if (!hasStove) { statusContext += isZh ? " 当前营地尚未建成料理台或篝火（严禁调用 actions_add_worktable_bill 挂单烹饪！），请先推进现有建造或采集。" : " Note: No stove or campfire is built on the map yet (do NOT call actions_add_worktable_bill for cooking!)."; } else if (mealCount < 10 && hasStove)
             {
                 var rawCat = DefDatabase<ThingCategoryDef>.GetNamedSilentFail("FoodRaw");
                 var rawFoodCount = (rawCat != null && pawnMap?.resourceCounter != null) ? pawnMap.resourceCounter.GetCountIn(rawCat) : 0;
@@ -2222,8 +2220,8 @@ namespace RimMind.Infrastructure.UI
                 else
                 {
                     statusContext += isZh
-                        ? $" 营地熟食口粮紧缺（存粮 {mealCount}，生料存有 {rawFoodCount}），已建造料理台且尚无烹饪清单。你可调用 actions_add_worktable_bill 挂单烹饪便携口粮（recipe_def: CookMealSimple）。"
-                        : $" Meals are low (Meals: {mealCount}, Raw food: {rawFoodCount}) and the stove has no active cook bill. You may call actions_add_worktable_bill(recipe_def: \"CookMealSimple\").";
+                        ? $" 【最高优先级任务】营地熟食口粮紧缺（存粮 {mealCount}，生料存有 {rawFoodCount}），已建造料理台且尚无烹饪清单。请立即优先调用 actions_add_worktable_bill(recipe_def: \"CookMealSimple\", target_count: 10) 挂单制作简单食物！"
+                        : $" [CRITICAL PRIORITY] Meals are low (Meals: {mealCount}, Raw food: {rawFoodCount}) and the built stove has no active cook bill. Immediately call actions_add_worktable_bill(recipe_def: \"CookMealSimple\", target_count: 10) to start cooking meals!";
                 }
             }
 
@@ -2381,7 +2379,7 @@ namespace RimMind.Infrastructure.UI
                     Result<LlmResponse, RimMindError>? r2Res = null;
                     if (queue != null)
                     {
-                        if (queue.TotalQueuedCount > 0 || queue.ActiveRequestCount >= 2) queue.CancelAllRequests();
+                        if (queue.TotalQueuedCount > 15) queue.CancelAllRequests();
                         queue.ClearAllCooldowns();
                     }
                     RimMindAPI.Send(r2Envelope, res =>
@@ -2470,7 +2468,7 @@ namespace RimMind.Infrastructure.UI
                     string bDef = argsObj != null && argsObj.TryGetValue("building_def", StringComparison.OrdinalIgnoreCase, out var bDefTok) ? bDefTok.ToString() : "Bed";
                     int ox = argsObj != null && argsObj.TryGetValue("offset_x", StringComparison.OrdinalIgnoreCase, out var oxTok) && int.TryParse(oxTok.ToString(), out var parsedOx) ? parsedOx : 0;
                     int oz = argsObj != null && argsObj.TryGetValue("offset_z", StringComparison.OrdinalIgnoreCase, out var ozTok) && int.TryParse(ozTok.ToString(), out var parsedOz) ? parsedOz : 0;
-                    IntVec3 targetCell = agentPawn.Position + new IntVec3(ox, 0, oz);
+                    IntVec3 targetCell = (pawnMap != null && !agentPawn.Position.InHorDistOf(pawnMap.Center, 28f) ? pawnMap.Center : agentPawn.Position) + new IntVec3(ox, 0, oz);
                     detail = isZh ? $"规划蓝图: {bDef} 于 ({targetCell.x}, {targetCell.z})" : $"Place blueprint: {bDef} at ({targetCell.x}, {targetCell.z})";
                 }
                 else if (string.Equals(toolName, "prioritize_work", StringComparison.OrdinalIgnoreCase))
@@ -2517,10 +2515,6 @@ namespace RimMind.Infrastructure.UI
                 // Dispatch autonomous action strictly through the production PawnAgent pipeline (no inline duplicate execution)
                 bool execFailed = false;
                 string execErr = "";
-                if (agentPawn.Dead && agentPawn.Corpse != null)
-                {
-                    ResurrectionUtility.TryResurrect(agentPawn);
-                }
                 RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(agentPawn);
                 if (agentComp?.Agent != null)
                 {
@@ -2898,6 +2892,108 @@ namespace RimMind.Infrastructure.UI
                 _ => "建议巡视殖民地安全状况并维护关键发电设备"
             }) : $"Day {day} Advisor Proposal (Cycle {cycleDay}): inspect colony infrastructure, food reserves, and perimeter defenses.";
 
+            var advScope = RuntimeServiceHub.Shared.Capture();
+            var advQueue = advScope.GetOptional<IRequestQueue>();
+            if (advQueue != null)
+            {
+                if (advQueue.TotalQueuedCount > 15) advQueue.CancelAllRequests();
+                advQueue.ClearAllCooldowns();
+            }
+
+            Map advMap = pawn.Map ?? Find.CurrentMap;
+            int advWood = CountAvailableMapResource(advMap, ThingDefOf.WoodLog);
+            int advSteel = CountAvailableMapResource(advMap, ThingDefOf.Steel);
+            int advMeals = CountAvailableMapResource(advMap, ThingDefOf.MealSimple)
+                + CountAvailableMapResource(advMap, ThingDefOf.MealFine)
+                + CountAvailableMapResource(advMap, ThingDefOf.MealSurvivalPack);
+            int advBlueprints = (advMap?.listerThings?.ThingsInGroup(ThingRequestGroup.Blueprint)?.Count ?? 0)
+                + (advMap?.listerThings?.ThingsInGroup(ThingRequestGroup.BuildingFrame)?.Count ?? 0);
+
+            var advTools = new List<StructuredTool>
+            {
+                new StructuredTool
+                {
+                    Name = "propose_colony_advice",
+                    Description = "Submit a tactical colony advisor recommendation for player approval based on current colony vitals",
+                    Parameters = "{\"type\":\"object\",\"properties\":{\"proposal\":{\"type\":\"string\"},\"priority_domain\":{\"type\":\"string\"}},\"required\":[\"proposal\"]}"
+                }
+            };
+
+            var advEnvelope = LlmRequestEnvelopeBuilder
+                .ForScenario(RimMindAPI.Context.ScenarioDecision)
+                .WithModId("RimMind-Advisor")
+                .WithNpcId("NPC-" + pawn.thingIDNumber)
+                .WithTools(advTools)
+                .WithToolDispatchMode(ToolCallDispatchMode.Manual)
+                .WithMaxTokens(500)
+                .WithTemperature(0.6f)
+                .WithPriority(AIRequestPriority.High)
+                .Build();
+
+            advEnvelope.Messages.Add(new ChatMessage
+            {
+                Role = "system",
+                LayerTag = "L0",
+                Content = zh
+                    ? $"你是 RimWorld 殖民地战术顾问（发声代表：{pawn.Name.ToStringShort}）。请根据当前营地状态调用 propose_colony_advice 提出一条简明扼要（30~60字）的今日发展或生存建议，不要输出 XML 标签。"
+                    : $"You are the RimWorld Colony Tactical Advisor (represented by {pawn.Name.ToStringShort}). Call propose_colony_advice to submit a concise (1-2 sentences) strategic recommendation for the colony based on current vitals. Do not output XML tags."
+            });
+            advEnvelope.Messages.Add(new ChatMessage
+            {
+                Role = "user",
+                LayerTag = "L4",
+                Content = zh
+                    ? $"[殖民地第 {day} 天晚间顾问评估] 存活殖民者: {colonists.Count} 人, 木材: {advWood}, 钢铁: {advSteel}, 熟食口粮: {advMeals}, 待建工程: {advBlueprints}。请调用 propose_colony_advice 给出当前最关键的殖民地建议。"
+                    : $"[Colony Day {day} Evening Advisor Review] Living colonists: {colonists.Count}, Wood: {advWood}, Steel: {advSteel}, Meals: {advMeals}, Pending construction: {advBlueprints}. Call propose_colony_advice with the top strategic recommendation right now."
+            });
+
+            bool advCompleted = false;
+            Result<LlmResponse, RimMindError>? advResponse = null;
+            RimMindAPI.Send(advEnvelope, res =>
+            {
+                advResponse = res;
+                advCompleted = true;
+            });
+            _report.TotalLiveLlmRequests++;
+
+            float advTimeout = 65f;
+            float advElapsed = 0f;
+            while (!advCompleted && advElapsed < advTimeout)
+            {
+                if (Find.TickManager != null) Find.TickManager.CurTimeSpeed = TimeSpeed.Paused;
+                advElapsed += Time.unscaledDeltaTime;
+                if (advQueue is ITickableRequestQueue tq)
+                {
+                    tq.CurrentTick += 5;
+                    tq.Tick();
+                }
+                DismissModalWindows(Find.CurrentMap);
+                yield return null;
+            }
+
+            if (advCompleted && advResponse != null && advResponse.Value.IsOk)
+            {
+                var advVal = advResponse.Value.Value;
+                report.TotalTokensUsed += advVal.TokensUsed;
+                var advArgs = ExtractToolArguments(advVal.ToolCallsJson, "propose_colony_advice", advVal.Content);
+                string? liveProposal = advArgs?["proposal"]?.ToString()
+                    ?? advArgs?["advice"]?.ToString()
+                    ?? advArgs?["recommendation"]?.ToString();
+                if (string.IsNullOrWhiteSpace(liveProposal) && !string.IsNullOrWhiteSpace(advVal.Content))
+                {
+                    liveProposal = advVal.Content.Trim();
+                }
+                liveProposal = StripModelXmlTags(liveProposal);
+                if (!string.IsNullOrWhiteSpace(liveProposal))
+                {
+                    proposalText = liveProposal!;
+                }
+            }
+            else
+            {
+                Log.Warning($"[RimMind-Playthrough][Day {day}] Advisor proposal fallback: {advResponse?.Error.Message}");
+            }
+
             report.AdvisorProposal = $"{pawn.Name.ToStringShort}: {yearPrefix}{proposalText}";
 
             // Register to RequestOverlay
@@ -2940,7 +3036,7 @@ namespace RimMind.Infrastructure.UI
                             ?? comp.GetType().GetMethod("GetPawnStore", flags);
                         if (getStoreMethod != null)
                         {
-                            foreach (var pawn in map.mapPawns.FreeColonistsSpawned)
+                            foreach (var pawn in RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map))
                             {
                                 var store = getStoreMethod.Invoke(comp, new object[] { pawn });
                                 if (store != null)
@@ -3036,7 +3132,7 @@ namespace RimMind.Infrastructure.UI
         private static Blueprint? TryPlaceBlueprint(Map map, string defName, IntVec3 cell, Rot4? rot = null, string? stuffDefName = null)
         {
             if (map == null) return null;
-            BuildableDef? buildableDef = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
+            if (defName == "TableStoveWood") defName = "FueledStove"; else if (defName == "ResearchBench") defName = "SimpleResearchBench"; BuildableDef? buildableDef = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
             if (buildableDef == null)
             {
                 buildableDef = DefDatabase<TerrainDef>.GetNamedSilentFail(defName);
@@ -3063,7 +3159,46 @@ namespace RimMind.Infrastructure.UI
 
             try
             {
-                return GenConstruct.PlaceBlueprintForBuild(buildableDef, cell, map, rot ?? Rot4.North, Faction.OfPlayer, stuffDef);
+                Rot4 chosenRot = rot ?? Rot4.North;
+                Rot4[] candidateRots = (buildableDef is ThingDef td && td.rotatable)
+                    ? new[] { chosenRot, Rot4.North, Rot4.East, Rot4.South, Rot4.West }
+                    : new[] { chosenRot };
+                IntVec3 chosenCell = IntVec3.Invalid;
+                foreach (var r in candidateRots)
+                {
+                    if (cell.InBounds(map) && !cell.Fogged(map) && GenConstruct.CanPlaceBlueprintAt(buildableDef, cell, r, map, false, null, null, stuffDef).Accepted)
+                    {
+                        chosenCell = cell;
+                        chosenRot = r;
+                        break;
+                    }
+                }
+                if (!chosenCell.IsValid)
+                {
+                    IntVec3[] anchors = cell.InBounds(map) && cell != map.Center ? new[] { cell, map.Center } : new[] { map.Center };
+                    foreach (var anchor in anchors)
+                    {
+                        foreach (var c in GenRadial.RadialCellsAround(anchor, 25, true))
+                        {
+                            if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map)) continue;
+                            var room = c.GetRoom(map);
+                            if (room != null && room.IsDoorway) continue;
+                            foreach (var r in candidateRots)
+                            {
+                                if (GenConstruct.CanPlaceBlueprintAt(buildableDef, c, r, map, false, null, null, stuffDef).Accepted)
+                                {
+                                    chosenCell = c;
+                                    chosenRot = r;
+                                    break;
+                                }
+                            }
+                            if (chosenCell.IsValid) break;
+                        }
+                        if (chosenCell.IsValid) break;
+                    }
+                }
+                if (!chosenCell.IsValid) chosenCell = cell;
+                return GenConstruct.PlaceBlueprintForBuild(buildableDef, chosenCell, map, chosenRot, Faction.OfPlayer, stuffDef);
             }
             catch (Exception ex)
             {
@@ -3440,7 +3575,7 @@ namespace RimMind.Infrastructure.UI
             string ssPath = Path.Combine(_bridgeDir, ssFileName);
             try
             {
-                Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
+                if (Find.CurrentMap != null && Find.CameraDriver != null) Find.CameraDriver.JumpToCurrentMapLoc(Find.CurrentMap.Center); Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
                 byte[] bytes = screenshot.EncodeToPNG();
                 File.WriteAllBytes(ssPath, bytes);
                 UnityEngine.Object.Destroy(screenshot);
@@ -3458,7 +3593,7 @@ namespace RimMind.Infrastructure.UI
             // 3. If _interactiveBridgeEnabled: waits for cmd_day_{day:D2}.json in _bridgeDir
             if (_interactiveBridgeEnabled)
             {
-                float timeoutLimit = 90f;
+                float timeoutLimit = 180f;
                 string? timeoutEnv = Environment.GetEnvironmentVariable("RIMMIND_BRIDGE_TIMEOUT");
                 if (!string.IsNullOrEmpty(timeoutEnv) && float.TryParse(timeoutEnv, out float customTimeout) && customTimeout > 10f)
                 {
@@ -3559,7 +3694,7 @@ namespace RimMind.Infrastructure.UI
             report.ColonyOperationSuccess = true;
 
             var colonists = GetLivingColonists();
-            IntVec3 basePos = colonists.Count > 0 ? colonists[0].Position : map.Center;
+            IntVec3 basePos = map.Center;
             if (!basePos.InBounds(map)) basePos = map.Center;
             IntVec3 safeBase = CellFinder.StandableCellNear(basePos, map, 8);
             if (!safeBase.InBounds(map)) safeBase = map.Center;
@@ -3804,7 +3939,7 @@ namespace RimMind.Infrastructure.UI
             }
 
             var colonists = GetLivingColonists();
-            IntVec3 basePos = colonists.Count > 0 ? colonists[0].Position : map.Center;
+            IntVec3 basePos = map.Center;
             if (!basePos.InBounds(map)) basePos = map.Center;
             IntVec3 safeBase = CellFinder.StandableCellNear(basePos, map, 8);
             if (!safeBase.InBounds(map)) safeBase = map.Center;
@@ -3906,7 +4041,7 @@ namespace RimMind.Infrastructure.UI
                     case 8:
                         opName = "烹饪设施与食品卫生安全";
                         opDetail = "设立殖民地配餐厨房，部署炉灶料理台蓝图保障饮食安全";
-                        TryPlaceBlueprint(map, "TableStoveWood", Offset(-4, -6), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "FueledStove", Offset(-4, -6), Rot4.North, "Steel");
                         break;
 
                     case 9:
@@ -3935,7 +4070,7 @@ namespace RimMind.Infrastructure.UI
                     case 12:
                         opName = "基础科研台建立与科技起步";
                         opDetail = "在主营房设立研究区，部署简易基础科研台蓝图开启科技研发";
-                        TryPlaceBlueprint(map, "ResearchBench", Offset(-4, 6), Rot4.North, "WoodLog");
+                        TryPlaceBlueprint(map, "SimpleResearchBench", Offset(-4, 6), Rot4.North, "WoodLog");
                         break;
 
                     case 13:
@@ -4337,7 +4472,7 @@ namespace RimMind.Infrastructure.UI
 
             try
             {
-                Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
+                if (Find.CurrentMap != null && Find.CameraDriver != null) Find.CameraDriver.JumpToCurrentMapLoc(Find.CurrentMap.Center); Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
                 byte[] bytes = screenshot.EncodeToPNG();
                 File.WriteAllBytes(filePath, bytes);
                 UnityEngine.Object.Destroy(screenshot);

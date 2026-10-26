@@ -44,7 +44,13 @@ namespace RimMind.Infrastructure.UI
         private IRemoteSyncService? GetSyncService()
             => _runtimeLease?.SyncService;
 
-        private string _streamingText = "";
+        // Streaming deltas arrive on a background thread. They are appended to a lock-guarded
+        // buffer (no per-token main-thread closures) and OnGUI reads a cached snapshot.
+        private readonly object _streamLock = new object();
+        private readonly System.Text.StringBuilder _streamBuffer = new System.Text.StringBuilder();
+        private DialogueRequestState? _streamOwner;
+        private string _streamSnapshot = "";
+        private int _streamSnapshotLength;
         private bool _isStreaming;
         private string _thinkingText = "";
         private static long _nextTurnSequence;
@@ -137,6 +143,7 @@ namespace RimMind.Infrastructure.UI
             Widgets.BeginScrollView(viewRect, ref _scrollPosition, contentRect);
 
             float y = 5f;
+            string streamingText = _isStreaming ? ReadStreamingSnapshot() : string.Empty;
             if (history != null)
             {
                 foreach (var (role, content) in history)
@@ -150,8 +157,8 @@ namespace RimMind.Infrastructure.UI
                     {
                         displayContent = _isStreaming
                             && _activeRequest?.TurnId == turnId
-                            && !string.IsNullOrEmpty(_streamingText)
-                            ? _streamingText
+                            && !string.IsNullOrEmpty(streamingText)
+                            ? streamingText
                             : projectedContent;
                     }
                     string line = prefix + displayContent;
@@ -202,7 +209,6 @@ namespace RimMind.Infrastructure.UI
             _inputText = "";
 
             _thinkingText = "RimMind.UI.AgentDialogue.Thinking".Translate();
-            _streamingText = "";
             _isStreaming = true;
             RuntimeServiceScope runtimeScope = _runtimeLease!.Scope;
             RuntimeGenerationToken runtimeToken = runtimeScope.Token;
@@ -212,6 +218,7 @@ namespace RimMind.Infrastructure.UI
             IHistoryManager? historyManager = runtimeScope.GetOptional<IHistoryManager>();
             var request = new DialogueRequestState(turnId, runtimeToken, historyManager);
             _activeRequest = request;
+            ResetStreamBuffer(request);
             _lastRequestId = request.RequestId;
             _lastRequestState = DialogueRequestTerminalState.Streaming;
             string placeholder = DialogueHistoryProjection.CreatePlaceholder(request.TurnId);
@@ -235,15 +242,9 @@ namespace RimMind.Infrastructure.UI
                 .WithTemperature(settings?.DefaultTemperature ?? RimMindDefaults.DefaultTemperature)
                 .Streaming(chunk =>
                 {
+                    // Background thread: append under lock only; OnGUI reads a snapshot.
                     if (!string.IsNullOrEmpty(chunk.DeltaContent))
-                    {
-                        LongEventHandler.ExecuteWhenFinished(() =>
-                        {
-                            if (!TryAccept(request))
-                                return;
-                            _streamingText += chunk.DeltaContent;
-                        });
-                    }
+                        AppendStreamDelta(request, chunk.DeltaContent);
                 })
                 .Build();
 
@@ -252,7 +253,7 @@ namespace RimMind.Infrastructure.UI
                 try
                 {
                     var result = await RimMind.Presentation.Api.RimMindAPI.SendAsync(envelope);
-                    LongEventHandler.ExecuteWhenFinished(() =>
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     {
                         if (!TryAccept(request))
                             return;
@@ -279,7 +280,7 @@ namespace RimMind.Infrastructure.UI
                 }
                 catch (System.Exception ex)
                 {
-                    LongEventHandler.ExecuteWhenFinished(() =>
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     {
                         if (!TryAccept(request))
                             return;
@@ -340,8 +341,42 @@ namespace RimMind.Infrastructure.UI
             DialogueHistoryProjection.Remove(request.TurnId);
             _activeRequest = null;
             _isStreaming = false;
-            _streamingText = "";
+            ResetStreamBuffer(null);
             _lastRequestState = terminalState;
+        }
+
+        private void AppendStreamDelta(DialogueRequestState request, string delta)
+        {
+            lock (_streamLock)
+            {
+                if (ReferenceEquals(_streamOwner, request))
+                    _streamBuffer.Append(delta);
+            }
+        }
+
+        private void ResetStreamBuffer(DialogueRequestState? owner)
+        {
+            lock (_streamLock)
+            {
+                _streamOwner = owner;
+                _streamBuffer.Clear();
+                _streamSnapshot = string.Empty;
+                _streamSnapshotLength = 0;
+            }
+        }
+
+        private string ReadStreamingSnapshot()
+        {
+            lock (_streamLock)
+            {
+                // The buffer is append-only between resets, so length identifies the content.
+                if (_streamSnapshotLength != _streamBuffer.Length)
+                {
+                    _streamSnapshot = _streamBuffer.ToString();
+                    _streamSnapshotLength = _streamBuffer.Length;
+                }
+                return _streamSnapshot;
+            }
         }
 
         private void DiscardRequest(DialogueRequestState request)
@@ -353,7 +388,7 @@ namespace RimMind.Infrastructure.UI
             DialogueHistoryProjection.Remove(request.TurnId);
             _activeRequest = null;
             _isStreaming = false;
-            _streamingText = "";
+            ResetStreamBuffer(null);
             _lastRequestState = DialogueRequestTerminalState.Discarded;
         }
 

@@ -20,8 +20,9 @@ namespace RimMind.Application.Features.AgentBus
             = new ConcurrentDictionary<Type, List<HandlerEntry>>();
         private readonly ConcurrentQueue<DeferredPublish> _backgroundQueue
             = new ConcurrentQueue<DeferredPublish>();
-        private readonly ILogSink? _log;
+        private ILogSink? _log;
         private readonly IThreadChecker? _threadChecker;
+        private readonly Action<AgentBusEvent> _dispatchAction;
         private IPipeline<BusPublishContext>? _pipeline;
         private int _handlerIdCounter;
 
@@ -61,6 +62,12 @@ namespace RimMind.Application.Features.AgentBus
         {
             _log = log;
             _threadChecker = threadChecker;
+            _dispatchAction = DispatchToHandlers;
+        }
+
+        public void SetLogSink(ILogSink? log)
+        {
+            _log = log;
         }
 
         public void SetPipeline(IPipeline<BusPublishContext> pipeline)
@@ -68,7 +75,7 @@ namespace RimMind.Application.Features.AgentBus
             _pipeline = pipeline;
         }
 
-        public Action<AgentBusEvent>? DispatchAction => DispatchToHandlers;
+        public Action<AgentBusEvent>? DispatchAction => _dispatchAction;
 
         internal void DispatchToHandlers(AgentBusEvent evt)
         {

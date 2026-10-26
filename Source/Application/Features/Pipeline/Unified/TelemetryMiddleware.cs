@@ -64,7 +64,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             {
                 tags["error_code"] = context.Result.Value.Error.Code.ToString();
                 _telemetry?.Record("unified_request_failure", 1, tags);
-                _log?.Warning($"[UnifiedTelemetry] Request failed: {context.Result.Value.Error.Message} ({elapsed:F0}ms)");
+                if (context.Result.Value.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedTelemetry] Request failed: {context.Result.Value.Error.Message} ({elapsed:F0}ms)");
             }
             else if (context.IsShortCircuited)
             {

@@ -64,7 +64,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             }
             else
             {
-                _log?.Warning($"[UnifiedClientInvoke] Error: {result.Error.Message}");
+                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedClientInvoke] Error: {result.Error.Message}");
                 context.Result = result;
             }
         }
@@ -81,7 +81,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
             if (result.IsErr)
             {
-                _log?.Warning($"[UnifiedClientInvoke] Stream error: {result.Error.Message}");
+                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedClientInvoke] Stream error: {result.Error.Message}");
                 aggregator.SetError(result.Error);
                 var errorResult = aggregator.BuildFinalResponse();
                 context.Result = errorResult;

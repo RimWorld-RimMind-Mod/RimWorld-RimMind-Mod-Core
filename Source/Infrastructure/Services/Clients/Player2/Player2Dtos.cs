@@ -7,13 +7,28 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 {
     internal class Player2RequestDto
     {
+        [JsonProperty("model")]
         public string Model = "default";
+
+        [JsonProperty("messages")]
         public List<Player2MessageDto> Messages = new List<Player2MessageDto>();
+
+        [JsonProperty("temperature")]
         public float Temperature;
+
+        [JsonProperty("max_tokens")]
         public int MaxTokens;
+
+        [JsonProperty("stream")]
         public bool Stream;
+
+        [JsonProperty("response_format", NullValueHandling = NullValueHandling.Ignore)]
         public object? ResponseFormat;
+
+        [JsonProperty("tools", NullValueHandling = NullValueHandling.Ignore)]
         public List<object>? Tools;
+
+        [JsonProperty("tool_choice", NullValueHandling = NullValueHandling.Ignore)]
         public object? ToolChoice;
     }
 
@@ -110,7 +125,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
     internal class Player2StreamToolCallDto
     {
         [JsonProperty("index")]
-        public int Index;
+        public int? Index;
 
         [JsonProperty("id")]
         public string? Id;

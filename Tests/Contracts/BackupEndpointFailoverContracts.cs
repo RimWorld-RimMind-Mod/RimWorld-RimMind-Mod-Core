@@ -6,7 +6,17 @@ using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Models.Client;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
+using System.IO;
+using System.Net.Http;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using RimMind.Application.Common.Models.Npc;
+using RimMind.Infrastructure.Services.Clients;
+using RimMind.Infrastructure.Services.Clients.Hybrid;
 using RimMind.Infrastructure.Services.Clients.OpenAI;
+using RimMind.Infrastructure.Services.Clients.Player2;
+using RimMind.Infrastructure.Services.Clients.Shared;
 using RimMind.Presentation.Settings;
 using Xunit;
 
@@ -96,8 +106,8 @@ namespace RimMind.Tests.Contracts
             Assert.Contains("primary.example", hitUrls[0]);
             Assert.Contains("opencode.ai/zen/go/v1", hitUrls[1]);
             Assert.Contains("\"model\":\"grok-4.7\"", requestJsonPayloads[0]);
-            Assert.Contains("\"model\":\"deepseek-v4.1-flash\"", requestJsonPayloads[1]);
-            Assert.Contains("\"max_tokens\":2048", requestJsonPayloads[1]);
+            Assert.Contains("\"model\":\"deepseek-v4.1-flash-free\"", requestJsonPayloads[1]);
+            Assert.Contains("\"max_tokens\":800", requestJsonPayloads[1]);
             Assert.Equal("x-opencode-session", capturedHeaderNames[1]);
             Assert.Contains("rimmind-NPC-101", capturedHeaderValues[1]);
 
@@ -227,6 +237,223 @@ namespace RimMind.Tests.Contracts
             Assert.True(node.IsConfigured);
             Assert.Equal("opencode", node.Provider);
             Assert.Equal("deepseek-v4.1-flash-free", node.ModelName);
+
+            Assert.Equal("beam-free", OpenAIClient.NormalizeModelNameForEndpoint("https://opencode.ai/zen/go/v1", "beam-free"));
+            Assert.Equal("longcat-2.5-preview-free", OpenAIClient.NormalizeModelNameForEndpoint("https://opencode.ai/zen/go/v1", "longcat-2.5-preview-free"));
+            Assert.Equal("deepseek-v4.1-flash-free", OpenAIClient.NormalizeModelNameForEndpoint("https://opencode.ai/zen/go/v1", "  deepseek-v4.1-flash-free  "));
+            Assert.Equal("glm-5.3-flash", OpenAIClient.NormalizeModelNameForEndpoint("https://opencode.ai/zen/go/v1", "glm-5.3-flash"));
+            Assert.Equal("deepseek-flash", OpenAIClient.NormalizeModelNameForEndpoint("https://api.deepseek.com", "deepseek-flash"));
+        }
+
+        [Fact]
+        public void ClientExceptionMapper_AndLogSanitizer_DistinguishTimeoutCancellation_AndRedactSecrets()
+        {
+            using var uncancelledCts = new CancellationTokenSource();
+            var timeoutErr = ClientExceptionMapper.MapException(new TaskCanceledException("request timed out"), "OpenAIClient", "req-1", "request", null, callerToken: uncancelledCts.Token);
+            Assert.Equal(RimMindErrorCode.Timeout, timeoutErr.Error.Code);
+
+            using var cancelledCts = new CancellationTokenSource();
+            cancelledCts.Cancel();
+            var cancelErr = ClientExceptionMapper.MapException(new OperationCanceledException(cancelledCts.Token), "OpenAIClient", "req-2", "request", null, callerToken: cancelledCts.Token);
+            Assert.Equal(RimMindErrorCode.Cancelled, cancelErr.Error.Code);
+
+            var ioErr = ClientExceptionMapper.MapException(new IOException("socket closed"), "OpenAIClient", "req-3", "request", null, callerToken: CancellationToken.None);
+            Assert.Equal(RimMindErrorCode.ClientTransientFailure, ioErr.Error.Code);
+
+            string rawLog = "Authorization: Bearer sk-secret1234567890abcdef and api_key=\"oc_sk_topsecret987654321\"";
+            string sanitized = LogSanitizer.ForLog(rawLog, 500);
+            Assert.DoesNotContain("sk-secret1234567890abcdef", sanitized);
+            Assert.DoesNotContain("oc_sk_topsecret987654321", sanitized);
+            Assert.Contains("***", sanitized);
+        }
+
+        [Fact]
+        public async Task SendStreamAsync_AccumulatesIndexedToolCalls_HandlesNoSpaceSse_AndBlocksMidStreamFailover()
+        {
+            OpenAIClient.InvalidateFormatCache();
+
+            var settings = new FakeOpenAISettings
+            {
+                BackupEndpoints = new[]
+                {
+                    new BackupEndpointNode
+                    {
+                        Name = "Backup #1",
+                        Provider = "openai",
+                        ApiEndpoint = "https://backup.example/v1",
+                        ModelName = "gpt-4o-mini",
+                        ApiKey = "backup-key",
+                        Enabled = true
+                    }
+                }
+            };
+
+            // 1. Pre-first-chunk stream failure fails over to backup and accumulates fragmented tool calls + no-space data: lines
+            var hitUrls = new List<string>();
+            var streamClient = new OpenAIClient(settings)
+            {
+                StreamSendOverride = (req, _, _) =>
+                {
+                    string url = req.RequestUri?.ToString() ?? string.Empty;
+                    hitUrls.Add(url);
+                    if (url.StartsWith("https://primary.example", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)
+                        {
+                            Content = new StringContent("Service Unavailable", Encoding.UTF8, "text/plain")
+                        });
+                    }
+
+                    string ssePayload =
+                        "data:{\"id\":\"chatcmpl-stream-1\",\"choices\":[{\"delta\":{\"content\":\"Hello \"},\"finish_reason\":null}]}\n" +
+                        "data: {\"id\":\"chatcmpl-stream-1\",\"choices\":[{\"delta\":{\"content\":\"world\",\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"move_\",\"arguments\":\"{\\\"x\\\":\"}}]},\"finish_reason\":null}]}\n" +
+                        "data:{\"id\":\"chatcmpl-stream-1\",\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"pawn\",\"arguments\":\"10}\"}}]},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":7,\"total_tokens\":18}}\n" +
+                        "data:[DONE]\n";
+                    return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(ssePayload, Encoding.UTF8, "text/event-stream")
+                    });
+                }
+            };
+
+            var chunks = new List<string>();
+            var firstRes = await streamClient.SendStreamAsync(CreateEnvelope("req-stream-ok"), c => { if (!string.IsNullOrEmpty(c.DeltaContent)) chunks.Add(c.DeltaContent!); }, CancellationToken.None);
+            Assert.True(firstRes.IsOk);
+            Assert.Equal(2, hitUrls.Count);
+            Assert.Equal("Hello world", string.Concat(chunks));
+            Assert.Equal("Hello world", firstRes.Value.Content);
+            Assert.NotNull(firstRes.Value.ToolCallsJson);
+            var toolArray = JArray.Parse(firstRes.Value.ToolCallsJson!);
+            Assert.Single(toolArray);
+            Assert.Equal("call_1", toolArray[0]["id"]?.ToString());
+            Assert.Equal("move_pawn", toolArray[0]["function"]?["name"]?.ToString());
+            Assert.Equal("{\"x\":10}", toolArray[0]["function"]?["arguments"]?.ToString());
+
+            // 2. Mid-stream failure AFTER emitting a chunk must NOT fail over to backup (prevents spliced duplicate output)
+            OpenAIClient.InvalidateFormatCache();
+            var midStreamUrls = new List<string>();
+            var midStreamClient = new OpenAIClient(settings)
+            {
+                StreamSendOverride = (req, _, _) =>
+                {
+                    midStreamUrls.Add(req.RequestUri?.ToString() ?? string.Empty);
+                    var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                    {
+                        Content = new StreamContent(new FaultingAfterFirstLineStream(
+                            "data: {\"id\":\"chatcmpl-mid\",\"choices\":[{\"delta\":{\"content\":\"Partial chunk\"},\"finish_reason\":null}]}\n"))
+                    };
+                    return Task.FromResult(response);
+                }
+            };
+
+            var midChunks = new List<string>();
+            var midRes = await midStreamClient.SendStreamAsync(CreateEnvelope("req-stream-mid"), c => { if (!string.IsNullOrEmpty(c.DeltaContent)) midChunks.Add(c.DeltaContent!); }, CancellationToken.None);
+            Assert.True(midRes.IsErr);
+            Assert.Single(midStreamUrls);
+            Assert.Single(midChunks);
+            Assert.Equal("Partial chunk", midChunks[0]);
+        }
+
+        [Fact]
+        public async Task HybridAIClient_AndPlayer2Dtos_PreserveStreamBoundaries_AndSnakeCaseToolPayloads()
+        {
+            // Verify Player2RequestDto serializes snake_case fields for tools, tool_choice, and response_format
+            var dto = new Player2RequestDto
+            {
+                Messages = new List<Player2MessageDto> { new Player2MessageDto { Role = "user", Content = "Act" } },
+                Stream = true,
+                Tools = new List<object> { new JObject { ["type"] = "function" } },
+                ToolChoice = "auto",
+                ResponseFormat = new JObject { ["type"] = "json_object" }
+            };
+            string json = JsonConvert.SerializeObject(dto);
+            Assert.Contains("\"tool_choice\":\"auto\"", json);
+            Assert.Contains("\"response_format\":{\"type\":\"json_object\"}", json);
+            Assert.Contains("\"tools\":[", json);
+
+            // Verify HybridAIClient does not fall back to local client if remote stream already emitted chunks
+            var remotePrimary = new StubStreamingClient(emitBeforeFail: true);
+            var localFallback = new StubStreamingClient(emitBeforeFail: false);
+            var hybrid = new HybridAIClient(remotePrimary, localFallback);
+
+            var emitted = new List<string>();
+            var res = await hybrid.SendStreamAsync(CreateEnvelope("req-hybrid"), c => { if (!string.IsNullOrEmpty(c.DeltaContent)) emitted.Add(c.DeltaContent!); }, CancellationToken.None);
+            Assert.True(res.IsErr);
+            Assert.Equal(1, remotePrimary.StreamCalls);
+            Assert.Equal(0, localFallback.StreamCalls);
+            Assert.Single(emitted);
+        }
+
+        private sealed class FaultingAfterFirstLineStream : Stream
+        {
+            private readonly byte[] _firstBytes;
+            private bool _readFirst;
+
+            public FaultingAfterFirstLineStream(string firstLine)
+            {
+                _firstBytes = Encoding.UTF8.GetBytes(firstLine);
+            }
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                if (!_readFirst)
+                {
+                    _readFirst = true;
+                    int len = Math.Min(count, _firstBytes.Length);
+                    Array.Copy(_firstBytes, 0, buffer, offset, len);
+                    return len;
+                }
+                throw new IOException("Connection reset mid-stream");
+            }
+        }
+
+        private sealed class StubStreamingClient : IAIClient
+        {
+            private readonly bool _emitBeforeFail;
+            public int StreamCalls { get; private set; }
+
+            public StubStreamingClient(bool emitBeforeFail)
+            {
+                _emitBeforeFail = emitBeforeFail;
+            }
+
+            public bool IsLocalEndpoint => false;
+            public bool IsConfigured() => true;
+            public bool SupportsStreaming => true;
+            public bool SupportsNpcServerState => false;
+
+            public Task<Result<LlmResponse, RimMindError>> SendAsync(LlmRequestEnvelope envelope)
+                => Task.FromResult(Result<LlmResponse, RimMindError>.Ok(new LlmResponse { Content = "ok" }));
+
+            public Task<Result<LlmResponse, RimMindError>> SendStreamAsync(LlmRequestEnvelope envelope, Action<LlmChunk> onChunk, CancellationToken ct = default)
+            {
+                StreamCalls++;
+                if (_emitBeforeFail)
+                {
+                    onChunk(new LlmChunk { DeltaContent = "partial-remote" });
+                    return Task.FromResult(Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientTransient("mid-stream drop")));
+                }
+                onChunk(new LlmChunk { DeltaContent = "fallback-ok" });
+                return Task.FromResult(Result<LlmResponse, RimMindError>.Ok(new LlmResponse { Content = "fallback-ok" }));
+            }
+
+            public Task<Result<bool, RimMindError>> SpawnNpcAsync(NpcProfile profile)
+                => Task.FromResult(Result<bool, RimMindError>.Ok(true));
+            public Task<Result<bool, RimMindError>> KillNpcAsync(string npcId)
+                => Task.FromResult(Result<bool, RimMindError>.Ok(true));
+            public Task<Result<List<string>, RimMindError>> QueryNpcMemoriesAsync(string npcId, string query, int limit)
+                => Task.FromResult(Result<List<string>, RimMindError>.Ok(new List<string>()));
+            public void Dispose() { }
         }
     }
 }

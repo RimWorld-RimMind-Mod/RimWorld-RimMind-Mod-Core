@@ -154,7 +154,11 @@ namespace RimMind.Infrastructure.UI.Framework
         }
 
         private static void DrawEmptyTableBody(Rect body)
-            => RimMindUI.DrawEmptyState(body, "RimMind.UI.DebugTable.Empty".Translate());
+            => RimMindUI.DrawEmptyState(
+                body,
+                "RimMind.UI.DebugTable.Empty".CanTranslate()
+                    ? (string)"RimMind.UI.DebugTable.Empty".Translate()
+                    : "No records");
 
         private static void DrawDebugHeaders(TablePageLayoutResult layout, float horizontalScroll)
         {
@@ -171,7 +175,9 @@ namespace RimMind.Infrastructure.UI.Framework
                     layout.Header.height,
                     horizontalScroll,
                     CellPadding);
-                Widgets.Label(headerRect, DebugTableHeaderKeys[c].Translate());
+                string key = DebugTableHeaderKeys[c];
+                string headerText = key.CanTranslate() ? (string)key.Translate() : key;
+                Widgets.Label(headerRect, headerText);
             }
             GUI.EndGroup();
 
@@ -381,7 +387,7 @@ namespace RimMind.Infrastructure.UI.Framework
                 _ => "RimMind.UI.DebugTable.Status.Cancelled"
             };
 
-            return key.Translate();
+            return key.CanTranslate() ? (string)key.Translate() : status.ToString();
         }
 
         private static Color ColorFor(string colorName)

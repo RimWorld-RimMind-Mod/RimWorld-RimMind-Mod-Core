@@ -25,10 +25,10 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                while (_healthCheckActive && Current.Game != null)
+                while (_healthCheckActive && !_healthCheckCts.IsCancellationRequested)
                 {
-                    await Task.Delay(HealthCheckIntervalMs, _healthCheckCts.Token);
-                    if (_healthCheckActive) await EnsureHealthCheck(force: true);
+                    await Task.Delay(HealthCheckIntervalMs, _healthCheckCts.Token).ConfigureAwait(false);
+                    if (_healthCheckActive) await EnsureHealthCheck(force: true).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -36,7 +36,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             catch (Exception ex)
             {
-                _logSink?.LogFromBackground($"[RimMind-Core] Player2 health check loop crashed: {ex.Message}", isWarning: true);
+                _logSink?.LogFromBackground($"[RimMind-Core] Player2 health check loop crashed: {Shared.LogSanitizer.ForLog(ex.Message)}", isWarning: true);
                 _healthCheckActive = false;
             }
         }
@@ -48,12 +48,11 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         private async Task EnsureHealthCheck(bool force = false)
         {
-            if (_isLocalConnection || string.IsNullOrEmpty(_apiKey)) return;
+            if (_isLocalConnection || string.IsNullOrEmpty(_apiKey) || !_healthCheckActive) return;
             if (!force && (DateTime.Now - _lastHealthCheck).TotalSeconds < MinHealthCheckIntervalSec) return;
 
             try
             {
-                if (Current.Game == null) return;
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 using var request = new HttpRequestMessage(HttpMethod.Get, $"{CurrentApiUrl}/v1/health");
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
@@ -68,7 +67,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             catch (Exception ex)
             {
                 _logSink?.LogFromBackground(
-                    $"[RimMind-Core] Player2 health check exception: {ex.Message}", isWarning: true);
+                    $"[RimMind-Core] Player2 health check exception: {Shared.LogSanitizer.ForLog(ex.Message)}", isWarning: true);
             }
         }
 
@@ -89,7 +88,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             Task.Run(async () =>
             {
                 bool isAvailable = await IsPlayer2LocalAppAvailableAsync();
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                 {
                     string key = isAvailable
                         ? "RimMind.Infrastructure.Player2.LocalDetected"
@@ -108,12 +107,11 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                if (Current.Game == null) return false;
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(LocalAvailabilityTimeoutSec));
                 using var response = await SharedHttpClient.GetAsync($"{LocalUrl}/v1/health", cts.Token).ConfigureAwait(false);
                 return (int)response.StatusCode == 200;
             }
-            catch (Exception ex) { RimMindErrors.Warn($"[RimMind-Core] Player2 local availability check failed: {ex.Message}"); return false; }
+            catch (Exception ex) { RimMindErrors.Warn($"[RimMind-Core] Player2 local availability check failed: {Shared.LogSanitizer.ForLog(ex.Message)}"); return false; }
         }
 
         internal void InitiateHealthCheckIfNeeded()

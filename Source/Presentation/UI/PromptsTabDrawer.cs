@@ -1,4 +1,4 @@
-﻿using RimMind.Application.Common.Interfaces.Internal;
+using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Presentation.UI.Framework;
 using RimMind.Presentation.UI.Layout;
 using UnityEngine;
@@ -11,12 +11,16 @@ namespace RimMind.Presentation.UI
         private enum PromptViewMode { All, Pawn, Map }
 
         private static Vector2 _promptsScroll;
+        private static float _lastMeasuredHeight;
         private static string _pawnPromptBuffer = string.Empty;
         private static string _mapPromptBuffer = string.Empty;
         private static bool _initialized;
         private static string _lastSyncedPawn = string.Empty;
         private static string _lastSyncedMap = string.Empty;
         private static PromptViewMode _viewMode = PromptViewMode.All;
+        // Settings.Write() is a synchronous XML write: defer it until the prompt text area loses focus
+        // instead of writing on every keystroke.
+        private static bool _persistPending;
 
         public static void ResetBuffer(ISettingsProvider s)
         {
@@ -29,6 +33,16 @@ namespace RimMind.Presentation.UI
 
         public static void Draw(Rect inRect, ISettingsProvider s, RimMindLayoutScope? scope = null)
         {
+            if (_persistPending)
+            {
+                string focused = GUI.GetNameOfFocusedControl();
+                if (focused != "RimMind_CustomPawnPrompt" && focused != "RimMind_CustomMapPrompt")
+                {
+                    _persistPending = false;
+                    s.Persist();
+                }
+            }
+
             if (!_initialized)
             {
                 ResetBuffer(s);
@@ -47,7 +61,8 @@ namespace RimMind.Presentation.UI
                 }
             }
 
-            float totalContentHeight = _viewMode == PromptViewMode.All ? 480f : 420f;
+            float baseContentHeight = _viewMode == PromptViewMode.All ? 480f : 420f;
+            float totalContentHeight = Mathf.Max(baseContentHeight, _lastMeasuredHeight);
             Rect viewRect = new Rect(
                 0f,
                 0f,
@@ -55,15 +70,15 @@ namespace RimMind.Presentation.UI
                 Mathf.Max(inRect.height, totalContentHeight));
             Widgets.BeginScrollView(inRect, ref _promptsScroll, viewRect);
             scope?.Record(inRect, "Settings:Prompts:Viewport");
-            scope?.Record(viewRect, "Settings:Prompts:Content");
 
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
+            string promptsDesc = UiText.Get("RimMind.Prompts.Desc");
             SettingsUIDrawer.DrawSectionHeader(
                 listing,
-                "RimMind.Settings.Tab.Prompts".Translate(),
-                "RimMind.Prompts.Desc".Translate());
+                UiText.Get("RimMind.Settings.Tab.Prompts"),
+                promptsDesc);
 
             DrawSelectorBar(listing);
 
@@ -76,28 +91,28 @@ namespace RimMind.Presentation.UI
                 GUI.SetNextControlName("RimMind_CustomPawnPrompt");
                 SettingsUIDrawer.DrawCustomPromptSection(
                     listing,
-                    "RimMind.Prompts.PawnPromptLabel".Translate(),
+                    UiText.Get("RimMind.Prompts.PawnPromptLabel"),
                     ref _pawnPromptBuffer,
                     editHeight,
-                    "RimMind.Prompts.Desc".Translate());
+                    promptsDesc);
                 if (_pawnPromptBuffer != s.CustomPawnPrompt)
                 {
                     s.CustomPawnPrompt = _pawnPromptBuffer;
                     _lastSyncedPawn = _pawnPromptBuffer;
-                    s.Persist();
+                    _persistPending = true;
                 }
 
                 Rect pawnBtnRow = listing.GetRect(28f);
                 float btnW = 140f;
                 Rect resetPawnBtn = new Rect(pawnBtnRow.x, pawnBtnRow.y, btnW, pawnBtnRow.height);
-                if (Widgets.ButtonText(resetPawnBtn, "RimMind.UI.ResetToDefaults".Translate()))
+                if (Widgets.ButtonText(resetPawnBtn, UiText.Get("RimMind.UI.ResetToDefaults")))
                 {
                     _pawnPromptBuffer = string.Empty;
                     s.CustomPawnPrompt = string.Empty;
                     _lastSyncedPawn = string.Empty;
                     s.Persist();
                 }
-                TooltipHandler.TipRegion(resetPawnBtn, "RimMind.Prompts.ResetPawn.Desc".Translate());
+                TooltipHandler.TipRegion(resetPawnBtn, UiText.Get("RimMind.Prompts.ResetPawn.Desc"));
 
                 listing.Gap(12f);
             }
@@ -107,30 +122,31 @@ namespace RimMind.Presentation.UI
                 GUI.SetNextControlName("RimMind_CustomMapPrompt");
                 SettingsUIDrawer.DrawCustomPromptSection(
                     listing,
-                    "RimMind.Prompts.MapPromptLabel".Translate(),
+                    UiText.Get("RimMind.Prompts.MapPromptLabel"),
                     ref _mapPromptBuffer,
                     editHeight,
-                    "RimMind.Prompts.Desc".Translate());
+                    promptsDesc);
                 if (_mapPromptBuffer != s.CustomMapPrompt)
                 {
                     s.CustomMapPrompt = _mapPromptBuffer;
                     _lastSyncedMap = _mapPromptBuffer;
-                    s.Persist();
+                    _persistPending = true;
                 }
 
                 Rect mapBtnRow = listing.GetRect(28f);
                 float btnW = 140f;
                 Rect resetMapBtn = new Rect(mapBtnRow.x, mapBtnRow.y, btnW, mapBtnRow.height);
-                if (Widgets.ButtonText(resetMapBtn, "RimMind.UI.ResetToDefaults".Translate()))
+                if (Widgets.ButtonText(resetMapBtn, UiText.Get("RimMind.UI.ResetToDefaults")))
                 {
                     _mapPromptBuffer = string.Empty;
                     s.CustomMapPrompt = string.Empty;
                     _lastSyncedMap = string.Empty;
                     s.Persist();
                 }
-                TooltipHandler.TipRegion(resetMapBtn, "RimMind.Prompts.ResetMap.Desc".Translate());
+                TooltipHandler.TipRegion(resetMapBtn, UiText.Get("RimMind.Prompts.ResetMap.Desc"));
             }
 
+            _lastMeasuredHeight = listing.CurHeight + 24f;
             listing.End();
             Widgets.EndScrollView();
         }
@@ -142,39 +158,23 @@ namespace RimMind.Presentation.UI
             float btnW = (barRect.width - gap * 2f) / 3f;
 
             Rect btnAll = new Rect(barRect.x, barRect.y, btnW, barRect.height);
-            DrawViewModeButton(btnAll, PromptViewMode.All, "RimMind.Prompts.ShowAll".Translate(), "RimMind.Prompts.ShowAll.Desc".Translate());
+            DrawViewModeButton(btnAll, PromptViewMode.All, UiText.Get("RimMind.Prompts.ShowAll"), UiText.Get("RimMind.Prompts.ShowAll.Desc"));
 
             Rect btnPawn = new Rect(btnAll.xMax + gap, barRect.y, btnW, barRect.height);
-            DrawViewModeButton(btnPawn, PromptViewMode.Pawn, "RimMind.Prompts.PawnPrompt".Translate(), "RimMind.Prompts.PawnPromptLabel".Translate());
+            DrawViewModeButton(btnPawn, PromptViewMode.Pawn, UiText.Get("RimMind.Prompts.PawnPrompt"), UiText.Get("RimMind.Prompts.PawnPromptLabel"));
 
             Rect btnMap = new Rect(btnPawn.xMax + gap, barRect.y, btnW, barRect.height);
-            DrawViewModeButton(btnMap, PromptViewMode.Map, "RimMind.Prompts.MapPrompt".Translate(), "RimMind.Prompts.MapPromptLabel".Translate());
+            DrawViewModeButton(btnMap, PromptViewMode.Map, UiText.Get("RimMind.Prompts.MapPrompt"), UiText.Get("RimMind.Prompts.MapPromptLabel"));
         }
 
         private static void DrawViewModeButton(Rect rect, PromptViewMode mode, string label, string tooltip)
         {
             bool active = _viewMode == mode;
-            if (active)
+            if (SettingsUIDrawer.DrawSelectableButton(rect, label, active, tooltip))
             {
-                Widgets.DrawAtlas(rect, Widgets.ButtonBGAtlasClick);
-                TextAnchor prevAnchor = Text.Anchor;
-                Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(rect, label);
-                Text.Anchor = prevAnchor;
-
-                if (Widgets.ButtonInvisible(rect))
-                {
-                    _viewMode = mode;
-                }
+                _viewMode = mode;
+                _lastMeasuredHeight = 0f;
             }
-            else
-            {
-                if (Widgets.ButtonText(rect, label))
-                {
-                    _viewMode = mode;
-                }
-            }
-            TooltipHandler.TipRegion(rect, tooltip);
         }
     }
 }

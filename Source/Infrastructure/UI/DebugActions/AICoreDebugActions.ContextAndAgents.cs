@@ -55,7 +55,7 @@ namespace RimMind.Infrastructure.UI
             try
             {
                 var snapshot = await contextEngine.BuildSnapshotFromEnvelopeAsync(npcId, "[Debug] Show context");
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                 {
                     if (!RuntimeServiceHub.Shared.IsCurrent(token))
                     {
@@ -67,7 +67,7 @@ namespace RimMind.Infrastructure.UI
             }
             catch (Exception ex)
             {
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                 {
                     if (!RuntimeServiceHub.Shared.IsCurrent(token))
                     {

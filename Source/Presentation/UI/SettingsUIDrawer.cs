@@ -10,6 +10,20 @@ namespace RimMind.Presentation.UI
         {
             listing.Gap(10f);
             Rect headerRect = listing.GetRect(32f);
+            DrawSectionHeader(headerRect, label, tooltip);
+        }
+
+        public static float DrawSectionHeader(Rect canvas, float y, string label, string? tooltip = null)
+        {
+            float x = canvas.x + 4f;
+            float w = canvas.width - 8f;
+            Rect headerRect = new Rect(x, y, w, 32f);
+            DrawSectionHeader(headerRect, label, tooltip);
+            return y + 38f;
+        }
+
+        public static void DrawSectionHeader(Rect headerRect, string label, string? tooltip = null)
+        {
             Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
             Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
 
@@ -26,28 +40,29 @@ namespace RimMind.Presentation.UI
             }
         }
 
-        public static float DrawSectionHeader(Rect canvas, float y, string label, string? tooltip = null)
+        public static bool DrawSelectableButton(Rect rect, string label, bool selected, string? tooltip = null)
         {
-            float x = canvas.x + 4f;
-            float w = canvas.width - 8f;
-            Rect headerRect = new Rect(x, y, w, 32f);
-
-            Widgets.DrawBoxSolid(headerRect, new Color(0.14f, 0.17f, 0.24f, 0.75f));
-            Widgets.DrawBoxSolid(new Rect(headerRect.x, headerRect.y, 4f, headerRect.height), new Color(0.4f, 0.7f, 1.0f, 0.9f));
-
-            Rect textRect = new Rect(headerRect.x + 12f, headerRect.y + 2f, headerRect.width - 20f, 28f);
-            Text.Font = GameFont.Medium;
-            GUI.color = new Color(0.9f, 0.95f, 1.0f);
-            Widgets.Label(textRect, label);
-            Text.Font = GameFont.Small;
-            GUI.color = Color.white;
+            bool clicked;
+            if (selected)
+            {
+                Widgets.DrawAtlas(rect, Widgets.ButtonBGAtlasClick);
+                TextAnchor prevAnchor = Text.Anchor;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(rect, label);
+                Text.Anchor = prevAnchor;
+                clicked = Widgets.ButtonInvisible(rect);
+            }
+            else
+            {
+                clicked = Widgets.ButtonText(rect, label);
+            }
 
             if (!string.IsNullOrEmpty(tooltip))
             {
-                TooltipHandler.TipRegion(headerRect, tooltip);
+                TooltipHandler.TipRegion(rect, tooltip);
             }
 
-            return y + 38f;
+            return clicked;
         }
 
         public static void LabelWithTooltip(this Listing_Standard listing, string label, string? tooltip, Color? textColor = null)
@@ -121,7 +136,7 @@ namespace RimMind.Presentation.UI
             float btnY = bottomBar.y + (bottomBar.height - btnHeight) / 2f;
             Rect resetRect = new Rect(btnX, btnY, btnWidth, btnHeight);
 
-            if (Widgets.ButtonText(resetRect, "RimMind.UI.ResetToDefaults".Translate()))
+            if (Widgets.ButtonText(resetRect, UiText.Get("RimMind.UI.ResetToDefaults")))
             {
                 resetAction?.Invoke();
             }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Abstractions;
@@ -19,7 +20,7 @@ namespace RimMind.Application.Features.Storage
         private readonly RemoteSyncSettings _settings;
         private readonly ILogSink? _log;
 
-        private long _lastPushTicks;
+        private readonly ConcurrentDictionary<string, long> _lastPushTicksByKey = new ConcurrentDictionary<string, long>(StringComparer.Ordinal);
         private readonly object _debounceLock = new object();
 
         public RemoteSyncOrchestrator(IRemoteBackend? backend, RemoteSyncSettings settings, ILogSink? log = null)
@@ -84,14 +85,17 @@ namespace RimMind.Application.Features.Storage
             if (!RemoteKeys.IsValid(key))
                 return Result<bool, RimMindError>.Err(RimMindErrors.Internal($"Invalid remote key: {key}"));
 
-            // Debounce check
+            // Per-key debounce check so pushing one key does not silently drop subsequent keys
             var now = DateTime.UtcNow.Ticks;
             var debounceTicks = TimeSpan.FromSeconds(_settings.PushDebounceSeconds).Ticks;
             lock (_debounceLock)
             {
-                if (now - _lastPushTicks < debounceTicks)
-                    return Result<bool, RimMindError>.Ok(false); // Debounced
-                _lastPushTicks = now;
+                if (_lastPushTicksByKey.TryGetValue(key, out var lastPushTicks) &&
+                    now - lastPushTicks < debounceTicks)
+                {
+                    return Result<bool, RimMindError>.Ok(false); // Debounced for this key
+                }
+                _lastPushTicksByKey[key] = now;
             }
 
             try

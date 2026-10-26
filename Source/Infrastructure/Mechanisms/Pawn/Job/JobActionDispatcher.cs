@@ -224,7 +224,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         public static Result<bool, RimMindError> HandleTendPawn(VersePawn pawn, MechanismWriteArgs args)
         {
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
-            var targetPawn = FindPawnById(targetPawnId);
+            var targetPawn = FindTargetPawnOnSameMap(pawn, targetPawnId);
             if (targetPawn == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
@@ -240,7 +240,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         public static Result<bool, RimMindError> HandleRescuePawn(VersePawn pawn, MechanismWriteArgs args)
         {
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
-            var targetPawn = FindPawnById(targetPawnId);
+            var targetPawn = FindTargetPawnOnSameMap(pawn, targetPawnId);
             if (targetPawn == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
@@ -257,7 +257,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         public static Result<bool, RimMindError> HandleArrestPawn(VersePawn pawn, MechanismWriteArgs args)
         {
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
-            var targetPawn = FindPawnById(targetPawnId);
+            var targetPawn = FindTargetPawnOnSameMap(pawn, targetPawnId);
             if (targetPawn == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
@@ -293,28 +293,22 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             return int.TryParse(str, out var val) ? val : 0;
         }
 
-        private static VersePawn? FindPawnById(int pawnId)
+        /// <summary>
+        /// Actions whose actor may be a downed colonist (resting in place, dropping the current job).
+        /// All other pawn.job actions require a conscious, non-downed colonist.
+        /// </summary>
+        public static bool AllowsDownedActor(string? action)
+            => action == "force_rest" || action == "cancel_job";
+
+        /// <summary>
+        /// Resolves the target of tend/rescue/arrest through the shared lookup. Targets may be any live pawn
+        /// (prisoners, guests, enemies) but must be spawned on the actor's map; never scans WorldPawns.
+        /// </summary>
+        private static VersePawn? FindTargetPawnOnSameMap(VersePawn actor, int pawnId)
         {
             var pawn = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
-            if (pawn != null && pawn.Spawned && pawn.Map != null && !pawn.Dead && !pawn.DestroyedOrNull()) return pawn;
-
-            if (UnityData.IsInMainThread)
-            {
-                if (Find.Maps != null)
-                {
-                    foreach (var map in Find.Maps)
-                    {
-                        pawn = map.mapPawns?.AllPawns?.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                        if (pawn != null && pawn.Spawned && pawn.Map != null && !pawn.Dead && !pawn.DestroyedOrNull())
-                        {
-                            Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
-                            return pawn;
-                        }
-                    }
-                }
-            }
-
-            return null;
+            if (pawn == null || !pawn.Spawned || pawn.Map == null || pawn.Dead || pawn.DestroyedOrNull()) return null;
+            return pawn.Map == actor.Map ? pawn : null;
         }
     }
 }

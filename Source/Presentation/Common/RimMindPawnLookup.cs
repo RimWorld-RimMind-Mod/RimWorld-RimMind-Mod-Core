@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using RimMind.Application.Common.Helpers;
 using RimWorld;
 using Verse;
 
@@ -17,6 +19,15 @@ namespace RimMind.Presentation.Api
         private static readonly ConcurrentDictionary<string, Pawn> PawnByIdCache = new();
 
         /// <summary>
+        /// How long a main-thread lookup miss suppresses rescans of the same id (~250 ticks at 1x speed).
+        /// Real time is used so misses also expire while paused and across save reloads.
+        /// </summary>
+        internal static readonly TimeSpan MissTtl = TimeSpan.FromSeconds(4);
+
+        private static readonly ExpiringNegativeCache<int> MissByNumber = new(MissTtl);
+        private static readonly ExpiringNegativeCache<string> MissById = new(MissTtl);
+
+        /// <summary>
         /// Explicitly registers or updates a pawn in the thread-safe lookup cache.
         /// Call this on the main thread when pawns are spawned, selected, or enqueued for AI tasks.
         /// </summary>
@@ -28,13 +39,30 @@ namespace RimMind.Presentation.Api
                 UncachePawn(pawn);
                 return;
             }
-            if (pawn.thingIDNumber > 0)
+
+            int number = pawn.thingIDNumber;
+            // Hot path: already registered as this exact instance. Skips both dictionary writes
+            // and the ThingID string allocation (ThingID concatenates on every access in RimWorld).
+            if (number > 0
+                && PawnByNumberCache.TryGetValue(number, out var existing)
+                && ReferenceEquals(existing, pawn))
             {
-                PawnByNumberCache[pawn.thingIDNumber] = pawn;
+                return;
             }
-            if (!string.IsNullOrEmpty(pawn.ThingID))
+
+            if (number > 0)
             {
-                PawnByIdCache[pawn.ThingID] = pawn;
+                PawnByNumberCache[number] = pawn;
+                MissByNumber.Forget(number);
+            }
+            string thingId = pawn.ThingID;
+            if (!string.IsNullOrEmpty(thingId))
+            {
+                if (!PawnByIdCache.TryGetValue(thingId, out var existingById) || !ReferenceEquals(existingById, pawn))
+                {
+                    PawnByIdCache[thingId] = pawn;
+                }
+                MissById.Forget(thingId);
             }
         }
 
@@ -111,10 +139,14 @@ namespace RimMind.Presentation.Api
         {
             PawnByNumberCache.Clear();
             PawnByIdCache.Clear();
+            MissByNumber.Clear();
+            MissById.Clear();
         }
 
         /// <summary>
-        /// Finds a pawn across world pawns, current map, all maps, and caravans by String ThingID.
+        /// Finds a live pawn by String ThingID across all loaded maps (spawned and unspawned map pawns,
+        /// including prisoners and visitors) and player caravans. World pawns are never scanned.
+        /// Repeated misses are remembered for <see cref="MissTtl"/> to avoid rescanning.
         /// Thread-safe: If called off the main thread, only queries cached pawns.
         /// </summary>
         public static Pawn? FindPawnById(string? pawnId)
@@ -138,48 +170,27 @@ namespace RimMind.Presentation.Api
                 return null;
             }
 
-            if (Find.Maps != null)
+            if (MissById.IsRecentMiss(pawnId)) return null;
+
+            // ThingID is "<defName><thingIDNumber>"; compare the cheap number first so the scan
+            // does not allocate a ThingID string for every pawn.
+            int numberHint = TryParseTrailingNumber(pawnId);
+            var pawn = ScanLoadedPawns(p =>
+                (numberHint <= 0 || p.thingIDNumber == numberHint) && p.ThingID == pawnId);
+            if (pawn != null)
             {
-                foreach (var map in Find.Maps)
-                {
-                    var pawn = map.mapPawns?.AllPawns?
-                        .FirstOrDefault(p => p.ThingID == pawnId && !p.Dead && !p.DestroyedOrNull());
-                    if (pawn != null)
-                    {
-                        CachePawn(pawn);
-                        return pawn;
-                    }
-                }
+                CachePawn(pawn);
+                return pawn;
             }
 
-            if (Find.WorldObjects?.Caravans != null)
-            {
-                foreach (var caravan in Find.WorldObjects.Caravans)
-                {
-                    var pawn = caravan.PawnsListForReading?
-                        .FirstOrDefault(p => p.ThingID == pawnId && !p.Dead && !p.DestroyedOrNull());
-                    if (pawn != null)
-                    {
-                        CachePawn(pawn);
-                        return pawn;
-                    }
-                }
-            }
-
-            var worldPawn = Find.WorldPawns?.AllPawnsAlive?
-                .FirstOrDefault(p => p.ThingID == pawnId && !p.Dead && !p.DestroyedOrNull());
-            if (worldPawn != null)
-            {
-                CachePawn(worldPawn);
-                return worldPawn;
-            }
-
+            MissById.RecordMiss(pawnId);
             return null;
         }
 
         /// <summary>
-        /// Finds a pawn by numeric thingIDNumber.
-        /// Checks current map and all active maps first, then caravans, then world pawns as last resort.
+        /// Finds a live pawn by numeric thingIDNumber across all loaded maps (spawned and unspawned
+        /// map pawns, including prisoners, visitors and colony animals) and player caravans.
+        /// World pawns are never scanned. Repeated misses are remembered for <see cref="MissTtl"/>.
         /// Thread-safe: If called off the main thread, only queries cached pawns.
         /// </summary>
         public static Pawn? FindPawnByNumber(int thingIDNumber)
@@ -202,59 +213,126 @@ namespace RimMind.Presentation.Api
                 return null;
             }
 
-            var pawn = Find.CurrentMap?.mapPawns?.FreeColonists?
-                .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
+            if (MissByNumber.IsRecentMiss(thingIDNumber)) return null;
+
+            var pawn = ScanLoadedPawns(p => p.thingIDNumber == thingIDNumber);
             if (pawn != null)
             {
                 CachePawn(pawn);
                 return pawn;
             }
 
-            if (Find.Maps != null)
-            {
-                foreach (var map in Find.Maps)
-                {
-                    pawn = map.mapPawns?.FreeColonists?
-                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
-                    if (pawn != null)
-                    {
-                        CachePawn(pawn);
-                        return pawn;
-                    }
+            MissByNumber.RecordMiss(thingIDNumber);
+            return null;
+        }
 
-                    pawn = map.mapPawns?.SpawnedColonyAnimals?
-                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
-                    if (pawn != null)
-                    {
-                        CachePawn(pawn);
-                        return pawn;
-                    }
+        /// <summary>
+        /// Main-thread only. Visits each map's AllPawns exactly once (the getter rebuilds a list per call),
+        /// then player caravans. Dead or destroyed pawns never match.
+        /// </summary>
+        private static Pawn? ScanLoadedPawns(Func<Pawn, bool> match)
+        {
+            var currentMap = Find.CurrentMap;
+            if (currentMap != null)
+            {
+                var found = ScanMapPawns(currentMap, match);
+                if (found != null) return found;
+            }
+
+            var maps = Find.Maps;
+            if (maps != null)
+            {
+                for (int i = 0; i < maps.Count; i++)
+                {
+                    if (ReferenceEquals(maps[i], currentMap)) continue;
+                    var found = ScanMapPawns(maps[i], match);
+                    if (found != null) return found;
                 }
             }
 
-            if (Find.WorldObjects?.Caravans != null)
+            var caravans = Find.WorldObjects?.Caravans;
+            if (caravans != null)
             {
-                foreach (var caravan in Find.WorldObjects.Caravans)
+                for (int i = 0; i < caravans.Count; i++)
                 {
-                    pawn = caravan.PawnsListForReading?
-                        .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
-                    if (pawn != null)
+                    var members = caravans[i]?.PawnsListForReading;
+                    if (members == null) continue;
+                    for (int j = 0; j < members.Count; j++)
                     {
-                        CachePawn(pawn);
-                        return pawn;
+                        var p = members[j];
+                        if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
                     }
                 }
-            }
-
-            pawn = Find.WorldPawns?.AllPawnsAlive?
-                .FirstOrDefault(p => p.thingIDNumber == thingIDNumber && !p.Dead && !p.DestroyedOrNull());
-            if (pawn != null)
-            {
-                CachePawn(pawn);
-                return pawn;
             }
 
             return null;
+        }
+
+        private static Pawn? ScanMapPawns(Map? map, Func<Pawn, bool> match)
+        {
+            var mp = map?.mapPawns;
+            if (mp == null) return null;
+
+            var allPawns = mp.AllPawns;
+            if (allPawns != null)
+            {
+                for (int j = 0; j < allPawns.Count; j++)
+                {
+                    var p = allPawns[j];
+                    if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
+                }
+            }
+
+            var freeColonists = mp.FreeColonists;
+            if (freeColonists != null)
+            {
+                for (int j = 0; j < freeColonists.Count; j++)
+                {
+                    var p = freeColonists[j];
+                    if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
+                }
+            }
+
+            var freeColonistsSpawned = mp.FreeColonistsSpawned;
+            if (freeColonistsSpawned != null)
+            {
+                for (int j = 0; j < freeColonistsSpawned.Count; j++)
+                {
+                    var p = freeColonistsSpawned[j];
+                    if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
+                }
+            }
+
+            var allPawnsSpawned = mp.AllPawnsSpawned;
+            if (allPawnsSpawned != null)
+            {
+                for (int j = 0; j < allPawnsSpawned.Count; j++)
+                {
+                    var p = allPawnsSpawned[j];
+                    if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
+                }
+            }
+
+            var animals = mp.SpawnedColonyAnimals;
+            if (animals != null)
+            {
+                for (int j = 0; j < animals.Count; j++)
+                {
+                    var p = animals[j];
+                    if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
+                }
+            }
+
+            return null;
+        }
+
+        private static int TryParseTrailingNumber(string id)
+        {
+            int end = id.Length;
+            int start = end;
+            while (start > 0 && char.IsDigit(id[start - 1])) start--;
+            if (start == end || end - start > 9) return 0;
+            return int.TryParse(id.Substring(start, end - start), out int n) ? n : 0;
         }
 
         /// <summary>
@@ -284,22 +362,27 @@ namespace RimMind.Presentation.Api
 
         /// <summary>
         /// Returns all eligible living colonists on the given map (or current map if not specified).
+        /// Materializes a snapshot list so callers can safely invoke nested mapPawns queries during iteration.
         /// </summary>
         public static IEnumerable<Pawn> GetEligibleColonists(Map? map = null)
         {
-            if (!UnityData.IsInMainThread) yield break;
+            var result = new List<Pawn>();
+            if (!UnityData.IsInMainThread) return result;
 
             var targetMap = map ?? Find.CurrentMap;
-            if (targetMap?.mapPawns?.FreeColonistsSpawned == null) yield break;
+            var spawned = targetMap?.mapPawns?.FreeColonistsSpawned;
+            if (spawned == null) return result;
 
-            foreach (var pawn in targetMap.mapPawns.FreeColonistsSpawned)
+            for (int i = 0; i < spawned.Count; i++)
             {
+                var pawn = spawned[i];
                 if (IsEligibleColonist(pawn))
                 {
                     CachePawn(pawn);
-                    yield return pawn;
+                    result.Add(pawn);
                 }
             }
+            return result;
         }
 
         /// <summary>
@@ -314,8 +397,14 @@ namespace RimMind.Presentation.Api
                 var colonists = map.mapPawns.FreeColonistsSpawned;
                 if (colonists != null)
                 {
-                    foreach (var p in colonists) CachePawn(p);
-                    return colonists.ToList();
+                    var snapshot = new List<Pawn>(colonists.Count);
+                    for (int i = 0; i < colonists.Count; i++)
+                    {
+                        var p = colonists[i];
+                        CachePawn(p);
+                        snapshot.Add(p);
+                    }
+                    return snapshot;
                 }
             }
 
@@ -333,12 +422,19 @@ namespace RimMind.Presentation.Api
             if (map == null) return new List<Pawn>();
             if (UnityData.IsInMainThread && map.mapPawns != null)
             {
-                var prisoners = map.mapPawns.AllPawnsSpawned?
-                    .Where(p => p != null && !p.Dead && !p.Destroyed && p.IsPrisoner)
-                    .ToList();
-                if (prisoners != null)
+                var allSpawned = map.mapPawns.AllPawnsSpawned;
+                if (allSpawned != null)
                 {
-                    foreach (var p in prisoners) CachePawn(p);
+                    var prisoners = new List<Pawn>();
+                    for (int i = 0; i < allSpawned.Count; i++)
+                    {
+                        var p = allSpawned[i];
+                        if (p != null && !p.Dead && !p.Destroyed && p.IsPrisoner)
+                        {
+                            CachePawn(p);
+                            prisoners.Add(p);
+                        }
+                    }
                     return prisoners;
                 }
             }
@@ -346,6 +442,69 @@ namespace RimMind.Presentation.Api
             return PawnByNumberCache.Values
                 .Where(p => p != null && !p.Dead && !p.Destroyed && !p.DestroyedOrNull() && p.Map == map && p.Spawned && p.IsPrisoner)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Safely retrieves all free colonists (spawned or unspawned) on the given map as a materialized snapshot list
+        /// without allocating a List&lt;Pawn&gt;.Enumerator over MapPawns' reusable internal buffer.
+        /// </summary>
+        public static List<Pawn> GetFreeColonistsSafe(Map? map)
+        {
+            var snapshot = new List<Pawn>();
+            if (map == null || !UnityData.IsInMainThread || map.mapPawns == null)
+                return snapshot;
+
+            var colonists = map.mapPawns.FreeColonists;
+            if (colonists == null)
+                return snapshot;
+
+            for (int i = 0; i < colonists.Count; i++)
+            {
+                var p = colonists[i];
+                if (p != null && !p.Dead && !p.DestroyedOrNull())
+                {
+                    CachePawn(p);
+                    snapshot.Add(p);
+                }
+            }
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Formats a raw tool/action identifier (e.g. "actions_place_blueprint", "pawn.job.take_job")
+        /// into a clean human-readable title ("Place Blueprint", "Take Job") for UI overlays, motes, and approval cards.
+        /// </summary>
+        public static string FormatHumanReadableActionName(string? rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName))
+                return "Action";
+
+            var trimmed = rawName!.Trim();
+            string[] prefixes = { "actions_", "pawn_", "rimmind_", "pawn.job.", "pawn.", "map." };
+            foreach (var prefix in prefixes)
+            {
+                if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                    trimmed.Length > prefix.Length)
+                {
+                    trimmed = trimmed.Substring(prefix.Length);
+                    break;
+                }
+            }
+
+            var tokens = trimmed.Split(new[] { '_', '.', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0)
+                return trimmed;
+
+            var formatted = new string[tokens.Length];
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                var token = tokens[i];
+                formatted[i] = token.Length == 1
+                    ? token.ToUpperInvariant()
+                    : char.ToUpperInvariant(token[0]) + token.Substring(1);
+            }
+
+            return string.Join(" ", formatted);
         }
 
         /// <summary>
@@ -363,22 +522,27 @@ namespace RimMind.Presentation.Api
 
         /// <summary>
         /// Returns all active spawned player colony animals on the given map (or current map if not specified).
+        /// Materializes a snapshot list so callers can safely invoke nested mapPawns queries during iteration.
         /// </summary>
         public static IEnumerable<Pawn> GetActiveSpawnedColonyAnimals(Map? map = null)
         {
-            if (!UnityData.IsInMainThread) yield break;
+            var result = new List<Pawn>();
+            if (!UnityData.IsInMainThread) return result;
 
             var targetMap = map ?? Find.CurrentMap;
-            if (targetMap?.mapPawns?.SpawnedColonyAnimals == null) yield break;
+            var animals = targetMap?.mapPawns?.SpawnedColonyAnimals;
+            if (animals == null) return result;
 
-            foreach (var pawn in targetMap.mapPawns.SpawnedColonyAnimals)
+            for (int i = 0; i < animals.Count; i++)
             {
+                var pawn = animals[i];
                 if (IsActiveColonyAnimal(pawn))
                 {
                     CachePawn(pawn);
-                    yield return pawn;
+                    result.Add(pawn);
                 }
             }
+            return result;
         }
     }
 }

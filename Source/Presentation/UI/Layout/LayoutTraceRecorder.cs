@@ -14,7 +14,7 @@ namespace RimMind.Presentation.UI.Layout
 
         private readonly List<LayoutTraceEntry> _entries = new();
 
-        public Rect ViewRect { get; }
+        public Rect ViewRect { get; private set; }
 
         public LayoutTraceRecorder(Rect viewRect)
         {
@@ -25,6 +25,12 @@ namespace RimMind.Presentation.UI.Layout
             => _entries.Add(new LayoutTraceEntry(rect, label, source));
 
         public void Reset() => _entries.Clear();
+
+        public void Reset(Rect viewRect)
+        {
+            ViewRect = viewRect;
+            _entries.Clear();
+        }
 
         public IReadOnlyList<LayoutTraceEntry> Entries => _entries;
 

@@ -18,13 +18,11 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             int defaultMaxTokens,
             bool stream = false)
         {
-            int effectiveMaxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : defaultMaxTokens;
-            if (!string.IsNullOrEmpty(modelName) &&
-                (modelName.IndexOf("deepseek-v4", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 modelName.IndexOf("reasoner", System.StringComparison.OrdinalIgnoreCase) >= 0))
-            {
-                effectiveMaxTokens = System.Math.Max(effectiveMaxTokens, 2048);
-            }
+            int effectiveMaxTokens = envelope.MaxTokens > 0
+                ? (defaultMaxTokens > envelope.MaxTokens && envelope.ScenarioId != "RimMind.Test"
+                    ? defaultMaxTokens
+                    : envelope.MaxTokens)
+                : defaultMaxTokens;
 
             var body = new OpenAIRequestDto
             {

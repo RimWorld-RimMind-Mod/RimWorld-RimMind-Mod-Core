@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Threading;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Mechanisms;
@@ -124,7 +125,12 @@ namespace RimMind.Infrastructure.Agent
                     Ct = CancellationToken.None
                 };
 
-                var execResult = tool.ExecuteAsync(toolArgs, CancellationToken.None).GetAwaiter().GetResult();
+                var execTask = tool.ExecuteAsync(toolArgs, CancellationToken.None);
+                if (!SynchronousTaskGate.TryCompleteSynchronously(execTask, out var execResult))
+                {
+                    return Result<Unit, RimMindError>.Err(
+                        RimMindErrors.Internal($"Tool '{tool.Definition.Id}' {SynchronousTaskGate.AsyncNotSupportedMessage}"));
+                }
                 if (execResult.IsOk)
                 {
                     if (execResult.Value.IsError)
@@ -296,15 +302,29 @@ namespace RimMind.Infrastructure.Agent
         private static Result<bool, RimMindError> ExecuteOperation(
             IGameMechanism mechanism, MechanismWriteArgs args, MechanismOperationType opType)
         {
-            return opType switch
+            Task<Result<bool, RimMindError>>? task = opType switch
             {
-                MechanismOperationType.Trigger => mechanism.ExecuteTriggerAsync(args, CancellationToken.None).GetAwaiter().GetResult(),
-                MechanismOperationType.Set => mechanism.ExecuteSetAsync(args, CancellationToken.None).GetAwaiter().GetResult(),
-                MechanismOperationType.Add => mechanism.ExecuteAddAsync(args, CancellationToken.None).GetAwaiter().GetResult(),
-                MechanismOperationType.Toggle => mechanism.ExecuteToggleAsync(args, CancellationToken.None).GetAwaiter().GetResult(),
-                MechanismOperationType.Remove => mechanism.ExecuteRemoveAsync(args, CancellationToken.None).GetAwaiter().GetResult(),
-                _ => Result<bool, RimMindError>.Err(RimMindErrors.MechanismOperationNotSupported(mechanism.MechanismId, opType.ToString())),
+                MechanismOperationType.Trigger => mechanism.ExecuteTriggerAsync(args, CancellationToken.None),
+                MechanismOperationType.Set => mechanism.ExecuteSetAsync(args, CancellationToken.None),
+                MechanismOperationType.Add => mechanism.ExecuteAddAsync(args, CancellationToken.None),
+                MechanismOperationType.Toggle => mechanism.ExecuteToggleAsync(args, CancellationToken.None),
+                MechanismOperationType.Remove => mechanism.ExecuteRemoveAsync(args, CancellationToken.None),
+                _ => null,
             };
+
+            if (task == null)
+            {
+                return Result<bool, RimMindError>.Err(
+                    RimMindErrors.MechanismOperationNotSupported(mechanism.MechanismId, opType.ToString()));
+            }
+
+            if (!SynchronousTaskGate.TryCompleteSynchronously(task, out var result))
+            {
+                return Result<bool, RimMindError>.Err(
+                    RimMindErrors.Internal($"Mechanism '{mechanism.MechanismId}' ({opType}) {SynchronousTaskGate.AsyncNotSupportedMessage}"));
+            }
+
+            return result;
         }
     }
 }

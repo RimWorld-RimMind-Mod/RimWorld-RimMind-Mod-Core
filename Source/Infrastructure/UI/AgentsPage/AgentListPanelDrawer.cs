@@ -23,10 +23,13 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             _pawnById.Clear();
 
             var map = Find.CurrentMap;
-            if (map != null)
+            var allSpawned = map?.mapPawns?.AllPawnsSpawned;
+            if (allSpawned != null)
             {
-                foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
+                for (int i = 0; i < allSpawned.Count; i++)
                 {
+                    Pawn pawn = allSpawned[i];
+                    if (pawn == null) continue;
                     var comp = CompPawnAgent.GetComp(pawn);
                     if (comp?.Agent == null) continue;
                     AgentState state = comp.Agent.State;

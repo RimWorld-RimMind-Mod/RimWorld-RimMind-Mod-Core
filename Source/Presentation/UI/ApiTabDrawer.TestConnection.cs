@@ -38,236 +38,128 @@ namespace RimMind.Presentation.UI
             clientManager?.InvalidateCache();
             Log.Message(BuildConnectionDebugLine("start", s, providerRegistry, null, null));
 
-            if (!AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry))
+            // Each provider selects its client independently of RequiresApiKey. (Previously a brace-less
+            // `if (!RequiresApiKey) if (player2) {...} else if (extended_service) {...}` bound the else-if to the
+            // inner if, so extended_service silently fell through to the OpenAI path whenever it required a key.)
+            Func<IAIClient?> getClient;
+            string stage;
+            string notConfiguredKey;
+            bool requireConfiguredClient;
             if (s.Provider == "player2")
             {
-                ConnectionTestOperation operation = BeginConnectionTest(runtimeScope.Token);
-
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        var client = clientManager?.GetPlayer2Client();
-                        LogFromBackground(BuildConnectionDebugLine("player2-client", s, providerRegistry, client, client?.IsConfigured()));
-                        if (client == null)
-                        {
-                            LongEventHandler.ExecuteWhenFinished(() =>
-                            {
-                                TryPublishConnectionTest(
-                                    operation,
-                                    "RimMind.Settings.Player2.NotAvailable".Translate(),
-                                    new Color(0.9f, 0.4f, 0.4f));
-                            });
-                            return;
-                        }
-
-                        var envelope = new LlmRequestEnvelope
-                        {
-                            RequestId = "test",
-                            ScenarioId = "RimMind.Test",
-                            ModId = "RimMind.Test",
-                            Messages = new List<DomainChatMessage> { new DomainChatMessage { Role = "user", Content = "RimMind.Settings.TestMessage".Translate() } },
-                            MaxTokens = RimMindDefaults.TestConnectionMaxTokens,
-                            Temperature = 0.7f,
-                        };
-                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                        var result = await client.SendAsync(envelope);
-                        stopwatch.Stop();
-                        long rttMs = stopwatch.ElapsedMilliseconds;
-                        if (result.TryGetValue(out var response))
-                        {
-                            var content = response.Content.Trim();
-                            var tok = response.TokensUsed;
-                            LongEventHandler.ExecuteWhenFinished(() =>
-                            {
-                                TryPublishConnectionTest(
-                                    operation,
-                                    $"OK ({rttMs}ms) {content} ({tok} tok)",
-                                    new Color(0.4f, 0.9f, 0.4f));
-                            });
-                        }
-                        else
-                        {
-                            var error = result.Error.Message;
-                            LongEventHandler.ExecuteWhenFinished(() =>
-                            {
-                                TryPublishConnectionTest(
-                                    operation,
-                                    $"FAIL ({rttMs}ms) {error}",
-                                    new Color(0.9f, 0.4f, 0.4f));
-                            });
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        var msg = ex.Message;
-                        LongEventHandler.ExecuteWhenFinished(() =>
-                        {
-                            TryPublishConnectionTest(
-                                operation,
-                                $"FAIL {msg}",
-                                new Color(0.9f, 0.4f, 0.4f));
-                        });
-                    }
-                });
-                return;
+                getClient = () => clientManager?.GetPlayer2Client();
+                stage = "player2-client";
+                notConfiguredKey = "RimMind.Settings.Player2.NotAvailable";
+                requireConfiguredClient = false;
             }
             else if (s.Provider == "extended_service")
             {
-                ConnectionTestOperation operation = BeginConnectionTest(runtimeScope.Token);
-
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        var client = clientManager?.GetClient();
-                        LogFromBackground(BuildConnectionDebugLine("modelservice-client", s, providerRegistry, client, client?.IsConfigured()));
-                        if (client == null || !client.IsConfigured())
-                        {
-                            LongEventHandler.ExecuteWhenFinished(() =>
-                            {
-                                TryPublishConnectionTest(
-                                    operation,
-                                    "RimMind.Settings.ModelService.NoActiveNodes".Translate(),
-                                    Color.yellow);
-                            });
-                            return;
-                        }
-
-                        var envelope = new LlmRequestEnvelope
-                        {
-                            RequestId = "test",
-                            ScenarioId = "RimMind.Test",
-                            ModId = "RimMind.Test",
-                            Messages = new List<DomainChatMessage> { new DomainChatMessage { Role = "user", Content = "RimMind.Settings.TestMessage".Translate() } },
-                            MaxTokens = RimMindDefaults.TestConnectionMaxTokens,
-                            Temperature = 0.7f,
-                        };
-                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                        var result = await client.SendAsync(envelope);
-                        stopwatch.Stop();
-                        long rttMs = stopwatch.ElapsedMilliseconds;
-                        if (result.TryGetValue(out var response))
-                        {
-                            var content = response.Content.Trim();
-                            var tok = response.TokensUsed;
-                            LongEventHandler.ExecuteWhenFinished(() =>
-                            {
-                                TryPublishConnectionTest(
-                                    operation,
-                                    $"OK ({rttMs}ms) {content} ({tok} tok)",
-                                    new Color(0.4f, 0.9f, 0.4f));
-                            });
-                        }
-                        else
-                        {
-                            var error = result.Error.Message;
-                            LongEventHandler.ExecuteWhenFinished(() =>
-                            {
-                                TryPublishConnectionTest(
-                                    operation,
-                                    $"FAIL ({rttMs}ms) {error}",
-                                    new Color(0.9f, 0.4f, 0.4f));
-                            });
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        var msg = ex.Message;
-                        LongEventHandler.ExecuteWhenFinished(() =>
-                        {
-                            TryPublishConnectionTest(
-                                operation,
-                                $"FAIL {msg}",
-                                new Color(0.9f, 0.4f, 0.4f));
-                        });
-                    }
-                });
-                return;
+                getClient = () => clientManager?.GetClient();
+                stage = "modelservice-client";
+                notConfiguredKey = "RimMind.Settings.ModelService.NoActiveNodes";
+                requireConfiguredClient = true;
             }
-
-            if (!s.IsOpenAIConfigured())
+            else
             {
-                Log.Message(BuildConnectionDebugLine(
-                    "openai-settings-not-configured",
-                    s,
-                    providerRegistry,
-                    null,
-                    null));
-                _testStatus = "RimMind.Settings.Status.NotConfigured".Translate();
-                _testStatusColor = Color.yellow;
-                return;
+                if (!s.IsOpenAIConfigured())
+                {
+                    Log.Message(BuildConnectionDebugLine("openai-settings-not-configured", s, providerRegistry, null, null));
+                    _testStatus = "RimMind.Settings.Status.NotConfigured".Translate();
+                    _testStatusColor = Color.yellow;
+                    return;
+                }
+
+                getClient = () => clientManager?.GetClient();
+                stage = "openai-client";
+                notConfiguredKey = "RimMind.Settings.Status.NotConfigured";
+                requireConfiguredClient = false;
             }
 
-            ConnectionTestOperation openAiOperation = BeginConnectionTest(runtimeScope.Token);
+            RunConnectionProbe(s, providerRegistry, runtimeScope.Token, getClient, stage, notConfiguredKey, requireConfiguredClient);
+        }
+
+        private static void RunConnectionProbe(
+            ISettingsProvider s,
+            IExtensionRegistry<IAIClientFactory> providerRegistry,
+            RuntimeGenerationToken token,
+            Func<IAIClient?> getClient,
+            string stage,
+            string notConfiguredKey,
+            bool requireConfiguredClient)
+        {
+            ConnectionTestOperation operation = BeginConnectionTest(token);
+
+            // Translate on the main thread: Verse's LanguageDatabase is not thread-safe.
+            string testMessage = "RimMind.Settings.TestMessage".Translate();
+            string notConfiguredText = notConfiguredKey.Translate();
+            Color notConfiguredColor = requireConfiguredClient || notConfiguredKey == "RimMind.Settings.Status.NotConfigured"
+                ? Color.yellow
+                : new Color(0.9f, 0.4f, 0.4f);
+            string okFormat = TranslateOrFallback("RimMind.Settings.TestResult.Ok", "OK ({0}ms) {1} ({2} tok)");
+            string failFormat = TranslateOrFallback("RimMind.Settings.TestResult.Fail", "FAIL ({0}ms) {1}");
+            string exceptionFormat = TranslateOrFallback("RimMind.Settings.TestResult.Exception", "FAIL {0}");
+            var okColor = new Color(0.4f, 0.9f, 0.4f);
+            var failColor = new Color(0.9f, 0.4f, 0.4f);
 
             Task.Run(async () =>
             {
                 try
                 {
-                    var client = clientManager?.GetClient();
-                    LogFromBackground(BuildConnectionDebugLine("openai-client", s, providerRegistry, client, client?.IsConfigured()));
-                    if (client == null)
+                    var client = getClient();
+                    LogFromBackground(BuildConnectionDebugLine(stage, s, providerRegistry, client, client?.IsConfigured()));
+                    if (client == null || (requireConfiguredClient && !client.IsConfigured()))
                     {
-                        LongEventHandler.ExecuteWhenFinished(() =>
-                        {
-                            TryPublishConnectionTest(
-                                openAiOperation,
-                                "RimMind.Settings.Status.NotConfigured".Translate(),
-                                Color.yellow);
-                        });
+                        PostToMainThread(() => TryPublishConnectionTest(operation, notConfiguredText, notConfiguredColor));
                         return;
                     }
 
-                    var envelope2 = new LlmRequestEnvelope
+                    var envelope = new LlmRequestEnvelope
                     {
                         RequestId = "test",
                         ScenarioId = "RimMind.Test",
                         ModId = "RimMind.Test",
-                        Messages = new List<DomainChatMessage> { new DomainChatMessage { Role = "user", Content = "RimMind.Settings.TestMessage".Translate() } },
-                        MaxTokens = 60,
+                        Messages = new List<DomainChatMessage> { new DomainChatMessage { Role = "user", Content = testMessage } },
+                        MaxTokens = RimMindDefaults.TestConnectionMaxTokens,
                         Temperature = 0.7f,
                     };
-                    var stopwatch2 = System.Diagnostics.Stopwatch.StartNew();
-                    var result2 = await client.SendAsync(envelope2);
-                    stopwatch2.Stop();
-                    long rttMs2 = stopwatch2.ElapsedMilliseconds;
-                    if (result2.TryGetValue(out var response2))
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    var result = await client.SendAsync(envelope);
+                    stopwatch.Stop();
+                    long rttMs = stopwatch.ElapsedMilliseconds;
+                    if (result.TryGetValue(out var response))
                     {
-                        var content = response2.Content.Trim();
-                        var tok = response2.TokensUsed;
-                        LongEventHandler.ExecuteWhenFinished(() =>
-                        {
-                            TryPublishConnectionTest(
-                                openAiOperation,
-                                $"OK ({rttMs2}ms) {content} ({tok} tok)",
-                                new Color(0.4f, 0.9f, 0.4f));
-                        });
+                        string status = SafeFormat(okFormat, rttMs, (response.Content ?? string.Empty).Trim(), response.TokensUsed);
+                        PostToMainThread(() => TryPublishConnectionTest(operation, status, okColor));
                     }
                     else
                     {
-                        var error = result2.Error.Message;
-                        LongEventHandler.ExecuteWhenFinished(() =>
-                        {
-                            TryPublishConnectionTest(
-                                openAiOperation,
-                                $"FAIL ({rttMs2}ms) {error}",
-                                new Color(0.9f, 0.4f, 0.4f));
-                        });
+                        string status = SafeFormat(failFormat, rttMs, result.Error.Message);
+                        PostToMainThread(() => TryPublishConnectionTest(operation, status, failColor));
                     }
                 }
                 catch (Exception ex)
                 {
-                    var msg = ex.Message;
-                    LongEventHandler.ExecuteWhenFinished(() =>
-                    {
-                        TryPublishConnectionTest(
-                            openAiOperation,
-                            $"FAIL {msg}",
-                            new Color(0.9f, 0.4f, 0.4f));
-                    });
+                    string status = SafeFormat(exceptionFormat, ex.Message);
+                    PostToMainThread(() => TryPublishConnectionTest(operation, status, failColor));
                 }
             });
+        }
+
+        private static string TranslateOrFallback(string key, string fallback)
+        {
+            return key.CanTranslate() ? (string)key.Translate() : fallback;
+        }
+
+        private static string SafeFormat(string format, params object[] args)
+        {
+            try
+            {
+                return string.Format(format, args);
+            }
+            catch (FormatException)
+            {
+                return format + " " + string.Join(" ", args);
+            }
         }
 
         private static ConnectionTestOperation BeginConnectionTest(RuntimeGenerationToken token)
@@ -340,14 +232,23 @@ namespace RimMind.Presentation.UI
             return $"[RimMind-Core] TestConnection {stage}: provider={s.Provider}, requiresKey={AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry)}, keyLen={(s.ApiKey ?? string.Empty).Length}, endpointLen={(s.ApiEndpoint ?? string.Empty).Length}, model={s.ModelName}, client={clientType}, clientConfigured={configuredText}";
         }
 
-        private static void LogFromBackground(string message)
+        /// <summary>Marshals a background continuation to the main thread (thread-safe).</summary>
+        private static void PostToMainThread(Action action)
         {
-            LongEventHandler.ExecuteWhenFinished(() => Log.Message(message));
+            RimMind.Presentation.Api.RimMindAPI.MainThread.Post(action);
         }
 
-        private static float EstimateApiHeight()
+        private static void LogFromBackground(string message)
         {
-            return 1250f;
+            PostToMainThread(() => Log.Message(message));
+        }
+
+        internal static float EstimateApiHeight(ISettingsProvider? s = null)
+        {
+            int backupCount = s?.BackupEndpoints?.Count
+                ?? RimMindCoreMod.Settings?.backupEndpoints?.Count
+                ?? 0;
+            return 1250f + backupCount * 56f + 120f;
         }
 
         internal static string GetProviderLabel(string p)

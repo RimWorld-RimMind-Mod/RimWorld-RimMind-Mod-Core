@@ -12,7 +12,20 @@ namespace RimMind.Infrastructure.Verse
         private const int MaxEntries = RimMindDefaults.DebugMaxEntries;
         private readonly object _lock = new();
         private readonly List<AIRequestTraceEntry> _entries = new();
+        private readonly Dictionary<string, AIRequestTraceEntry> _byId = new(System.StringComparer.Ordinal);
         private long _revision;
+        private long _entriesSnapshotCount;
+
+        internal long EntriesSnapshotCount
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _entriesSnapshotCount;
+                }
+            }
+        }
 
         public long Revision
         {
@@ -31,17 +44,84 @@ namespace RimMind.Infrastructure.Verse
             {
                 lock (_lock)
                 {
+                    _entriesSnapshotCount++;
                     return _entries.Select(CloneEntry).ToList();
                 }
             }
+        }
+
+        public IReadOnlyList<AIRequestTraceEntry> GetRecent(
+            int limit,
+            string? npcId = null,
+            string? fallbackPawnId = null)
+        {
+            if (limit <= 0)
+                return System.Array.Empty<AIRequestTraceEntry>();
+
+            lock (_lock)
+            {
+                var matched = new List<AIRequestTraceEntry>(System.Math.Min(limit, _entries.Count));
+                for (int i = _entries.Count - 1; i >= 0 && matched.Count < limit; i--)
+                {
+                    var entry = _entries[i];
+                    if (MatchesActor(entry, npcId, fallbackPawnId))
+                        matched.Add(CloneEntry(entry));
+                }
+                matched.Reverse();
+                return matched;
+            }
+        }
+
+        public static bool MatchesActor(
+            AIRequestTraceEntry? entry,
+            string? npcId,
+            string? fallbackPawnId = null)
+        {
+            if (entry == null)
+                return false;
+            if (string.IsNullOrWhiteSpace(npcId) && string.IsNullOrWhiteSpace(fallbackPawnId))
+                return true;
+
+            string source = entry.Source ?? string.Empty;
+            int npcIdx = source.IndexOf("npc:", System.StringComparison.OrdinalIgnoreCase);
+            if (npcIdx >= 0)
+            {
+                int valueStart = npcIdx + 4;
+                int sepIdx = source.IndexOf('|', valueStart);
+                string entryNpcId = (sepIdx >= 0
+                    ? source.Substring(valueStart, sepIdx - valueStart)
+                    : source.Substring(valueStart)).Trim();
+                return MatchesId(entryNpcId, npcId, fallbackPawnId);
+            }
+
+            string trimmed = source.Trim();
+            if (trimmed.StartsWith("Pawn_", System.StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("NPC-", System.StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("npc_", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return MatchesId(trimmed, npcId, fallbackPawnId);
+            }
+
+            return true;
+        }
+
+        private static bool MatchesId(string candidate, string? npcId, string? fallbackPawnId)
+        {
+            if (!string.IsNullOrWhiteSpace(npcId)
+                && string.Equals(candidate, npcId!.Trim(), System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (!string.IsNullOrWhiteSpace(fallbackPawnId)
+                && string.Equals(candidate, fallbackPawnId!.Trim(), System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            return false;
         }
 
         public void StartRequest(string requestId, string source, string model, string systemPrompt, string userPrompt, string assistantPrompt)
         {
             lock (_lock)
             {
-                var existing = _entries.FirstOrDefault(e => e.RequestId == requestId);
-                if (existing != null)
+                string key = requestId ?? string.Empty;
+                if (!string.IsNullOrEmpty(key) && _byId.TryGetValue(key, out var existing))
                 {
                     existing.Source = source;
                     existing.Model = model;
@@ -61,9 +141,9 @@ namespace RimMind.Infrastructure.Verse
                 }
 
                 TrimIfNeeded();
-                _entries.Add(new AIRequestTraceEntry
+                var created = new AIRequestTraceEntry
                 {
-                    RequestId = requestId,
+                    RequestId = key,
                     Source = source,
                     Model = model,
                     SystemPrompt = systemPrompt,
@@ -71,7 +151,10 @@ namespace RimMind.Infrastructure.Verse
                     AssistantPrompt = assistantPrompt,
                     StartedAtUtc = System.DateTime.UtcNow,
                     State = AIRequestTraceState.Running
-                });
+                };
+                _entries.Add(created);
+                if (!string.IsNullOrEmpty(key))
+                    _byId[key] = created;
                 _revision++;
             }
         }
@@ -143,19 +226,23 @@ namespace RimMind.Infrastructure.Verse
             lock (_lock)
             {
                 _entries.Clear();
+                _byId.Clear();
                 _revision++;
             }
         }
 
         private AIRequestTraceEntry FindOrCreate(string requestId)
         {
-            var entry = _entries.FirstOrDefault(e => e.RequestId == requestId);
-            if (entry != null) return entry;
+            string key = requestId ?? string.Empty;
+            if (!string.IsNullOrEmpty(key) && _byId.TryGetValue(key, out var entry))
+                return entry;
 
             Log.Warning($"[RimMind-Core] AIRequestTraceLog.FindOrCreate: no prior StartRequest for '{requestId}', creating orphan entry");
             TrimIfNeeded();
-            entry = new AIRequestTraceEntry { RequestId = requestId };
+            entry = new AIRequestTraceEntry { RequestId = key };
             _entries.Add(entry);
+            if (!string.IsNullOrEmpty(key))
+                _byId[key] = entry;
             return entry;
         }
 
@@ -163,6 +250,16 @@ namespace RimMind.Infrastructure.Verse
         {
             if (_entries.Count < MaxEntries) return;
             int excess = _entries.Count - MaxEntries + 1;
+            for (int i = 0; i < excess; i++)
+            {
+                string removedKey = _entries[i].RequestId;
+                if (!string.IsNullOrEmpty(removedKey)
+                    && _byId.TryGetValue(removedKey, out var mapped)
+                    && ReferenceEquals(mapped, _entries[i]))
+                {
+                    _byId.Remove(removedKey);
+                }
+            }
             _entries.RemoveRange(0, excess);
         }
 

@@ -28,10 +28,14 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         public const string GameClientId = "019a8368-b00b-72bc-b367-2825079dc6fb";
         private static string LocalUrl => $"http://localhost:{RimMindDefaults.Player2LocalPort}";
 
+        private static volatile Player2Client? _activeInstance;
+
         private volatile string _apiKey;
         private volatile bool _isLocalConnection;
         private readonly ISettingsProvider _settings;
         private readonly ILogSink? _logSink;
+
+        internal Func<System.Net.Http.HttpRequestMessage, System.Net.Http.HttpCompletionOption, CancellationToken, Task<System.Net.Http.HttpResponseMessage>>? StreamSendOverride { get; set; }
 
         private string RemoteUrl => string.IsNullOrWhiteSpace(_settings.Player2RemoteUrl)
             ? "https://api.player2.game"
@@ -46,6 +50,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             _isLocalConnection = isLocal;
             _settings = settings;
             _logSink = logSink;
+            _activeInstance = this;
 
             InitiateHealthCheckIfNeeded();
         }
@@ -148,72 +153,14 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             if (!IsConfigured())
                 return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Err(RimMindErrors.ClientNotConfigured(nameof(Player2Client)));
 
-            string endpoint;
-            string json;
-
-            if (!string.IsNullOrEmpty(envelope.NpcId))
-            {
-                endpoint = $"{CurrentApiUrl}/npcs/{envelope.NpcId}/chat";
-                var npcBody = new
-                {
-                    messages = BuildEnvelopeMessages(envelope),
-                    max_tokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : _settings.MaxTokens,
-                    temperature = envelope.Temperature,
-                    game_state_info = (string?)envelope.GameStateInfo,
-                };
-                json = JsonConvert.SerializeObject(npcBody, Formatting.None,
-                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            }
-            else
-            {
-                endpoint = $"{CurrentApiUrl}/v1/chat/completions";
-                var body = new Player2RequestDto
-                {
-                    Model = "default",
-                    Messages = BuildEnvelopePlayer2Messages(envelope),
-                    MaxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : _settings.MaxTokens,
-                    Temperature = envelope.Temperature,
-                    Stream = false,
-                };
-
-                if (!string.IsNullOrEmpty(envelope.JsonSchema))
-                {
-                    body.ResponseFormat = new { type = "json_schema", json_schema = new { name = "response", schema = JsonConvert.DeserializeObject(envelope.JsonSchema!) } };
-                }
-
-                if (envelope.Tools != null && envelope.Tools.Count > 0)
-                {
-                    body.Tools = new List<object>();
-                    foreach (var t in envelope.Tools)
-                    {
-                        body.Tools.Add(new
-                        {
-                            type = "function",
-                            function = new
-                            {
-                                name = t.Name?.Replace('.', '_') ?? "",
-                                description = t.Description,
-                                parameters = t.Parameters != null
-                                    ? JsonConvert.DeserializeObject(t.Parameters)
-                                    : new { type = "object", properties = new { } },
-                            },
-                        });
-                    }
-                    body.ToolChoice = "auto";
-                }
-
-                json = JsonConvert.SerializeObject(body, Formatting.None,
-                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            }
+            (string endpoint, string json) = BuildPayload(envelope, stream: false);
 
             if (_settings.DebugLogging)
-                _logSink?.LogFromBackground($"[RimMind-Core] >> {envelope.RequestId} (Player2)\n{json}");
+                _logSink?.LogFromBackground($"[RimMind-Core] >> {envelope.RequestId} (Player2)\n{LogSanitizer.ForLog(json, LogSanitizer.DebugPayloadMaxChars)}");
 
             var sw = Stopwatch.StartNew();
             try
             {
-                await EnsureHealthCheck();
-
                 (string responseText, long httpStatusCode) = await PostAsync(endpoint, json, envelope.Ct);
                 var parsed = JsonConvert.DeserializeObject<Player2ResponseDto>(responseText);
                 string content = parsed?.Choices?[0]?.Message?.Content ?? string.Empty;
@@ -225,7 +172,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                 sw.Stop();
 
                 if (_settings.DebugLogging)
-                    _logSink?.LogFromBackground($"[RimMind-Core] << {envelope.RequestId} ({tokens} tok)\n{content}");
+                    _logSink?.LogFromBackground($"[RimMind-Core] << {envelope.RequestId} ({tokens} tok)\n{LogSanitizer.ForLog(content, LogSanitizer.DebugPayloadMaxChars)}");
 
                 var response = new RimMind.Domain.Llm.LlmResponse
                 {
@@ -260,7 +207,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             catch (Exception ex)
             {
                 sw.Stop();
-                return ClientExceptionMapper.MapException(ex, nameof(Player2Client), envelope.RequestId, "request", _logSink);
+                return ClientExceptionMapper.MapException(ex, nameof(Player2Client), envelope.RequestId, "request", _logSink, callerToken: envelope.Ct);
             }
         }
 
@@ -290,43 +237,18 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             if (!IsConfigured())
                 return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Err(RimMindErrors.ClientNotConfigured(nameof(Player2Client)));
 
-            string endpoint;
-            string json;
+            using var callerCts = (ct.CanBeCanceled && envelope.Ct.CanBeCanceled && ct != envelope.Ct)
+                ? CancellationTokenSource.CreateLinkedTokenSource(ct, envelope.Ct)
+                : null;
+            CancellationToken effectiveCt = callerCts?.Token ?? (ct.CanBeCanceled ? ct : envelope.Ct);
 
-            if (!string.IsNullOrEmpty(envelope.NpcId))
-            {
-                endpoint = $"{CurrentApiUrl}/npcs/{envelope.NpcId}/chat";
-                var npcBody = new
-                {
-                    messages = BuildEnvelopeMessages(envelope),
-                    max_tokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : _settings.MaxTokens,
-                    temperature = envelope.Temperature,
-                    game_state_info = (string?)envelope.GameStateInfo,
-                    stream = true,
-                };
-                json = JsonConvert.SerializeObject(npcBody, Formatting.None,
-                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            }
-            else
-            {
-                endpoint = $"{CurrentApiUrl}/v1/chat/completions";
-                var body = new Player2RequestDto
-                {
-                    Model = "default",
-                    Messages = BuildEnvelopePlayer2Messages(envelope),
-                    MaxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : _settings.MaxTokens,
-                    Temperature = envelope.Temperature,
-                    Stream = true,
-                };
-                json = JsonConvert.SerializeObject(body, Formatting.None,
-                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            }
+            (string endpoint, string json) = BuildPayload(envelope, stream: true);
 
             if (_settings.DebugLogging)
-                _logSink?.LogFromBackground($"[RimMind-Core] >> Stream {envelope.RequestId} (Player2)\n{json}");
+                _logSink?.LogFromBackground($"[RimMind-Core] >> Stream {envelope.RequestId} (Player2)\n{LogSanitizer.ForLog(json, LogSanitizer.DebugPayloadMaxChars)}");
 
             var contentBuilder = new StringBuilder();
-            var toolCallsBuilder = new StringBuilder();
+            var toolCallAccumulator = new StreamingToolCallAccumulator();
             int totalTokens = 0;
             int promptTokens = 0;
             int completionTokens = 0;
@@ -334,26 +256,23 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
             try
             {
-                await EnsureHealthCheck();
+                float connectTimeout = _isLocalConnection ? LocalConnectTimeout : RemoteConnectTimeout;
 
                 using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, endpoint);
                 request.Content = new System.Net.Http.StringContent(json, Encoding.UTF8, "application/json");
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
                 request.Headers.TryAddWithoutValidation("player2-game-key", GameClientId);
 
-                using var httpClient = new System.Net.Http.HttpClient();
-                using var response = await httpClient.SendAsync(request, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, ct);
-                response.EnsureSuccessStatusCode();
+                using var session = StreamSendOverride != null
+                    ? await HttpTransport.OpenStreamAsync(request, connectTimeout, effectiveCt, StreamSendOverride).ConfigureAwait(false)
+                    : await HttpTransport.OpenStreamAsync(request, connectTimeout, effectiveCt).ConfigureAwait(false);
 
-                using var stream = await response.Content.ReadAsStreamAsync();
-                using var reader = new System.IO.StreamReader(stream);
-
-                await SseStreamReader.ReadDataLinesAsync(reader, async data =>
+                await SseStreamReader.ReadDataLinesAsync(session.Reader, data =>
                 {
                     try
                     {
                         var chunk = JsonConvert.DeserializeObject<Player2StreamChunkDto>(data);
-                        if (chunk == null) return;
+                        if (chunk == null) return Task.CompletedTask;
 
                         var delta = chunk.Choices?[0]?.Delta;
                         if (delta != null && delta.Content != null)
@@ -369,22 +288,14 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                         {
                             foreach (var tc in delta.ToolCalls)
                             {
-                                if (tc.Function?.Arguments != null)
-                                    toolCallsBuilder.Append(tc.Function.Arguments);
+                                if (tc == null) continue;
+                                toolCallAccumulator.Append(
+                                    tc.Index,
+                                    tc.Id,
+                                    tc.Type,
+                                    tc.Function?.Name,
+                                    tc.Function?.Arguments);
                             }
-
-                            var toolCallsJson = JsonConvert.SerializeObject(delta.ToolCalls.Select(tc => new
-                            {
-                                index = tc.Index,
-                                id = tc.Id,
-                                type = tc.Type,
-                                function = new { name = tc.Function?.Name, arguments = tc.Function?.Arguments }
-                            }));
-
-                            onChunk(new RimMind.Domain.Llm.LlmChunk
-                            {
-                                DeltaToolCallsJson = toolCallsJson,
-                            });
                         }
 
                         if (chunk.Usage != null)
@@ -406,19 +317,21 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                     {
                         // Skip malformed SSE chunks
                     }
-                }, ct);
+
+                    return Task.CompletedTask;
+                }, session.Token, session.Heartbeat).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 return ClientExceptionMapper.MapException(ex, nameof(Player2Client), envelope.RequestId, "stream", _logSink,
-                    useClientTransientForGeneric: true);
+                    useClientTransientForGeneric: true, callerToken: effectiveCt);
             }
 
             var finalResponse = new RimMind.Domain.Llm.LlmResponse
             {
                 RequestId = envelope.RequestId,
                 Content = contentBuilder.ToString(),
-                ToolCallsJson = toolCallsBuilder.Length > 0 ? toolCallsBuilder.ToString() : null,
+                ToolCallsJson = toolCallAccumulator.ToNormalizedJson(),
                 TokensUsed = totalTokens,
                 PromptTokens = promptTokens,
                 CompletionTokens = completionTokens,
@@ -434,6 +347,86 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             });
 
             return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Ok(finalResponse);
+        }
+
+        internal (string endpoint, string json) BuildPayload(RimMind.Domain.Llm.LlmRequestEnvelope envelope, bool stream)
+        {
+            int maxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : (_settings?.MaxTokens ?? 800);
+
+            if (!string.IsNullOrEmpty(envelope.NpcId))
+            {
+                string endpoint = $"{CurrentApiUrl}/npcs/{Uri.EscapeDataString(envelope.NpcId!)}/chat";
+                var npcBody = new
+                {
+                    messages = BuildEnvelopeMessages(envelope),
+                    max_tokens = maxTokens,
+                    temperature = envelope.Temperature,
+                    game_state_info = (string?)envelope.GameStateInfo,
+                    stream = stream ? (bool?)true : null,
+                };
+                string json = JsonConvert.SerializeObject(npcBody, Formatting.None,
+                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                return (endpoint, json);
+            }
+            else
+            {
+                string endpoint = $"{CurrentApiUrl}/v1/chat/completions";
+                var body = new Player2RequestDto
+                {
+                    Model = "default",
+                    Messages = BuildEnvelopePlayer2Messages(envelope),
+                    MaxTokens = maxTokens,
+                    Temperature = envelope.Temperature,
+                    Stream = stream,
+                };
+
+                if (TryParseJsonSchema(envelope.JsonSchema, out var parsedSchema))
+                {
+                    body.ResponseFormat = new { type = "json_schema", json_schema = new { name = "response", schema = parsedSchema } };
+                }
+
+                if (envelope.Tools != null && envelope.Tools.Count > 0)
+                {
+                    body.Tools = new List<object>();
+                    foreach (var t in envelope.Tools.OrderBy(t => t.Name, StringComparer.Ordinal))
+                    {
+                        body.Tools.Add(new
+                        {
+                            type = "function",
+                            function = new
+                            {
+                                name = t.Name?.Replace('.', '_') ?? "",
+                                description = t.Description,
+                                parameters = t.Parameters != null
+                                    ? JsonConvert.DeserializeObject(t.Parameters)
+                                    : new { type = "object", properties = new { } },
+                            },
+                        });
+                    }
+                    body.ToolChoice = envelope.Tools.Any(t => t.ToolChoice == "required") ? "required" : "auto";
+                }
+
+                string json = JsonConvert.SerializeObject(body, Formatting.None,
+                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                return (endpoint, json);
+            }
+        }
+
+        private static bool TryParseJsonSchema(string? value, out object? parsed)
+        {
+            parsed = null;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            string trimmed = value!.TrimStart();
+            if (trimmed.Length == 0 || (trimmed[0] != '{' && trimmed[0] != '[')) return false;
+            try
+            {
+                parsed = JsonConvert.DeserializeObject(value);
+                return parsed != null;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
         }
 
         public async Task<Result<bool, RimMindError>> SpawnNpcAsync(NpcProfile profile)
@@ -459,7 +452,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             catch (Exception ex)
             {
-                return Result<bool, RimMindError>.Err(RimMindErrors.RemoteBackendFailed($"SpawnNpcAsync failed: {ex.Message}", ex));
+                return Result<bool, RimMindError>.Err(RimMindErrors.RemoteBackendFailed($"SpawnNpcAsync failed: {LogSanitizer.ForLog(ex.Message)}", ex));
             }
         }
 
@@ -467,14 +460,15 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                var response = await DeleteRawAsync($"/npcs/{npcId}");
+                string escapedNpcId = Uri.EscapeDataString(npcId ?? string.Empty);
+                var response = await DeleteRawAsync($"/npcs/{escapedNpcId}");
                 if (!response.IsOk)
                     return Result<bool, RimMindError>.Err(response.Error ?? RimMindErrors.RemoteBackendFailed("KillNpc raw request failed"));
                 return Result<bool, RimMindError>.Ok(true);
             }
             catch (Exception ex)
             {
-                return Result<bool, RimMindError>.Err(RimMindErrors.RemoteBackendFailed($"KillNpcAsync failed: {ex.Message}", ex));
+                return Result<bool, RimMindError>.Err(RimMindErrors.RemoteBackendFailed($"KillNpcAsync failed: {LogSanitizer.ForLog(ex.Message)}", ex));
             }
         }
 
@@ -482,7 +476,8 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             try
             {
-                var response = await GetRawAsync($"/npcs/{npcId}/memories?query={Uri.EscapeDataString(query ?? "")}&limit={limit}");
+                string escapedNpcId = Uri.EscapeDataString(npcId ?? string.Empty);
+                var response = await GetRawAsync($"/npcs/{escapedNpcId}/memories?query={Uri.EscapeDataString(query ?? "")}&limit={limit}");
                 if (!response.IsOk)
                     return Result<List<string>, RimMindError>.Err(response.Error ?? RimMindErrors.RemoteBackendFailed("QueryNpcMemories raw request failed"));
                 var results = JsonConvert.DeserializeObject<List<string>>(response.Content ?? "[]");
@@ -490,7 +485,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             catch (Exception ex)
             {
-                return Result<List<string>, RimMindError>.Err(RimMindErrors.RemoteBackendFailed($"QueryNpcMemoriesAsync failed: {ex.Message}", ex));
+                return Result<List<string>, RimMindError>.Err(RimMindErrors.RemoteBackendFailed($"QueryNpcMemoriesAsync failed: {LogSanitizer.ForLog(ex.Message)}", ex));
             }
         }
 

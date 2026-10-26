@@ -1,5 +1,9 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.Context;
@@ -9,6 +13,7 @@ using RimMind.Application.Features.Prompt;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Agent;
 using RimMind.Presentation.Api;
+using RimMind.Presentation.Settings;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -22,22 +27,50 @@ namespace RimMind.Presentation.Agent
     public sealed class MapContextBuilder
     {
         private const long TicksPerDay = 60000L;
+        private const int CacheStalenessTicks = 60;
+        private const long WarningCooldownSeconds = 30L;
         private const float ThreatThresholdHigh = 200000f;
         private const float ThreatThresholdMedium = 100000f;
         private const float ThreatThresholdLow = 50000f;
 
-        private readonly IContextSettings? _contextSettings;
+        private static readonly ConcurrentDictionary<(int settingsHash, int mapId, bool brief), (int tick, List<ContextEntry> entries)> _snapshotCache =
+            new ConcurrentDictionary<(int settingsHash, int mapId, bool brief), (int tick, List<ContextEntry> entries)>();
+
+        private static readonly ConcurrentDictionary<(int mapId, bool brief), List<ContextEntry>> _lastMainThreadSnapshot =
+            new ConcurrentDictionary<(int mapId, bool brief), List<ContextEntry>>();
+
+        private static readonly ConcurrentDictionary<string, long> _lastWarningTimestamp =
+            new ConcurrentDictionary<string, long>();
+
+        private readonly IContextSettings _contextSettings;
 
         public MapContextBuilder(IContextSettings? contextSettings = null)
         {
-            _contextSettings = contextSettings;
+            _contextSettings = contextSettings ?? new ContextSettings();
         }
 
-        private IMapIncludeSettings? MapSettings => _contextSettings;
+        private IMapIncludeSettings MapSettings => _contextSettings;
 
-        private IColonyIncludeSettings? ColonySettings => _contextSettings;
+        private IColonyIncludeSettings ColonySettings => _contextSettings;
 
-        private IContextEnvironmentSettings? EnvSettings => _contextSettings as IContextEnvironmentSettings;
+        private IContextEnvironmentSettings EnvSettings => _contextSettings;
+
+        private static void WarnRateLimited(string area, Exception ex)
+        {
+            try
+            {
+                long now = Stopwatch.GetTimestamp();
+                long cooldown = WarningCooldownSeconds * Stopwatch.Frequency;
+                if (_lastWarningTimestamp.TryGetValue(area, out long last) && now - last < cooldown)
+                    return;
+                _lastWarningTimestamp[area] = now;
+                RimMindErrors.Warn($"[MapContextBuilder] {area} failed: {ex.Message}");
+            }
+            catch
+            {
+                // Ignore logging failures when Verse logger is unavailable in tests.
+            }
+        }
 
         private static string Tr(string key, params object[] args)
         {
@@ -67,6 +100,31 @@ namespace RimMind.Presentation.Agent
             var entries = new List<ContextEntry>();
             if (map == null) return entries;
 
+            int mapId = map.uniqueID;
+            if (!UnityData.IsInMainThread)
+            {
+                WarnRateLimited("OffMainThread", new InvalidOperationException("BuildMapContextEntries called off main thread; returning cached snapshot or empty."));
+                if (_lastMainThreadSnapshot.TryGetValue((mapId, brief), out var fallbackSnapshot))
+                    return new List<ContextEntry>(fallbackSnapshot);
+                if (brief && _lastMainThreadSnapshot.TryGetValue((mapId, false), out var fullSnapshot))
+                    return new List<ContextEntry>(fullSnapshot);
+                return entries;
+            }
+
+            int currentTick = -1;
+            try { currentTick = Find.TickManager?.TicksGame ?? -1; }
+            catch (Exception ex) { WarnRateLimited("TickManager", ex); }
+
+            int settingsHash = RuntimeHelpers.GetHashCode(_contextSettings);
+            var cacheKey = (settingsHash, mapId, brief);
+            if (currentTick >= 0
+                && _snapshotCache.TryGetValue(cacheKey, out var cached)
+                && currentTick >= cached.tick
+                && currentTick - cached.tick <= CacheStalenessTicks)
+            {
+                return new List<ContextEntry>(cached.entries);
+            }
+
             var ctx = MapSettings;
             var colony = ColonySettings;
 
@@ -77,9 +135,7 @@ namespace RimMind.Presentation.Agent
                 long ticks = Find.TickManager.TicksAbs;
                 Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
                 int hour = GenDate.HourOfDay(ticks, longLat.x);
-                string dateStr = UnityData.IsInMainThread
-                    ? GenDate.DateFullStringAt(ticks, longLat)
-                    : $"{GenDate.DayOfQuadrum(ticks, longLat.x) + 1} {GenDate.Quadrum(ticks, longLat.x)}, {GenDate.Year(ticks, longLat.x)}";
+                string dateStr = GenDate.DateFullStringAt(ticks, longLat);
                 int day = (int)(ticks / TicksPerDay);
                 entries.Add(new ContextEntry(
                     Tr("RimMind.Prompt.TimeFormat", dateStr, $"{hour:D2}"))
@@ -98,7 +154,7 @@ namespace RimMind.Presentation.Agent
                 var colonists = RimMindPawnLookup.GetSpawnedColonistsSafe(map);
                 int count = colonists.Count;
                 string content;
-                if (colony.IncludeColonistNames && colonists.Count > 0)
+                if (!brief && colony.IncludeColonistNames && colonists.Count > 0)
                 {
                     var names = colonists.Select(p => p.Name.ToStringShort);
                     string nameList = string.Join(", ", names);
@@ -120,7 +176,7 @@ namespace RimMind.Presentation.Agent
 
             var otherSb = new StringBuilder();
 
-            if (colony.IncludeColonistNames)
+            if (!brief && colony.IncludeColonistNames)
             {
                 var prisoners = RimMindPawnLookup.GetSpawnedPrisonersSafe(map);
                 if (prisoners.Count > 0)
@@ -135,22 +191,22 @@ namespace RimMind.Presentation.Agent
             {
                 try
                 {
-                    float wealth = UnityData.IsInMainThread ? (map.wealthWatcher?.WealthTotal ?? 0f) : 0f;
+                    float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
                     string threat = ThreatLabel(wealth);
                     otherSb.AppendLine(Tr("RimMind.Prompt.WealthWithThreat", $"{wealth:F0}", threat));
                 }
-                catch { }
+                catch (Exception ex) { WarnRateLimited("Wealth", ex); }
             }
 
             if (colony.IncludeThreats)
             {
                 try
                 {
-                    float wealth = UnityData.IsInMainThread ? (map.wealthWatcher?.WealthTotal ?? 0f) : 0f;
+                    float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
                     string threat = ThreatLabel(wealth);
                     otherSb.AppendLine(Tr("RimMind.Prompt.ThreatLevel", threat));
                 }
-                catch { }
+                catch (Exception ex) { WarnRateLimited("Threats", ex); }
             }
 
             if (colony.IncludeFood)
@@ -158,18 +214,9 @@ namespace RimMind.Presentation.Agent
                 float foodNutrition = 0f;
                 try
                 {
-                    var allDefs = DefDatabase<ThingDef>.AllDefsListForReading;
-                    for (int i = 0; i < allDefs.Count; i++)
-                    {
-                        var def = allDefs[i];
-                        if (def.IsNutritionGivingIngestible && def.ingestible != null
-                            && def.ingestible.HumanEdible && !def.IsCorpse)
-                        {
-                            foodNutrition += (map.resourceCounter?.GetCount(def) ?? 0) * def.ingestible.CachedNutrition;
-                        }
-                    }
+                    foodNutrition = map.resourceCounter?.TotalHumanEdibleNutrition ?? 0f;
                 }
-                catch { }
+                catch (Exception ex) { WarnRateLimited("FoodNutrition", ex); }
                 otherSb.AppendLine(Tr("RimMind.Prompt.FoodStorage", $"{foodNutrition:F0}"));
 
                 int wood = CountAvailableMapResource(map, ThingDefOf.WoodLog);
@@ -177,10 +224,10 @@ namespace RimMind.Presentation.Agent
                 int med = 0;
                 try
                 {
-                    var medThings = map.listerThings?.ThingsInGroup(ThingRequestGroup.Medicine)?.ToArray();
+                    var medThings = map.listerThings?.ThingsInGroup(ThingRequestGroup.Medicine);
                     if (medThings != null)
                     {
-                        for (int i = 0; i < medThings.Length; i++)
+                        for (int i = 0; i < medThings.Count; i++)
                         {
                             var t = medThings[i];
                             if (t != null && t.Spawned && !t.IsForbidden(Faction.OfPlayer))
@@ -188,7 +235,7 @@ namespace RimMind.Presentation.Agent
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex) { WarnRateLimited("Medicine", ex); }
                 string resKey = "RimMind.Prompt.KeyResources";
                 otherSb.AppendLine(resKey.CanTranslate()
                     ? Tr(resKey, wood, steel, med)
@@ -201,7 +248,7 @@ namespace RimMind.Presentation.Agent
                     int pendingFrames = map.listerThings?.ThingsInGroup(ThingRequestGroup.BuildingFrame)?.Count ?? 0;
                     totalPending = pendingBlueprints + pendingFrames;
                 }
-                catch { }
+                catch (Exception ex) { WarnRateLimited("PendingConstruction", ex); }
                 if (totalPending > 0)
                 {
                     string pendingKey = "RimMind.Prompt.PendingConstruction";
@@ -210,15 +257,15 @@ namespace RimMind.Presentation.Agent
                         : $"Pending Construction: {totalPending} blueprints/frames (Shortage Notice: gather wood/minerals if materials are low)");
                 }
 
-                if (map.listerBuildings != null)
+                if (!brief && map.listerBuildings != null)
                 {
                     var worktables = new List<string>();
                     try
                     {
-                        var buildings = map.listerBuildings.allBuildingsColonist?.ToArray();
+                        var buildings = map.listerBuildings.allBuildingsColonist;
                         if (buildings != null)
                         {
-                            for (int i = 0; i < buildings.Length; i++)
+                            for (int i = 0; i < buildings.Count; i++)
                             {
                                 var b = buildings[i];
                                 if (b is Building_WorkTable wt && wt.def != null && !wt.Destroyed)
@@ -258,10 +305,10 @@ namespace RimMind.Presentation.Agent
                                         var rawNutrition = (rawCat != null && map.resourceCounter != null) ? map.resourceCounter.GetCountIn(rawCat) : 0;
                                         if (rawNutrition <= 0 && map.listerThings != null)
                                         {
-                                            var foods = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree)?.ToArray();
+                                            var foods = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree);
                                             if (foods != null)
                                             {
-                                                for (int f = 0; f < foods.Length; f++)
+                                                for (int f = 0; f < foods.Count; f++)
                                                 {
                                                     var ft = foods[f];
                                                     if (ft != null && ft.Spawned && !ft.IsForbidden(Faction.OfPlayer)
@@ -287,7 +334,7 @@ namespace RimMind.Presentation.Agent
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex) { WarnRateLimited("Worktables", ex); }
                     if (worktables.Count > 0)
                     {
                         string wtKey = "RimMind.Prompt.ColonyWorktables";
@@ -298,39 +345,42 @@ namespace RimMind.Presentation.Agent
                     }
                 }
 
-                try
+                if (!brief)
                 {
-                    var storageApparel = map.listerThings?.ThingsInGroup(ThingRequestGroup.Apparel)?.ToArray();
-                    if (storageApparel != null && storageApparel.Length > 0)
+                    try
                     {
-                        var apparelEntries = new List<string>();
-                        for (int i = 0; i < storageApparel.Length; i++)
+                        var storageApparel = map.listerThings?.ThingsInGroup(ThingRequestGroup.Apparel);
+                        if (storageApparel != null && storageApparel.Count > 0)
                         {
-                            var a = storageApparel[i];
-                            if (a != null && a.Spawned && !a.IsForbidden(Faction.OfPlayer) && a.IsInAnyStorage() && a.def != null)
+                            var apparelEntries = new List<string>();
+                            for (int i = 0; i < storageApparel.Count; i++)
                             {
-                                string itemLabel = a.def.label ?? a.def.defName;
-                                int hpPct = a.MaxHitPoints > 0 ? Mathf.RoundToInt((float)a.HitPoints / a.MaxHitPoints * 100f) : 100;
-                                apparelEntries.Add($"{itemLabel}(id={a.thingIDNumber}, hp={hpPct}%)");
-                                if (apparelEntries.Count >= 5) break;
+                                var a = storageApparel[i];
+                                if (a != null && a.Spawned && !a.IsForbidden(Faction.OfPlayer) && a.IsInAnyStorage() && a.def != null)
+                                {
+                                    string itemLabel = a.def.label ?? a.def.defName;
+                                    int hpPct = a.MaxHitPoints > 0 ? Mathf.RoundToInt((float)a.HitPoints / a.MaxHitPoints * 100f) : 100;
+                                    apparelEntries.Add($"{itemLabel}(id={a.thingIDNumber}, hp={hpPct}%)");
+                                    if (apparelEntries.Count >= 5) break;
+                                }
+                            }
+                            if (apparelEntries.Count > 0)
+                            {
+                                string apKey = "RimMind.Prompt.StoredApparel";
+                                string apList = string.Join(", ", apparelEntries);
+                                otherSb.AppendLine(apKey.CanTranslate()
+                                    ? Tr(apKey, apList)
+                                    : $"AvailableApparel: [{apList}] (Equip protective/thermal gear via actions_manage_equipment)");
                             }
                         }
-                        if (apparelEntries.Count > 0)
-                        {
-                            string apKey = "RimMind.Prompt.StoredApparel";
-                            string apList = string.Join(", ", apparelEntries);
-                            otherSb.AppendLine(apKey.CanTranslate()
-                                ? Tr(apKey, apList)
-                                : $"AvailableApparel: [{apList}] (Equip protective/thermal gear via actions_manage_equipment)");
-                        }
                     }
+                    catch (Exception ex) { WarnRateLimited("StoredApparel", ex); }
                 }
-                catch { }
             }
 
             if (ctx.IncludeSeason)
             {
-                string seasonStr = UnityData.IsInMainThread ? GenLocalDate.Season(map).Label() : GenLocalDate.Season(map).ToString();
+                string seasonStr = GenLocalDate.Season(map).Label();
                 otherSb.Append(Tr("RimMind.Prompt.Season", seasonStr));
             }
             if (ctx.IncludeWeather)
@@ -342,14 +392,42 @@ namespace RimMind.Presentation.Agent
             if (!string.IsNullOrEmpty(otherContent))
                 entries.Add(new ContextEntry(otherContent));
 
+            var snapshotCopy = new List<ContextEntry>(entries);
+            _lastMainThreadSnapshot[(mapId, brief)] = snapshotCopy;
+            if (currentTick >= 0)
+            {
+                _snapshotCache[cacheKey] = (currentTick, snapshotCopy);
+            }
+
             return entries;
         }
 
         public PromptSection BuildMapContextSection(Map map, bool brief = false)
         {
-            var section = new PromptSection("map_context", BuildMapContext(map, brief), PromptSection.PriorityKeyState);
-            section.Compress = _ => BuildMapContext(map, brief: true);
+            string content = BuildMapContext(map, brief);
+            var section = new PromptSection("map_context", content, PromptSection.PriorityKeyState);
+            if (!brief)
+            {
+                section.Compress = raw => CompressRenderedMapContext(raw);
+            }
             return section;
+        }
+
+        private static string CompressRenderedMapContext(string? raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return string.Empty;
+            var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var sb = new StringBuilder();
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("Worktables:", StringComparison.Ordinal)
+                    || line.StartsWith("AvailableApparel:", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                sb.AppendLine(line);
+            }
+            return sb.ToString().TrimEnd();
         }
 
         private string ThreatLabel(float wealth)
@@ -379,11 +457,11 @@ namespace RimMind.Presentation.Agent
             try
             {
                 counted = map.resourceCounter?.GetCount(def) ?? 0;
-                var spawnedList = map.listerThings?.ThingsOfDef(def)?.ToArray();
-                if (spawnedList != null && spawnedList.Length > 0)
+                var spawnedList = map.listerThings?.ThingsOfDef(def);
+                if (spawnedList != null && spawnedList.Count > 0)
                 {
                     int unforbiddenTotal = 0;
-                    for (int i = 0; i < spawnedList.Length; i++)
+                    for (int i = 0; i < spawnedList.Count; i++)
                     {
                         var t = spawnedList[i];
                         if (t != null && t.Spawned && !t.Destroyed && !t.Position.Fogged(map) && !t.IsForbidden(Faction.OfPlayer))
@@ -395,7 +473,7 @@ namespace RimMind.Presentation.Agent
                         counted = unforbiddenTotal;
                 }
             }
-            catch { }
+            catch (Exception ex) { WarnRateLimited("CountAvailableMapResource", ex); }
             return counted;
         }
     }

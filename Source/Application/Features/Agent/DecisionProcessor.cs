@@ -77,7 +77,7 @@ namespace RimMind.Application.Features.Agent
             {
                 _resetThinking();
                 _transitionWorkflow(AgentWorkflowPhase.Idle);
-                _log?.Warning($"[RimMind.Thinker] action=AIRequestFailed npcId={_agent.NpcId} modeId={_agent.CurrentModeId.Value} error={result.Error}");
+                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[RimMind.Thinker] action=AIRequestFailed npcId={_agent.NpcId} modeId={_agent.CurrentModeId.Value} error={result.Error}");
                 _agentBus.Publish(new DecisionFailedEvent(
                     _agent.NpcId,
                     _getPawnId(),
@@ -117,7 +117,21 @@ namespace RimMind.Application.Features.Agent
                 var validation = _validator.Validate(decision.Value, _toolRegistry);
                 if (!validation.IsValid)
                 {
-                    _log?.Warning($"[RimMind.DecisionProcessor] validation failed: {validation.Reason}");
+                    var failReason = validation.Reason ?? "Decision validation failed";
+                    _log?.Warning($"[RimMind.DecisionProcessor] validation failed: {failReason}");
+                    _agentBus.Publish(new DecisionFailedEvent(
+                        _agent.NpcId,
+                        _getPawnId(),
+                        decision.Value.ActionIntent ?? "action",
+                        failReason));
+                    _agent.RecordBehavior(new BehaviorRecordDto
+                    {
+                        Action = decision.Value.ActionIntent ?? "action",
+                        Reason = decision.Value.Reason ?? "",
+                        Success = false,
+                        ResultReason = failReason,
+                        Timestamp = _tickProvider.TicksGame
+                    });
                     _resetThinking();
                     _transitionWorkflow(AgentWorkflowPhase.Idle);
                     return true;

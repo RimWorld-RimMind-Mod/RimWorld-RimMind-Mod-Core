@@ -29,6 +29,7 @@
     <Compile Include="Contracts\**\*.cs" />
     <Compile Include="..\TestSupport\ContractCaseRunner.cs" Link="Support\ContractCaseRunner.cs" />
     <Compile Include="..\Source\Infrastructure\Services\Clients\HttpTransport.cs" Link="Adapters\HttpTransport.cs" />
+    <Compile Include="..\Source\Infrastructure\Services\Clients\Shared\LogSanitizer.cs" Link="Adapters\LogSanitizer.cs" />
     <Compile Include="..\Source\Infrastructure\Mechanisms\GameMechanismRegistry.cs" Link="Adapters\GameMechanismRegistry.cs" />
     <Compile Include="..\Source\Infrastructure\Mechanisms\MechanismToolHandler.cs" Link="Adapters\MechanismToolHandler.cs" />
     <Compile Include="..\Source\Infrastructure\Mechanisms\MechanismListToolHandler.cs" Link="Adapters\MechanismListToolHandler.cs" />

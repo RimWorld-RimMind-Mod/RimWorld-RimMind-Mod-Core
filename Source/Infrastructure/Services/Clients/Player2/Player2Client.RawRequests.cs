@@ -36,9 +36,6 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             string endpoint = $"{CurrentApiUrl}{path}";
             try
             {
-                if (Current.Game == null)
-                    return RawResponse.Err(RimMindErrors.ClientTransient("Game exiting"));
-
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(RawRequestTimeoutSec));
                 using var request = new HttpRequestMessage(new HttpMethod(method), endpoint);
                 if (jsonBody != null)
@@ -53,9 +50,12 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                 string? content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                     return RawResponse.Ok(content);
-                return RawResponse.Err(RimMindErrors.ClientTransient(response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}"));
+                string detail = !string.IsNullOrWhiteSpace(content)
+                    ? Shared.LogSanitizer.ForLog(content)
+                    : (response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}");
+                return RawResponse.Err(RimMindErrors.ClientTransient(detail));
             }
-            catch (Exception ex) { return RawResponse.Err(RimMindErrors.ClientTransient(ex.Message, ex)); }
+            catch (Exception ex) { return RawResponse.Err(RimMindErrors.ClientTransient(Shared.LogSanitizer.ForLog(ex.Message), ex)); }
         }
     }
 
