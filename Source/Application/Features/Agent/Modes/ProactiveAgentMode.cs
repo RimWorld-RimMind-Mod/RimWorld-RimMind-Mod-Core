@@ -85,7 +85,9 @@ public sealed class ProactiveAgentMode : IAgentMode, IProactiveExtensions
     public ISocialEventOrganizer? SocialEventOrganizer => _socialEventOrganizer;
     public ITraitEvolutionEngine? TraitEvolutionEngine => _traitEvolutionEngine;
 
-    public IThinkStrategy GetThinkStrategy() => new ProactiveThinkStrategy();
+    private static readonly ProactiveThinkStrategy SharedStrategy = new ProactiveThinkStrategy();
+
+    public IThinkStrategy GetThinkStrategy() => SharedStrategy;
 
     public IReadOnlyList<string> AllowedToolIds(IToolRegistry registry)
         => registry.GetAllDefinitions().Select(d => d.Id).ToList();
@@ -93,6 +95,8 @@ public sealed class ProactiveAgentMode : IAgentMode, IProactiveExtensions
 
 internal sealed class ProactiveThinkStrategy : IThinkStrategy
 {
+    private static readonly List<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
+
     public string ScenarioId => ScenarioIds.Decision;
 
     public LlmRequestEnvelope BuildEnvelope(IAgentInfo agent,
@@ -104,7 +108,7 @@ internal sealed class ProactiveThinkStrategy : IThinkStrategy
             : $"Periodic self-evaluation. Current state: {SerializeAgentState(agent)}";
 
         var domainTools = ThinkStrategyHelper.ConvertToDomainTools(availableTools);
-        var examples = ThinkStrategyHelper.BuildDecisionExamples();
+        var examples = CachedExamples;
         return LlmRequestEnvelopeBuilder
             .ForScenario(ScenarioId)
             .WithModId("RimMind.Agent")

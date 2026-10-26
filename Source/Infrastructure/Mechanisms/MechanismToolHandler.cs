@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Json;
 using RimMind.Application.Common.Interfaces.Mechanisms;
@@ -17,21 +19,64 @@ namespace RimMind.Infrastructure.Mechanisms
 {
     public sealed class MechanismToolHandler : IToolHandler
     {
+        private static readonly string[] DefNameAliasKeys =
+        {
+            "def_name",
+            "thing_def",
+            "job_def",
+            "thought_def",
+            "mental_state_def",
+            "inspiration_def",
+            "skill_def",
+            "work_type"
+        };
+
+        private static readonly string[] FlatParamKeys =
+        {
+            "def_name",
+            "thing_def",
+            "job_def",
+            "thought_def",
+            "mental_state_def",
+            "inspiration_def",
+            "skill_def",
+            "work_type",
+            "target_id",
+            "target_pawn_id",
+            "count",
+            "priority",
+            "level",
+            "value",
+            "enabled",
+            "drafted",
+            "forced",
+            "x",
+            "z",
+            "cell_x",
+            "cell_z"
+        };
+
         private readonly IMechanismReader _reader;
         private readonly IMechanismWriter _writer;
         private readonly IMechanismTrigger _trigger;
         private readonly IMechanismMetadata _metadata;
         private readonly MechanismOperationType _operation;
-        private readonly IJsonExtractor _jsonExtractor;
+        private readonly IJsonExtractor? _jsonExtractor;
 
-        public MechanismToolHandler(IMechanismReader reader, IMechanismWriter writer, IMechanismTrigger trigger, IMechanismMetadata metadata, MechanismOperationType operation, IJsonExtractor jsonExtractor)
+        public MechanismToolHandler(
+            IMechanismReader reader,
+            IMechanismWriter writer,
+            IMechanismTrigger trigger,
+            IMechanismMetadata metadata,
+            MechanismOperationType operation,
+            IJsonExtractor? jsonExtractor = null)
         {
             _reader = reader;
             _writer = writer;
             _trigger = trigger;
             _metadata = metadata;
             _operation = operation;
-            _jsonExtractor = jsonExtractor ?? new MechanismToolHelper.FallbackJsonExtractor();
+            _jsonExtractor = jsonExtractor;
             Definition = BuildDefinition(metadata, operation);
         }
 
@@ -41,7 +86,7 @@ namespace RimMind.Infrastructure.Mechanisms
 
         public async Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
         {
-            var result = await ExecuteOperationAsync(args, ct).ConfigureAwait(false);
+            var result = await ExecuteOperationAsync(args, ct);
 
             if (result.IsErr)
             {
@@ -72,7 +117,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 case MechanismOperationType.Query:
                 {
                     var readArgs = BuildReadArgs(args);
-                    var r = await _reader.ExecuteQueryAsync(readArgs, ct).ConfigureAwait(false);
+                    var r = await _reader.ExecuteQueryAsync(readArgs, ct);
                     return r.IsOk
                         ? Result<object?, RimMindError>.Ok(r.Value)
                         : Result<object?, RimMindError>.Err(r.Error);
@@ -87,12 +132,12 @@ namespace RimMind.Infrastructure.Mechanisms
                     var writeArgs = BuildWriteArgs(args);
                     var r = _operation switch
                     {
-                        MechanismOperationType.Set => await _writer.ExecuteSetAsync(writeArgs, ct).ConfigureAwait(false),
-                        MechanismOperationType.Add => await _writer.ExecuteAddAsync(writeArgs, ct).ConfigureAwait(false),
-                        MechanismOperationType.Remove => await _writer.ExecuteRemoveAsync(writeArgs, ct).ConfigureAwait(false),
-                        MechanismOperationType.Toggle => await _trigger.ExecuteToggleAsync(writeArgs, ct).ConfigureAwait(false),
-                        MechanismOperationType.Trigger => await _trigger.ExecuteTriggerAsync(writeArgs, ct).ConfigureAwait(false),
-                        MechanismOperationType.Watch => await _trigger.ExecuteWatchAsync(writeArgs, ct).ConfigureAwait(false),
+                        MechanismOperationType.Set => await _writer.ExecuteSetAsync(writeArgs, ct),
+                        MechanismOperationType.Add => await _writer.ExecuteAddAsync(writeArgs, ct),
+                        MechanismOperationType.Remove => await _writer.ExecuteRemoveAsync(writeArgs, ct),
+                        MechanismOperationType.Toggle => await _trigger.ExecuteToggleAsync(writeArgs, ct),
+                        MechanismOperationType.Trigger => await _trigger.ExecuteTriggerAsync(writeArgs, ct),
+                        MechanismOperationType.Watch => await _trigger.ExecuteWatchAsync(writeArgs, ct),
                         _ => Result<bool, RimMindError>.Err(RimMindErrors.MechanismOperationNotSupported(_metadata.MechanismId, _operation.ToString().ToLowerInvariant()))
                     };
                     return r.IsOk
@@ -101,8 +146,9 @@ namespace RimMind.Infrastructure.Mechanisms
                 }
                 case MechanismOperationType.List:
                 {
-                    var pawnId = MechanismToolHelper.ResolvePawnId(_jsonExtractor, args, "pawn_id");
-                    var r = await _reader.ExecuteListAsync(pawnId, ct).ConfigureAwait(false);
+                    var root = TryParseArguments(args.ArgumentsJson);
+                    var pawnId = ResolvePawnId(root, args, "pawn_id");
+                    var r = await _reader.ExecuteListAsync(pawnId, ct);
                     return r.IsOk
                         ? Result<object?, RimMindError>.Ok(r.Value)
                         : Result<object?, RimMindError>.Err(r.Error);
@@ -112,55 +158,311 @@ namespace RimMind.Infrastructure.Mechanisms
             }
         }
 
-        private MechanismReadArgs BuildReadArgs(ToolCallArgs args)
+        internal MechanismReadArgs BuildReadArgs(ToolCallArgs args)
         {
+            var root = TryParseArguments(args.ArgumentsJson);
             return new MechanismReadArgs
             {
                 MechanismId = _metadata.MechanismId,
-                PawnId = MechanismToolHelper.ResolvePawnId(_jsonExtractor, args, "pawn_id"),
-                MapId = MechanismToolHelper.ExtractNullableInt(_jsonExtractor, args.ArgumentsJson, "map_id"),
-                DefName = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "filter_def_name") ?? MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "def_name"),
+                PawnId = ResolvePawnId(root, args, "pawn_id"),
+                MapId = ExtractNullableInt(root, "map_id"),
+                DefName = ExtractDefName(root, includeFilterDefName: true),
                 TraceId = args.TraceId
             };
         }
 
-        private MechanismWriteArgs BuildWriteArgs(ToolCallArgs args)
+        internal MechanismWriteArgs BuildWriteArgs(ToolCallArgs args)
         {
+            var root = TryParseArguments(args.ArgumentsJson);
             return new MechanismWriteArgs
             {
                 MechanismId = _metadata.MechanismId,
-                PawnId = MechanismToolHelper.ResolvePawnId(_jsonExtractor, args, "pawn_id"),
-                MapId = MechanismToolHelper.ExtractNullableInt(_jsonExtractor, args.ArgumentsJson, "map_id"),
-                DefName = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "def_name"),
-                Action = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "action") ?? _operation.ToString().ToLowerInvariant(),
-                ValueJson = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "value") ?? MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "params"),
+                PawnId = ResolvePawnId(root, args, "pawn_id"),
+                MapId = ExtractNullableInt(root, "map_id"),
+                DefName = ExtractDefName(root, includeFilterDefName: false),
+                Action = ExtractString(root, "action") ?? _operation.ToString().ToLowerInvariant(),
+                ValueJson = ExtractValueJson(root),
                 TraceId = args.TraceId,
-                Params = ExtractParamsDictionary(args.ArgumentsJson)
+                Params = ExtractParamsDictionary(root)
             };
         }
 
-        private static Dictionary<string, string>? ExtractParamsDictionary(string? json)
+        internal static JObject? TryParseArguments(string? json)
         {
-            if (string.IsNullOrEmpty(json)) return null;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
             try
             {
-                var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
-                var paramsToken = obj["params"];
-                if (paramsToken is Newtonsoft.Json.Linq.JObject paramsObj)
-                {
-                    var dict = new Dictionary<string, string>();
-                    foreach (var prop in paramsObj.Properties())
-                    {
-                        dict[prop.Name] = prop.Value?.ToString() ?? "";
-                    }
-                    return dict.Count > 0 ? dict : null;
-                }
-                return null;
+                return JObject.Parse(json);
             }
             catch (Exception)
             {
                 return null;
             }
+        }
+
+        internal static int ResolvePawnId(JObject? root, ToolCallArgs args, string key = "pawn_id")
+        {
+            var pawnId = ExtractInt(root, key, 0);
+            return pawnId != 0 ? pawnId : (args.PawnId ?? 0);
+        }
+
+        internal static string? ExtractDefName(JObject? root, bool includeFilterDefName)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            if (includeFilterDefName)
+            {
+                var filterDef = ExtractString(root, "filter_def_name");
+                if (!string.IsNullOrEmpty(filterDef))
+                {
+                    return filterDef;
+                }
+            }
+
+            for (int i = 0; i < DefNameAliasKeys.Length; i++)
+            {
+                var value = ExtractString(root, DefNameAliasKeys[i]);
+                if (!string.IsNullOrEmpty(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        internal static string? ExtractValueJson(JObject? root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            var direct = ExtractString(root, "value") ?? ExtractString(root, "params");
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            if (TryGetToken(root, "priority", out _))
+            {
+                var pInt = ExtractNullableInt(root, "priority");
+                return pInt.HasValue ? pInt.Value.ToString(CultureInfo.InvariantCulture) : ExtractString(root, "priority");
+            }
+
+            if (TryGetToken(root, "level", out _))
+            {
+                var lInt = ExtractNullableInt(root, "level");
+                return lInt.HasValue ? lInt.Value.ToString(CultureInfo.InvariantCulture) : ExtractString(root, "level");
+            }
+
+            if (TryGetToken(root, "count", out _))
+            {
+                var cInt = ExtractNullableInt(root, "count");
+                return cInt.HasValue ? cInt.Value.ToString(CultureInfo.InvariantCulture) : ExtractString(root, "count");
+            }
+
+            if (TryGetToken(root, "enabled", out _))
+            {
+                return ExtractBool(root, "enabled") ? "true" : "false";
+            }
+
+            if (TryGetToken(root, "drafted", out _))
+            {
+                return ExtractBool(root, "drafted") ? "true" : "false";
+            }
+
+            if (TryGetToken(root, "forced", out _))
+            {
+                return ExtractBool(root, "forced") ? "true" : "false";
+            }
+
+            return null;
+        }
+
+        internal static string? ExtractString(JObject? root, string key)
+        {
+            if (!TryGetToken(root, key, out var token) || token == null || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            return token.Type == JTokenType.String
+                ? token.Value<string>()
+                : token.ToString(Formatting.None);
+        }
+
+        internal static int ExtractInt(JObject? root, string key, int defaultValue = 0)
+        {
+            return ExtractNullableInt(root, key) ?? defaultValue;
+        }
+
+        internal static int? ExtractNullableInt(JObject? root, string key)
+        {
+            if (!TryGetToken(root, key, out var token) || token == null || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.Integer)
+            {
+                return token.Value<int>();
+            }
+
+            if (token.Type == JTokenType.Float)
+            {
+                return (int)token.Value<double>();
+            }
+
+            var raw = token.Type == JTokenType.String ? token.Value<string>() : token.ToString(Formatting.None);
+            return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
+        }
+
+        internal static float ExtractFloat(JObject? root, string key, float defaultValue = 0f)
+        {
+            if (!TryGetToken(root, key, out var token) || token == null || token.Type == JTokenType.Null)
+            {
+                return defaultValue;
+            }
+
+            if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer)
+            {
+                return token.Value<float>();
+            }
+
+            var raw = token.Type == JTokenType.String ? token.Value<string>() : token.ToString(Formatting.None);
+            return float.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : defaultValue;
+        }
+
+        internal static bool ExtractBool(JObject? root, string key, bool defaultValue = false)
+        {
+            if (!TryGetToken(root, key, out var token) || token == null || token.Type == JTokenType.Null)
+            {
+                return defaultValue;
+            }
+
+            if (token.Type == JTokenType.Boolean)
+            {
+                return token.Value<bool>();
+            }
+
+            if (token.Type == JTokenType.Integer)
+            {
+                return token.Value<int>() != 0;
+            }
+
+            var raw = token.Type == JTokenType.String ? token.Value<string>() : token.ToString(Formatting.None);
+            if (bool.TryParse(raw, out var parsed))
+            {
+                return parsed;
+            }
+
+            if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intVal))
+            {
+                return intVal != 0;
+            }
+
+            return defaultValue;
+        }
+
+        internal static Dictionary<string, string>? ExtractParamsDictionary(JObject? root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            Dictionary<string, string>? dict = null;
+
+            if (root["params"] is JObject paramsObj)
+            {
+                foreach (var prop in paramsObj.Properties())
+                {
+                    if (prop.Value == null || prop.Value.Type == JTokenType.Null)
+                    {
+                        continue;
+                    }
+
+                    dict ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                    dict[prop.Name] = prop.Value.Type == JTokenType.String
+                        ? prop.Value.Value<string>() ?? string.Empty
+                        : prop.Value.ToString();
+                }
+            }
+
+            for (int i = 0; i < FlatParamKeys.Length; i++)
+            {
+                var key = FlatParamKeys[i];
+                var token = root[key];
+                if (token == null || token.Type == JTokenType.Null)
+                {
+                    continue;
+                }
+
+                dict ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                if (!dict.ContainsKey(key))
+                {
+                    dict[key] = token.Type == JTokenType.String
+                        ? token.Value<string>() ?? string.Empty
+                        : token.ToString(Formatting.None);
+                }
+            }
+
+            if (dict != null)
+            {
+                if (dict.TryGetValue("target_id", out var targetId) && !dict.ContainsKey("target_pawn_id"))
+                {
+                    dict["target_pawn_id"] = targetId;
+                }
+
+                if (dict.TryGetValue("x", out var xVal) && !dict.ContainsKey("cell_x"))
+                {
+                    dict["cell_x"] = xVal;
+                }
+
+                if (dict.TryGetValue("z", out var zVal) && !dict.ContainsKey("cell_z"))
+                {
+                    dict["cell_z"] = zVal;
+                }
+            }
+
+            return dict != null && dict.Count > 0 ? dict : null;
+        }
+
+        private static bool TryGetToken(JObject? root, string key, out JToken? token)
+        {
+            token = null;
+            if (root == null || string.IsNullOrEmpty(key))
+            {
+                return false;
+            }
+
+            if (root.TryGetValue(key, StringComparison.Ordinal, out token) && token != null && token.Type != JTokenType.Null)
+            {
+                return true;
+            }
+
+            if (root["params"] is JObject paramsObj
+                && paramsObj.TryGetValue(key, StringComparison.Ordinal, out token)
+                && token != null
+                && token.Type != JTokenType.Null)
+            {
+                return true;
+            }
+
+            token = null;
+            return false;
         }
 
         private static ToolDefinition BuildDefinition(IMechanismMetadata metadata, MechanismOperationType operation)

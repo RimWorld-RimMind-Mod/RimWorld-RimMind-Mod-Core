@@ -32,24 +32,37 @@ namespace RimMind.Application.Features.Requests.Queue
 
         public int GetModCooldownTicks(string modId)
         {
-            if (ModCooldowns != null)
-            {
-                var registered = ModCooldowns.FindById(modId);
-                if (registered != null && registered.CooldownTicks > 0)
-                    return registered.CooldownTicks;
+            if (string.IsNullOrWhiteSpace(modId) || ModCooldowns == null) return 0;
 
-                foreach (var cd in ModCooldowns.All)
+            var registered = ModCooldowns.FindById(modId);
+            if (registered != null && registered.CooldownTicks > 0)
+                return registered.CooldownTicks;
+
+            foreach (var cd in ModCooldowns.All)
+            {
+                if (cd == null || cd.CooldownTicks <= 0) continue;
+                if (MatchesModId(modId, cd.Id) || MatchesModId(modId, cd.OwnerModId))
                 {
-                    if (cd == null) continue;
-                    if (string.Equals(cd.Id, modId, System.StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(cd.OwnerModId, modId, System.StringComparison.OrdinalIgnoreCase) ||
-                        modId.IndexOf(cd.Id, System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        if (cd.CooldownTicks > 0) return cd.CooldownTicks;
-                    }
+                    return cd.CooldownTicks;
                 }
             }
             return 0;
+        }
+
+        private static bool MatchesModId(string modId, string? candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate)) return false;
+            if (string.Equals(modId, candidate, System.StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (modId.StartsWith(candidate!, System.StringComparison.OrdinalIgnoreCase) &&
+                modId.Length > candidate!.Length)
+            {
+                char sep = modId[candidate.Length];
+                if (sep == '.' || sep == '-' || sep == '_' || sep == ':' || sep == '/')
+                    return true;
+            }
+            return false;
         }
 
         public void SetCooldown(string modId, int ticksRemaining)

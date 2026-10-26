@@ -33,7 +33,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             if (model != null)
             {
                 string stateLabel = model.IsPendingCreation
-                    ? "RimMind.UI.AgentsPage.Pending".Translate()
+                    ? ("RimMind.UI.AgentsPage.Pending".CanTranslate() ? (string)"RimMind.UI.AgentsPage.Pending".Translate() : "Pending")
                     : AgentActivityStreamDrawer.StateLabel(model.State);
                 _activityDrawer.Draw(
                     layout.Activity,
@@ -44,7 +44,11 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             }
             else
             {
-                RimMindUI.DrawEmptyState(layout.Activity, "RimMind.UI.AgentStateDebug.NoPawn".Translate());
+                RimMindUI.DrawEmptyState(
+                    layout.Activity,
+                    "RimMind.UI.AgentStateDebug.NoPawn".CanTranslate()
+                        ? (string)"RimMind.UI.AgentStateDebug.NoPawn".Translate()
+                        : "No colonist selected");
             }
 
             _detailDrawer.Draw(layout, detailPawn, scope);

@@ -59,9 +59,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Interaction
 
         public override Task<Result<bool, RimMindError>> ExecuteTriggerAsync(MechanismWriteArgs args, CancellationToken ct)
         {
-            var pawn = FindPawn(args.PawnId);
+            var pawn = FindWritableColonist(args.PawnId, allowDowned: false, out var pawnError);
             if (pawn == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(args.PawnId)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(pawnError!));
 
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
             var targetPawn = targetPawnId > 0 ? FindPawn(targetPawnId) : null;

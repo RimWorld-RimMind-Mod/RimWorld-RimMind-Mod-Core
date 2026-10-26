@@ -59,9 +59,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Equipment
 
         public override Task<Result<bool, RimMindError>> ExecuteSetAsync(MechanismWriteArgs args, CancellationToken ct)
         {
-            var pawn = FindPawn(args.PawnId);
+            var pawn = FindWritableColonist(args.PawnId, allowDowned: false, out var pawnError);
             if (pawn == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(args.PawnId)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(pawnError!));
 
             if (args.Action == "drop_weapon")
             {

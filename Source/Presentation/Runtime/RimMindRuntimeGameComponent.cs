@@ -7,6 +7,7 @@ using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
 using RimMind.Presentation.Api;
 using RimMind.Presentation.Runtime.Services;
+using RimMind.Presentation.UI;
 using RimWorld;
 using Verse;
 
@@ -20,6 +21,7 @@ namespace RimMind.Presentation.Runtime
         private readonly Game _game;
         private int _lastTick = -1;
         private bool _initialized;
+        private long _cachedHubGeneration = -1;
 
         public RimMindRuntimeGameComponent(Game game) : base()
         {
@@ -28,15 +30,18 @@ namespace RimMind.Presentation.Runtime
 
         private void EnsureInitialized()
         {
-            if (!_initialized)
+            long currentGeneration = RuntimeServiceHub.Shared.Generation;
+            if (_initialized && _cachedHubGeneration == currentGeneration)
             {
-                _initialized = true;
+                return;
             }
 
+            _initialized = true;
             var scope = RuntimeServiceHub.Shared.Capture();
             _scheduler = scope.GetOptional<IAgentLoopScheduler>();
             _scopedAgentManager = scope.GetOptional<IScopedAgentManager>();
             _overlayService = scope.GetOptional<IOverlayService>();
+            _cachedHubGeneration = scope.Generation;
         }
 
         public override void GameComponentTick()
@@ -94,8 +99,8 @@ namespace RimMind.Presentation.Runtime
                     if (Find.LetterStack != null)
                     {
                         Find.LetterStack.ReceiveLetter(
-                            "RimMind.Notification.ApiKeyMissing.Title".Translate(),
-                            "RimMind.Notification.ApiKeyMissing.Desc".Translate(),
+                            UiText.Get("RimMind.Notification.ApiKeyMissing.Title"),
+                            UiText.Get("RimMind.Notification.ApiKeyMissing.Desc"),
                             LetterDefOf.NeutralEvent);
                     }
                 });

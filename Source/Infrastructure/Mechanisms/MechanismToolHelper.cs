@@ -40,36 +40,33 @@ namespace RimMind.Infrastructure.Mechanisms
             return TryParsePawnIdString(str, out var val) ? val : (int?)null;
         }
 
+        /// <summary>
+        /// Resolves the pawn id a mechanism tool call targets.
+        /// <list type="bullet">
+        /// <item>An explicit, parseable id &gt; 0 in <paramref name="propertyName"/> is returned as-is, even if it
+        /// does not resolve to a live pawn. The mechanism then fails with a clear PawnNotFound error instead of
+        /// silently acting on the calling pawn (a hallucinated id must never redirect a write to the caller).</item>
+        /// <item>Only when the argument is missing, unparseable or &lt;= 0 does it fall back to the caller's own
+        /// pawn (<see cref="ToolCallArgs.PawnId"/>, then the numeric part of <see cref="ToolCallArgs.NpcId"/>).</item>
+        /// </list>
+        /// </summary>
         public static int ResolvePawnId(IJsonExtractor jsonExtractor, ToolCallArgs args, string propertyName = "pawn_id")
         {
             int id = ExtractInt(jsonExtractor, args.ArgumentsJson, propertyName);
-            int fallbackId = 0;
+            if (id > 0)
+            {
+                return id;
+            }
+
             if (args.PawnId.HasValue && args.PawnId.Value > 0)
             {
-                fallbackId = args.PawnId.Value;
+                return args.PawnId.Value;
             }
-            else if (TryParsePawnIdString(args.NpcId, out int npcId) && npcId > 0)
+            if (TryParsePawnIdString(args.NpcId, out int npcId) && npcId > 0)
             {
-                fallbackId = npcId;
+                return npcId;
             }
-
-            if (id <= 0)
-            {
-                return fallbackId;
-            }
-
-#if NET48
-            if (fallbackId > 0 && id != fallbackId && global::Verse.UnityData.IsInMainThread && global::Verse.Find.CurrentMap != null)
-            {
-                if (RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(id) == null &&
-                    RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(fallbackId) != null)
-                {
-                    return fallbackId;
-                }
-            }
-#endif
-
-            return id;
+            return 0;
         }
 
         public static int? ResolveNullablePawnId(IJsonExtractor jsonExtractor, ToolCallArgs args, string propertyName = "pawn_id")

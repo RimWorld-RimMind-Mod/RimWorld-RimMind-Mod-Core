@@ -35,10 +35,44 @@ namespace RimMind.Infrastructure.UI
         private static bool _needsPersistOnInteractionEnd;
         private static string? _cachedPendingCount0;
         private static string? _cachedMiniPillTooltip;
+        private static string? _cachedDragResize;
+        private static string? _cachedEmpty;
+        private static string? _cachedTitle;
+        private static string? _cachedDetails;
         private static readonly List<float> CachedHeights = new List<float>();
 
-        private static string PendingCount0Label => _cachedPendingCount0 ??= "RimMind.UI.RequestOverlay.PendingCount".Translate(0).ToString();
-        private static string MiniPillTooltipLabel => _cachedMiniPillTooltip ??= "RimMind.UI.RequestOverlay.MiniPillTooltip".Translate().ToString();
+        private static string Tr(string key, string fallback)
+            => key.CanTranslate() ? key.Translate().ToString() : fallback;
+
+        private static string PendingCount0Label => _cachedPendingCount0 ??=
+            "RimMind.UI.RequestOverlay.PendingCount".CanTranslate()
+                ? "RimMind.UI.RequestOverlay.PendingCount".Translate(0).ToString()
+                : "RimMind (0)";
+        private static string MiniPillTooltipLabel => _cachedMiniPillTooltip ??=
+            Tr("RimMind.UI.RequestOverlay.MiniPillTooltip", "Click to expand RimMind Request Overlay");
+        private static string DragResizeLabel => _cachedDragResize ??=
+            Tr("RimMind.UI.RequestOverlay.DragResize", "Drag to resize");
+        private static string EmptyLabel => _cachedEmpty ??=
+            Tr("RimMind.UI.RequestOverlay.Empty", "No pending requests");
+        private static string TitleLabel => _cachedTitle ??=
+            Tr("RimMind.UI.RequestOverlay.Title", "RimMind Requests");
+        private static string DetailsLabel => _cachedDetails ??=
+            Tr("RimMind.UI.RequestOverlay.Details", "Details");
+
+        private static string FormatSystemBlocked(string title)
+            => "RimMind.UI.RequestOverlay.SystemBlocked".CanTranslate()
+                ? "RimMind.UI.RequestOverlay.SystemBlocked".Translate(title).ToString()
+                : $"[System Blocked] {title}";
+
+        private static void ClearCachedLabels()
+        {
+            _cachedPendingCount0 = null;
+            _cachedMiniPillTooltip = null;
+            _cachedDragResize = null;
+            _cachedEmpty = null;
+            _cachedTitle = null;
+            _cachedDetails = null;
+        }
 
         private static readonly GenerationUiState GenerationState = new GenerationUiState();
 
@@ -104,6 +138,7 @@ namespace RimMind.Infrastructure.UI
 
             if (GenerationState.Refresh(runtimeScope.Generation))
             {
+                ClearCachedLabels();
                 LoadPositionFromSettings(settings);
                 _isDragging = false;
                 _isResizing = false;
@@ -198,7 +233,7 @@ namespace RimMind.Infrastructure.UI
                         var resizeRect = new Rect(inRect.width - ResizeHandleSize, inRect.height - ResizeHandleSize,
                             ResizeHandleSize, ResizeHandleSize);
                         GUI.DrawTexture(resizeRect, TexUI.WinExpandWidget);
-                        TooltipHandler.TipRegion(resizeRect, "RimMind.UI.RequestOverlay.DragResize".Translate());
+                        TooltipHandler.TipRegion(resizeRect, DragResizeLabel);
                     }
                 }
                 finally
@@ -268,7 +303,7 @@ namespace RimMind.Infrastructure.UI
                 {
                     GUI.color = Color.grey;
                     Text.Anchor = TextAnchor.MiddleCenter;
-                    Widgets.Label(contentRect, "RimMind.UI.RequestOverlay.Empty".Translate());
+                    Widgets.Label(contentRect, EmptyLabel);
                     return;
                 }
 
@@ -302,7 +337,7 @@ namespace RimMind.Infrastructure.UI
                         Widgets.DrawBoxSolid(entryRect, new Color(0.12f, 0.12f, 0.16f, 0.7f));
 
                         string header = entry.systemBlocked
-                            ? "RimMind.UI.RequestOverlay.SystemBlocked".Translate(entry.title)
+                            ? FormatSystemBlocked(entry.title)
                             : entry.pawn is Pawn p
                                 ? $"[{p.Name.ToStringShort}] {entry.title}"
                                 : entry.title;
@@ -362,7 +397,7 @@ namespace RimMind.Infrastructure.UI
             Text.Anchor = TextAnchor.MiddleLeft;
             GUI.color = new Color(0.6f, 0.65f, 0.75f);
             Widgets.Label(new Rect(barRect.x + TextPadding + 2f, barRect.y, barRect.width - 90f, barRect.height),
-                "RimMind.UI.RequestOverlay.Title".Translate());
+                TitleLabel);
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
             Text.Anchor = TextAnchor.UpperLeft;
@@ -373,7 +408,7 @@ namespace RimMind.Infrastructure.UI
             {
                 _temporarilyClosed = true;
             }
-            if (Widgets.ButtonText(openBtnRect, "RimMind.UI.RequestOverlay.Details".Translate()))
+            if (Widgets.ButtonText(openBtnRect, DetailsLabel))
             {
                 windowService?.OpenRequestLog();
             }

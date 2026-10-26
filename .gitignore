@@ -2,6 +2,7 @@
 **/*.dll
 **/*.pdb
 **/*.exe
+**/*.deps.json
 bin/
 obj/
 

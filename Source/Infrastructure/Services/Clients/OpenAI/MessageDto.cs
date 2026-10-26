@@ -96,6 +96,8 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 
     internal class ToolCallDto
     {
+        [JsonProperty("index", NullValueHandling = NullValueHandling.Ignore)]
+        public int? Index;
         [JsonProperty("id")]
         public string Id = "";
         [JsonProperty("type")]

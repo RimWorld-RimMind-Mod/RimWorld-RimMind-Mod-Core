@@ -51,6 +51,9 @@
   <RimMind.Settings.TestConnection>测试连接</RimMind.Settings.TestConnection>
   <RimMind.Settings.Status.NotConfigured>⚠ 未配置 API Key</RimMind.Settings.Status.NotConfigured>
   <RimMind.Settings.Status.Testing>测试中...</RimMind.Settings.Status.Testing>
+  <RimMind.Settings.TestResult.Ok>成功（{0}ms）{1}（{2} tok）</RimMind.Settings.TestResult.Ok>
+  <RimMind.Settings.TestResult.Fail>失败（{0}ms）{1}</RimMind.Settings.TestResult.Fail>
+  <RimMind.Settings.TestResult.Exception>失败：{0}</RimMind.Settings.TestResult.Exception>
   <RimMind.Settings.Show>显示</RimMind.Settings.Show>
   <RimMind.Settings.Hide>隐藏</RimMind.Settings.Hide>
   <!-- Player2 -->
@@ -61,6 +64,7 @@
   <RimMind.Settings.Player2.NotAvailable>Player2 不可用：未检测到本地应用且未配置 API Key</RimMind.Settings.Player2.NotAvailable>
   <RimMind.Settings.Player2.RemoteUrl>远程 API 地址</RimMind.Settings.Player2.RemoteUrl>
   <RimMind.Settings.Player2.RemoteUrl.Desc>Player2 远程服务地址。默认为 https://api.player2.game，一般无需修改。</RimMind.Settings.Player2.RemoteUrl.Desc>
+  <RimMind.Settings.Player2.BalanceJoules>能量值（Joules）：{0}</RimMind.Settings.Player2.BalanceJoules>
   <RimMind.Settings.Player2.BalanceUnknown>余额：未知</RimMind.Settings.Player2.BalanceUnknown>
   <RimMind.Settings.Player2.RefreshBalance>刷新余额</RimMind.Settings.Player2.RefreshBalance>
   <!-- Agent Gizmo -->
@@ -114,6 +118,7 @@
   <RimMind.Settings.Queue.ClearCooldowns>清空冷却</RimMind.Settings.Queue.ClearCooldowns>
   <RimMind.Settings.Queue.PerMod>各 Mod 队列</RimMind.Settings.Queue.PerMod>
   <RimMind.Settings.Queue.NoMods>暂无注册的 Mod 队列</RimMind.Settings.Queue.NoMods>
+  <RimMind.Settings.Queue.MoreRequests>... 另有 {0} 个请求</RimMind.Settings.Queue.MoreRequests>
   <RimMind.Settings.Queue.Cooldown>冷却</RimMind.Settings.Queue.Cooldown>
   <RimMind.Settings.Queue.Ready>就绪</RimMind.Settings.Queue.Ready>
   <RimMind.Settings.Queue.QueueCount>排队</RimMind.Settings.Queue.QueueCount>

@@ -44,7 +44,7 @@ namespace RimMind.Presentation.Settings
         public int contextCalibrateInterval = RimMindDefaults.FlywheelCalibrateInterval;
 
         public bool requestOverlayEnabled = true;
-        public float requestOverlayX = 20f;
+        public float requestOverlayX = 155f;
         public float requestOverlayY = 100f;
         public float requestOverlayW = 300f;
         public float requestOverlayH = 200f;
@@ -138,7 +138,7 @@ namespace RimMind.Presentation.Settings
             Scribe_Values.Look(ref contextDiffLifetimeTicks, "contextDiffLifetimeTicks", RimMindDefaults.ContextDiffLifetimeTicks);
             Scribe_Values.Look(ref contextCalibrateInterval, "contextCalibrateInterval", RimMindDefaults.FlywheelCalibrateInterval);
             Scribe_Values.Look(ref requestOverlayEnabled, "requestOverlayEnabled", true);
-            Scribe_Values.Look(ref requestOverlayX, "requestOverlayX", 20f);
+            Scribe_Values.Look(ref requestOverlayX, "requestOverlayX", 155f);
             Scribe_Values.Look(ref requestOverlayY, "requestOverlayY", 100f);
             Scribe_Values.Look(ref requestOverlayW, "requestOverlayW", 300f);
             Scribe_Values.Look(ref requestOverlayH, "requestOverlayH", 200f);

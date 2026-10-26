@@ -105,7 +105,23 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 TraceId = context.TraceId
             };
 
-            var result = await handler.ExecuteAsync(args, ct);
+            Result<ToolResult, RimMindError> result;
+            try
+            {
+                result = await handler.ExecuteAsync(args, ct);
+            }
+            catch (System.OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (System.Exception ex)
+            {
+                // Isolate tool failures: one throwing handler must not abort the remaining calls
+                // or propagate into retry / circuit-breaker logic as an LLM failure.
+                _log?.Warning($"[RimMind.ToolCall] action=Threw toolName={entry.FunctionName} toolCallId={entry.Id} npcId={context.Envelope?.NpcId ?? "none"} error={ex.GetType().Name}: {ex.Message}");
+                return ToolResult.Fail($"Tool threw {ex.GetType().Name}: {ex.Message}", entry.Id, entry.FunctionName);
+            }
+
             return result.Match(
                 ok =>
                 {

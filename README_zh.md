@@ -1,14 +1,14 @@
 <div align="center">
 
 # RimMind-Core 🧠
-### 专为 RimWorld 1.6 打造的底层大模型运行时、上下文编排与 ToolCall 框架
+### 专为 RimWorld 1.6 & 1.7 打造的底层大模型运行时、上下文编排与 ToolCall 框架
 
 [English](README.md) | **简体中文**
 
 <p>
-  <a href="https://rimworldgame.com/"><img src="https://img.shields.io/badge/RimWorld-1.6-brightgreen.svg" alt="RimWorld 1.6"></a>
-  <a href="https://github.com/pardeike/Harmony"><img src="https://img.shields.io/badge/Harmony-2.x-blue.svg" alt="Harmony 2.x"></a>
-  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET%20Framework-4.8%20%7C%20C%23%2010-purple.svg" alt="C# 10 / .NET Framework 4.8"></a>
+  <a href="https://rimworldgame.com/"><img src="https://img.shields.io/badge/RimWorld-1.6%20%7C%201.7-brightgreen.svg" alt="RimWorld 1.6 | 1.7"></a>
+  <a href="https://github.com/pardeike/Harmony"><img src="https://img.shields.io/badge/Harmony-2.x%20%7C%203.x-blue.svg" alt="Harmony 2.x | 3.x"></a>
+  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-4.8%20%7C%2010.0%20%7C%20C%23%2010-purple.svg" alt="C# 10 / .NET 4.8 | 10.0"></a>
   <a href="#"><img src="https://img.shields.io/badge/架构契约测试-100%25%20通过-success.svg" alt="架构测试"></a>
   <a href="#"><img src="https://img.shields.io/badge/单元测试-110%2B%20通过-success.svg" alt="单元测试"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/开源协议-MIT-yellow.svg" alt="License: MIT"></a>

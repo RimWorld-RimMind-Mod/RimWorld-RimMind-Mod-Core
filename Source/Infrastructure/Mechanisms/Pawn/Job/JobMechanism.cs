@@ -59,9 +59,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 
         public override Task<Result<bool, RimMindError>> ExecuteSetAsync(MechanismWriteArgs args, CancellationToken ct)
         {
-            var pawn = FindPawn(args.PawnId);
+            var pawn = FindWritableColonist(args.PawnId, allowDowned: JobActionDispatcher.AllowsDownedActor(args.Action), out var pawnError);
             if (pawn == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(args.PawnId)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(pawnError!));
 
             var result = args.Action switch
             {

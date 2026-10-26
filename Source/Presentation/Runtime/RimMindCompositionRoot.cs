@@ -122,6 +122,7 @@ namespace RimMind.Presentation.Runtime
                 var logSink = infraBag.LogSink;
                 var tickProvider = infraBag.TickProvider;
                 var agentBus = appBag.AgentBus;
+                (agentBus as Application.Features.AgentBus.AgentBusImpl)?.SetLogSink(logSink);
                 var flywheelParameterStore = appBag.ParameterStore;
                 var npcManagers = new NpcManagerAccessor();
                 var aiDebugLogs = new AIDebugLogAccessor();
@@ -146,11 +147,22 @@ namespace RimMind.Presentation.Runtime
                     flywheelParameterStore,
                     new EmbedCache());
                 owned.Add(new ActionLease(contextServices.InnerVoiceHandler.StopListening));
+                var lifecycleCleanupKey = agentBus.Subscribe<Domain.Events.AgentLifecycleEvent>(evt =>
+                {
+                    if (!string.IsNullOrEmpty(evt.NpcId) &&
+                        (string.Equals(evt.NewState, "Dead", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(evt.NewState, "Removed", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(evt.NewState, "Despawned", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        contextServices.ContextEngine.InvalidateNpc(evt.NpcId);
+                    }
+                });
+                owned.Add(new ActionLease(() => agentBus.Unsubscribe<Domain.Events.AgentLifecycleEvent>(lifecycleCleanupKey)));
 
                 var busMiddleware = extensions.GetExtensionRegistry<IMiddleware<BusPublishContext>>();
                 services.Bind(busMiddleware);
                 var busPublishPipeline = BusPublishPipelineFactory.Build(
-                    evt => agentBus.DispatchAction?.Invoke(evt),
+                    agentBus.DispatchAction ?? (evt => agentBus.DispatchAction?.Invoke(evt)),
                     logSink,
                     infraBag.ThreadChecker,
                     busMiddleware);

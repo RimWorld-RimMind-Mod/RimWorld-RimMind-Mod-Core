@@ -30,6 +30,11 @@ namespace RimMind.Infrastructure.Verse
         private long? _registeredLoopGeneration;
         private long? _registeredHubGeneration;
         private long _agentRuntimeGeneration = -1;
+        private long _cachedServicesGeneration = -1;
+        private IPawnAgentFactoryVerse? _cachedFactory;
+        private IAgentBus? _cachedAgentBus;
+        private IAgentLoopScheduler? _cachedScheduler;
+        private IAgentTickSettings? _cachedTickSettings;
 
         public IPawnAgentVerse? Agent
         {
@@ -55,12 +60,26 @@ namespace RimMind.Infrastructure.Verse
         public override void CompTick()
         {
             base.CompTick();
+            if (parent == null || !parent.IsHashIntervalTick(60))
+                return;
+
+            if (!(parent is Pawn pawn) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+            {
+                UnregisterFromAgentLoop();
+                if (_agent != null)
+                {
+                    _agent.Destroy();
+                    _agent = null;
+                }
+                return;
+            }
+
+            EnsureServicesCached();
             EnsureCurrentAgent();
             EnsureAgentLoopRegistration();
 
-            var tickSettings = RuntimeServiceHub.Shared.Capture().GetOptional<IAgentTickSettings>();
+            var tickSettings = _cachedTickSettings;
             if (tickSettings?.AutoActivateColonistAgents == true
-                && RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(Pawn)
                 && _agent != null && _agent.State == AgentState.Dormant)
             {
                 _agent.TransitionTo(AgentState.Active);
@@ -75,7 +94,7 @@ namespace RimMind.Infrastructure.Verse
                 return;
             }
 
-            if (!(parent is Pawn pawn))
+            if (!(parent is Pawn pawn) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
             {
                 UnregisterFromAgentLoop();
                 return;
@@ -90,7 +109,8 @@ namespace RimMind.Infrastructure.Verse
                 return;
             }
 
-            var scheduler = RuntimeServiceHub.Shared.Capture().GetOptional<IAgentLoopScheduler>();
+            EnsureServicesCached();
+            var scheduler = _cachedScheduler;
             if (scheduler == null)
             {
                 UnregisterFromAgentLoop();
@@ -138,6 +158,29 @@ namespace RimMind.Infrastructure.Verse
             _registeredHubGeneration = null;
         }
 
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            UnregisterFromAgentLoop();
+            ClearIntentSession();
+            base.PostDeSpawn(map, mode);
+        }
+
+        public override void Notify_Killed(Map prevMap, DamageInfo? dinfo = null)
+        {
+            if (parent is Pawn pawn)
+            {
+                RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(pawn);
+            }
+            UnregisterFromAgentLoop();
+            ClearIntentSession();
+            if (_agent != null)
+            {
+                _agent.Destroy();
+                _agent = null;
+            }
+            base.Notify_Killed(prevMap, dinfo);
+        }
+
         public override void PostDestroy(DestroyMode mode, Map previousMap)
         {
             if (parent is Pawn pawn)
@@ -145,20 +188,31 @@ namespace RimMind.Infrastructure.Verse
                 RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(pawn);
             }
             UnregisterFromAgentLoop();
+            ClearIntentSession();
+            if (_agent != null)
+            {
+                _agent.Destroy();
+                _agent = null;
+            }
             base.PostDestroy(mode, previousMap);
         }
 
         public override void PostExposeData()
         {
             base.PostExposeData();
-            var scope = RuntimeServiceHub.Shared.Capture();
-            var factory = scope.GetOptional<IPawnAgentFactoryVerse>();
-            if (factory != null)
+            bool skipSavingAgent = Scribe.mode == LoadSaveMode.Saving
+                && (_agent == null || !(parent is Pawn p) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p));
+            if (!skipSavingAgent)
             {
-                IPawnAgent? pawnAgent = Agent;
-                factory.SerializeAgent(ref pawnAgent, "pawnAgent");
-                Agent = pawnAgent as IPawnAgentVerse;
-                _agentRuntimeGeneration = scope.Generation;
+                EnsureServicesCached();
+                var factory = _cachedFactory;
+                if (factory != null)
+                {
+                    IPawnAgent? pawnAgent = Agent;
+                    factory.SerializeAgent(ref pawnAgent, "pawnAgent");
+                    Agent = pawnAgent as IPawnAgentVerse;
+                    _agentRuntimeGeneration = _cachedServicesGeneration;
+                }
             }
 
             if (Agent != null && !Agent.IsPawnValid)
@@ -282,10 +336,24 @@ namespace RimMind.Infrastructure.Verse
             return Agent != null;
         }
 
+        private void EnsureServicesCached()
+        {
+            long currentGeneration = RuntimeServiceHub.Shared.Generation;
+            if (_cachedServicesGeneration == currentGeneration)
+                return;
+
+            var scope = RuntimeServiceHub.Shared.Capture();
+            _cachedFactory = scope.GetOptional<IPawnAgentFactoryVerse>();
+            _cachedAgentBus = scope.GetOptional<IAgentBus>();
+            _cachedScheduler = scope.GetOptional<IAgentLoopScheduler>();
+            _cachedTickSettings = scope.GetOptional<IAgentTickSettings>();
+            _cachedServicesGeneration = scope.Generation;
+        }
+
         private void EnsureCurrentAgent()
         {
-            var scope = RuntimeServiceHub.Shared.Capture();
-            EnsureCurrentAgent(scope);
+            EnsureServicesCached();
+            EnsureCurrentAgent(_cachedFactory, _cachedAgentBus, _cachedServicesGeneration);
         }
 
         internal IPawnAgentVerse? ResolveCurrentAgent(RuntimeServiceScope scope)
@@ -301,8 +369,24 @@ namespace RimMind.Infrastructure.Verse
         {
             var factory = scope.GetOptional<IPawnAgentFactoryVerse>();
             var agentBus = scope.GetOptional<IAgentBus>();
+            EnsureCurrentAgent(factory, agentBus, scope.Generation);
+        }
+
+        private void EnsureCurrentAgent(IPawnAgentFactoryVerse? factory, IAgentBus? agentBus, long generation)
+        {
+            if (!(parent is Pawn pawn) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+            {
+                if (Agent != null)
+                {
+                    UnregisterFromAgentLoop();
+                    Agent.Destroy();
+                    Agent = null;
+                }
+                return;
+            }
+
             if (factory == null || agentBus == null) return;
-            if (Agent != null && _agentRuntimeGeneration == scope.Generation) return;
+            if (Agent != null && _agentRuntimeGeneration == generation) return;
 
             if (Agent != null)
             {
@@ -311,8 +395,8 @@ namespace RimMind.Infrastructure.Verse
                 Agent = null;
             }
 
-            Agent = factory.Create(Pawn, agentBus) as IPawnAgentVerse;
-            _agentRuntimeGeneration = scope.Generation;
+            Agent = factory.Create(pawn, agentBus) as IPawnAgentVerse;
+            _agentRuntimeGeneration = generation;
         }
 
     }

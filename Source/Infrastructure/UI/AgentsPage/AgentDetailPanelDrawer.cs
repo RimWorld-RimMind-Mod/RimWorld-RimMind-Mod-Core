@@ -16,6 +16,19 @@ namespace RimMind.Infrastructure.UI.AgentsPage
     {
         private readonly RuntimeServiceRef<IAIRequestTraceLog> _traceLog =
             RuntimeServiceRef<IAIRequestTraceLog>.Optional();
+        private readonly IAIRequestTraceLog? _injectedTraceLog;
+        private IAIRequestTraceLog? _cachedLogInstance;
+        private long _cachedTraceRevision = long.MinValue;
+        private string? _cachedNpcKey;
+        private System.Collections.Generic.IReadOnlyList<AgentRequestTraceRow> _cachedTraceRows =
+            System.Array.Empty<AgentRequestTraceRow>();
+
+        internal int TraceRebuildCount { get; private set; }
+
+        public AgentDetailPanelDrawer(IAIRequestTraceLog? traceLog = null)
+        {
+            _injectedTraceLog = traceLog;
+        }
 
         public AgentPageViewModel? BuildViewModel(Pawn? selectedPawn)
         {
@@ -23,7 +36,11 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 return null;
 
             var comp = CompPawnAgent.GetComp(selectedPawn);
-            var traceRows = BuildTraceRows();
+            string? npcId = comp?.Agent?.NpcId;
+            string? pawnId = !string.IsNullOrWhiteSpace(selectedPawn.ThingID)
+                ? selectedPawn.ThingID
+                : selectedPawn.LabelShortCap;
+            var traceRows = BuildTraceRows(npcId ?? pawnId, pawnId);
             if (comp?.Agent == null)
             {
                 return AgentPageViewModel.PendingCreation(
@@ -160,10 +177,60 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             agent.TransitionTo(target);
         }
 
-        private System.Collections.Generic.IReadOnlyList<AgentRequestTraceRow> BuildTraceRows()
+        private System.Collections.Generic.IReadOnlyList<AgentRequestTraceRow> BuildTraceRows(
+            string? selectedNpcId,
+            string? fallbackPawnId = null)
         {
-            var log = _traceLog.ValueOrDefault;
-            return AgentRequestTraceRowBuilder.BuildRecent(log?.Entries);
+            var log = _injectedTraceLog ?? _traceLog.ValueOrDefault;
+            if (log == null)
+            {
+                _cachedLogInstance = null;
+                _cachedTraceRevision = long.MinValue;
+                _cachedNpcKey = null;
+                _cachedTraceRows = System.Array.Empty<AgentRequestTraceRow>();
+                return _cachedTraceRows;
+            }
+
+            long revision = log.Revision;
+            string cacheKey = string.IsNullOrEmpty(fallbackPawnId) || fallbackPawnId == selectedNpcId
+                ? (selectedNpcId ?? string.Empty)
+                : $"{selectedNpcId}|{fallbackPawnId}";
+
+            if (ReferenceEquals(_cachedLogInstance, log)
+                && _cachedTraceRevision == revision
+                && string.Equals(_cachedNpcKey, cacheKey, System.StringComparison.Ordinal))
+            {
+                return _cachedTraceRows;
+            }
+
+            System.Collections.Generic.IReadOnlyList<RimMind.Application.Common.Models.Debug.AIRequestTraceEntry> recentEntries;
+            if (log is AIRequestTraceLog concreteLog)
+            {
+                recentEntries = concreteLog.GetRecent(
+                    AgentRequestTraceRowBuilder.DefaultLimit,
+                    selectedNpcId,
+                    fallbackPawnId);
+            }
+            else
+            {
+                var all = log.Entries;
+                var filtered = new System.Collections.Generic.List<RimMind.Application.Common.Models.Debug.AIRequestTraceEntry>();
+                for (int i = 0; i < all.Count; i++)
+                {
+                    if (AIRequestTraceLog.MatchesActor(all[i], selectedNpcId, fallbackPawnId))
+                        filtered.Add(all[i]);
+                }
+                recentEntries = filtered;
+            }
+
+            _cachedTraceRows = AgentRequestTraceRowBuilder.BuildRecent(
+                recentEntries,
+                AgentRequestTraceRowBuilder.DefaultLimit);
+            _cachedLogInstance = log;
+            _cachedTraceRevision = revision;
+            _cachedNpcKey = cacheKey;
+            TraceRebuildCount++;
+            return _cachedTraceRows;
         }
     }
 }

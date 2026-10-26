@@ -52,7 +52,7 @@ namespace RimMind.Infrastructure.Mechanisms.World.Storyteller
                 def = storyteller.def.defName,
                 label = storyteller.def.label,
                 difficulty = Find.Storyteller?.difficultyDef?.defName,
-                threatPoints = Find.CurrentMap != null ? StorytellerUtility.DefaultThreatPointsNow(Find.CurrentMap) : 0
+                threatPoints = (UnityData.IsInMainThread && Find.CurrentMap != null) ? StorytellerUtility.DefaultThreatPointsNow(Find.CurrentMap) : 0
             };
 
             return Task.FromResult(Result<string, RimMindError>.Ok(JsonConvert.SerializeObject(info)));

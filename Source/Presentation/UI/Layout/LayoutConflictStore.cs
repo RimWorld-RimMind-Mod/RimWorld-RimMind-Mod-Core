@@ -52,11 +52,19 @@ namespace RimMind.Presentation.UI.Layout
         public static void Clear() => _reports.Clear();
 
         /// <summary>
+        /// Explicit flag enabling layout trace recording and conflict detection
+        /// (e.g. during layout autotests or debug inspection).
+        /// </summary>
+        public static bool TracingEnabled { get; set; }
+
+        /// <summary>
         /// When true, RimMindLayoutScope.Dispose draws colored boxes around
         /// conflicting rects for one frame. Toggled by debug action.
         /// </summary>
         public static bool ShowOverlay { get; set; }
 
         public static int OverlayFrameRemaining { get; set; }
+
+        public static bool IsTracingActive => TracingEnabled || ShowOverlay || OverlayFrameRemaining > 0;
     }
 }

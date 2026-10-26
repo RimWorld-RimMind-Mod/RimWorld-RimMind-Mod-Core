@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Context;
+using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Context;
 using RimMind.Domain.Interfaces;
 using RimMind.Domain.ValueObjects;
@@ -11,11 +13,15 @@ namespace RimMind.Application.Features.Context
 {
     public sealed class BudgetScheduler : IBudgetScheduler
     {
+        private const float DefaultTokensPerKey = 100f;
+        private const int MaxTrackedCooldownEntries = 2048;
+
         private BudgetSchedulerConfig _config = new BudgetSchedulerConfig();
         private readonly IRelevanceTable? _relevanceTable;
         private readonly IRelevanceLearner? _learner;
         private readonly ITickProvider? _tickProvider;
         private readonly IEmbedCache? _embedCache;
+        private readonly ConcurrentDictionary<(string Scenario, string NpcId, string Key), int> _lastIncludedTicks = new();
 
         public BudgetScheduler(IRelevanceTable? relevanceTable = null, IRelevanceLearner? learner = null, ITickProvider? tickProvider = null, IEmbedCache? embedCache = null)
         {
@@ -29,63 +35,35 @@ namespace RimMind.Application.Features.Context
 
         public BudgetAllocation Schedule(List<KeyMeta> keys, string scenarioId, float budget, string? currentQuery)
         {
-            var result = new BudgetAllocation();
-            if (keys == null || keys.Count == 0) return result;
-
             int nowTicks = _tickProvider?.TicksGame ?? 0;
-
             var sctx = new ScoringContext
             {
-                Scenario = scenarioId,
+                Scenario = scenarioId ?? string.Empty,
                 NowTicks = nowTicks,
                 Query = currentQuery,
                 UserPinnedKeys = new HashSet<string>()
             };
-
-            float totalWeight = 0;
-            var scored = new List<(KeyMeta key, float score)>();
-            foreach (var key in keys)
-            {
-                float score = ScoreKey(key, sctx);
-                scored.Add((key, score));
-                totalWeight += Math.Max(0, score);
-            }
-
-            if (totalWeight <= 0) return result;
-
-            scored.Sort((a, b) => b.score.CompareTo(a.score));
-
-            float cumulative = 0;
-            foreach (var (key, score) in scored)
-            {
-                float fraction = Math.Max(0, score) / totalWeight;
-                cumulative += fraction;
-
-                var target = ChooseLayer(key.Layer, cumulative);
-                AddToAllocation(result, target, key);
-
-                // Write back telemetry and cooldown tracking
-                key.CurrentScore = score;
-                key.LastIncludedTick = sctx.NowTicks;
-            }
-
-            return result;
+            return ScheduleWithContext(keys, sctx, budget);
         }
 
         /// <summary>
         /// Schedule overload that accepts a pre-built ScoringContext for testing and advanced scenarios.
+        /// Computes per-call scores into <see cref="BudgetAllocation.KeyScores"/> and tracks cooldown ticks
+        /// per (scenario, npcId, key) without mutating shared <see cref="KeyMeta"/> instances.
         /// </summary>
         public BudgetAllocation ScheduleWithContext(List<KeyMeta> keys, ScoringContext sctx, float budget)
         {
             var result = new BudgetAllocation();
             if (keys == null || keys.Count == 0) return result;
 
+            sctx ??= new ScoringContext();
             float totalWeight = 0;
-            var scored = new List<(KeyMeta key, float score)>();
+            var scored = new List<(KeyMeta key, float score)>(keys.Count);
             foreach (var key in keys)
             {
                 float score = ScoreKey(key, sctx);
                 scored.Add((key, score));
+                result.KeyScores[key.Key] = score;
                 totalWeight += Math.Max(0, score);
             }
 
@@ -93,17 +71,31 @@ namespace RimMind.Application.Features.Context
 
             scored.Sort((a, b) => b.score.CompareTo(a.score));
 
-            float cumulative = 0;
-            foreach (var (key, score) in scored)
+            float tokenBudget = ResolveTokenBudget(scored, budget);
+            float usedTokens = 0f;
+
+            // First pass: always include essential keys (L0_Static and user-pinned keys)
+            foreach (var (key, _) in scored)
             {
-                float fraction = Math.Max(0, score) / totalWeight;
-                cumulative += fraction;
+                if (!IsEssentialKey(key, sctx)) continue;
+                AddToAllocation(result, key.Layer, key);
+                usedTokens += EstimateKeyTokens(key);
+                RecordIncludedTick(sctx, key.Key);
+            }
 
-                var target = ChooseLayer(key.Layer, cumulative);
-                AddToAllocation(result, target, key);
+            // Second pass: include highest-scoring optional keys within token budget
+            foreach (var (key, _) in scored)
+            {
+                if (IsEssentialKey(key, sctx)) continue;
+                float estimatedTokens = EstimateKeyTokens(key);
+                if (tokenBudget < float.MaxValue && usedTokens + estimatedTokens > tokenBudget)
+                {
+                    continue;
+                }
 
-                key.CurrentScore = score;
-                key.LastIncludedTick = sctx.NowTicks;
+                usedTokens += estimatedTokens;
+                AddToAllocation(result, key.Layer, key);
+                RecordIncludedTick(sctx, key.Key);
             }
 
             return result;
@@ -127,7 +119,7 @@ namespace RimMind.Application.Features.Context
             float Rc = ComputeRecency(sctx.NowTicks, key);
             float F = GetFeedbackScore(sctx.Scenario, key);
             float Pin = sctx.UserPinnedKeys.Contains(key.Key) ? 1f : 0f;
-            float Cd = ComputeCooldownPenalty(sctx.NowTicks, key);
+            float Cd = ComputeCooldownPenalty(sctx, key);
 
             return w.W1 * P
                  + w.W2 * Rs
@@ -157,13 +149,64 @@ namespace RimMind.Application.Features.Context
             return (float)Math.Exp(-age / (float)_config.RecencyHalflife);
         }
 
-        private float ComputeCooldownPenalty(int nowTicks, KeyMeta key)
+        private float ComputeCooldownPenalty(ScoringContext sctx, KeyMeta key)
         {
-            if (key.LastIncludedTick <= 0) return 0f;
-            int delta = nowTicks - key.LastIncludedTick;
+            int lastIncludedTick = GetLastIncludedTick(sctx, key);
+            if (lastIncludedTick <= 0) return 0f;
+            int delta = sctx.NowTicks - lastIncludedTick;
             if (delta < 0) return 0f;  // future tick -> no penalty
             if (delta >= _config.CooldownWindow) return 0f;
             return 1f - (float)delta / _config.CooldownWindow;
+        }
+
+        private int GetLastIncludedTick(ScoringContext sctx, KeyMeta key)
+        {
+            var scopeKey = (sctx.Scenario ?? string.Empty, sctx.NpcId ?? string.Empty, key.Key);
+            if (_lastIncludedTicks.TryGetValue(scopeKey, out int tick))
+                return tick;
+            return key.LastIncludedTick;
+        }
+
+        private void RecordIncludedTick(ScoringContext sctx, string key)
+        {
+            if (sctx.NowTicks <= 0) return;
+            if (_lastIncludedTicks.Count >= MaxTrackedCooldownEntries)
+                _lastIncludedTicks.Clear();
+            var scopeKey = (sctx.Scenario ?? string.Empty, sctx.NpcId ?? string.Empty, key);
+            _lastIncludedTicks[scopeKey] = sctx.NowTicks;
+        }
+
+        private static bool IsEssentialKey(KeyMeta key, ScoringContext sctx)
+        {
+            if (key.Layer == ContextLayer.L0_Static) return true;
+            if (sctx.UserPinnedKeys != null && sctx.UserPinnedKeys.Contains(key.Key)) return true;
+            return false;
+        }
+
+        private static float EstimateKeyTokens(KeyMeta key)
+        {
+            return key.CurrentE > 0f ? key.CurrentE : DefaultTokensPerKey;
+        }
+
+        private static float ResolveTokenBudget(List<(KeyMeta key, float score)> scored, float budget)
+        {
+            if (budget <= 0f) return float.MaxValue;
+            if (budget > 1.0f) return budget;
+
+            bool hasExplicitEstimates = false;
+            float totalEstimated = 0f;
+            foreach (var (key, _) in scored)
+            {
+                if (key.CurrentE > 0f) hasExplicitEstimates = true;
+                totalEstimated += EstimateKeyTokens(key);
+            }
+
+            if (hasExplicitEstimates)
+            {
+                return Math.Min(budget * RimMindDefaults.DefaultTotalBudget, totalEstimated * budget);
+            }
+
+            return budget * RimMindDefaults.DefaultTotalBudget;
         }
 
         private float GetFeedbackScore(string scenario, KeyMeta key)

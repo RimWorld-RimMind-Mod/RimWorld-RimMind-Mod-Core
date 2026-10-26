@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
@@ -53,14 +55,28 @@ public static class ThinkStrategyHelper
         return sb.ToString();
     }
 
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(50);
+
+    private static readonly Regex PseudoFunctionCallRegex = new Regex(
+        @"\b(?<fn>[a-z_][a-z0-9_.]*)\((?<inner>[\s\S]+?)\)?\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex PseudoFunctionKeyRegex = new Regex(
+        @"(?:^|,\s*)(?<key>[a-z_][a-z0-9_]*)\)?\s*[:=]\s*",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly List<ChatMessage> CachedDecisionExamples = CreateDecisionExamples();
+
     public static bool IsQueryToolName(string? toolName)
     {
-        if (string.IsNullOrEmpty(toolName)) return true;
-        return toolName!.StartsWith("query", System.StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("actions_query", System.StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("get_", System.StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("list_", System.StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("inspect_", System.StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(toolName)) return false;
+        return toolName!.StartsWith("query", StringComparison.OrdinalIgnoreCase)
+            || toolName.StartsWith("actions_query", StringComparison.OrdinalIgnoreCase)
+            || toolName.StartsWith("get_", StringComparison.OrdinalIgnoreCase)
+            || toolName.StartsWith("list_", StringComparison.OrdinalIgnoreCase)
+            || toolName.StartsWith("inspect_", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string TruncateReason(string? text, int maxChars = 240)
@@ -136,18 +152,34 @@ public static class ThinkStrategyHelper
         string trimmed = content!.Trim();
 
         // 1. Check pseudo-function call syntax: tool_name(key=val, ...)
-        var match = System.Text.RegularExpressions.Regex.Match(
-            trimmed,
-            @"\b(?<fn>[a-z_][a-z0-9_]*)\s*\((?<inner>[\s\S]+?)\)?\s*$",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        // Require a structured tool identifier (containing '_' or '.') immediately followed by '('
+        // so ordinary parenthetical prose like "I'm tired (reason: no sleep)" is never treated as a tool call.
+        Match match;
+        try
+        {
+            match = PseudoFunctionCallRegex.Match(trimmed);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return (null, null, null, null);
+        }
+
         if (match.Success)
         {
             string fnName = match.Groups["fn"].Value;
+            if (!IsValidFallbackToolIdentifier(fnName))
+                return (null, null, null, null);
+
             string inner = match.Groups["inner"].Value.Trim();
-            var keyMatches = System.Text.RegularExpressions.Regex.Matches(
-                inner,
-                @"(?:^|,\s*)(?<key>[a-z_][a-z0-9_]*)\)?\s*[:=]\s*",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            MatchCollection keyMatches;
+            try
+            {
+                keyMatches = PseudoFunctionKeyRegex.Matches(inner);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return (null, null, null, null);
+            }
             if (keyMatches.Count > 0)
             {
                 var jObj = new Newtonsoft.Json.Linq.JObject();
@@ -235,9 +267,24 @@ public static class ThinkStrategyHelper
         }
     }
 
-    public static List<ChatMessage> BuildDecisionExamples()
+    private static bool IsValidFallbackToolIdentifier(string? fnName)
     {
-        var messages = new List<ChatMessage>();
+        if (string.IsNullOrWhiteSpace(fnName)) return false;
+        if (fnName!.IndexOf('_') < 0 && fnName.IndexOf('.') < 0) return false;
+        if (fnName[0] == '.' || fnName[fnName.Length - 1] == '.') return false;
+        foreach (char c in fnName)
+        {
+            if (!(char.IsLetterOrDigit(c) || c == '_' || c == '.'))
+                return false;
+        }
+        return true;
+    }
+
+    public static List<ChatMessage> BuildDecisionExamples() => CachedDecisionExamples;
+
+    private static List<ChatMessage> CreateDecisionExamples()
+    {
+        var messages = new List<ChatMessage>(DecisionExampleData.Examples.Length * 2);
         foreach (var (user, assistant) in DecisionExampleData.Examples)
         {
             messages.Add(new ChatMessage { Role = "user", Content = user });

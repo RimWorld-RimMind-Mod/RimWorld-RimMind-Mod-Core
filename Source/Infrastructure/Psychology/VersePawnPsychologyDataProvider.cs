@@ -39,35 +39,9 @@ namespace RimMind.Infrastructure.Psychology
             return pawn?.MentalStateDef != null;
         }
 
+        // Read-only queries stay lenient (any live loaded pawn) but go through the shared lookup:
+        // no WorldPawns scan, cache-only off the main thread, negatively cached misses.
         private static VersePawn? FindPawn(int pawnId)
-        {
-            var cached = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
-            if (cached != null) return cached;
-
-            if (UnityData.IsInMainThread)
-            {
-                if (Find.Maps != null)
-                {
-                    foreach (var map in Find.Maps)
-                    {
-                        var pawn = map.mapPawns?.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                        if (pawn != null)
-                        {
-                            Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
-                            return pawn;
-                        }
-                    }
-                }
-
-                var worldPawn = Find.WorldPawns?.AllPawnsAlive?.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                if (worldPawn != null)
-                {
-                    Presentation.Api.RimMindPawnLookup.CachePawn(worldPawn);
-                    return worldPawn;
-                }
-            }
-
-            return null;
-        }
+            => Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
     }
 }

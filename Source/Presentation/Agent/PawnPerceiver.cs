@@ -25,6 +25,8 @@ namespace RimMind.Presentation.Agent
         private readonly IPawnAgentVerse _agent;
         private readonly IAgentBus _agentBus;
         private readonly IExtensionRegistry<IPerceptionSource>? _sourceRegistry;
+        private readonly List<IPerceptionSource> _sources = new List<IPerceptionSource>();
+        private int _lastRegistryCount = -1;
         private readonly HashSet<string> _sensedHediffs = new HashSet<string>();
         private int _lastPerceptionTick;
         private int _perceptionInterval = DefaultPerceptionInterval;
@@ -35,6 +37,33 @@ namespace RimMind.Presentation.Agent
             _agent = agent ?? throw new ArgumentNullException(nameof(agent));
             _agentBus = agentBus ?? throw new ArgumentNullException(nameof(agentBus));
             _sourceRegistry = sourceRegistry;
+        }
+
+        public void RegisterSource(IPerceptionSource source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            _sources.RemoveAll(s => string.Equals(s.Id, source.Id, StringComparison.Ordinal));
+            _sources.Add(source);
+            _sources.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
+        }
+
+        private List<IPerceptionSource> GetSortedSources()
+        {
+            if (_sourceRegistry != null)
+            {
+                var registered = _sourceRegistry.All;
+                if (registered != null && registered.Count != _lastRegistryCount)
+                {
+                    _sources.Clear();
+                    for (int i = 0; i < registered.Count; i++)
+                    {
+                        _sources.Add(registered[i]);
+                    }
+                    _sources.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
+                    _lastRegistryCount = registered.Count;
+                }
+            }
+            return _sources;
         }
 
         public void Tick()
@@ -54,12 +83,12 @@ namespace RimMind.Presentation.Agent
             _sensedHediffs.Clear();
 
             // Use registered perception sources if available
-            var sources = _sourceRegistry?.All;
-            if (sources != null && sources.Count > 0)
+            var sortedSources = GetSortedSources();
+            if (sortedSources.Count > 0)
             {
-                var sortedSources = sources.OrderBy(s => s.Priority).ToList();
-                foreach (var source in sortedSources)
+                for (int i = 0; i < sortedSources.Count; i++)
                 {
+                    var source = sortedSources[i];
                     if (!source.ShouldSense(_agent)) continue;
                     var entries = source.Sense(_agent);
                     foreach (var entry in entries)

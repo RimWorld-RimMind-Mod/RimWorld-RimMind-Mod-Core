@@ -31,7 +31,9 @@ public sealed class ReactiveAgentMode : IAgentMode
     public bool ShouldThink(IAgentInfo agent, IReadOnlyList<PerceptionBufferEntry> perceptions)
         => perceptions.Count > 0;
 
-    public IThinkStrategy GetThinkStrategy() => new ReactiveThinkStrategy();
+    private static readonly ReactiveThinkStrategy SharedStrategy = new ReactiveThinkStrategy();
+
+    public IThinkStrategy GetThinkStrategy() => SharedStrategy;
 
     private static readonly string[] ExcludedToolPrefixes = { "planning.", "dream.", "reflect.", "trait_evolution." };
 
@@ -44,6 +46,8 @@ public sealed class ReactiveAgentMode : IAgentMode
 
 internal sealed class ReactiveThinkStrategy : IThinkStrategy
 {
+    private static readonly List<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
+
     public string ScenarioId => ScenarioIds.Decision;
 
     public LlmRequestEnvelope BuildEnvelope(IAgentInfo agent,
@@ -52,7 +56,7 @@ internal sealed class ReactiveThinkStrategy : IThinkStrategy
     {
         var query = ThinkStrategyHelper.FormatPerceptions(perceptions);
         var domainTools = ThinkStrategyHelper.ConvertToDomainTools(availableTools);
-        var examples = ThinkStrategyHelper.BuildDecisionExamples();
+        var examples = CachedExamples;
         return LlmRequestEnvelopeBuilder
             .ForScenario(ScenarioId)
             .WithModId("RimMind.Agent")

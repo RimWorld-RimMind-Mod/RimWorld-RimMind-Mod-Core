@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Agent;
@@ -110,6 +111,7 @@ namespace RimMind.Presentation.Agent
             _thinker = thinker!;
             _actor = actor!;
             _recorder = recorder!;
+            _lastTick = TickStagger.InitialLastTick(pawn.thingIDNumber, TickInterval);
             Identity = new SerializableAgentIdentity($"NPC-{pawn.thingIDNumber}", pawn.thingIDNumber, pawn.Name?.ToStringFull ?? pawn.Label ?? "Unknown");
         }
 
@@ -134,9 +136,9 @@ namespace RimMind.Presentation.Agent
                 return;
             }
 
-            if (!Pawn.Spawned || Pawn.Map == null || Pawn.IsKidnapped())
+            if (!RimMindPawnLookup.IsActiveSpawnedColonist(Pawn))
             {
-                // Pawn is off-map, kidnapped, or in world transit; skip agent execution
+                // Pawn is off-map, kidnapped, prisoner/slave, or non-colonist; skip agent execution
                 return;
             }
 
@@ -318,17 +320,28 @@ namespace RimMind.Presentation.Agent
 
         private void SubmitDecisionForApproval(AgentDecision decision, RiskLevel riskLevel)
         {
-            string approveLabel = "RimMind.Agent.Request.Approve".Translate();
-            string rejectLabel = "RimMind.Agent.Request.Reject".Translate();
+            string approveLabel = "RimMind.Agent.Request.Approve".CanTranslate()
+                ? "RimMind.Agent.Request.Approve".Translate().ToString()
+                : "Approve";
+            string rejectLabel = "RimMind.Agent.Request.Reject".CanTranslate()
+                ? "RimMind.Agent.Request.Reject".Translate().ToString()
+                : "Reject";
             string pawnLabel = Pawn?.LabelShort ?? Identity?.DisplayName ?? "Pawn";
             string intent = decision.ActionIntent ?? "action";
-            string reason = decision.Reason ?? intent;
+            string readableIntent = RimMind.Presentation.Api.RimMindPawnLookup.FormatHumanReadableActionName(intent);
+            string reason = !string.IsNullOrWhiteSpace(decision.Reason) &&
+                            !string.Equals(decision.Reason, intent, StringComparison.OrdinalIgnoreCase)
+                ? decision.Reason!
+                : readableIntent;
+            string titleText = "RimMind.Agent.Request.RiskAction".CanTranslate()
+                ? "RimMind.Agent.Request.RiskAction".Translate(riskLevel.ToString(), pawnLabel, readableIntent).ToString()
+                : $"[{riskLevel}] {pawnLabel} requests execution: {readableIntent}";
 
             var entry = new RequestEntry
             {
                 source = "agent",
                 pawn = Pawn,
-                title = "RimMind.Agent.Request.RiskAction".Translate(riskLevel.ToString(), pawnLabel, intent),
+                title = titleText,
                 description = reason,
                 systemBlocked = true,
                 expireTicks = 30000,

@@ -133,37 +133,14 @@ namespace RimMind.Infrastructure.Verse
                 _pawnIndex.TryRemove(thingId, out _);
             }
 
-            var cached = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(thingId);
-            if (cached != null)
+            // Single lookup path: maps (incl. prisoners/visitors) + caravans, never WorldPawns;
+            // off-main-thread calls are cache-only and misses are negatively cached.
+            var found = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(thingId);
+            if (found != null)
             {
-                _pawnIndex[thingId] = cached;
-                return cached;
+                _pawnIndex[thingId] = found;
             }
-
-            if (!UnityData.IsInMainThread)
-            {
-                return null;
-            }
-
-            foreach (var map in Find.Maps)
-            {
-                if (map?.mapPawns == null) continue;
-                var pawn = map.mapPawns.AllPawns.FirstOrDefault(p => p.thingIDNumber == thingId);
-                if (pawn != null)
-                {
-                    _pawnIndex[thingId] = pawn;
-                    RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
-                    return pawn;
-                }
-            }
-
-            var worldPawn = Find.WorldPawns?.AllPawnsAlive.FirstOrDefault(p => p.thingIDNumber == thingId);
-            if (worldPawn != null)
-            {
-                _pawnIndex[thingId] = worldPawn;
-                RimMind.Presentation.Api.RimMindPawnLookup.CachePawn(worldPawn);
-            }
-            return worldPawn;
+            return found;
         }
 
         public Pawn? FindProxyPawnForMap(Map map)
@@ -175,11 +152,10 @@ namespace RimMind.Infrastructure.Verse
                 return RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map).FirstOrDefault();
             }
 
-            var colonist = map.mapPawns?.FreeColonists?
+            // FreeColonists already contains every free non-slave colonist on the map; the former
+            // second AllPawns scan with the same predicate could never find anything extra.
+            return map.mapPawns?.FreeColonists?
                 .FirstOrDefault(p => p.IsFreeNonSlaveColonist && !p.Dead);
-            if (colonist != null) return colonist;
-            return map.mapPawns?.AllPawns?
-                .FirstOrDefault(p => p.IsFreeNonSlaveColonist && !p.Dead) ?? null;
         }
 
         object? INpcManager.FindPawnByNpcId(string npcId) => FindPawnByNpcId(npcId);

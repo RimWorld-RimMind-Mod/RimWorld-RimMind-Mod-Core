@@ -1,14 +1,14 @@
 <div align="center">
 
 # RimMind-Core 🧠
-### Foundational LLM Runtime, Context Engine & ToolCall Framework for RimWorld 1.6
+### Foundational LLM Runtime, Context Engine & ToolCall Framework for RimWorld 1.6 & 1.7
 
 **English** | [简体中文](README_zh.md)
 
 <p>
-  <a href="https://rimworldgame.com/"><img src="https://img.shields.io/badge/RimWorld-1.6-brightgreen.svg" alt="RimWorld 1.6"></a>
-  <a href="https://github.com/pardeike/Harmony"><img src="https://img.shields.io/badge/Harmony-2.x-blue.svg" alt="Harmony 2.x"></a>
-  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET%20Framework-4.8%20%7C%20C%23%2010-purple.svg" alt="C# 10 / .NET Framework 4.8"></a>
+  <a href="https://rimworldgame.com/"><img src="https://img.shields.io/badge/RimWorld-1.6%20%7C%201.7-brightgreen.svg" alt="RimWorld 1.6 | 1.7"></a>
+  <a href="https://github.com/pardeike/Harmony"><img src="https://img.shields.io/badge/Harmony-2.x%20%7C%203.x-blue.svg" alt="Harmony 2.x | 3.x"></a>
+  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-4.8%20%7C%2010.0%20%7C%20C%23%2010-purple.svg" alt="C# 10 / .NET 4.8 | 10.0"></a>
   <a href="#"><img src="https://img.shields.io/badge/Architecture%20Tests-100%25%20Passing-success.svg" alt="Architecture Tests"></a>
   <a href="#"><img src="https://img.shields.io/badge/Unit%20Tests-110%2B%20Passing-success.svg" alt="Unit Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>

@@ -24,16 +24,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             if (string.IsNullOrWhiteSpace(modelName))
                 return string.Empty;
 
-            string trimmedModel = modelName!.Trim();
-            if (!string.IsNullOrWhiteSpace(endpoint) &&
-                endpoint!.IndexOf("opencode.ai", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                trimmedModel.EndsWith("-free", StringComparison.OrdinalIgnoreCase) &&
-                trimmedModel.Length > 5)
-            {
-                return trimmedModel.Substring(0, trimmedModel.Length - 5);
-            }
-
-            return trimmedModel;
+            return modelName!.Trim();
         }
 
         private static void EnsureJsonKeyword(List<MessageDto> messages)

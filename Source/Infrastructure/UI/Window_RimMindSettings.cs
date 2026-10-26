@@ -41,6 +41,7 @@ namespace RimMind.Infrastructure.UI
 
         public override void PreClose()
         {
+            ApiTabDrawer.ResetSecretVisibility();
             if (!_queueReference)
                 _settingsProvider.Value.Persist();
             base.PreClose();

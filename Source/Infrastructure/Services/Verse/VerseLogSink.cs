@@ -70,7 +70,6 @@ namespace RimMind.Infrastructure.Services.Verse
 
         private static void WriteDirectlyOnMainThread(string formattedMessage, int level)
         {
-            global::Verse.Log.ResetMessageCount();
             switch (level)
             {
                 case LevelError:

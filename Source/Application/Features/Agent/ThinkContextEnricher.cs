@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using RimMind.Application.Common.Interfaces.Agent;
@@ -88,6 +89,25 @@ namespace RimMind.Application.Features.Agent
 
             var sb = new StringBuilder();
             sb.AppendLine("<behavior_history>");
+            string? lastRawLine = null;
+            string? lastNormalizedKey = null;
+            int repeatCount = 0;
+
+            void FlushPendingLine()
+            {
+                if (lastRawLine == null) return;
+                string finalLine = repeatCount > 1
+                    ? $"{lastRawLine.TrimEnd()} (x{repeatCount})"
+                    : lastRawLine;
+                if (sb.Length + finalLine.Length + 96 <= 1200)
+                {
+                    sb.AppendLine(finalLine);
+                }
+                lastRawLine = null;
+                lastNormalizedKey = null;
+                repeatCount = 0;
+            }
+
             foreach (var record in history)
             {
                 var status = record.Success
@@ -97,10 +117,21 @@ namespace RimMind.Application.Features.Agent
                 if (reason.Length > 160)
                     reason = reason.Substring(0, 160) + "...";
                 string line = $"- {record.Action} → {status}: {reason}";
-                if (sb.Length + line.Length + 96 > 1200)
-                    break;
-                sb.AppendLine(line);
+                string normalizedKey = line.TrimEnd();
+
+                if (string.Equals(normalizedKey, lastNormalizedKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    repeatCount++;
+                }
+                else
+                {
+                    FlushPendingLine();
+                    lastRawLine = line;
+                    lastNormalizedKey = normalizedKey;
+                    repeatCount = 1;
+                }
             }
+            FlushPendingLine();
 
             if (successRate < 0.4f)
             {

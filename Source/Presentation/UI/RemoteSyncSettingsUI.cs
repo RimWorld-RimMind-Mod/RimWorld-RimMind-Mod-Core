@@ -16,7 +16,7 @@ namespace RimMind.Presentation.UI
     {
         public string Id => "remotesync";
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
-        public string Label => "RimMind.Settings.Tab.RemoteSync".CanTranslate() ? (string)"RimMind.Settings.Tab.RemoteSync".Translate() : "Remote Sync";
+        public string Label => UiText.Get("RimMind.Settings.Tab.RemoteSync", "Remote Sync");
 
         private readonly RuntimeServiceRef<RemoteSyncSettings> _settings =
             RuntimeServiceRef<RemoteSyncSettings>.Required();
@@ -24,9 +24,12 @@ namespace RimMind.Presentation.UI
             RuntimeServiceRef<IRemoteSyncService>.Required();
         private readonly GenerationUiState _generationState = new GenerationUiState();
         private Vector2 _scrollPos = Vector2.zero;
+        private float _lastMeasuredHeight;
         private string _statusText = "";
         private Color _statusColor = Color.white;
         private GenerationUiOperation? _activeOperation;
+
+        internal bool HasActiveOperation => _activeOperation != null;
 
         public RemoteSyncSettingsUI(RemoteSyncSettings settings, IRemoteSyncService syncService)
         {
@@ -51,7 +54,7 @@ namespace RimMind.Presentation.UI
                 _statusColor = Color.white;
             }
 
-            float contentH = EstimateHeight();
+            float contentH = Mathf.Max(EstimateHeight(), _lastMeasuredHeight);
             Rect viewRect = new Rect(0f, 0f, inRect.width - 16f, contentH);
             Widgets.BeginScrollView(inRect, ref _scrollPos, viewRect);
 
@@ -65,34 +68,34 @@ namespace RimMind.Presentation.UI
             bool syncSettings = settings.SyncSettings;
             bool syncAgentIdentity = settings.SyncAgentIdentity;
 
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.RemoteSync.Section.AutoSync".Translate());
+            SettingsUIDrawer.DrawSectionHeader(listing, UiText.Get("RimMind.Settings.RemoteSync.Section.AutoSync"));
 
             listing.CheckboxLabeled(
-                "RimMind.Settings.RemoteSync.AutoPull".Translate(),
+                UiText.Get("RimMind.Settings.RemoteSync.AutoPull"),
                 ref autoPull,
-                "RimMind.Settings.RemoteSync.AutoPull.Desc".Translate());
+                UiText.Get("RimMind.Settings.RemoteSync.AutoPull.Desc"));
 
             listing.CheckboxLabeled(
-                "RimMind.Settings.RemoteSync.AutoPush".Translate(),
+                UiText.Get("RimMind.Settings.RemoteSync.AutoPush"),
                 ref autoPush,
-                "RimMind.Settings.RemoteSync.AutoPush.Desc".Translate());
+                UiText.Get("RimMind.Settings.RemoteSync.AutoPush.Desc"));
 
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.RemoteSync.Section.Granularity".Translate());
+            SettingsUIDrawer.DrawSectionHeader(listing, UiText.Get("RimMind.Settings.RemoteSync.Section.Granularity"));
 
             listing.CheckboxLabeled(
-                "RimMind.Settings.RemoteSync.SyncMemory".Translate(),
+                UiText.Get("RimMind.Settings.RemoteSync.SyncMemory"),
                 ref syncMemory,
-                "RimMind.Settings.RemoteSync.SyncMemory.Desc".Translate());
+                UiText.Get("RimMind.Settings.RemoteSync.SyncMemory.Desc"));
 
             listing.CheckboxLabeled(
-                "RimMind.Settings.RemoteSync.SyncSettings".Translate(),
+                UiText.Get("RimMind.Settings.RemoteSync.SyncSettings"),
                 ref syncSettings,
-                "RimMind.Settings.RemoteSync.SyncSettings.Desc".Translate());
+                UiText.Get("RimMind.Settings.RemoteSync.SyncSettings.Desc"));
 
             listing.CheckboxLabeled(
-                "RimMind.Settings.RemoteSync.SyncAgentIdentity".Translate(),
+                UiText.Get("RimMind.Settings.RemoteSync.SyncAgentIdentity"),
                 ref syncAgentIdentity,
-                "RimMind.Settings.RemoteSync.SyncAgentIdentity.Desc".Translate());
+                UiText.Get("RimMind.Settings.RemoteSync.SyncAgentIdentity.Desc"));
 
             // Write back from locals to properties
             settings.AutoPull = autoPull;
@@ -101,34 +104,34 @@ namespace RimMind.Presentation.UI
             settings.SyncSettings = syncSettings;
             settings.SyncAgentIdentity = syncAgentIdentity;
 
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Settings.RemoteSync.Section.Manual".Translate());
+            SettingsUIDrawer.DrawSectionHeader(listing, UiText.Get("RimMind.Settings.RemoteSync.Section.Manual"));
 
             bool isConfigured = syncService.IsConfigured;
 
             if (!isConfigured)
             {
                 GUI.color = Color.yellow;
-                listing.Label("RimMind.Settings.RemoteSync.NotConfigured".Translate());
+                listing.Label(UiText.Get("RimMind.Settings.RemoteSync.NotConfigured"));
                 GUI.color = Color.white;
             }
 
+            bool canRunManualSync = isConfigured && _activeOperation == null;
+            bool prevEnabled = GUI.enabled;
+            GUI.enabled = prevEnabled && canRunManualSync;
+
             Rect pullRow = listing.GetRect(30f);
-            if (Widgets.ButtonText(pullRow, "RimMind.Settings.RemoteSync.ManualPull".Translate()))
+            if (Widgets.ButtonText(pullRow, UiText.Get("RimMind.Settings.RemoteSync.ManualPull")) && canRunManualSync)
             {
-                if (isConfigured)
-                {
-                    BeginPull(syncService, runtimeScope.Token);
-                }
+                BeginPull(syncService, runtimeScope.Token);
             }
 
             Rect pushRow = listing.GetRect(30f);
-            if (Widgets.ButtonText(pushRow, "RimMind.Settings.RemoteSync.ManualPush".Translate()))
+            if (Widgets.ButtonText(pushRow, UiText.Get("RimMind.Settings.RemoteSync.ManualPush")) && canRunManualSync)
             {
-                if (isConfigured)
-                {
-                    BeginPush(syncService, runtimeScope.Token);
-                }
+                BeginPush(syncService, runtimeScope.Token);
             }
+
+            GUI.enabled = prevEnabled;
 
             if (!string.IsNullOrEmpty(_statusText))
             {
@@ -137,30 +140,32 @@ namespace RimMind.Presentation.UI
                 GUI.color = Color.white;
             }
 
+            _lastMeasuredHeight = listing.CurHeight + 24f;
             listing.End();
             Widgets.EndScrollView();
         }
 
         private void BeginPull(IRemoteSyncService syncService, RuntimeGenerationToken token)
         {
-            var operation = BeginOperation(token, "RimMind.Settings.RemoteSync.Pulling".Translate());
+            if (_activeOperation != null) return;
+            var operation = BeginOperation(token, UiText.Get("RimMind.Settings.RemoteSync.Pulling"));
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var result = await syncService.ManualPullAsync("all", CancellationToken.None);
-                    LongEventHandler.ExecuteWhenFinished(() => TryPublish(
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => TryPublish(
                         operation,
                         result.IsOk
-                            ? "RimMind.Settings.RemoteSync.PullSuccess".Translate()
-                            : "RimMind.Settings.RemoteSync.PullFailed".Translate(result.Error?.Message ?? ""),
+                            ? UiText.Get("RimMind.Settings.RemoteSync.PullSuccess")
+                            : UiText.Format("RimMind.Settings.RemoteSync.PullFailed", result.Error?.Message ?? ""),
                         result.IsOk ? Color.green : Color.red));
                 }
                 catch (Exception ex)
                 {
-                    LongEventHandler.ExecuteWhenFinished(() => TryPublish(
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => TryPublish(
                         operation,
-                        "RimMind.Settings.RemoteSync.PullFailed".Translate(ex.Message),
+                        UiText.Format("RimMind.Settings.RemoteSync.PullFailed", ex.Message),
                         Color.red));
                 }
             });
@@ -168,24 +173,25 @@ namespace RimMind.Presentation.UI
 
         private void BeginPush(IRemoteSyncService syncService, RuntimeGenerationToken token)
         {
-            var operation = BeginOperation(token, "RimMind.Settings.RemoteSync.Pushing".Translate());
+            if (_activeOperation != null) return;
+            var operation = BeginOperation(token, UiText.Get("RimMind.Settings.RemoteSync.Pushing"));
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var result = await syncService.ManualPushAsync("all", "{}", 0, CancellationToken.None);
-                    LongEventHandler.ExecuteWhenFinished(() => TryPublish(
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => TryPublish(
                         operation,
                         result.IsOk
-                            ? "RimMind.Settings.RemoteSync.PushSuccess".Translate()
-                            : "RimMind.Settings.RemoteSync.PushFailed".Translate(result.Error?.Message ?? ""),
+                            ? UiText.Get("RimMind.Settings.RemoteSync.PushSuccess")
+                            : UiText.Format("RimMind.Settings.RemoteSync.PushFailed", result.Error?.Message ?? ""),
                         result.IsOk ? Color.green : Color.red));
                 }
                 catch (Exception ex)
                 {
-                    LongEventHandler.ExecuteWhenFinished(() => TryPublish(
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => TryPublish(
                         operation,
-                        "RimMind.Settings.RemoteSync.PushFailed".Translate(ex.Message),
+                        UiText.Format("RimMind.Settings.RemoteSync.PushFailed", ex.Message),
                         Color.red));
                 }
             });

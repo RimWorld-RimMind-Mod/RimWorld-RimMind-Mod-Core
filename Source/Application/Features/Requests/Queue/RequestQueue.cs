@@ -56,7 +56,8 @@ namespace RimMind.Application.Features.Requests.Queue
         }
         internal int PendingCallbackCount => _completionInbox.PendingCallbackCount;
 
-        private ISettingsProvider Settings => _settingsFactory?.Invoke() ?? new DefaultSettingsProvider();
+        private static readonly ISettingsProvider FallbackSettings = new DefaultSettingsProvider();
+        private ISettingsProvider Settings => _settingsFactory?.Invoke() ?? FallbackSettings;
 
         private int QueueProcessInterval => Settings.QueueProcessInterval;
 
@@ -268,13 +269,13 @@ namespace RimMind.Application.Features.Requests.Queue
         private void Complete(TrackedRequest tracked, Result<LlmResponse, RimMindError> result)
         {
             if (Interlocked.Exchange(ref tracked.CompletionQueued, 1) != 0) return;
-            if (!_completionFence.TryAcceptCompletion()) return;
             lock (_queueLock)
             {
                 if (_activeRequests.TryRemove(tracked.TrackingId, out _) && tracked.IsLocalEndpointSnapshot)
                     _isProcessingLocalRequest = false;
                 _requestIdToActive.TryRemove(tracked.Envelope.RequestId, out _);
             }
+            if (!_completionFence.TryAcceptCompletion()) return;
             EnqueueCompletion(tracked, result);
         }
 

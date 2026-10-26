@@ -30,7 +30,6 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
             try
             {
-                if (Current.Game == null) return -1f;
                 string endpoint = $"{CurrentApiUrl}/v1/balance";
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(BalanceQueryTimeoutSec));
                 using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -47,7 +46,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             catch (Exception ex)
             {
-                RimMindErrors.Warn($"[RimMind-Core] GetJoulesBalanceAsync failed: {ex.Message}");
+                RimMindErrors.Warn($"[RimMind-Core] GetJoulesBalanceAsync failed: {Shared.LogSanitizer.ForLog(ex.Message)}");
                 return -1f;
             }
         }
@@ -56,17 +55,37 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         {
             if (settingsProvider == null || AIProviderRegistry.RequiresApiKey(settingsProvider.Provider)) return;
 
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
-                var client = await CreateAsync(settingsProvider);
-                if (client?.IsConfigured() == true)
+                try
                 {
-                    float balance = await client.GetJoulesBalanceAsync();
-                    lock (_balanceLock)
+                    var client = _activeInstance;
+                    if (client == null || !client.IsConfigured())
                     {
-                        _cachedJoulesBalance = balance;
-                        _lastBalanceCheck = DateTime.Now;
+                        client = Create(settingsProvider);
+                        if (!client.IsConfigured())
+                        {
+                            string? localKey = await ProbeLocalPlayer2KeyAsync(logSink: null).ConfigureAwait(false);
+                            if (!string.IsNullOrEmpty(localKey))
+                            {
+                                client.UpdateDiscoveredKey(localKey!, isLocal: true);
+                            }
+                        }
                     }
+
+                    if (client.IsConfigured())
+                    {
+                        float balance = await client.GetJoulesBalanceAsync().ConfigureAwait(false);
+                        lock (_balanceLock)
+                        {
+                            _cachedJoulesBalance = balance;
+                            _lastBalanceCheck = DateTime.Now;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RimMindErrors.Warn($"[RimMind-Core] RefreshJoulesBalance failed: {Shared.LogSanitizer.ForLog(ex.Message)}");
                 }
             });
         }

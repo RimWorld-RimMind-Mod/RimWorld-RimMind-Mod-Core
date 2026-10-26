@@ -190,10 +190,12 @@ namespace RimMind.Infrastructure.UI
 
             bool hasAgent = false;
             var map = Find.CurrentMap;
-            if (map != null)
+            var allPawns = map?.mapPawns?.AllPawns;
+            if (allPawns != null)
             {
-                foreach (Pawn pawn in map.mapPawns.AllPawns)
+                for (int i = 0; i < allPawns.Count; i++)
                 {
+                    Pawn pawn = allPawns[i];
                     var comp = CompPawnAgent.GetComp(pawn);
                     if (comp?.Agent != null)
                     {

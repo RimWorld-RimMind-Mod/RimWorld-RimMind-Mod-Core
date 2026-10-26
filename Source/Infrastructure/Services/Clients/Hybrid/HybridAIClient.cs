@@ -53,8 +53,16 @@ namespace RimMind.Infrastructure.Services.Clients.Hybrid
                 return await _local.SendStreamAsync(envelope, onChunk, ct);
             }
 
-            var result = await _remote.SendStreamAsync(envelope, onChunk, ct);
-            if (result.IsErr && IsRetryable(result.Error.Code))
+            // Fallback is only safe before the remote emitted anything: once deltas reached the consumer,
+            // replaying the request on the local client would duplicate (or contradict) already-shown text.
+            // So we fail over pre-first-chunk only and otherwise surface the remote error as-is.
+            bool remoteEmitted = false;
+            var result = await _remote.SendStreamAsync(envelope, chunk =>
+            {
+                remoteEmitted = true;
+                onChunk(chunk);
+            }, ct);
+            if (result.IsErr && IsRetryable(result.Error.Code) && !remoteEmitted && !ct.IsCancellationRequested)
             {
                 _logSink?.Message($"[HybridAIClient] Remote streaming failed ({result.Error.Code}), falling back to local");
                 return await _local.SendStreamAsync(envelope, onChunk, ct);
@@ -77,12 +85,6 @@ namespace RimMind.Infrastructure.Services.Clients.Hybrid
             return code == RimMindErrorCode.ClientTransientFailure
                 || code == RimMindErrorCode.ClientCircuitOpen
                 || code == RimMindErrorCode.Timeout;
-        }
-
-        private static bool IsRetryableException(Exception ex)
-        {
-            return ex is TimeoutException
-                || ex is System.Net.Http.HttpRequestException;
         }
     }
 }

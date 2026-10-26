@@ -359,6 +359,7 @@ namespace RimMind.Infrastructure.UI
         public static void TestUiLayoutConflictDetector()
         {
             LayoutConflictStore.Clear();
+            LayoutConflictStore.TracingEnabled = true;
 
             Window[] windows =
             {

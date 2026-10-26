@@ -14,6 +14,7 @@ namespace RimMind.Presentation.UI
     {
         private static ContextPreset _selectedPreset = ContextPreset.Standard;
         private static Vector2 _contextScroll;
+        private static float _lastMeasuredHeight;
 
         public static void Draw(Rect inRect, ISettingsProvider s, RimMindLayoutScope? scope = null)
         {
@@ -24,10 +25,9 @@ namespace RimMind.Presentation.UI
                 0f,
                 0f,
                 formLayout.Viewport.width - RimMindUiMetrics.ScrollBarWidth,
-                Mathf.Max(980f, formLayout.ContentHeight));
+                Mathf.Max(980f, Mathf.Max(_lastMeasuredHeight, formLayout.ContentHeight)));
             Widgets.BeginScrollView(inRect, ref _contextScroll, viewRect);
             scope?.Record(formLayout.Viewport, "Settings:Context:Viewport");
-            scope?.Record(viewRect, "Settings:Context:Content");
 
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
@@ -45,13 +45,14 @@ namespace RimMind.Presentation.UI
             float btnH = 30f;
             Rect btnRow = listing.GetRect(btnH);
             Rect centerBtn = new Rect(btnRow.x + (btnRow.width - btnW) / 2f, btnRow.y, btnW, btnH);
-            if (Widgets.ButtonText(centerBtn, "RimMind.Context.ResetDefault".Translate()))
+            if (Widgets.ButtonText(centerBtn, UiText.Get("RimMind.Context.ResetDefault")))
             {
                 s.Context.ResetToDefault();
                 _selectedPreset = ContextPreset.Standard;
             }
-            TooltipHandler.TipRegion(centerBtn, "RimMind.Context.ResetDefault.Desc".Translate());
+            TooltipHandler.TipRegion(centerBtn, UiText.Get("RimMind.Context.ResetDefault.Desc"));
 
+            _lastMeasuredHeight = listing.CurHeight + 24f;
             listing.End();
             Widgets.EndScrollView();
         }
@@ -71,7 +72,7 @@ namespace RimMind.Presentation.UI
         {
             var left = new Listing_Standard();
             left.Begin(new Rect(anchor.x, anchor.y, colW, 9999f));
-            SettingsUIDrawer.DrawSectionHeader(left, "RimMind.Context.PawnInfo".Translate());
+            SettingsUIDrawer.DrawSectionHeader(left, UiText.Get("RimMind.Context.PawnInfo"));
 
             DrawCheckbox(left, ctx, c => c.IncludeRace, (c, v) => c.IncludeRace = v, "RimMind.Context.IncludeRace", "RimMind.Context.IncludeRace.Desc");
             DrawCheckbox(left, ctx, c => c.IncludeAge, (c, v) => c.IncludeAge = v, "RimMind.Context.IncludeAge", "RimMind.Context.IncludeAge.Desc");
@@ -81,12 +82,12 @@ namespace RimMind.Presentation.UI
             DrawCheckbox(left, ctx, c => c.IncludeTraits, (c, v) => c.IncludeTraits = v, "RimMind.Context.IncludeTraits", "RimMind.Context.IncludeTraits.Desc");
 
             var includeSkills = ctx.IncludeSkills;
-            left.CheckboxLabeled("RimMind.Context.IncludeSkills".Translate(), ref includeSkills, "RimMind.Context.IncludeSkills.Desc".Translate());
+            left.CheckboxLabeled(UiText.Get("RimMind.Context.IncludeSkills"), ref includeSkills, UiText.Get("RimMind.Context.IncludeSkills.Desc"));
             ctx.IncludeSkills = includeSkills;
             if (ctx.IncludeSkills)
             {
-                string skillTip = "RimMind.Context.MinSkillLevel.Desc".Translate();
-                left.LabelWithTooltip($"  {"RimMind.Context.MinSkillLevel".Translate()}: {ctx.MinSkillLevel}", skillTip);
+                string skillTip = UiText.Get("RimMind.Context.MinSkillLevel.Desc");
+                left.LabelWithTooltip($"  {UiText.Get("RimMind.Context.MinSkillLevel")}: {ctx.MinSkillLevel}", skillTip);
                 ctx.MinSkillLevel = (int)left.SliderWithTooltip(ctx.MinSkillLevel, 1f, 15f, skillTip);
             }
 
@@ -114,8 +115,8 @@ namespace RimMind.Presentation.UI
             string labelKey, string descKey)
         {
             var v = getter(ctx);
-            string label = labelKey.CanTranslate() ? (string)labelKey.Translate() : labelKey;
-            string desc = descKey.CanTranslate() ? (string)descKey.Translate() : descKey;
+            string label = UiText.Get(labelKey, labelKey);
+            string desc = UiText.Get(descKey, descKey);
             listing.CheckboxLabeled(label, ref v, desc);
             setter(ctx, v);
         }
@@ -124,7 +125,7 @@ namespace RimMind.Presentation.UI
         {
             var right = new Listing_Standard();
             right.Begin(new Rect(anchor.x + colW + 20f, anchor.y, colW, 9999f));
-            SettingsUIDrawer.DrawSectionHeader(right, "RimMind.Context.Environment".Translate());
+            SettingsUIDrawer.DrawSectionHeader(right, UiText.Get("RimMind.Context.Environment"));
 
             DrawCheckbox(right, ctx, c => c.IncludeGameTime, (c, v) => c.IncludeGameTime = v, "RimMind.Context.IncludeGameTime", "RimMind.Context.IncludeGameTime.Desc");
             DrawCheckbox(right, ctx, c => c.IncludeColonistCount, (c, v) => c.IncludeColonistCount = v, "RimMind.Context.IncludeColonistCount", "RimMind.Context.IncludeColonistCount.Desc");
@@ -142,24 +143,27 @@ namespace RimMind.Presentation.UI
 
         private static void DrawBudgetSection(Listing_Standard listing, ISettingsProvider s, IContextSettings ctx)
         {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Context.Budget".Translate());
-            listing.LabelWithTooltip($"{"RimMind.Context.ContextBudget".Translate()}: {ctx.ContextBudget:F2} ({(int)(ctx.ContextBudget * 100)}%)", "RimMind.Context.ContextBudget.Desc".Translate());
-            ctx.ContextBudget = listing.SliderWithTooltip(ctx.ContextBudget, 0.1f, 2.0f, "RimMind.Context.ContextBudget.Desc".Translate());
+            SettingsUIDrawer.DrawSectionHeader(listing, UiText.Get("RimMind.Context.Budget"));
+            string budgetDesc = UiText.Get("RimMind.Context.ContextBudget.Desc");
+            listing.LabelWithTooltip($"{UiText.Get("RimMind.Context.ContextBudget")}: {ctx.ContextBudget:F2} ({(int)(ctx.ContextBudget * 100)}%)", budgetDesc);
+            ctx.ContextBudget = listing.SliderWithTooltip(ctx.ContextBudget, 0.1f, 2.0f, budgetDesc);
 
             listing.Gap(8f);
 
-            listing.LabelWithTooltip($"{"RimMind.Settings.ContextDiffLifetime".Translate()}: {s.ContextDiffLifetimeTicks / 60f:F0}s ({s.ContextDiffLifetimeTicks} ticks)", "RimMind.Settings.ContextDiffLifetime.Desc".Translate());
-            s.ContextDiffLifetimeTicks = (int)listing.SliderWithTooltip(s.ContextDiffLifetimeTicks, 300f, 3000f, "RimMind.Settings.ContextDiffLifetime.Desc".Translate());
+            string diffLifetimeDesc = UiText.Get("RimMind.Settings.ContextDiffLifetime.Desc");
+            listing.LabelWithTooltip($"{UiText.Get("RimMind.Settings.ContextDiffLifetime")}: {s.ContextDiffLifetimeTicks / 60f:F0}s ({s.ContextDiffLifetimeTicks} ticks)", diffLifetimeDesc);
+            s.ContextDiffLifetimeTicks = (int)listing.SliderWithTooltip(s.ContextDiffLifetimeTicks, 300f, 3000f, diffLifetimeDesc);
 
             listing.Gap(6f);
             var calibrateSec = s.ContextCalibrateInterval / 60f;
-            listing.LabelWithTooltip($"{"RimMind.Settings.CalibrateInterval".Translate()}: {calibrateSec:F0}s ({s.ContextCalibrateInterval} ticks)", "RimMind.Settings.CalibrateInterval.Desc".Translate());
-            s.ContextCalibrateInterval = (int)listing.SliderWithTooltip(s.ContextCalibrateInterval, 5000f, 60000f, "RimMind.Settings.CalibrateInterval.Desc".Translate());
+            string calibrateDesc = UiText.Get("RimMind.Settings.CalibrateInterval.Desc");
+            listing.LabelWithTooltip($"{UiText.Get("RimMind.Settings.CalibrateInterval")}: {calibrateSec:F0}s ({s.ContextCalibrateInterval} ticks)", calibrateDesc);
+            s.ContextCalibrateInterval = (int)listing.SliderWithTooltip(s.ContextCalibrateInterval, 5000f, 60000f, calibrateDesc);
         }
 
         private static void DrawPresetCards(Listing_Standard listing, IContextSettings ctx)
         {
-            SettingsUIDrawer.DrawSectionHeader(listing, "RimMind.Context.Presets".Translate(), "RimMind.Context.Desc".Translate());
+            SettingsUIDrawer.DrawSectionHeader(listing, UiText.Get("RimMind.Context.Presets"), UiText.Get("RimMind.Context.Desc"));
 
             var presets = new[] { ContextPreset.Minimal, ContextPreset.Standard, ContextPreset.Full, ContextPreset.Custom };
             const float gap = 10f;
@@ -174,35 +178,16 @@ namespace RimMind.Presentation.UI
                 bool selected = _selectedPreset == preset;
                 Rect box = new Rect(row.x + (w + gap) * i, row.y, w, h);
                 string presetKey = $"RimMind.Context.Preset.{preset}";
-                string label = presetKey.CanTranslate() ? (string)presetKey.Translate() : preset.ToString();
-
-                if (selected)
-                {
-                    Widgets.DrawAtlas(box, Widgets.ButtonBGAtlasClick);
-                    TextAnchor prevAnchor = Text.Anchor;
-                    Text.Anchor = TextAnchor.MiddleCenter;
-                    Widgets.Label(box, label);
-                    Text.Anchor = prevAnchor;
-
-                    if (Widgets.ButtonInvisible(box))
-                    {
-                        _selectedPreset = preset;
-                        if (preset != ContextPreset.Custom)
-                            ctx.ApplyPreset(preset);
-                    }
-                }
-                else
-                {
-                    if (Widgets.ButtonText(box, label))
-                    {
-                        _selectedPreset = preset;
-                        if (preset != ContextPreset.Custom)
-                            ctx.ApplyPreset(preset);
-                    }
-                }
-
+                string label = UiText.Get(presetKey, preset.ToString());
                 string presetDescKey = $"RimMind.Context.Preset.{preset}.Desc";
-                TooltipHandler.TipRegion(box, presetDescKey.CanTranslate() ? (string)presetDescKey.Translate() : preset.ToString());
+                string tooltip = UiText.Get(presetDescKey, preset.ToString());
+
+                if (SettingsUIDrawer.DrawSelectableButton(box, label, selected, tooltip))
+                {
+                    _selectedPreset = preset;
+                    if (preset != ContextPreset.Custom)
+                        ctx.ApplyPreset(preset);
+                }
             }
             listing.Gap(4f);
         }

@@ -14,10 +14,11 @@ namespace RimMind.Infrastructure.Cache
         // Architecture limit: Domain layer cannot reference Application layer's RimMindDefaults. Value mirrors RimMindDefaults.EmbedMaxEntryItems.
         private const int MaxEntryItems = 500;
 
+        private readonly record struct BlockEntry(float[] Embedding, ContextLayer Layer);
+
         private readonly object _sync = new object();
-        private readonly Dictionary<string, Dictionary<string, float[]>> _blockCache = new Dictionary<string, Dictionary<string, float[]>>();
+        private readonly Dictionary<string, Dictionary<string, BlockEntry>> _blockCache = new Dictionary<string, Dictionary<string, BlockEntry>>();
         private readonly Dictionary<string, Dictionary<string, Dictionary<int, float[]>>> _entryCache = new Dictionary<string, Dictionary<string, Dictionary<int, float[]>>>();
-        private readonly Dictionary<string, ContextLayer> _blockLayer = new Dictionary<string, ContextLayer>();
         private readonly LinkedList<string> _blockOrder = new LinkedList<string>();
         private readonly LinkedList<string> _entryOrder = new LinkedList<string>();
         private int _blockCount = 0;
@@ -34,13 +35,16 @@ namespace RimMind.Infrastructure.Cache
             {
                 if (!_blockCache.TryGetValue(npcId, out var dict))
                 {
-                    dict = new Dictionary<string, float[]>();
+                    dict = new Dictionary<string, BlockEntry>();
                     _blockCache[npcId] = dict;
                     _blockOrder.AddLast(npcId);
                 }
+                else
+                {
+                    TouchOrder(_blockOrder, npcId);
+                }
                 if (!dict.ContainsKey(key)) _blockCount++;
-                dict[key] = embedding;
-                _blockLayer[npcId + ":" + key] = layer;
+                dict[key] = new BlockEntry(embedding, layer);
                 EvictBlockIfNeeded();
             }
         }
@@ -49,8 +53,11 @@ namespace RimMind.Infrastructure.Cache
         {
             lock (_sync)
             {
-                if (_blockCache.TryGetValue(npcId, out var dict) && dict.TryGetValue(key, out var emb))
-                    return emb;
+                if (_blockCache.TryGetValue(npcId, out var dict) && dict.TryGetValue(key, out var entry))
+                {
+                    TouchOrder(_blockOrder, npcId);
+                    return entry.Embedding;
+                }
                 return null;
             }
         }
@@ -64,6 +71,10 @@ namespace RimMind.Infrastructure.Cache
                     keyDict = new Dictionary<string, Dictionary<int, float[]>>();
                     _entryCache[npcId] = keyDict;
                     _entryOrder.AddLast(npcId);
+                }
+                else
+                {
+                    TouchOrder(_entryOrder, npcId);
                 }
                 if (!keyDict.TryGetValue(key, out var idxDict))
                 {
@@ -83,7 +94,10 @@ namespace RimMind.Infrastructure.Cache
                 if (_entryCache.TryGetValue(npcId, out var keyDict) &&
                     keyDict.TryGetValue(key, out var idxDict) &&
                     idxDict.TryGetValue(entryIndex, out var emb))
+                {
+                    TouchOrder(_entryOrder, npcId);
                     return emb;
+                }
                 return null;
             }
         }
@@ -95,8 +109,12 @@ namespace RimMind.Infrastructure.Cache
                 if (_blockCache.TryGetValue(npcId, out var dict))
                 {
                     if (dict.Remove(key)) _blockCount--;
+                    if (dict.Count == 0)
+                    {
+                        _blockCache.Remove(npcId);
+                        _blockOrder.Remove(npcId);
+                    }
                 }
-                _blockLayer.Remove(npcId + ":" + key);
             }
         }
 
@@ -109,6 +127,11 @@ namespace RimMind.Infrastructure.Cache
                     if (keyDict.TryGetValue(key, out var idxDict))
                         _entryCount -= idxDict.Count;
                     keyDict.Remove(key);
+                    if (keyDict.Count == 0)
+                    {
+                        _entryCache.Remove(npcId);
+                        _entryOrder.Remove(npcId);
+                    }
                 }
             }
         }
@@ -130,14 +153,6 @@ namespace RimMind.Infrastructure.Cache
                     _entryCache.Remove(npcId);
                     _entryOrder.Remove(npcId);
                 }
-                var keysToRemove = new List<string>();
-                foreach (var k in _blockLayer.Keys)
-                {
-                    if (k.StartsWith(npcId + ":"))
-                        keysToRemove.Add(k);
-                }
-                foreach (var k in keysToRemove)
-                    _blockLayer.Remove(k);
             }
         }
 
@@ -169,10 +184,16 @@ namespace RimMind.Infrastructure.Cache
                 _entryCache.Clear();
                 _blockOrder.Clear();
                 _entryOrder.Clear();
-                _blockLayer.Clear();
                 _blockCount = 0;
                 _entryCount = 0;
             }
+        }
+
+        private static void TouchOrder(LinkedList<string> order, string npcId)
+        {
+            if (order.Last != null && order.Last.Value == npcId) return;
+            if (order.Remove(npcId))
+                order.AddLast(npcId);
         }
 
         private void EvictBlockIfNeeded()
@@ -186,10 +207,9 @@ namespace RimMind.Infrastructure.Cache
                     bool hasProtected = false;
                     if (_blockCache.TryGetValue(node.Value, out var dict))
                     {
-                        foreach (var k in dict.Keys)
+                        foreach (var entry in dict.Values)
                         {
-                            if (_blockLayer.TryGetValue(node.Value + ":" + k, out var layer) &&
-                                (layer == ContextLayer.L0_Static || layer == ContextLayer.L1_Baseline))
+                            if (entry.Layer == ContextLayer.L0_Static || entry.Layer == ContextLayer.L1_Baseline)
                             {
                                 hasProtected = true;
                                 break;

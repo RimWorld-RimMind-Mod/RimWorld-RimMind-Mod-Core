@@ -15,30 +15,59 @@ namespace RimMind.Presentation.UI.Layout
     /// </summary>
     public sealed class RimMindLayoutScope : System.IDisposable
     {
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, LayoutTraceRecorder> Recorders = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, RimMindLayoutScope> NoOpScopes = new();
+        private static readonly LayoutTraceRecorder NoOpRecorder = new(default);
+
         public string WindowName { get; }
         public LayoutTraceRecorder Recorder { get; }
+        public bool IsRecording { get; }
         public bool AutoPublish { get; set; } = true;
 
-        private RimMindLayoutScope(string windowName, Rect viewRect)
+        private RimMindLayoutScope(string windowName, LayoutTraceRecorder recorder, bool isRecording)
         {
             WindowName = windowName;
-            Recorder = new LayoutTraceRecorder(viewRect);
+            Recorder = recorder;
+            IsRecording = isRecording;
         }
 
+        public static bool ShouldRecord()
+            => LayoutConflictStore.IsTracingActive
+               && (Event.current == null || Event.current.type == EventType.Repaint);
+
         public static RimMindLayoutScope Begin(string windowName, Rect viewRect)
-            => new(windowName, viewRect);
+        {
+            string key = windowName ?? string.Empty;
+            if (!ShouldRecord())
+            {
+                var noOp = NoOpScopes.GetOrAdd(key, static name => new RimMindLayoutScope(name, NoOpRecorder, isRecording: false));
+                noOp.AutoPublish = true;
+                return noOp;
+            }
+
+            var recorder = Recorders.GetOrAdd(key, static _ => new LayoutTraceRecorder(default));
+            recorder.Reset(viewRect);
+            return new RimMindLayoutScope(key, recorder, isRecording: true);
+        }
 
         public void Record(Rect rect, string label = "", [System.Runtime.CompilerServices.CallerMemberName] string source = "")
-            => Recorder.Record(rect, label, source);
+        {
+            if (!IsRecording) return;
+            Recorder.Record(rect, label, source);
+        }
 
         public void Dispose()
         {
-            if (!AutoPublish) return;
+            if (!IsRecording || !AutoPublish) return;
             var conflicts = Recorder.DetectConflicts();
             var report = new LayoutReport(WindowName, conflicts);
             LayoutConflictStore.Publish(report);
 
-            if (LayoutConflictStore.ShowOverlay && conflicts.Count > 0)
+            bool drawOverlay = LayoutConflictStore.ShowOverlay || LayoutConflictStore.OverlayFrameRemaining > 0;
+            if (LayoutConflictStore.OverlayFrameRemaining > 0)
+                LayoutConflictStore.OverlayFrameRemaining--;
+
+            if (drawOverlay && conflicts.Count > 0)
             {
                 foreach (var c in conflicts)
                 {

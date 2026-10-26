@@ -3,7 +3,8 @@
   <PropertyGroup>
     <GameVersion Condition=" '$(GameVersion)' == '' ">1.6</GameVersion>
     <OutputType>Library</OutputType>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework Condition=" '$(GameVersion)' == '1.6' ">net48</TargetFramework>
+    <TargetFramework Condition=" '$(GameVersion)' != '1.6' ">net10.0</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <LangVersion>10.0</LangVersion>
     <Nullable>enable</Nullable>
@@ -12,6 +13,7 @@
     <Version>2.0.0</Version>
     <OutputPath>..\$(GameVersion)\Assemblies\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>CS8604;CS8601;CS8602;CS8603</NoWarn>
   </PropertyGroup>
@@ -26,9 +28,10 @@
 
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="$(GameVersion).*-*" PrivateAssets="All" />
-    <PackageReference Include="Lib.Harmony.Ref" Version="2.*" PrivateAssets="All" />
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.*" Condition=" '$(GameVersion)' == '1.6' " PrivateAssets="All" />
+    <PackageReference Include="Lib.Harmony.Ref" Version="3.*-*" Condition=" '$(GameVersion)' != '1.6' " PrivateAssets="All" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" PrivateAssets="All" GeneratePathProperty="true" />
-    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Microsoft.CSharp" Condition=" '$(TargetFramework)' == 'net48' " />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,7 +51,11 @@
   </ItemGroup>
 
   <Target Name="CopyNewtonsoftJson" AfterTargets="Build">
-    <Copy SourceFiles="$(PkgNewtonsoft_Json)\lib\net45\Newtonsoft.Json.dll"
+    <PropertyGroup>
+      <NewtonsoftLibDir Condition=" '$(TargetFramework)' == 'net48' ">net45</NewtonsoftLibDir>
+      <NewtonsoftLibDir Condition=" '$(TargetFramework)' != 'net48' ">net6.0</NewtonsoftLibDir>
+    </PropertyGroup>
+    <Copy SourceFiles="$(PkgNewtonsoft_Json)\lib\$(NewtonsoftLibDir)\Newtonsoft.Json.dll"
           DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
 

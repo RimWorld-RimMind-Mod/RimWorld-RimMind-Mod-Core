@@ -16,17 +16,27 @@ namespace RimMind.Infrastructure.UI.Layout
             if (windows == null) throw new ArgumentNullException(nameof(windows));
             if (reportResult == null) throw new ArgumentNullException(nameof(reportResult));
 
+            bool prevTracing = LayoutConflictStore.TracingEnabled;
+            LayoutConflictStore.TracingEnabled = true;
+
             LongEventHandler.ExecuteWhenFinished(() =>
             {
-                LayoutAutotestEvaluation evaluation = LayoutAutotestEvaluator.Evaluate(
-                    windows.Select(window => window.GetType().Name),
-                    windowName => LayoutConflictStore.TryGet(windowName, out LayoutReport? layoutReport)
-                        ? layoutReport
-                        : null);
+                try
+                {
+                    LayoutAutotestEvaluation evaluation = LayoutAutotestEvaluator.Evaluate(
+                        windows.Select(window => window.GetType().Name),
+                        windowName => LayoutConflictStore.TryGet(windowName, out LayoutReport? layoutReport)
+                            ? layoutReport
+                            : null);
 
-                LogEvaluation(evaluation);
-                reportResult(evaluation);
-                CloseWindows(windows);
+                    LogEvaluation(evaluation);
+                    reportResult(evaluation);
+                }
+                finally
+                {
+                    LayoutConflictStore.TracingEnabled = prevTracing;
+                    CloseWindows(windows);
+                }
             });
         }
 

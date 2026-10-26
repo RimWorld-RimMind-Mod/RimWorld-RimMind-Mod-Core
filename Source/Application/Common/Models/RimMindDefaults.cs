@@ -280,11 +280,16 @@ namespace RimMind.Application.Common.Models
             public const int ContextFeedback = 45;
             public const int RequestSanitize = 50;
             public const int Cache = 100;
+            /// <summary>
+            /// Tool dispatch must sit OUTSIDE Telemetry/CircuitBreaker/Retry: it awaits the inner pipeline and then
+            /// executes tool side effects exactly once. Inside Retry, a throwing tool would re-call the LLM and
+            /// re-execute every (already successful) tool call, and tool bugs would trip the LLM circuit breaker.
+            /// </summary>
+            public const int ToolCallDispatch = 150;
             public const int Telemetry = 200;
             public const int CircuitBreaker = 300;
             public const int UnifiedRetry = 400;
             public const int ClientInvoke = 500;
-            public const int ToolCallDispatch = 600;
             public const int Dispatch = 200;
             public const int OutputGuardrail = 650;
         }

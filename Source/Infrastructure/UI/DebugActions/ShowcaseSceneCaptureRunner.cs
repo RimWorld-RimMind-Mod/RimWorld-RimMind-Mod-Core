@@ -125,7 +125,9 @@ namespace RimMind.Infrastructure.UI.DebugActions
             RimMindCoreMod.Settings.autoActivateColonistAgents = true;
             RimMindCoreMod.Settings.requestOverlayX = 20f;
             RimMindCoreMod.Settings.requestOverlayY = 175f;
-            RequestOverlay.SetWindowRectForTest(new Rect(20f, 175f, 300f, 200f));
+            RimMindCoreMod.Settings.requestOverlayX = 155f;
+            RimMindCoreMod.Settings.requestOverlayY = 100f;
+            RequestOverlay.SetWindowRectForTest(new Rect(155f, 100f, 300f, 200f));
 
             RimMindCoreMod.Settings.backupEndpoints ??= new List<BackupEndpointEntry>();
             if (RimMindCoreMod.Settings.backupEndpoints.Count == 0)
@@ -269,7 +271,9 @@ namespace RimMind.Infrastructure.UI.DebugActions
             yield return new WaitForEndOfFrame();
             yield return CaptureFrame(targetDirs, repoRoot, "03-advisor-overlay.jpg");
             RequestOverlay.Resolve(advisorReq, "approve");
-            RequestOverlay.SetWindowRectForTest(new Rect(20f, 175f, 300f, 200f));
+            RimMindCoreMod.Settings.requestOverlayX = 155f;
+            RimMindCoreMod.Settings.requestOverlayY = 100f;
+            RequestOverlay.SetWindowRectForTest(new Rect(155f, 100f, 300f, 200f));
             yield return null;
 
             // =========================================================================

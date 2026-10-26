@@ -249,11 +249,24 @@ namespace Verse
             return null;
         }
         public bool DestroyedOrNull() => this is Pawn p && p.Destroyed;
+        public bool IsHashIntervalTick(int interval)
+        {
+            if (interval <= 1) return true;
+            int id = this is Pawn p ? p.thingIDNumber : 0;
+            int ticks = Find.TickManager?.TicksGame ?? 0;
+            int rem = (ticks + id) % interval;
+            if (rem < 0) rem += interval;
+            return rem == 0;
+        }
     }
 
     public enum DestroyMode
     {
         Vanish,
+    }
+
+    public struct DamageInfo
+    {
     }
 
     /// <summary>Stub for Verse.ThingComp base class.</summary>
@@ -262,6 +275,8 @@ namespace Verse
         public ThingWithComps parent = null!;
 
         public virtual void PostSpawnSetup(bool respawningAfterLoad) { }
+        public virtual void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish) { }
+        public virtual void Notify_Killed(Map prevMap, DamageInfo? dinfo = null) { }
         public virtual void PostDestroy(DestroyMode mode, Map previousMap) { }
         public virtual void CompTick() { }
         public virtual void PostExposeData() { }

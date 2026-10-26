@@ -162,7 +162,7 @@ namespace RimMind.Infrastructure.UI
             try
             {
                 var result = await syncService.ManualPullAsync(operation.Key.NpcId, operation.Cancellation.Token);
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     TryPublish(
                         operation,
                         result.IsOk
@@ -172,14 +172,14 @@ namespace RimMind.Infrastructure.UI
             catch (Exception ex)
             {
                 string message = ex.Message;
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     TryPublish(
                         operation,
                         $"{"RimMind.RemoteSync.PullFailed".Translate()}: {message}"));
             }
             finally
             {
-                LongEventHandler.ExecuteWhenFinished(() => CleanupOperation(operation));
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => CleanupOperation(operation));
             }
         }
 
@@ -190,7 +190,7 @@ namespace RimMind.Infrastructure.UI
             try
             {
                 var result = await syncService.EnqueuePushAsync(operation.Key.NpcId, "", 0, operation.Cancellation.Token);
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     TryPublish(
                         operation,
                         result.IsOk
@@ -200,14 +200,14 @@ namespace RimMind.Infrastructure.UI
             catch (Exception ex)
             {
                 string message = ex.Message;
-                LongEventHandler.ExecuteWhenFinished(() =>
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     TryPublish(
                         operation,
                         $"{"RimMind.RemoteSync.PushFailed".Translate()}: {message}"));
             }
             finally
             {
-                LongEventHandler.ExecuteWhenFinished(() => CleanupOperation(operation));
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => CleanupOperation(operation));
             }
         }
 
@@ -300,7 +300,7 @@ namespace RimMind.Infrastructure.UI
                 State = state;
                 Cancellation = new CancellationTokenSource();
                 _cancellationRegistration = Cancellation.Token.Register(() =>
-                    LongEventHandler.ExecuteWhenFinished(() => CancelOperation(this)));
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() => CancelOperation(this)));
                 Cancellation.CancelAfter(OperationTimeoutMs);
             }
 

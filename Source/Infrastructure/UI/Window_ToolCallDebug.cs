@@ -314,37 +314,31 @@ namespace RimMind.Infrastructure.UI
                     sw.Stop();
                     long elapsed = sw.ElapsedMilliseconds;
 
-                    string resultText;
-                    if (result.IsOk)
-                    {
-                        var toolResult = result.Value;
-                        string statusKey = toolResult.IsError
-                            ? "RimMind.UI.ToolCallDebug.Failed"
-                            : "RimMind.UI.ToolCallDebug.Success";
-                        string status = statusKey.Translate(elapsed);
-                        string content = Truncate(toolResult.Content, (int)TruncateLen);
-                        resultText = status + "\n" + content;
-                    }
-                    else
-                    {
-                        string status = "RimMind.UI.ToolCallDebug.Failed".Translate(elapsed);
-                        resultText = status + "\n" + result.Error.Message;
-                    }
+                    // Translation and UI state are main-thread only; capture plain data here.
+                    bool succeeded = result.IsOk && !result.Value.IsError;
+                    string detail = result.IsOk
+                        ? Truncate(result.Value.Content, (int)TruncateLen)
+                        : result.Error.Message;
 
-                    LongEventHandler.ExecuteWhenFinished(() =>
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     {
-                        TryPublishExecution(operation, () => _executionResult = resultText);
+                        string statusKey = succeeded
+                            ? "RimMind.UI.ToolCallDebug.Success"
+                            : "RimMind.UI.ToolCallDebug.Failed";
+                        string status = statusKey.Translate(elapsed);
+                        TryPublishExecution(operation, () => _executionResult = status + "\n" + detail);
                     });
                 }
                 catch (Exception ex)
                 {
                     sw.Stop();
                     long elapsed = sw.ElapsedMilliseconds;
-                    string status = "RimMind.UI.ToolCallDebug.Failed".Translate(elapsed);
+                    string message = ex.Message;
 
-                    LongEventHandler.ExecuteWhenFinished(() =>
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     {
-                        TryPublishExecution(operation, () => _executionResult = status + "\n" + ex.Message);
+                        string status = "RimMind.UI.ToolCallDebug.Failed".Translate(elapsed);
+                        TryPublishExecution(operation, () => _executionResult = status + "\n" + message);
                     });
                 }
             });

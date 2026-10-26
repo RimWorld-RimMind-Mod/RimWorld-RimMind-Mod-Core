@@ -9,6 +9,7 @@ using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
 using RimMind.Application.Common.Models.Context;
 using RimMind.Domain.ValueObjects;
+using RimMind.Presentation.Api;
 using Verse;
 
 namespace RimMind.Presentation.Context
@@ -22,12 +23,24 @@ namespace RimMind.Presentation.Context
         private static Pawn? ResolvePawn(int pawnId)
         {
             if (pawnId <= 0) return null;
-            return RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+            var pawn = RimMindPawnLookup.FindPawnByNumber(pawnId);
+            return RimMindPawnLookup.IsActiveSpawnedColonist(pawn) ? pawn : null;
         }
 
         private static string? NullIfEmpty(string? value)
         {
             return string.IsNullOrEmpty(value) ? null : value;
+        }
+
+        private static Task<string?> ReadPawnContextAsync(int pawnId, Func<Pawn, string?> extractor, CancellationToken ct)
+        {
+            if (pawnId <= 0) return Task.FromResult<string?>(null);
+            return RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+            {
+                var pawn = ResolvePawn(pawnId);
+                if (pawn == null) return null;
+                return NullIfEmpty(extractor(pawn));
+            }, null, ct: ct);
         }
 
         public static void RegisterAll(IContextKeyRegistry registry,
@@ -61,10 +74,14 @@ namespace RimMind.Presentation.Context
                         return null;
                     if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
                         return null;
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
-                    return NullIfEmpty(profile?.SystemPrompt);
+                    if (pctx.PawnId <= 0) return null;
+                    return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+                    {
+                        var pawn = ResolvePawn(pctx.PawnId);
+                        if (pawn == null) return null;
+                        var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
+                        return NullIfEmpty(profile?.SystemPrompt);
+                    }, null, ct: ct).ConfigureAwait(false);
                 },
                 ownerMod: "Core",
                 stalenessTicks: 0,
@@ -80,17 +97,21 @@ namespace RimMind.Presentation.Context
                         return null;
                     if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
                         return null;
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
-                    if (profile == null) return null;
-                    var sb = new StringBuilder();
-                    sb.AppendLine(Translate("RimMind.Prompt.Identity.Name", profile.Name) ?? "");
-                    if (!string.IsNullOrEmpty(profile.ShortName))
-                        sb.AppendLine(Translate("RimMind.Prompt.Identity.ShortName", profile.ShortName) ?? "");
-                    if (!string.IsNullOrEmpty(profile.CharacterDescription))
-                        sb.AppendLine(Translate("RimMind.Prompt.Identity.Description", profile.CharacterDescription) ?? "");
-                    return NullIfEmpty(sb.ToString().TrimEnd());
+                    if (pctx.PawnId <= 0) return null;
+                    return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+                    {
+                        var pawn = ResolvePawn(pctx.PawnId);
+                        if (pawn == null) return null;
+                        var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
+                        if (profile == null) return null;
+                        var sb = new StringBuilder();
+                        sb.AppendLine(Translate("RimMind.Prompt.Identity.Name", profile.Name) ?? "");
+                        if (!string.IsNullOrEmpty(profile.ShortName))
+                            sb.AppendLine(Translate("RimMind.Prompt.Identity.ShortName", profile.ShortName) ?? "");
+                        if (!string.IsNullOrEmpty(profile.CharacterDescription))
+                            sb.AppendLine(Translate("RimMind.Prompt.Identity.Description", profile.CharacterDescription) ?? "");
+                        return NullIfEmpty(sb.ToString().TrimEnd());
+                    }, null, ct: ct).ConfigureAwait(false);
                 },
                 ownerMod: "Core",
                 stalenessTicks: 0,
@@ -104,15 +125,19 @@ namespace RimMind.Presentation.Context
                 {
                     if (pctx.Scenario == ScenarioIds.Decision) return null;
                     if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue) return null;
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
-                    if (profile == null || profile.Commands.Count == 0) return null;
-                    var sb = new StringBuilder();
-                    sb.AppendLine(Translate("RimMind.Prompt.Commands.Available") ?? "");
-                    foreach (var cmd in profile.Commands)
-                        sb.AppendLine(Translate("RimMind.Prompt.Commands.Entry", cmd.Name, cmd.Description) ?? "");
-                    return NullIfEmpty(sb.ToString().TrimEnd());
+                    if (pctx.PawnId <= 0) return null;
+                    return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+                    {
+                        var pawn = ResolvePawn(pctx.PawnId);
+                        if (pawn == null) return null;
+                        var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
+                        if (profile == null || profile.Commands.Count == 0) return null;
+                        var sb = new StringBuilder();
+                        sb.AppendLine(Translate("RimMind.Prompt.Commands.Available") ?? "");
+                        foreach (var cmd in profile.Commands)
+                            sb.AppendLine(Translate("RimMind.Prompt.Commands.Entry", cmd.Name, cmd.Description) ?? "");
+                        return NullIfEmpty(sb.ToString().TrimEnd());
+                    }, null, ct: ct).ConfigureAwait(false);
                 },
                 ownerMod: "Core",
                 stalenessTicks: 0,
@@ -135,14 +160,17 @@ namespace RimMind.Presentation.Context
                         sb.AppendLine("- Low mood colonists may need positive events");
                         return sb.ToString().TrimEnd();
                     }
-                    var sb2 = new StringBuilder();
-                    sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Header") ?? "");
-                    sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Survival") ?? "");
-                    sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Combat") ?? "");
-                    sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Relationships") ?? "");
-                    sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Weather") ?? "");
-                    sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Medical") ?? "");
-                    return NullIfEmpty(sb2.ToString().TrimEnd());
+                    return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+                    {
+                        var sb2 = new StringBuilder();
+                        sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Header") ?? "");
+                        sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Survival") ?? "");
+                        sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Combat") ?? "");
+                        sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Relationships") ?? "");
+                        sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Weather") ?? "");
+                        sb2.AppendLine(Translate("RimMind.Prompt.WorldRules.Medical") ?? "");
+                        return NullIfEmpty(sb2.ToString().TrimEnd());
+                    }, null, ct: ct).ConfigureAwait(false);
                 },
                 ownerMod: "Core",
                 stalenessTicks: 0,
@@ -156,11 +184,14 @@ namespace RimMind.Presentation.Context
                 {
                     if (pctx.Scenario == ScenarioIds.Storyteller)
                         return "Select the most fitting incident for the colony's current state. Return structured JSON with defName, reason, and optional params.";
-                    if (pctx.Scenario == ScenarioIds.Decision)
-                        return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
-                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
-                        return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
-                    return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.Base"));
+                    return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+                    {
+                        if (pctx.Scenario == ScenarioIds.Decision)
+                            return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
+                        if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
+                            return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
+                        return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.Base"));
+                    }, null, ct: ct).ConfigureAwait(false);
                 },
                 ownerMod: "Core",
                 stalenessTicks: 0,
@@ -174,14 +205,13 @@ namespace RimMind.Presentation.Context
                 key: "map_structure",
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.95f,
-                provider: async (pctx, ct) =>
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, pawn =>
                 {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn?.Map == null) return null;
+                    if (pawn.Map == null) return null;
                     var entries = ctx.BuildMapContextEntries(pawn.Map);
                     if (entries == null || entries.Count == 0) return null;
                     return string.Join("\n", entries.Select(e => e.Content));
-                },
+                }, ct),
                 ownerMod: "Core",
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Map));
@@ -190,12 +220,7 @@ namespace RimMind.Presentation.Context
                 key: "pawn_base_info",
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.95f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractPawnBaseInfo(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractPawnBaseInfo, ct),
                 ownerMod: "Core",
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
@@ -204,12 +229,7 @@ namespace RimMind.Presentation.Context
                 key: "fixed_relations",
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.9f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractFixedRelations(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractFixedRelations, ct),
                 ownerMod: "Core",
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
@@ -218,12 +238,7 @@ namespace RimMind.Presentation.Context
                 key: "ideology",
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.9f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractIdeology(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractIdeology, ct),
                 ownerMod: "Core",
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
@@ -232,12 +247,7 @@ namespace RimMind.Presentation.Context
                 key: "skills_summary",
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.85f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractSkillsSummary(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractSkillsSummary, ct),
                 ownerMod: "Core",
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
@@ -248,12 +258,7 @@ namespace RimMind.Presentation.Context
                 key: "current_area",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.7f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractCurrentArea(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractCurrentArea, ct),
                 ownerMod: "Core",
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Pawn));
@@ -262,12 +267,7 @@ namespace RimMind.Presentation.Context
                 key: "weather",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.6f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractWeather(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractWeather, ct),
                 ownerMod: "Core",
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
@@ -276,12 +276,7 @@ namespace RimMind.Presentation.Context
                 key: "time_of_day",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.65f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractTimeOfDay(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractTimeOfDay, ct),
                 ownerMod: "Core",
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
@@ -290,12 +285,7 @@ namespace RimMind.Presentation.Context
                 key: "nearby_pawns",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.7f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractNearbyPawns(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractNearbyPawns, ct),
                 ownerMod: "Core",
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Pawn));
@@ -304,12 +294,7 @@ namespace RimMind.Presentation.Context
                 key: "season",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.5f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractSeason(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractSeason, ct),
                 ownerMod: "Core",
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
@@ -318,12 +303,7 @@ namespace RimMind.Presentation.Context
                 key: "colony_status",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.6f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractColonyStatus(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractColonyStatus, ct),
                 ownerMod: "Core",
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
@@ -334,12 +314,7 @@ namespace RimMind.Presentation.Context
                 key: "health",
                 layer: ContextLayer.L3_State,
                 priority: 0.3f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractHealth(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractHealth, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
@@ -348,12 +323,7 @@ namespace RimMind.Presentation.Context
                 key: "mood",
                 layer: ContextLayer.L3_State,
                 priority: 0.3f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractMood(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractMood, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
@@ -362,12 +332,7 @@ namespace RimMind.Presentation.Context
                 key: "mood_thoughts",
                 layer: ContextLayer.L3_State,
                 priority: 0.28f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractMoodThoughts(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractMoodThoughts, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
@@ -376,12 +341,7 @@ namespace RimMind.Presentation.Context
                 key: "current_job",
                 layer: ContextLayer.L3_State,
                 priority: 0.25f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractCurrentJob(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractCurrentJob, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
@@ -390,12 +350,7 @@ namespace RimMind.Presentation.Context
                 key: "combat_status",
                 layer: ContextLayer.L3_State,
                 priority: 0.2f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractCombatStatus(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractCombatStatus, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
@@ -404,12 +359,7 @@ namespace RimMind.Presentation.Context
                 key: "target_info",
                 layer: ContextLayer.L3_State,
                 priority: 0.15f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractTargetInfo(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractTargetInfo, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
@@ -418,12 +368,7 @@ namespace RimMind.Presentation.Context
                 key: "task_progress",
                 layer: ContextLayer.L3_State,
                 priority: 0.2f,
-                provider: async (pctx, ct) =>
-                {
-                    var pawn = ResolvePawn(pctx.PawnId);
-                    if (pawn == null) return null;
-                    return NullIfEmpty(ctx.ExtractTaskProgress(pawn));
-                },
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractTaskProgress, ct),
                 ownerMod: "Core",
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));

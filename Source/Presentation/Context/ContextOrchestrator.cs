@@ -192,6 +192,13 @@ namespace RimMind.Presentation.Context
                 .BuildAsync(schedule, pawn, providerCtx, ctx.NpcId, scenario, skipLayers, ct)
                 .ConfigureAwait(false);
 
+            snapshot.AddEntries(layerResults.L0.Entries);
+            snapshot.AddEntries(layerResults.L1.Entries);
+            snapshot.AddEntries(layerResults.L2.Entries);
+            if (skipLayers == null || !skipLayers.Contains("L3"))
+                snapshot.AddEntries(layerResults.L3.Entries);
+            snapshot.AddEntries(layerResults.L5.Entries);
+
             // Convert entries to ChatMessages
             var l0Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L0.Entries, "L0");
             var l1Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L1.Entries, "L1");
@@ -300,6 +307,7 @@ namespace RimMind.Presentation.Context
             var sctx = new ScoringContext
             {
                 Scenario = scenario,
+                NpcId = ctx.NpcId,
                 NowTicks = _tickProvider?.TicksGame ?? 0,
                 Query = ctx.CurrentQuery,
                 UserPinnedKeys = new HashSet<string>()
@@ -322,7 +330,9 @@ namespace RimMind.Presentation.Context
 
             foreach (var key in schedule.L2Keys.Concat(schedule.L3Keys).Concat(schedule.L5Keys))
             {
-                if (key.CurrentScore > 0)
+                if (schedule.KeyScores.TryGetValue(key.Key, out var score) && score > 0)
+                    snapshot.KeyScores[key.Key] = score;
+                else if (key.CurrentScore > 0)
                     snapshot.KeyScores[key.Key] = key.CurrentScore;
             }
 
@@ -336,7 +346,7 @@ namespace RimMind.Presentation.Context
 
             int totalBudget = _flywheelParameterStore?.TotalBudget ?? DefaultTotalBudget;
             int reserveForOutput = _settingsProvider?.MaxTokens > 0
-                ? _settingsProvider!.MaxTokens
+                ? Math.Min(_settingsProvider!.MaxTokens, DefaultReserveForOutput)
                 : DefaultReserveForOutput;
             float budgetRatio = _settingsProvider?.Context?.ContextBudget ?? DefaultContextBudget;
             int allowedBudget = (int)(totalBudget * budgetRatio);
@@ -397,6 +407,7 @@ namespace RimMind.Presentation.Context
             var trimmed = budget.Compose(sections) ?? new List<PromptSection>();
 
             snapshot.ClearMessages();
+            int l0 = 0, l1 = 0, l2 = 0, l3 = 0, l4 = 0, l5 = 0;
             foreach (var sec in trimmed)
             {
                 snapshot.AddMessage(new ChatMessage
@@ -405,7 +416,22 @@ namespace RimMind.Presentation.Context
                     Content = sec.Content,
                     LayerTag = sec.LayerTag
                 });
+                switch (sec.LayerTag)
+                {
+                    case "L0": l0 += sec.EstimatedTokens; break;
+                    case "L1": l1 += sec.EstimatedTokens; break;
+                    case "L2": l2 += sec.EstimatedTokens; break;
+                    case "L3": l3 += sec.EstimatedTokens; break;
+                    case "L4": l4 += sec.EstimatedTokens; break;
+                    case "L5": l5 += sec.EstimatedTokens; break;
+                }
             }
+            snapshot.Meta.L0Tokens = l0;
+            snapshot.Meta.L1Tokens = l1;
+            snapshot.Meta.L2Tokens = l2;
+            snapshot.Meta.L3Tokens = l3;
+            snapshot.Meta.L4Tokens = l4;
+            snapshot.Meta.L5Tokens = l5;
             snapshot.EstimatedTokens = trimmed.Sum(s => s.EstimatedTokens);
             snapshot.Meta.TotalTokens = snapshot.EstimatedTokens;
 
@@ -448,7 +474,7 @@ namespace RimMind.Presentation.Context
         public void InvalidateLayer(string npcId, ContextLayer layer) => _buildServices.CacheManager.InvalidateLayer(npcId, layer);
         public void InvalidateKey(string npcId, string key) => _buildServices.CacheManager.InvalidateKey(npcId, key);
         public void UpdateBaseline(string npcId) { _buildServices.CacheManager.UpdateBaseline(npcId); if (_buildServices.DiffTracker.TryGetDiffStore(npcId, out var diffs)) diffs.Clear(); }
-        public void InvalidateNpc(string npcId) { _buildServices.CacheManager.InvalidateNpc(npcId); _buildServices.DiffTracker.ClearNpcDiffs(npcId); _buildServices.DiffTracker.RemoveNpcKeyLastValues(npcId); _historyManager.ClearHistory(npcId); _needsFullRebuild = true; }
+        public void InvalidateNpc(string npcId) { _buildServices.CacheManager.InvalidateNpc(npcId); _providerCache?.InvalidateNpc(npcId); _buildServices.DiffTracker.ClearNpcDiffs(npcId); _buildServices.DiffTracker.RemoveNpcKeyLastValues(npcId); _historyManager.ClearHistory(npcId); _needsFullRebuild = true; }
         public IBudgetScheduler? GetScheduler() => _buildServices.BudgetScheduler;
         public EmbeddingSnapshotStore? GetEmbeddingSnapshotStore() => _embeddingSnapshotStore;
         public void Dispose() { _disposed = true; }

@@ -36,21 +36,29 @@ namespace RimMind.Application.Features.Context
             if (string.IsNullOrEmpty(traceId)) return;
             if (!_pendingTraces.TryRemove(traceId, out var entry)) return;
 
-            var usedSet = usedKeys != null ? new HashSet<string>(usedKeys) : new HashSet<string>();
+            var usedSet = usedKeys != null
+                ? new HashSet<string>(usedKeys, System.StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
             foreach (var key in entry.Keys)
             {
                 var ring = _stats.GetOrAdd((entry.Scenario, key), _ => new RingBuffer<bool>(RingSize));
-                ring.Add(usedSet.Contains(key));
+                lock (ring)
+                {
+                    ring.Add(usedSet.Contains(key));
+                }
             }
         }
 
         public float GetFeedbackScore(string scenario, string key)
         {
             if (!_stats.TryGetValue((scenario, key), out var ring)) return 0.5f;  // unknown -> neutral
-            if (ring.Count == 0) return 0.5f;
-            int usedCount = ring.AsEnumerable().Count(b => b);
-            return usedCount / (float)ring.Count;
+            lock (ring)
+            {
+                if (ring.Count == 0) return 0.5f;
+                int usedCount = ring.AsEnumerable().Count(b => b);
+                return usedCount / (float)ring.Count;
+            }
         }
 
         private void MaybeCleanup()

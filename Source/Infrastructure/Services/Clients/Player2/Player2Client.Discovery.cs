@@ -20,7 +20,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         private static readonly HttpClient SharedHttpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(10)
+            Timeout = Timeout.InfiniteTimeSpan
         };
 
         private static string? _cachedLocalKey;
@@ -166,19 +166,31 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
         }
 
+        private static string GetNotificationFallbackText(string messageKey)
+        {
+            if (string.Equals(messageKey, "RimMind.Infrastructure.Player2.LocalDetected", StringComparison.Ordinal))
+                return "Player2 local app detected.";
+            if (string.Equals(messageKey, "RimMind.Infrastructure.Player2.LocalNotFound", StringComparison.Ordinal))
+                return "Player2 local app not found.";
+            if (string.Equals(messageKey, "RimMind.Discovery.RestartConfirmed", StringComparison.Ordinal))
+                return "Player2 connection restarted.";
+            return "Player2 status updated.";
+        }
+
+        // Called from the background probe task; must hop to the main thread before touching Verse.
         private static void ShowNotification(string messageKey)
         {
-            LongEventHandler.ExecuteWhenFinished(() =>
+            RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
             {
                 try
                 {
-                    string text = messageKey.CanTranslate() ? messageKey.Translate() : messageKey;
+                    string text = messageKey.CanTranslate() ? (string)messageKey.Translate() : GetNotificationFallbackText(messageKey);
                     Messages.Message(text,
                         messageKey.Contains("LocalDetected")
                             ? MessageTypeDefOf.PositiveEvent
                             : MessageTypeDefOf.CautionInput);
                 }
-                catch (Exception ex) { RimMindErrors.Warn($"[RimMind-Core] Failed to show notification: {ex.Message}"); }
+                catch (Exception ex) { RimMindErrors.Warn($"[RimMind-Core] Failed to show notification: {Shared.LogSanitizer.ForLog(ex.Message)}"); }
             });
         }
     }
