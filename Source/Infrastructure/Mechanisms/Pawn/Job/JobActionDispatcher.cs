@@ -290,7 +290,8 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         private static int ExtractIntParam(MechanismWriteArgs args, string key)
         {
             var str = ExtractParam(args, key);
-            return int.TryParse(str, out var val) ? val : 0;
+            if (int.TryParse(str, out var val)) return val;
+            return Application.Features.Tools.PawnIdParser.TryParse(str, out var pawnId) ? pawnId : 0;
         }
 
         /// <summary>

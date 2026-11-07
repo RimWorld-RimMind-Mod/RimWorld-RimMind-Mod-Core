@@ -70,7 +70,9 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 envelope.MaxTokens,
                 envelope.Temperature,
                 envelope.ScenarioId,
-                skipLayers);
+                skipLayers,
+                envelope.Hints,
+                context.Ct);
 
             if (snapshot == null)
             {

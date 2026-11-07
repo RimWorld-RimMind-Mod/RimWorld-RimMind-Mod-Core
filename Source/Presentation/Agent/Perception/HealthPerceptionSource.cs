@@ -26,9 +26,11 @@ namespace RimMind.Presentation.Agent.Perception
                 var pawn = pawnAgent.Pawn;
                 if (pawn?.health?.hediffSet?.hediffs != null)
                 {
+                    var seenHediffs = new HashSet<string>();
                     foreach (var hediff in pawn.health.hediffSet.hediffs)
                     {
-                        if (hediff != null && hediff.Visible && hediff.Severity > RimMindDefaults.PerceptionMediumThreshold)
+                        if (hediff != null && hediff.Visible && hediff.Severity > RimMindDefaults.PerceptionMediumThreshold
+                            && (hediff.def?.defName == null || seenHediffs.Add(hediff.def.defName)))
                         {
                             entries.Add(new PerceptionBufferEntry
                             {

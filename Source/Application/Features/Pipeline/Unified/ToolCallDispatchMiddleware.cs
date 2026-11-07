@@ -58,7 +58,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             if (string.Equals(context.Envelope?.ScenarioId, RimMind.Application.Common.Models.Context.ScenarioIds.Decision, System.StringComparison.OrdinalIgnoreCase))
             {
                 toolCalls = toolCalls
-                    .Where(tc => RimMind.Application.Features.Agent.Modes.ThinkStrategyHelper.IsQueryToolName(tc.FunctionName))
+                    .Where(tc => RimMind.Application.Features.Agent.Modes.ThinkStrategyHelper.IsQueryToolName(tc.FunctionName, _toolRegistry))
                     .ToList();
                 if (toolCalls.Count == 0) return;
             }

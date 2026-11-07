@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
 using RimMind.Presentation.Api;
@@ -64,6 +66,7 @@ namespace RimMind.Presentation.Runtime
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
+            NotifyGameStarted();
             CheckMissingApiKeyNotification();
         }
 
@@ -74,6 +77,7 @@ namespace RimMind.Presentation.Runtime
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
+            NotifyGameStarted();
             CheckMissingApiKeyNotification();
         }
 
@@ -81,6 +85,7 @@ namespace RimMind.Presentation.Runtime
         {
             base.FinalizeInit();
             RimMindPawnLookup.ClearCache();
+            NotifyGameStarted();
         }
 
         private void CheckMissingApiKeyNotification()
@@ -136,9 +141,98 @@ namespace RimMind.Presentation.Runtime
                 $"{typeof(T).Name} has not been created for the current game.");
         }
 
+        internal static void NotifyGameStarted(IExtensionRegistry<IGameScopedService>? registry = null)
+        {
+            var resolved = ResolveGameScopedServices(registry);
+            if (resolved == null) return;
+
+            foreach (var service in resolved.All)
+            {
+                if (service == null) continue;
+                try
+                {
+                    service.OnGameStarted();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[RimMind-Core] Game-scoped service '{service.Id}' failed in OnGameStarted: {ex}");
+                }
+            }
+        }
+
+        internal static void NotifyGameStopped(IExtensionRegistry<IGameScopedService>? registry = null)
+        {
+            var resolved = ResolveGameScopedServices(registry);
+            if (resolved == null)
+            {
+                try
+                {
+                    Player2GameLifecycleService.Instance.OnGameStopped();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[RimMind-Core] Default Player2 game-scoped service failed in OnGameStopped: {ex}");
+                }
+                return;
+            }
+
+            var notifiedPlayer2 = false;
+            foreach (var service in resolved.All)
+            {
+                if (service == null) continue;
+                if (service is Player2GameLifecycleService)
+                    notifiedPlayer2 = true;
+                try
+                {
+                    service.OnGameStopped();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[RimMind-Core] Game-scoped service '{service.Id}' failed in OnGameStopped: {ex}");
+                }
+            }
+
+            if (!notifiedPlayer2 && registry == null)
+            {
+                try
+                {
+                    Player2GameLifecycleService.Instance.OnGameStopped();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[RimMind-Core] Default Player2 game-scoped service failed in OnGameStopped: {ex}");
+                }
+            }
+        }
+
+        private static IExtensionRegistry<IGameScopedService>? ResolveGameScopedServices(
+            IExtensionRegistry<IGameScopedService>? explicitRegistry = null)
+        {
+            if (explicitRegistry != null)
+                return explicitRegistry;
+
+            var fromHub = RuntimeServiceHub.Shared.Capture().GetOptional<IExtensionRegistry<IGameScopedService>>();
+            if (fromHub != null)
+                return fromHub;
+
+            try
+            {
+                return RimMindAPI.Ext.Get<IGameScopedService>();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        internal static void ShutdownForGameEnd()
+        {
+            StopGameServices();
+        }
+
         internal static void StopGameServices()
         {
-            RimMind.Infrastructure.Services.Clients.Player2.Player2Client.StopHealthCheck();
+            NotifyGameStopped();
             RimMindPawnLookup.ClearCache();
             GameServiceHub.Shared.Stop();
         }
@@ -173,6 +267,24 @@ namespace RimMind.Presentation.Runtime
                     _lastTick = -1;
                 }
             }
+        }
+    }
+
+    internal sealed class Player2GameLifecycleService : IGameScopedService
+    {
+        public static readonly Player2GameLifecycleService Instance = new Player2GameLifecycleService();
+
+        public string Id => "core.player2.game_lifecycle";
+
+        public string OwnerModId => RimMindOwnerConsts.CoreModId;
+
+        public void OnGameStarted()
+        {
+        }
+
+        public void OnGameStopped()
+        {
+            RimMind.Infrastructure.Services.Clients.Player2.Player2Client.StopHealthCheck();
         }
     }
 }

@@ -241,6 +241,7 @@ namespace RimMind.Application.Features.Context
                 case ContextLayer.L1_Baseline: alloc.L1Keys.Add(key); break;
                 case ContextLayer.L2_Environment: alloc.L2Keys.Add(key); break;
                 case ContextLayer.L3_State: alloc.L3Keys.Add(key); break;
+                case ContextLayer.L4_History: alloc.L4Keys.Add(key); break;
                 case ContextLayer.L5_Sensor: alloc.L5Keys.Add(key); break;
             }
         }

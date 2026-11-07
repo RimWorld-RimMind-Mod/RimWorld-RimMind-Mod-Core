@@ -7,9 +7,11 @@ using RimMind.Application.Common.Interfaces.Async;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Interfaces.Agent.Planning;
 using RimMind.Application.Common.Interfaces.Agent.Reflection;
 using RimMind.Application.Common.Interfaces.Agent.Social;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Domain.Agent.Social;
 using RimMind.Domain.Events;
 using RimMind.Domain.ValueObjects;
@@ -30,6 +32,17 @@ namespace RimMind.Application.Features.Agent
         private readonly int _pawnId;
         private readonly ILogSink? _log;
         private readonly ICompletionFence _completionFence;
+        private readonly IExtensionRegistry<IProactiveBehavior>? _behaviorRegistry;
+
+        public ProactiveBehaviorOrchestrator(
+            IAgentBus agentBus,
+            int pawnId,
+            IExtensionRegistry<IProactiveBehavior>? behaviorRegistry,
+            ILogSink? log = null,
+            ICompletionFence? completionFence = null)
+            : this(null, null, null, null, null, null, agentBus, pawnId, log, completionFence, behaviorRegistry)
+        {
+        }
 
         public ProactiveBehaviorOrchestrator(
             IReflectionStrategy? reflectionStrategy,
@@ -41,7 +54,8 @@ namespace RimMind.Application.Features.Agent
             IAgentBus agentBus,
             int pawnId,
             ILogSink? log = null,
-            ICompletionFence? completionFence = null)
+            ICompletionFence? completionFence = null,
+            IExtensionRegistry<IProactiveBehavior>? behaviorRegistry = null)
         {
             _reflectionStrategy = reflectionStrategy;
             _dailyPlanner = dailyPlanner;
@@ -53,6 +67,7 @@ namespace RimMind.Application.Features.Agent
             _pawnId = pawnId;
             _log = log;
             _completionFence = completionFence ?? UnboundedCompletionFence.Instance;
+            _behaviorRegistry = behaviorRegistry;
         }
 
         public void ExecuteReflection(IAgentInfo agent)
@@ -146,6 +161,75 @@ namespace RimMind.Application.Features.Agent
                         record.Kind, record.Reason, record.Confidence));
                 }
             }
+        }
+
+        public void ExecuteRegisteredBehaviors(IAgentInfo agent, int currentTick = 0)
+        {
+            if (agent == null || _behaviorRegistry == null) return;
+            if (_completionFence.CancellationToken.IsCancellationRequested) return;
+
+            var behaviors = _behaviorRegistry.All;
+            if (behaviors == null || behaviors.Count == 0) return;
+
+            foreach (var behavior in behaviors.OrderBy(b => b.Order))
+            {
+                if (behavior == null) continue;
+                if (_completionFence.CancellationToken.IsCancellationRequested) return;
+
+                bool shouldExecute;
+                try
+                {
+                    shouldExecute = behavior.ShouldExecute(agent, currentTick);
+                }
+                catch (Exception ex)
+                {
+                    _log?.Warning($"[RimMind.Orchestrator] action=ProactiveBehaviorCheckFailed behaviorId={behavior.BehaviorId} npcId={agent.NpcId} error={ex.Message}");
+                    continue;
+                }
+
+                if (!shouldExecute) continue;
+
+                Task task;
+                try
+                {
+                    task = behavior.ExecuteAsync(agent, _completionFence.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _log?.Warning($"[RimMind.Orchestrator] action=ProactiveBehaviorFailed behaviorId={behavior.BehaviorId} npcId={agent.NpcId} error={ex.Message}");
+                    continue;
+                }
+
+                if (task == null) continue;
+                var behaviorId = behavior.BehaviorId;
+                if (task.IsCompleted)
+                {
+                    if (!_completionFence.TryAcceptCompletion()) return;
+                    if (task.IsFaulted)
+                    {
+                        _log?.Warning($"[RimMind.Orchestrator] action=ProactiveBehaviorFailed behaviorId={behaviorId} npcId={agent.NpcId} error={task.Exception?.InnerException?.Message}");
+                    }
+                    continue;
+                }
+
+                task.ContinueWith(t =>
+                {
+                    if (!_completionFence.TryAcceptCompletion()) return;
+                    if (t.IsFaulted)
+                    {
+                        _log?.Warning($"[RimMind.Orchestrator] action=ProactiveBehaviorFailed behaviorId={behaviorId} npcId={agent.NpcId} error={t.Exception?.InnerException?.Message}");
+                    }
+                }, TaskScheduler.Current);
+            }
+        }
+
+        public void ExecuteAll(IAgentInfo agent, int currentTick = 0)
+        {
+            ExecuteReflection(agent);
+            ExecutePlanning(agent);
+            ExecuteDream(agent);
+            ExecuteTraitEvolution(agent);
+            ExecuteRegisteredBehaviors(agent, currentTick);
         }
 
         private sealed class UnboundedCompletionFence : ICompletionFence

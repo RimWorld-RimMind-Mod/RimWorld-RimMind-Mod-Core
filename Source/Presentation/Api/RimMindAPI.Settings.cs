@@ -1,3 +1,4 @@
+using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Interfaces.Flywheel;
@@ -30,6 +31,9 @@ namespace RimMind.Presentation.Api
 
             public static bool DebugLogging => GetSettingsProvider()?.DebugLogging == true;
             public static float ActivityFrequencyScale => GetSettingsProvider()?.ActivityFrequencyScale ?? 1.0f;
+
+            public static int ScaleCooldown(int baseCooldownTicks, int minFloorTicks = 0)
+                => ActivityCooldownScaler.Scale(baseCooldownTicks, ActivityFrequencyScale, minFloorTicks);
 
             internal static IHistoryManager GetHistoryManager() => HistoryManagers.Value;
             public static IContextEngine GetContextEngine() => ContextEngines.Value;

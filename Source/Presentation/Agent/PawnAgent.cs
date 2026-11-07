@@ -8,6 +8,8 @@ using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Models.Pipeline;
+using RimMind.Application.Features.Memory;
+using RimMind.Application.Features.Tools;
 using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.Common;
 using RimMind.Domain.Enums;
@@ -51,10 +53,18 @@ namespace RimMind.Presentation.Agent
         string IAgentInfo.Label => Pawn?.Label ?? Identity.DisplayName;
         int IAgentInfo.GoalCount => GoalStack.TotalCount;
 
+        private static readonly ToolManifestRiskResolver DefaultRiskResolver = new ToolManifestRiskResolver(
+            () => RimMindAPI.Tools,
+            () => RimMindAPI.Mechanisms,
+            RimMind.Infrastructure.Agent.MechanismActionExecutor.ResolveToolId);
+
         private IPawnPerceiver _perceiver;
         private IPawnThinker _thinker;
         private IPawnActorVerse _actor;
         private IPawnRecorder _recorder;
+        private ToolManifestRiskResolver? _riskResolver;
+
+        internal IPawnPerceiver Perceiver => _perceiver;
         private readonly IAgentTickSettings? _tickSettings;
         private readonly IAgentBus _agentBus;
         private readonly ILogSink? _log;
@@ -100,7 +110,7 @@ namespace RimMind.Presentation.Agent
         public PawnAgent(Pawn pawn, IAgentTickSettings tickSettings, IAgentBus agentBus,
             IPawnPerceiver? perceiver = null, IPawnThinker? thinker = null,
             IPawnActorVerse? actor = null, IPawnRecorder? recorder = null,
-            ILogSink? log = null)
+            ILogSink? log = null, ToolManifestRiskResolver? riskResolver = null)
         {
             Pawn = pawn ?? throw new ArgumentNullException(nameof(pawn));
             _tickSettings = tickSettings;
@@ -111,6 +121,7 @@ namespace RimMind.Presentation.Agent
             _thinker = thinker!;
             _actor = actor!;
             _recorder = recorder!;
+            _riskResolver = riskResolver;
             _lastTick = TickStagger.InitialLastTick(pawn.thingIDNumber, TickInterval);
             Identity = new SerializableAgentIdentity($"NPC-{pawn.thingIDNumber}", pawn.thingIDNumber, pawn.Name?.ToStringFull ?? pawn.Label ?? "Unknown");
         }
@@ -266,6 +277,8 @@ namespace RimMind.Presentation.Agent
 
             var result = _actor.ExecuteDecision(decision);
             int nowTick = Find.TickManager?.TicksGame ?? 0;
+            int pawnId = Pawn?.thingIDNumber ?? -1;
+            string npcId = Identity?.NpcId ?? "";
             if (!result.IsOk)
             {
                 string failText = $"[Action Failed] {decision.ActionIntent} failed: {result.Error.Message}";
@@ -278,14 +291,21 @@ namespace RimMind.Presentation.Agent
                     Tick = nowTick,
                     Importance = 0.85f,
                     Priority = 0.85f,
-                    PawnId = Pawn?.thingIDNumber ?? -1,
+                    PawnId = pawnId,
                     Source = "PawnAgent"
                 });
+                _agentBus?.Publish(new AgentActionOutcomeEvent(
+                    npcId,
+                    pawnId,
+                    decision.ActionIntent ?? "",
+                    succeeded: false,
+                    summary: failText,
+                    timestamp: nowTick));
                 try
                 {
-                    if (Pawn != null && Verse.ModsConfig.IsActive("mcocdaa.RimMindMemory"))
+                    if (Pawn != null)
                     {
-                        RimMindAPI.Memory.AddPawnMemory(
+                        MemoryBridgeRegistry.Current.AddPawnMemory(
                             failText,
                             RimMind.Application.Common.Models.Memory.MemoryKind.Event,
                             nowTick,
@@ -298,14 +318,21 @@ namespace RimMind.Presentation.Agent
             else if (!string.IsNullOrEmpty(decision.ActionIntent) &&
                      !string.Equals(decision.ActionIntent, "dialogue.free", StringComparison.OrdinalIgnoreCase))
             {
+                string summary = string.IsNullOrWhiteSpace(decision.Reason)
+                    ? $"[Action Executed] {decision.ActionIntent}"
+                    : $"[Action Executed] {decision.ActionIntent}: {decision.Reason}";
+                _agentBus?.Publish(new AgentActionOutcomeEvent(
+                    npcId,
+                    pawnId,
+                    decision.ActionIntent,
+                    succeeded: true,
+                    summary: summary,
+                    timestamp: nowTick));
                 try
                 {
-                    if (Pawn != null && Verse.ModsConfig.IsActive("mcocdaa.RimMindMemory"))
+                    if (Pawn != null)
                     {
-                        string summary = string.IsNullOrWhiteSpace(decision.Reason)
-                            ? $"[Action Executed] {decision.ActionIntent}"
-                            : $"[Action Executed] {decision.ActionIntent}: {decision.Reason}";
-                        RimMindAPI.Memory.AddPawnMemory(
+                        MemoryBridgeRegistry.Current.AddPawnMemory(
                             summary,
                             RimMind.Application.Common.Models.Memory.MemoryKind.Work,
                             nowTick,
@@ -378,29 +405,13 @@ namespace RimMind.Presentation.Agent
         }
 
         /// <summary>
-        /// Assesses the risk level of a decision based on its action intent.
-        /// Conservative default — sub-mods can override via IModeTransitionPolicy
-        /// or custom IActionExecutor implementations.
+        /// Assesses the risk level of a decision from its registered <see cref="RimMind.Application.Common.Models.Tools.ToolManifest"/>
+        /// or <see cref="RimMind.Application.Common.Interfaces.Mechanisms.IGameMechanism"/> metadata via <see cref="ToolManifestRiskResolver"/>.
         /// </summary>
-        private RiskLevel AssessRiskLevel(AgentDecision decision)
+        internal RiskLevel AssessRiskLevel(AgentDecision decision)
         {
             if (decision == null) return RiskLevel.Low;
-
-            var intent = decision.ActionIntent?.ToLowerInvariant() ?? "";
-
-            // Critical: actions that can cause permanent harm or game state changes
-            if (intent.Contains("attack") || intent.Contains("kill") || intent.Contains("arrest"))
-                return RiskLevel.Critical;
-
-            // High: actions that significantly alter pawn state
-            if (intent.Contains("surgery") || intent.Contains("banish") || intent.Contains("execute"))
-                return RiskLevel.High;
-
-            // Medium: actions that change pawn assignments or roles
-            if (intent.Contains("assign") || intent.Contains("draft") || intent.Contains("trade"))
-                return RiskLevel.Medium;
-
-            return RiskLevel.Low;
+            return (_riskResolver ?? DefaultRiskResolver).Resolve(decision.ActionIntent);
         }
 
         public bool RemoveGoal(string goalDescription)
@@ -557,14 +568,10 @@ namespace RimMind.Presentation.Agent
             Scribe_Deep.Look(ref concrete, label);
             agent = concrete;
 
-            // After deserialization, collaborators are null — rebuild them
+            // After deserialization, collaborators are null — rebuild them through the single factory path
             if (Scribe.mode == LoadSaveMode.LoadingVars && concrete != null)
             {
-                concrete.RebuildCollaborators(
-                    new PawnPerceiver(concrete, factory.AgentBus),
-                    new PawnThinker(concrete, factory.TickSettings!, factory.AgentBus, factory.InnerVoiceHandler, factory.PsychologyWatcher, factory.TickProvider, factory.DreamGenerator, factory.DreamThoughtInjector, factory.TraitEvolver, factory.LogSink, factory.CompletionFence),
-                    new PawnActor(concrete, factory.ActionExecutor),
-                    new PawnRecorder(concrete, factory.AgentBus));
+                factory.WireCollaborators(concrete, factory.AgentBus);
 
                 // Re-subscribe event bus so subscribers can re-associate this agent after save/load
                 concrete.ResubscribeEvents();

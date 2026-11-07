@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Agent;
@@ -65,12 +66,7 @@ namespace RimMind.Infrastructure.Verse
 
             if (!(parent is Pawn pawn) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
             {
-                UnregisterFromAgentLoop();
-                if (_agent != null)
-                {
-                    _agent.Destroy();
-                    _agent = null;
-                }
+                TearDownAgent();
                 return;
             }
 
@@ -158,6 +154,16 @@ namespace RimMind.Infrastructure.Verse
             _registeredHubGeneration = null;
         }
 
+        private void TearDownAgent()
+        {
+            UnregisterFromAgentLoop();
+            if (_agent != null)
+            {
+                _agent.Destroy();
+                _agent = null;
+            }
+        }
+
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
             UnregisterFromAgentLoop();
@@ -171,13 +177,8 @@ namespace RimMind.Infrastructure.Verse
             {
                 RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(pawn);
             }
-            UnregisterFromAgentLoop();
             ClearIntentSession();
-            if (_agent != null)
-            {
-                _agent.Destroy();
-                _agent = null;
-            }
+            TearDownAgent();
             base.Notify_Killed(prevMap, dinfo);
         }
 
@@ -187,13 +188,8 @@ namespace RimMind.Infrastructure.Verse
             {
                 RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(pawn);
             }
-            UnregisterFromAgentLoop();
             ClearIntentSession();
-            if (_agent != null)
-            {
-                _agent.Destroy();
-                _agent = null;
-            }
+            TearDownAgent();
             base.PostDestroy(mode, previousMap);
         }
 
@@ -217,29 +213,19 @@ namespace RimMind.Infrastructure.Verse
 
             if (Agent != null && !Agent.IsPawnValid)
             {
-                Agent.Destroy();
-                Agent = null;
+                TearDownAgent();
             }
 
-            var survivalLevel = AutonomyPolicy.GetLevel(AutonomyDomain.EmergencySurvival);
-            var resourceLevel = AutonomyPolicy.GetLevel(AutonomyDomain.ResourceMarking);
-            var billsLevel = AutonomyPolicy.GetLevel(AutonomyDomain.WorktableBills);
-            var blueprintLevel = AutonomyPolicy.GetLevel(AutonomyDomain.BlueprintPlacement);
-            var highRiskLevel = AutonomyPolicy.GetLevel(AutonomyDomain.HighRiskOperations);
-
-            Scribe_Values.Look(ref survivalLevel, "autonomySurvival", AutonomyLevel.FullAutonomous);
-            Scribe_Values.Look(ref resourceLevel, "autonomyResource", AutonomyLevel.FullAutonomous);
-            Scribe_Values.Look(ref billsLevel, "autonomyBills", AutonomyLevel.RequireApproval);
-            Scribe_Values.Look(ref blueprintLevel, "autonomyBlueprints", AutonomyLevel.RequireApproval);
-            Scribe_Values.Look(ref highRiskLevel, "autonomyHighRisk", AutonomyLevel.RequireApproval);
-
-            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            var defaultPolicy = AgentAutonomyPolicy.CreateDefault();
+            foreach (var domain in (AutonomyDomain[])Enum.GetValues(typeof(AutonomyDomain)))
             {
-                AutonomyPolicy.SetLevel(AutonomyDomain.EmergencySurvival, survivalLevel);
-                AutonomyPolicy.SetLevel(AutonomyDomain.ResourceMarking, resourceLevel);
-                AutonomyPolicy.SetLevel(AutonomyDomain.WorktableBills, billsLevel);
-                AutonomyPolicy.SetLevel(AutonomyDomain.BlueprintPlacement, blueprintLevel);
-                AutonomyPolicy.SetLevel(AutonomyDomain.HighRiskOperations, highRiskLevel);
+                var level = AutonomyPolicy.GetLevel(domain);
+                var defaultLevel = defaultPolicy.GetLevel(domain);
+                Scribe_Values.Look(ref level, "autonomy_" + domain.ToString(), defaultLevel);
+                if (Scribe.mode == LoadSaveMode.LoadingVars)
+                {
+                    AutonomyPolicy.SetLevel(domain, level);
+                }
             }
         }
 
@@ -376,24 +362,14 @@ namespace RimMind.Infrastructure.Verse
         {
             if (!(parent is Pawn pawn) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
             {
-                if (Agent != null)
-                {
-                    UnregisterFromAgentLoop();
-                    Agent.Destroy();
-                    Agent = null;
-                }
+                TearDownAgent();
                 return;
             }
 
             if (factory == null || agentBus == null) return;
             if (Agent != null && _agentRuntimeGeneration == generation) return;
 
-            if (Agent != null)
-            {
-                UnregisterFromAgentLoop();
-                Agent.Destroy();
-                Agent = null;
-            }
+            TearDownAgent();
 
             Agent = factory.Create(pawn, agentBus) as IPawnAgentVerse;
             _agentRuntimeGeneration = generation;

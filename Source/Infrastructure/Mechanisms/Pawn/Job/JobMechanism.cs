@@ -4,13 +4,14 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Models.Mechanisms;
+using RimMind.Application.Features.Tools;
 using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
 using Verse;
 
 namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 {
-    public sealed class JobMechanism : GameMechanismBaseNoDef
+    public sealed class JobMechanism : GameMechanismBaseNoDef, IMechanismActionRiskProvider
     {
         public override string MechanismId => "pawn.job";
         public override MechanismScope Scope => MechanismScope.Pawn;
@@ -35,6 +36,11 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             }.AsReadOnly();
 
         public override IReadOnlyList<MechanismActionInfo>? GetWriteActions() => _writeActions;
+
+        public MechanismRisk? GetRiskForAction(string action)
+            => string.Equals(action, "arrest_pawn", System.StringComparison.OrdinalIgnoreCase)
+                ? MechanismRisk.Dangerous
+                : null;
 
         public override Task<Result<string, RimMindError>> ExecuteQueryAsync(MechanismReadArgs args, CancellationToken ct)
         {

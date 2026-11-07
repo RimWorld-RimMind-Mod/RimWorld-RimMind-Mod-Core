@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Models.Context;
@@ -43,7 +44,30 @@ namespace RimMind.Presentation.Api
                 var scope = RuntimeServiceHub.Shared.Capture();
                 ScenarioRegistry.Register(scenarioId, defaultBaseRounds, description,
                     defaultEmbedding, defaultBudget, l4Mode, defaultExcludeKeys,
-                    scope.GetRequired<ILogSink>());
+                    scope.GetOptional<ILogSink>());
+            }
+
+            public static void RegisterScenario(string scenarioId, int defaultBaseRounds, string description,
+                IReadOnlyDictionary<string, float>? relevanceWeights,
+                float[]? defaultEmbedding = null, float defaultBudget = 0.6f,
+                L4Mode l4Mode = L4Mode.BudgetControlled, string[]? defaultExcludeKeys = null,
+                string? ownerModId = null)
+            {
+                var scope = RuntimeServiceHub.Shared.Capture();
+                ScenarioRegistry.Register(scenarioId, defaultBaseRounds, description,
+                    relevanceWeights, defaultEmbedding, defaultBudget, l4Mode, defaultExcludeKeys,
+                    scope.GetOptional<ILogSink>(), ownerModId);
+            }
+
+            public static void RegisterScenario(ScenarioDescriptor descriptor)
+            {
+                var scope = RuntimeServiceHub.Shared.Capture();
+                ScenarioRegistry.Register(descriptor, scope.GetOptional<ILogSink>());
+            }
+
+            public static void RegisterScenarioRelevance(string scenarioId, IReadOnlyDictionary<string, float> weights)
+            {
+                ScenarioRegistry.RegisterRelevance(scenarioId, weights);
             }
 
             public static bool UnregisterScenario(string scenarioId)

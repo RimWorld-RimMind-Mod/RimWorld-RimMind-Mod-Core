@@ -21,6 +21,11 @@ namespace RimMind.Infrastructure.Mechanisms
     public abstract class GameMechanismBase<TDef> : GameMechanismBaseNoDef
         where TDef : Def, new()
     {
+        protected GameMechanismBase(string? ownerModId = null)
+            : base(ownerModId)
+        {
+        }
+
         /// <summary>
         /// 枚举 <see cref="DefDatabase{TDef}"/> 中所有 Def 作为可选项。
         /// 非 Def 类型的 Mechanism（继承 NoDef 直接）保持返回 Err 的默认行为。
@@ -45,18 +50,24 @@ namespace RimMind.Infrastructure.Mechanisms
         protected static TDef? FindDef(string defName)
         {
             if (string.IsNullOrEmpty(defName)) return null;
-            return DefDatabase<TDef>.GetNamed(defName);
+            return DefDatabase<TDef>.GetNamedSilentFail(defName);
         }
 
         /// <summary>
         /// 验证地图非空，否则返回 <see cref="RimMindErrors.MapNotFound"/> 错误。
         /// 仅 Def 类型 Mechanism 需要。
         /// </summary>
-        protected static Result<T, RimMindError> ValidateMapOrErr<T>(VerseMap? map)
+        protected static Result<T, RimMindError> ValidateMapOrErr<T>(VerseMap? map, int? mapId = null)
         {
             if (map == null)
-                return Result<T, RimMindError>.Err(RimMindErrors.MapNotFound(0));
+                return Result<T, RimMindError>.Err(RimMindErrors.MapNotFound(mapId ?? 0));
             return Result<T, RimMindError>.Ok(default!);
         }
+
+        protected static Result<T, RimMindError> ValidateMapOrErr<T>(VerseMap? map, MechanismReadArgs args)
+            => ValidateMapOrErr<T>(map, args.MapId);
+
+        protected static Result<T, RimMindError> ValidateMapOrErr<T>(VerseMap? map, MechanismWriteArgs args)
+            => ValidateMapOrErr<T>(map, args.MapId);
     }
 }

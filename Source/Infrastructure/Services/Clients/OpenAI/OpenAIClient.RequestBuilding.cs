@@ -16,7 +16,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             string rawModel = !string.IsNullOrWhiteSpace(modelNameOverride) ? modelNameOverride! : _settings.ModelName;
             string model = NormalizeModelNameForEndpoint(endpointOverride ?? _settings.ApiEndpoint, rawModel);
             return OpenAIRequestSerializer.BuildRequestJson(
-                envelope, model, _settings.MaxTokens, stream);
+                envelope, model, _settings.MaxTokens, stream, forceJsonMode: _settings.ForceJsonMode);
         }
 
         internal static string NormalizeModelNameForEndpoint(string? endpoint, string? modelName)
@@ -28,26 +28,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         }
 
         private static void EnsureJsonKeyword(List<MessageDto> messages)
-        {
-            foreach (var m in messages)
-            {
-                if (m.content != null && m.content.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
-                    return;
-            }
-            int lastSys = -1;
-            for (int i = messages.Count - 1; i >= 0; i--)
-            {
-                if (messages[i].role == "system")
-                {
-                    lastSys = i;
-                    break;
-                }
-            }
-            if (lastSys >= 0)
-                messages[lastSys].content = (messages[lastSys].content ?? "") + "\n\nPlease respond in JSON format.";
-            else
-                messages.Insert(0, new MessageDto { role = "system", content = "Please respond in JSON format." });
-        }
+            => OpenAIRequestSerializer.EnsureJsonKeyword(messages);
 
         private static string FormatEndpoint(string baseUrl)
         {

@@ -172,7 +172,13 @@ namespace Verse
         public string LabelShort => "TestPawn";
         public string LabelShortCap => LabelShort;
         public string LabelCap => LabelShortCap;
+        public string Label => LabelShort;
         public string ThingID => "Pawn_" + thingIDNumber;
+        public bool Drafted;
+        public IntVec3 Position;
+        public Pawn_NeedsTracker? needs;
+        public Pawn_HealthTracker? health;
+        public Pawn_RelationsTracker? relations;
         public object jobs = new();
         public RaceProperties RaceProps = new();
 
@@ -201,11 +207,66 @@ namespace Verse
         public static string Truncate(this string str, float width, Dictionary<string, string>? cache = null) => str;
     }
 
+    public struct IntVec3
+    {
+        public int x, y, z;
+        public IntVec3(int x, int y, int z) { this.x = x; this.y = y; this.z = z; }
+        public float DistanceTo(IntVec3 other)
+            => (float)Math.Sqrt((x - other.x) * (x - other.x) + (z - other.z) * (z - other.z));
+    }
+
+    public class Def
+    {
+        public string defName = "";
+        public string label = "";
+    }
+
+    public class HediffDef : Def { }
+    public class Hediff
+    {
+        public HediffDef def = new();
+        public bool Visible = true;
+        public float Severity;
+        public string Label = "";
+    }
+    public class HediffSet { public List<Hediff> hediffs = new(); }
+    public class Pawn_HealthTracker { public HediffSet hediffSet = new(); }
+
+    public class NeedDef : Def { }
+    public class Need
+    {
+        public NeedDef def = new();
+        public float CurLevel = 1f;
+    }
+    public class Pawn_NeedsTracker
+    {
+        public Need? mood;
+        public List<Need> AllNeeds = new();
+    }
+
+    public class PawnRelationDef : Def { }
+    public class DirectPawnRelation
+    {
+        public PawnRelationDef def = new();
+        public Pawn? otherPawn;
+    }
+    public class Pawn_RelationsTracker { public List<DirectPawnRelation> DirectRelations = new(); }
+
+    public class WeatherDef : Def { public WeatherDef() { defName = "Clear"; label = "clear"; } }
+    public class WeatherManager { public WeatherDef? curWeather = new(); }
+
+    public static class GenTemperature
+    {
+        public static float CurrentTemperature = 21f;
+        public static float GetTemperatureForCell(IntVec3 cell, Map map) => CurrentTemperature;
+    }
+
     /// <summary>Stub for Verse.Map used by context orchestration tests.</summary>
     public class Map
     {
         public int uniqueID;
         public MapPawns mapPawns = new();
+        public WeatherManager? weatherManager = new();
     }
 
     public class MapPawns

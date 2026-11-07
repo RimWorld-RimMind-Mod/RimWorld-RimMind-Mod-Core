@@ -16,8 +16,17 @@ namespace RimMind.Infrastructure.Mechanisms
 {
     public abstract class GameMechanismBaseNoDef : IGameMechanism
     {
+        private readonly string? _ownerModId;
+
+        protected GameMechanismBaseNoDef(string? ownerModId = null)
+        {
+            _ownerModId = string.IsNullOrWhiteSpace(ownerModId) ? null : ownerModId;
+        }
+
+        public virtual string OwnerModId => _ownerModId ?? RimMindOwnerConsts.CoreModId;
+
         string IExtension.Id => MechanismId;
-        string IExtension.OwnerModId => RimMindOwnerConsts.CoreModId;
+        string IExtension.OwnerModId => string.IsNullOrWhiteSpace(OwnerModId) ? RimMindOwnerConsts.CoreModId : OwnerModId;
         public abstract string MechanismId { get; }
         public abstract MechanismScope Scope { get; }
         public abstract MechanismRisk Risk { get; }

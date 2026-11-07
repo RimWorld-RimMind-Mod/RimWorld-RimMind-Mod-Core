@@ -1,6 +1,7 @@
 using System;
 using RimMind.Application.Common.Interfaces.Json;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Features.Tools;
 
 namespace RimMind.Infrastructure.Mechanisms
 {
@@ -10,23 +11,7 @@ namespace RimMind.Infrastructure.Mechanisms
             => jsonExtractor.ExtractString(json ?? "{}", propertyName);
 
         public static bool TryParsePawnIdString(string? raw, out int parsedId)
-        {
-            parsedId = 0;
-            if (string.IsNullOrWhiteSpace(raw)) return false;
-            var s = raw!.Trim();
-            if (s.StartsWith("NPC-", StringComparison.OrdinalIgnoreCase) ||
-                s.StartsWith("pawn-", StringComparison.OrdinalIgnoreCase))
-            {
-                s = s.Substring(s.IndexOf('-') + 1).Trim();
-            }
-            else if (s.StartsWith("Pawn_", StringComparison.OrdinalIgnoreCase))
-            {
-                int idx = s.Length - 1;
-                while (idx >= 0 && char.IsDigit(s[idx])) idx--;
-                s = s.Substring(idx + 1);
-            }
-            return int.TryParse(s, out parsedId);
-        }
+            => PawnIdParser.TryParse(raw, out parsedId);
 
         public static int ExtractInt(IJsonExtractor jsonExtractor, string? json, string propertyName)
         {
@@ -50,24 +35,25 @@ namespace RimMind.Infrastructure.Mechanisms
         /// pawn (<see cref="ToolCallArgs.PawnId"/>, then the numeric part of <see cref="ToolCallArgs.NpcId"/>).</item>
         /// </list>
         /// </summary>
-        public static int ResolvePawnId(IJsonExtractor jsonExtractor, ToolCallArgs args, string propertyName = "pawn_id")
+        public static PawnTargetResolution ResolveTarget(IJsonExtractor jsonExtractor, ToolCallArgs args, string propertyName = "pawn_id")
         {
-            int id = ExtractInt(jsonExtractor, args.ArgumentsJson, propertyName);
-            if (id > 0)
+            var raw = ExtractString(jsonExtractor, args.ArgumentsJson, propertyName);
+            if (string.IsNullOrWhiteSpace(raw) && !string.IsNullOrWhiteSpace(args.ArgumentsJson))
             {
-                return id;
+                try
+                {
+                    var root = Newtonsoft.Json.Linq.JObject.Parse(args.ArgumentsJson!);
+                    raw = PawnIdParser.ReadRaw(root, propertyName);
+                }
+                catch (Exception)
+                {
+                }
             }
-
-            if (args.PawnId.HasValue && args.PawnId.Value > 0)
-            {
-                return args.PawnId.Value;
-            }
-            if (TryParsePawnIdString(args.NpcId, out int npcId) && npcId > 0)
-            {
-                return npcId;
-            }
-            return 0;
+            return PawnIdParser.ResolveTarget(raw, args.PawnId, args.NpcId);
         }
+
+        public static int ResolvePawnId(IJsonExtractor jsonExtractor, ToolCallArgs args, string propertyName = "pawn_id")
+            => ResolveTarget(jsonExtractor, args, propertyName).PawnId;
 
         public static int? ResolveNullablePawnId(IJsonExtractor jsonExtractor, ToolCallArgs args, string propertyName = "pawn_id")
         {
@@ -83,7 +69,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 try
                 {
                     var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
-                    return obj[propertyName]?.ToString();
+                    return PawnIdParser.ReadRaw(obj, propertyName);
                 }
                 catch (Exception)
                 {

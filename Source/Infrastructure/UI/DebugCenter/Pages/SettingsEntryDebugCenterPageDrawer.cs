@@ -1,4 +1,5 @@
 using System;
+using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.Agent;
@@ -154,15 +155,20 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             if (string.IsNullOrEmpty(providerId))
                 return "Unknown";
 
-            string normalized = providerId.ToLowerInvariant() switch
+            string? labelKey = AIProviderRegistry.GetDisplayLabelKey(providerId);
+            if (!string.IsNullOrEmpty(labelKey) && labelKey!.CanTranslate())
+                return (string)labelKey.Translate();
+
+            string? settingsTabId = AIProviderRegistry.GetSettingsTabId(providerId);
+            if (!string.IsNullOrEmpty(settingsTabId))
             {
-                "openai" => "OpenAI",
-                "player2" => "Player2",
-                "extended_service" => "ExtendedService",
-                _ => providerId
-            };
-            string key = $"RimMind.Settings.Provider.{normalized}";
-            return key.CanTranslate() ? (string)key.Translate() : providerId;
+                string tabKey = $"RimMind.Settings.Tab.{settingsTabId}";
+                if (tabKey.CanTranslate())
+                    return (string)tabKey.Translate();
+            }
+
+            string key = $"RimMind.Settings.Provider.{providerId}";
+            return key.CanTranslate() ? (string)key.Translate() : providerId!;
         }
     }
 }

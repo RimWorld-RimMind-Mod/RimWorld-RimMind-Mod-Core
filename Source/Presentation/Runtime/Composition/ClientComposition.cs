@@ -36,6 +36,10 @@ namespace RimMind.Presentation.Runtime.Composition
             services.Bind<IClientManager>(clientManager);
             services.Bind(clientFactoryRegistry);
 
+            var gameScopedServices = extensions.GetExtensionRegistry<IGameScopedService>();
+            gameScopedServices.Register(Player2GameLifecycleService.Instance);
+            services.Bind(gameScopedServices);
+
             return new ClientCompositionServices
             {
                 ClientManager = clientManager,

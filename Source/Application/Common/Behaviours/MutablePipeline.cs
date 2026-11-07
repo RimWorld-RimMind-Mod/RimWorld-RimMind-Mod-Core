@@ -13,21 +13,21 @@ namespace RimMind.Application.Common.Behaviours
     {
         private static readonly MiddlewareDelegate<TContext> TerminalStep = _ => Task.CompletedTask;
 
+        private readonly List<IMiddleware<TContext>> _baseMiddlewares = new List<IMiddleware<TContext>>();
         private volatile IReadOnlyList<IMiddleware<TContext>> _middlewares = new List<IMiddleware<TContext>>();
         private volatile MiddlewareDelegate<TContext>? _compiledPipeline;
         private readonly object _lock = new object();
 
-        // Lazy construction support: extension registry is merged on first ExecuteAsync
+        // Lazy construction support: extension registry is merged on ExecuteAsync and recompiled on changes
         private IExtensionRegistry<IMiddleware<TContext>>? _extensionRegistry;
-        private volatile bool _extensionsMerged;
+        private volatile IReadOnlyList<IMiddleware<TContext>>? _mergedExtensionsSnapshot;
 
         public void Use(IMiddleware<TContext> middleware)
         {
             lock (_lock)
             {
-                var list = new List<IMiddleware<TContext>>(_middlewares) { middleware };
-                _middlewares = list.OrderBy(m => m.Order).ToList().AsReadOnly();
-                _compiledPipeline = CompilePipeline(_middlewares);
+                _baseMiddlewares.Add(middleware);
+                RebuildLocked();
             }
         }
 
@@ -35,24 +35,21 @@ namespace RimMind.Application.Common.Behaviours
         {
             lock (_lock)
             {
-                var list = new List<IMiddleware<TContext>>(_middlewares);
-                list.AddRange(middlewares);
-                _middlewares = list.OrderBy(m => m.Order).ToList().AsReadOnly();
-                _compiledPipeline = CompilePipeline(_middlewares);
+                _baseMiddlewares.AddRange(middlewares);
+                RebuildLocked();
             }
         }
 
         /// <summary>
         /// Sets the extension registry for lazy middleware merging.
-        /// Extensions are merged on the first ExecuteAsync call, allowing sub-Mods
-        /// to register middlewares after Core initialization.
+        /// Extensions are merged on ExecuteAsync and recompiled whenever the registry changes.
         /// </summary>
         public void SetExtensionRegistry(IExtensionRegistry<IMiddleware<TContext>> registry)
         {
             lock (_lock)
             {
                 _extensionRegistry = registry;
-                _extensionsMerged = false;
+                _mergedExtensionsSnapshot = null;
                 _compiledPipeline = null;
             }
         }
@@ -61,10 +58,16 @@ namespace RimMind.Application.Common.Behaviours
         {
             if (context == null) throw new ArgumentNullException(nameof(context));
 
-            // Lazy merge: on first execution, merge extension middlewares
-            if (!_extensionsMerged && _extensionRegistry != null)
+            var registry = _extensionRegistry;
+            if (registry != null && HasExtensionsChanged(registry.All, _mergedExtensionsSnapshot))
             {
-                MergeExtensions();
+                lock (_lock)
+                {
+                    if (_extensionRegistry != null && HasExtensionsChanged(_extensionRegistry.All, _mergedExtensionsSnapshot))
+                    {
+                        RebuildLocked();
+                    }
+                }
             }
 
             var compiled = _compiledPipeline;
@@ -72,28 +75,55 @@ namespace RimMind.Application.Common.Behaviours
             {
                 lock (_lock)
                 {
-                    compiled = _compiledPipeline ??= CompilePipeline(_middlewares);
+                    if (_compiledPipeline == null)
+                    {
+                        RebuildLocked();
+                    }
+                    compiled = _compiledPipeline!;
                 }
             }
 
             return compiled(context);
         }
 
-        private void MergeExtensions()
+        private void RebuildLocked()
         {
-            lock (_lock)
+            var list = new List<IMiddleware<TContext>>(_baseMiddlewares);
+            if (_extensionRegistry != null)
             {
-                if (_extensionsMerged) return;
-                var extra = _extensionRegistry?.All ?? Enumerable.Empty<IMiddleware<TContext>>();
-                if (extra.Any())
+                var extra = _extensionRegistry.All.ToList().AsReadOnly();
+                _mergedExtensionsSnapshot = extra;
+                foreach (var mw in extra)
                 {
-                    var list = new List<IMiddleware<TContext>>(_middlewares);
-                    list.AddRange(extra);
-                    _middlewares = list.OrderBy(m => m.Order).ToList().AsReadOnly();
+                    if (!list.Contains(mw))
+                    {
+                        list.Add(mw);
+                    }
                 }
-                _compiledPipeline = CompilePipeline(_middlewares);
-                _extensionsMerged = true;
             }
+            else
+            {
+                _mergedExtensionsSnapshot = null;
+            }
+
+            _middlewares = list.OrderBy(m => m.Order).ToList().AsReadOnly();
+            _compiledPipeline = CompilePipeline(_middlewares);
+        }
+
+        private static bool HasExtensionsChanged(
+            IReadOnlyList<IMiddleware<TContext>> current,
+            IReadOnlyList<IMiddleware<TContext>>? snapshot)
+        {
+            if (snapshot == null) return true;
+            if (current.Count != snapshot.Count) return true;
+            for (int i = 0; i < current.Count; i++)
+            {
+                if (!ReferenceEquals(current[i], snapshot[i]))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static MiddlewareDelegate<TContext> CompilePipeline(IReadOnlyList<IMiddleware<TContext>> snapshot)

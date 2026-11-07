@@ -59,6 +59,18 @@ namespace RimMind.Infrastructure.UI
     }
 }
 
+namespace RimMind.Presentation.Api
+{
+    public static partial class RimMindAPI
+    {
+        public static class Ext
+        {
+            public static IExtensionRegistry<T>? Get<T>() where T : class, IExtension
+                => null;
+        }
+    }
+}
+
 namespace RimMind.Presentation.Runtime
 {
     internal static class RimMindRuntime

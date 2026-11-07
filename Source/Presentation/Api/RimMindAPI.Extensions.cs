@@ -22,25 +22,57 @@ namespace RimMind.Presentation.Api
                 return registry?.UnregisterByOwner(ownerModId) ?? 0;
             }
 
+            public static bool ShouldSkip(string channel, in SkipCheckArgs args)
+            {
+                if (string.IsNullOrWhiteSpace(channel)) return false;
+                var argsCopy = args;
+                return Get<ISkipCheck>().All
+                    .Where(s => SkipCheckChannels.Matches(s, channel))
+                    .Any(s => s.ShouldSkip(in argsCopy));
+            }
+
+            public static bool ShouldSkip(string channel, int pawnId = 0, int recipientPawnId = 0, string? tag = null)
+            {
+                Pawn? pawn = pawnId > 0 ? RimMindPawnLookup.FindPawnByNumber(pawnId) : null;
+                Pawn? recipient = recipientPawnId > 0 ? RimMindPawnLookup.FindPawnByNumber(recipientPawnId) : null;
+                var args = new SkipCheckArgs
+                {
+                    Pawn = pawn,
+                    RecipientPawn = recipient,
+                    PawnId = pawnId,
+                    RecipientPawnId = recipientPawnId,
+                    Trigger = tag,
+                    IntentId = tag,
+                    Tag = tag
+                };
+                return ShouldSkip(channel, in args);
+            }
+
             public static bool ShouldSkipDialogue(Pawn pawn, string trigger)
-                => Get<ISkipCheck>().All
-                    .Where(s => s.Kind == SkipCheckKind.Dialogue)
-                    .Any(s => s.ShouldSkip(new SkipCheckArgs { Pawn = pawn, Trigger = trigger }));
+                => ShouldSkip(
+                    SkipCheckChannels.Dialogue,
+                    new SkipCheckArgs
+                    {
+                        Pawn = pawn,
+                        PawnId = pawn?.thingIDNumber ?? 0,
+                        Trigger = trigger,
+                        Tag = trigger
+                    });
 
             public static bool ShouldSkipFloatMenu()
-                => Get<ISkipCheck>().All
-                    .Where(s => s.Kind == SkipCheckKind.FloatMenu)
-                    .Any(s => s.ShouldSkip(default));
+                => ShouldSkip(SkipCheckChannels.FloatMenu, default);
 
             public static bool ShouldSkipAction(string intentId)
-                => Get<ISkipCheck>().All
-                    .Where(s => s.Kind == SkipCheckKind.Action)
-                    .Any(s => s.ShouldSkip(new SkipCheckArgs { IntentId = intentId }));
+                => ShouldSkip(
+                    SkipCheckChannels.Action,
+                    new SkipCheckArgs
+                    {
+                        IntentId = intentId,
+                        Tag = intentId
+                    });
 
             public static bool ShouldSkipStorytellerIncident()
-                => Get<ISkipCheck>().All
-                    .Where(s => s.Kind == SkipCheckKind.StorytellerIncident)
-                    .Any(s => s.ShouldSkip(default));
+                => ShouldSkip(SkipCheckChannels.StorytellerIncident, default);
 
             public static void TriggerDialogue(Pawn pawn, string context, Pawn? recipient = null)
             {
@@ -80,5 +112,11 @@ namespace RimMind.Presentation.Api
                 => CurrentRuntime.ParameterTunersList;
 
         }
+
+        public static bool ShouldSkip(string channel, int pawnId = 0, int recipientPawnId = 0, string? tag = null)
+            => Ext.ShouldSkip(channel, pawnId, recipientPawnId, tag);
+
+        public static bool ShouldSkip(string channel, in SkipCheckArgs args)
+            => Ext.ShouldSkip(channel, in args);
     }
 }

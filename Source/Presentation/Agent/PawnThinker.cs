@@ -7,6 +7,7 @@ using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Async;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Agent.Psychology;
 using RimMind.Application.Common.Interfaces.Agent.Social;
 using RimMind.Application.Common.Interfaces.Internal;
@@ -85,7 +86,8 @@ namespace RimMind.Presentation.Agent
                 _completionFence);
             _contextEnricher = new ThinkContextEnricher(
                 _innerVoiceHandler,
-                _psychologyWatcher);
+                _psychologyWatcher,
+                contributorRegistryProvider: TryGetThinkContributorRegistry);
             _decisionProcessor = new DecisionProcessor(
                 agent, agentBus, _tickProvider,
                 RequestFollowUpThink, ResetThinkingState,
@@ -172,7 +174,8 @@ namespace RimMind.Presentation.Agent
 
         private void EnrichEnvelope(LlmRequestEnvelope envelope, string? voiceText)
         {
-            _contextEnricher.EnrichEnvelope(envelope, _agent.Identity.NpcId, voiceText);
+            int pawnId = _agent.Pawn?.thingIDNumber ?? 0;
+            _contextEnricher.EnrichEnvelope(envelope, _agent.Identity.NpcId, voiceText, pawnId);
             var agentInfo = (IAgentInfo)_agent;
             var recentHistory = agentInfo.GetRecentHistory(10);
             var successRate = agentInfo.GetRecentSuccessRate(10);
@@ -255,6 +258,18 @@ namespace RimMind.Presentation.Agent
         {
             _thinking = false;
             _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
+        }
+
+        private static IExtensionRegistry<IThinkContributor>? TryGetThinkContributorRegistry()
+        {
+            try
+            {
+                return RimMindAPI.Ext.Get<IThinkContributor>();
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public void ForceThink() => _lastThinkTick = 0;

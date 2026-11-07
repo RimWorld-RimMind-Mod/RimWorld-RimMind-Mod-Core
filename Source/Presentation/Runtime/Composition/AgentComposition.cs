@@ -16,7 +16,10 @@ using RimMind.Application.Features.Agent.InnerVoice;
 using RimMind.Application.Features.Agent.Modes;
 using RimMind.Application.Features.Agent.Psychology;
 using RimMind.Application.Features.Agent.Social;
+using RimMind.Application.Common.Interfaces.Extension;
+using RimMind.Domain.Events;
 using RimMind.Presentation.Agent;
+using RimMind.Presentation.Agent.Perception;
 using RimMind.Presentation.Llm;
 using RimMind.Presentation.Runtime.Services;
 using Verse;
@@ -69,15 +72,18 @@ namespace RimMind.Presentation.Runtime.Composition
             var tickSettings = resolvedSettings as IAgentTickSettings
                 ?? throw new InvalidOperationException("The settings provider must implement IAgentTickSettings.");
 
+            var perceptionRegistry = extensions.GetExtensionRegistry<IPerceptionSource>();
+            RegisterBuiltInPerceptionSources(perceptionRegistry);
+
             var pawnAgentFactory = new PawnAgentFactory(
                 tickSettings, agentBus, actionExecutor,
                 innerVoiceHandler, psychologyWatcher, tickProvider,
                 dreamThoughtInjector, traitEvolver,
-                logSink, extensions.GetExtensionRegistry<IPerceptionSource>(),
+                logSink, perceptionRegistry,
                 completionFence);
             services.Bind<IPawnAgentFactoryVerse>(pawnAgentFactory);
             services.Bind<IPawnAgentFactory>(pawnAgentFactory);
-            services.Bind(extensions.GetExtensionRegistry<IPerceptionSource>());
+            services.Bind(perceptionRegistry);
 
             var scopedAgentFactory = new ScopedAgentFactory();
             services.Bind<IScopedAgentFactory>(scopedAgentFactory);
@@ -106,12 +112,31 @@ namespace RimMind.Presentation.Runtime.Composition
             modePolicyRegistry.Register(new DefaultModeTransitionPolicy());
             services.Bind(modePolicyRegistry);
 
+            var proactiveBehaviorRegistry = extensions.GetExtensionRegistry<IProactiveBehavior>();
+            services.Bind(proactiveBehaviorRegistry);
+
+            var thinkContributorRegistry = extensions.GetExtensionRegistry<IThinkContributor>();
+            services.Bind(thinkContributorRegistry);
+
+            agentBus.RegisterEventType(nameof(AgentActionOutcomeEvent), typeof(AgentActionOutcomeEvent));
+
             return new AgentCompositionServices
             {
                 PawnAgentFactory = pawnAgentFactory,
                 GameContextBuilder = gameContextBuilder,
                 ResponseDispatcher = responseDispatcher
             };
+        }
+
+        internal static void RegisterBuiltInPerceptionSources(IExtensionRegistry<IPerceptionSource> registry)
+        {
+            if (registry == null) throw new ArgumentNullException(nameof(registry));
+            registry.Register(new MoodPerceptionSource());
+            registry.Register(new HealthPerceptionSource());
+            registry.Register(new CombatPerceptionSource());
+            registry.Register(new NeedPerceptionSource());
+            registry.Register(new SocialPerceptionSource());
+            registry.Register(new EnvironmentPerceptionSource());
         }
 
         private sealed class AgentIdentityProviderAdapter : IAgentIdentityProvider

@@ -71,7 +71,7 @@ namespace RimMind.Presentation
             Settings.SavedModVersion = BootstrapConstants.CurrentModVersion;
 
             JsonTagExtractor.OnWarning = msg => RimMindErrors.Warn(msg);
-            new Harmony(BootstrapConstants.HarmonyId).PatchAll();
+            new Harmony(BootstrapConstants.HarmonyId).PatchAll(GetType().Assembly);
 
             RimMindAPI.Extensions<IToggleBehavior>().Register(new CoreOverlayToggle());
 

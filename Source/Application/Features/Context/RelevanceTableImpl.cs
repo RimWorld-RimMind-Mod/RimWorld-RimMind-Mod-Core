@@ -8,6 +8,7 @@ namespace RimMind.Application.Features.Context
     public sealed class RelevanceTableImpl : IRelevanceTable
     {
         private readonly ConcurrentDictionary<(string, string), float> _table = new ConcurrentDictionary<(string, string), float>();
+        private readonly ConcurrentDictionary<(string, string), float> _coreDefaults = new ConcurrentDictionary<(string, string), float>();
         private bool _coreRegistered = false;
         private readonly object _registerLock = new object();
         private const float DefaultRelevance = 0.5f;
@@ -19,18 +20,41 @@ namespace RimMind.Application.Features.Context
 
         public void RegisterBatch(string scenarioId, Dictionary<string, float> entries)
         {
+            if (entries == null) return;
+            foreach (var kvp in entries)
+                _table[(scenarioId, kvp.Key)] = kvp.Value;
+        }
+
+        public void RegisterBatch(string scenarioId, IReadOnlyDictionary<string, float> entries)
+        {
+            if (entries == null) return;
             foreach (var kvp in entries)
                 _table[(scenarioId, kvp.Key)] = kvp.Value;
         }
 
         public bool Unregister(string scenarioId, string key)
         {
-            return _table.TryRemove((scenarioId, key), out _);
+            bool removedExplicit = _table.TryRemove((scenarioId, key), out _);
+            bool removedCore = _coreDefaults.TryRemove((scenarioId, key), out _);
+            bool removedScenario = ScenarioRegistry.UnregisterRelevance(scenarioId, key);
+            return removedExplicit || removedCore || removedScenario;
         }
 
         public float GetRelevance(string scenarioId, string key)
         {
-            return _table.TryGetValue((scenarioId, key), out var value) ? value : DefaultRelevance;
+            if (_table.TryGetValue((scenarioId, key), out var value))
+                return value;
+            if (ScenarioRegistry.TryGetRelevance(scenarioId, key, out var scenarioValue))
+                return scenarioValue;
+            if (_coreDefaults.TryGetValue((scenarioId, key), out var coreValue))
+                return coreValue;
+            return DefaultRelevance;
+        }
+
+        private void RegisterCoreDefaultBatch(string scenarioId, Dictionary<string, float> entries)
+        {
+            foreach (var kvp in entries)
+                _coreDefaults[(scenarioId, kvp.Key)] = kvp.Value;
         }
 
         public void RegisterCoreRelevance()
@@ -40,7 +64,7 @@ namespace RimMind.Application.Features.Context
                 if (_coreRegistered) return;
                 _coreRegistered = true;
 
-                RegisterBatch(ScenarioIds.Decision, new Dictionary<string, float>
+                RegisterCoreDefaultBatch(ScenarioIds.Decision, new Dictionary<string, float>
                 {
                     {"health", 0.9f}, {"mood", 0.8f}, {"current_job", 0.9f},
                     {"combat_status", 0.95f}, {"target_info", 0.9f}, {"task_progress", 0.85f},
@@ -51,7 +75,7 @@ namespace RimMind.Application.Features.Context
                     {"working_memory", 0.8f}, {"memory_narrator", 0.2f}
                 });
 
-                RegisterBatch(ScenarioIds.Dialogue, new Dictionary<string, float>
+                RegisterCoreDefaultBatch(ScenarioIds.Dialogue, new Dictionary<string, float>
                 {
                     {"health", 0.6f}, {"mood", 0.9f}, {"current_job", 0.5f},
                     {"combat_status", 0.4f}, {"target_info", 0.3f}, {"task_progress", 0.3f},
@@ -62,7 +86,7 @@ namespace RimMind.Application.Features.Context
                     {"working_memory", 0.6f}, {"memory_narrator", 0.3f}
                 });
 
-                RegisterBatch(ScenarioIds.CrisisDialogue, new Dictionary<string, float>
+                RegisterCoreDefaultBatch(ScenarioIds.CrisisDialogue, new Dictionary<string, float>
                 {
                     {"health", 0.9f}, {"mood", 1.0f}, {"current_job", 0.6f},
                     {"combat_status", 0.8f}, {"target_info", 0.4f}, {"task_progress", 0.2f},
@@ -73,7 +97,7 @@ namespace RimMind.Application.Features.Context
                     {"working_memory", 0.85f}, {"memory_narrator", 0.3f}
                 });
 
-                RegisterBatch(ScenarioIds.Personality, new Dictionary<string, float>
+                RegisterCoreDefaultBatch(ScenarioIds.Personality, new Dictionary<string, float>
                 {
                     {"health", 0.5f}, {"mood", 0.85f}, {"current_job", 0.6f},
                     {"combat_status", 0.3f}, {"target_info", 0.2f}, {"task_progress", 0.4f},
@@ -84,7 +108,7 @@ namespace RimMind.Application.Features.Context
                     {"working_memory", 0.5f}, {"memory_narrator", 0.3f}
                 });
 
-                RegisterBatch(ScenarioIds.Storyteller, new Dictionary<string, float>
+                RegisterCoreDefaultBatch(ScenarioIds.Storyteller, new Dictionary<string, float>
                 {
                     {"health", 0.3f}, {"mood", 0.4f}, {"current_job", 0.2f},
                     {"combat_status", 0.8f}, {"target_info", 0.7f}, {"task_progress", 0.3f},
@@ -102,6 +126,7 @@ namespace RimMind.Application.Features.Context
             lock (_registerLock)
             {
                 _table.Clear();
+                _coreDefaults.Clear();
                 _coreRegistered = false;
             }
         }

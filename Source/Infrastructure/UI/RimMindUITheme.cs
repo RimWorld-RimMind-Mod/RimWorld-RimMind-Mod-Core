@@ -1,4 +1,5 @@
 using RimMind.Domain.Enums;
+using RimMind.Presentation.UI.Framework;
 using UnityEngine;
 
 namespace RimMind.Infrastructure.UI
@@ -10,12 +11,13 @@ namespace RimMind.Infrastructure.UI
     public static class RimMindUITheme
     {
         // ── Spacing ──────────────────────────────────────────────
-        public const float Padding = 6f;
-        public const float SectionGap = 12f;
+        public const float Padding = RimMindUiMetrics.Padding;
+        public const float ElementGap = RimMindUiMetrics.ElementGap;
+        public const float SectionGap = RimMindUiMetrics.SectionGap;
         public const float LineHeight = 22f;
-        public const float BtnHeight = 24f;
-        public const float HeaderHeight = 30f;
-        public const float TabHeight = 30f;
+        public const float BtnHeight = RimMindUiMetrics.RowHeight;
+        public const float HeaderHeight = RimMindUiMetrics.HeaderHeight;
+        public const float TabHeight = RimMindUiMetrics.TabHeight;
         public const float DividerThickness = 1f;
 
         // ── Colors ───────────────────────────────────────────────

@@ -8,7 +8,7 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
     /// redacts anything that looks like a credential before it reaches a log sink
     /// or an exception message.
     /// </summary>
-    internal static class LogSanitizer
+    public static class LogSanitizer
     {
         /// <summary>Default cap for provider error bodies embedded in messages and logs.</summary>
         public const int DefaultMaxChars = 500;
@@ -52,6 +52,24 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
         public static string ForLog(string? text, int maxChars = DefaultMaxChars)
         {
             return Truncate(Redact(text), maxChars);
+        }
+
+        /// <summary>Redacts then truncates; alias for <see cref="ForLog"/> used for diagnostic/error messages.</summary>
+        public static string ForMessage(string? text, int maxChars = DefaultMaxChars)
+        {
+            return ForLog(text, maxChars);
+        }
+
+        /// <summary>
+        /// Redacts <paramref name="text"/> and additionally masks a literal configured secret
+        /// (when at least 4 characters long) that may not match any generic key shape.
+        /// </summary>
+        public static string ForMessageWithSecret(string? text, string? literalSecret, int maxLength = 320)
+        {
+            string value = text ?? string.Empty;
+            if (!string.IsNullOrEmpty(literalSecret) && literalSecret!.Length >= 4)
+                value = value.Replace(literalSecret, Mask);
+            return ForLog(value, maxLength);
         }
     }
 }

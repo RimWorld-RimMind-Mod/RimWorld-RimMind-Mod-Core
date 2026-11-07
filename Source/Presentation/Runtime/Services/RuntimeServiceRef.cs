@@ -5,17 +5,13 @@ namespace RimMind.Presentation.Runtime.Services
     public sealed class RuntimeServiceRef<T>
         where T : class
     {
-        private readonly object _cacheLock = new object();
         private readonly RuntimeServiceHub _hub;
-        private readonly bool _required;
-        private T? _cached;
-        private long _boundGeneration = -1;
-        private RuntimeLifecycleState _boundState = RuntimeLifecycleState.NeverPublished;
+        private readonly GenerationCachedServiceRef<T> _cache;
 
         internal RuntimeServiceRef(RuntimeServiceHub hub, bool required)
         {
             _hub = hub ?? throw new ArgumentNullException(nameof(hub));
-            _required = required;
+            _cache = new GenerationCachedServiceRef<T>(required, "runtime");
         }
 
         public static RuntimeServiceRef<T> Required()
@@ -28,89 +24,39 @@ namespace RimMind.Presentation.Runtime.Services
             return new RuntimeServiceRef<T>(RuntimeServiceHub.Shared, required: false);
         }
 
-        public long BoundGeneration
-        {
-            get
-            {
-                lock (_cacheLock)
-                {
-                    return _boundGeneration;
-                }
-            }
-        }
+        public long BoundGeneration => _cache.BoundGeneration;
 
-        public T Value
-        {
-            get
-            {
-                if (!_required)
-                {
-                    throw new InvalidOperationException("Value is only valid for a required runtime service reference.");
-                }
+        public T Value =>
+            _cache.GetRequiredValue<RuntimeLifecycleState>(
+                RefreshCache,
+                static (serviceType, state, generation) =>
+                    new RuntimeServiceUnavailableException(serviceType, state, generation));
 
-                RefreshCache();
-                lock (_cacheLock)
-                {
-                    if (_cached == null)
-                    {
-                        throw new RuntimeServiceUnavailableException(typeof(T), _boundState, _boundGeneration);
-                    }
-
-                    return _cached;
-                }
-            }
-        }
-
-        public T? ValueOrDefault
-        {
-            get
-            {
-                if (_required)
-                {
-                    throw new InvalidOperationException("ValueOrDefault is only valid for an optional runtime service reference.");
-                }
-
-                RefreshCache();
-                T? value;
-                long generation;
-                RuntimeLifecycleState state;
-                lock (_cacheLock)
-                {
-                    value = _cached;
-                    generation = _boundGeneration;
-                    state = _boundState;
-                }
-
-                if (value == null)
-                {
-                    _hub.RecordOptionalMissing(typeof(T), generation, state);
-                }
-
-                return value;
-            }
-        }
+        public T? ValueOrDefault =>
+            _cache.GetOptionalValue<RuntimeLifecycleState>(
+                RefreshCache,
+                (serviceType, generation, state) =>
+                    _hub.RecordOptionalMissing(serviceType, generation, state));
 
         public T Resolve(RuntimeServiceScope scope)
         {
-            if (!_required)
-                throw new InvalidOperationException("Resolve is only valid for a required runtime service reference.");
+            _cache.EnsureRequired("Resolve");
             if (scope == null)
                 throw new ArgumentNullException(nameof(scope));
 
             T value = scope.GetRequired<T>();
-            Cache(scope, value);
+            _cache.Cache(scope.Generation, scope.Snapshot.State, value);
             return value;
         }
 
         public T? ResolveOptional(RuntimeServiceScope scope)
         {
-            if (_required)
-                throw new InvalidOperationException("ResolveOptional is only valid for an optional runtime service reference.");
+            _cache.EnsureOptional("ResolveOptional");
             if (scope == null)
                 throw new ArgumentNullException(nameof(scope));
 
             T? value = scope.GetOptional<T>();
-            Cache(scope, value);
+            _cache.Cache(scope.Generation, scope.Snapshot.State, value);
             if (value == null)
                 _hub.RecordOptionalMissing(typeof(T), scope.Generation, scope.Snapshot.State);
             return value;
@@ -119,20 +65,9 @@ namespace RimMind.Presentation.Runtime.Services
         private void RefreshCache()
         {
             var scope = _hub.Capture();
-            T? value = scope.GetOptional<T>();
-            Cache(scope, value);
-        }
-
-        private void Cache(RuntimeServiceScope scope, T? value)
-        {
-            lock (_cacheLock)
+            if (_cache.NeedsRefresh(scope.Generation))
             {
-                if (scope.Generation > _boundGeneration)
-                {
-                    _cached = value;
-                    _boundGeneration = scope.Generation;
-                    _boundState = scope.Snapshot.State;
-                }
+                _cache.Cache(scope.Generation, scope.Snapshot.State, scope.GetOptional<T>());
             }
         }
     }

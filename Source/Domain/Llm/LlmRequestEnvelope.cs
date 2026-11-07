@@ -35,5 +35,36 @@ namespace RimMind.Domain.Llm
         // === NPC Mode (optional) ===
         public string? NpcId { get; init; }
         public GameStateInfo? GameStateInfo { get; set; }
+        public IReadOnlyDictionary<string, string>? Hints { get; init; }
+
+        public LlmRequestEnvelope WithCancellationToken(CancellationToken cancellationToken)
+            => Clone(cancellationToken);
+
+        public LlmRequestEnvelope Clone(CancellationToken? cancellationToken = null)
+        {            return new LlmRequestEnvelope
+            {
+                RequestId = RequestId,
+                TraceId = TraceId,
+                ScenarioId = ScenarioId,
+                ModId = ModId,
+                Messages = Messages,
+                SystemAugmentations = SystemAugmentations,
+                JsonSchema = JsonSchema,
+                Tools = Tools,
+                ToolDispatchMode = ToolDispatchMode,
+                Examples = Examples,
+                MaxTokens = MaxTokens,
+                Temperature = Temperature,
+                Priority = Priority,
+                ExpireAtTicks = ExpireAtTicks,
+                MaxRetryCount = MaxRetryCount,
+                IsStreaming = IsStreaming,
+                OnStreamChunk = OnStreamChunk,
+                Ct = cancellationToken ?? Ct,
+                NpcId = NpcId,
+                GameStateInfo = GameStateInfo,
+                Hints = Hints,
+            };
+        }
     }
 }

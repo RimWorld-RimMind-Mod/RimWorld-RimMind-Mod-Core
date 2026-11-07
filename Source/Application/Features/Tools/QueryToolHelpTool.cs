@@ -9,6 +9,7 @@ using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Common;
+using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
 
 namespace RimMind.Application.Features.Tools
@@ -34,7 +35,14 @@ namespace RimMind.Application.Features.Tools
             Id = "query_tool_help",
             Category = "meta",
             Description = "Query parameter descriptions, schemas, and usage guidelines for registered AI tools. Can query a specific tool or list all available tools.",
-            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"tool_name\":{\"type\":\"string\",\"description\":\"Name or Id of the tool to inspect (e.g. 'actions_place_blueprint', 'query_buildable_structures'). If omitted, returns all available tool IDs and brief summaries.\"}},\"required\":[]}"
+            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"tool_name\":{\"type\":\"string\",\"description\":\"Name or Id of the tool to inspect (e.g. 'actions_place_blueprint', 'query_buildable_structures'). If omitted, returns all available tool IDs and brief summaries.\"}},\"required\":[]}",
+            Manifest = new ToolManifest
+            {
+                OwnerModId = RimMindOwnerConsts.CoreModId,
+                Kind = ToolKind.Query,
+                RiskLevel = RiskLevel.Low,
+                DisplayName = "Query Tool Help"
+            }
         };
 
         public Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)

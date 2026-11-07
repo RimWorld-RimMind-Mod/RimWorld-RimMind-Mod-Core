@@ -67,9 +67,9 @@ namespace RimMind.Infrastructure.Mechanisms.World.Storyteller
             if (incidentDef == null)
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
 
-            var map = Find.AnyPlayerHomeMap;
+            var map = ResolveMap(args);
             if (map == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.MapNotFound(0)));
+                return Task.FromResult(ValidateMapOrErr<bool>(map, args));
 
             var parms = StorytellerUtility.DefaultParmsNow(incidentDef.category, map);
             parms.forced = true;

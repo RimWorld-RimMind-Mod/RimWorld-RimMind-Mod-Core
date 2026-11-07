@@ -64,6 +64,71 @@ namespace RimMind.Core.ArchTests.Contracts
                 }));
         }
 
+        [Fact]
+        public void Core_tool_dispatch_and_registry_do_not_hardcode_Actions_tool_ids()
+        {
+            string coreSourceDir = ArchTestExtensions.FindSourceDirectory();
+            Assert.True(Directory.Exists(coreSourceDir), "RimMind-Core/Source must be discoverable.");
+            string executorSource = File.ReadAllText(
+                Path.Combine(coreSourceDir, "Infrastructure", "Agent", "MechanismActionExecutor.cs"));
+            string registrySource = File.ReadAllText(
+                Path.Combine(coreSourceDir, "Application", "Features", "Tools", "ToolRegistry.cs"));
+
+            ContractCaseRunner.Run(
+                ("MechanismActionExecutor does not hard-code actions_place_blueprint, actions_designate_resources, or actions.stabilize_rest", () =>
+                {
+                    Assert.DoesNotContain("actions_place_blueprint", executorSource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions_designate_resources", executorSource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions.stabilize_rest", executorSource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions_", executorSource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions.", executorSource, StringComparison.OrdinalIgnoreCase);
+                }),
+                ("ToolRegistry does not hard-code actions_ or actions. prefixes or tool IDs", () =>
+                {
+                    Assert.DoesNotContain("actions_place_blueprint", registrySource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions_designate_resources", registrySource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions.stabilize_rest", registrySource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions_", registrySource, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("actions.", registrySource, StringComparison.OrdinalIgnoreCase);
+                }));
+        }
+
+        [Fact]
+        public void Core_production_code_does_not_hardcode_submod_package_ids()
+        {
+            string coreSourceDir = ArchTestExtensions.FindSourceDirectory();
+            Assert.True(Directory.Exists(coreSourceDir), "RimMind-Core/Source must be discoverable.");
+            string root = Directory.GetParent(coreSourceDir)?.FullName ?? coreSourceDir;
+            string[] forbiddenPackageIds =
+            {
+                "mcocdaa.RimMindMemory",
+                "mcocdaa.RimMindAdvisor",
+                "mcocdaa.RimMindActions",
+                "mcocdaa.RimMindDialogue",
+                "mcocdaa.RimMindPersonality",
+                "mcocdaa.RimMindStoryteller"
+            };
+
+            var productionFiles = SourceFiles(coreSourceDir).ToArray();
+
+            ContractCaseRunner.Run(
+                forbiddenPackageIds
+                    .Select<string, (string Name, Action Verify)>(packageId => (
+                        $"Core production code does not contain '{packageId}'",
+                        () =>
+                        {
+                            var violations = productionFiles
+                                .Where(file => File.ReadAllText(file).Contains(packageId, StringComparison.OrdinalIgnoreCase))
+                                .Select(file => Path.GetRelativePath(root, file))
+                                .OrderBy(path => path, StringComparer.Ordinal)
+                                .ToArray();
+                            Assert.True(
+                                violations.Length == 0,
+                                $"Core production code must not hardcode submod package ID '{packageId}':{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+                        }))
+                    .ToArray());
+        }
+
         private static void AssertDependentSourceAbsent(string forbiddenPattern)
         {
             var pattern = new Regex(forbiddenPattern, RegexOptions.CultureInvariant);
@@ -88,10 +153,16 @@ namespace RimMind.Core.ArchTests.Contracts
         private static void AssertNoPattern(string mod, string forbiddenPattern)
         {
             string root = RepositoryRoot();
+            string modSourceDir = Path.Combine(root, mod, "Source");
+            if (!Directory.Exists(modSourceDir) && DiscoverDependentMods().Count == 0)
+            {
+                return;
+            }
+
             var pattern = new Regex(
                 forbiddenPattern,
                 RegexOptions.Multiline | RegexOptions.CultureInvariant);
-            IReadOnlyList<string> violations = SourceFiles(Path.Combine(root, mod, "Source"))
+            IReadOnlyList<string> violations = SourceFiles(modSourceDir)
                 .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
                 .Select(file => Path.GetRelativePath(root, file))
                 .OrderBy(path => path, StringComparer.Ordinal)

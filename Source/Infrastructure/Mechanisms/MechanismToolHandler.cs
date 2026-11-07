@@ -12,6 +12,7 @@ using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Mechanisms;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Features.Tools;
 using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
 
@@ -61,8 +62,8 @@ namespace RimMind.Infrastructure.Mechanisms
         private readonly IMechanismTrigger _trigger;
         private readonly IMechanismMetadata _metadata;
         private readonly MechanismOperationType _operation;
-        private readonly IJsonExtractor? _jsonExtractor;
 
+        /// <param name="jsonExtractor">Unused; kept for constructor compatibility. Arguments are parsed once as a JObject.</param>
         public MechanismToolHandler(
             IMechanismReader reader,
             IMechanismWriter writer,
@@ -76,12 +77,13 @@ namespace RimMind.Infrastructure.Mechanisms
             _trigger = trigger;
             _metadata = metadata;
             _operation = operation;
-            _jsonExtractor = jsonExtractor;
             Definition = BuildDefinition(metadata, operation);
         }
 
         public string Id => Definition.Id;
-        public string OwnerModId => RimMindOwnerConsts.CoreModId;
+        public string OwnerModId => string.IsNullOrWhiteSpace(_metadata?.OwnerModId)
+            ? RimMindOwnerConsts.CoreModId
+            : _metadata.OwnerModId;
         public ToolDefinition Definition { get; }
 
         public async Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
@@ -112,11 +114,19 @@ namespace RimMind.Infrastructure.Mechanisms
 
         private async Task<Result<object?, RimMindError>> ExecuteOperationAsync(ToolCallArgs args, CancellationToken ct)
         {
+            var root = TryParseArguments(args.ArgumentsJson);
+            var target = ResolveTargetPawn(root, args);
+            if (!target.IsValid)
+            {
+                // An explicit but unparseable pawn_id must never be redirected to the calling pawn.
+                return Result<object?, RimMindError>.Err(InvalidPawnTargetError(Id, target));
+            }
+
             switch (_operation)
             {
                 case MechanismOperationType.Query:
                 {
-                    var readArgs = BuildReadArgs(args);
+                    var readArgs = BuildReadArgs(root, args, target.PawnId);
                     var r = await _reader.ExecuteQueryAsync(readArgs, ct);
                     return r.IsOk
                         ? Result<object?, RimMindError>.Ok(r.Value)
@@ -129,7 +139,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 case MechanismOperationType.Trigger:
                 case MechanismOperationType.Watch:
                 {
-                    var writeArgs = BuildWriteArgs(args);
+                    var writeArgs = BuildWriteArgs(root, args, target.PawnId);
                     var r = _operation switch
                     {
                         MechanismOperationType.Set => await _writer.ExecuteSetAsync(writeArgs, ct),
@@ -146,9 +156,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 }
                 case MechanismOperationType.List:
                 {
-                    var root = TryParseArguments(args.ArgumentsJson);
-                    var pawnId = ResolvePawnId(root, args, "pawn_id");
-                    var r = await _reader.ExecuteListAsync(pawnId, ct);
+                    var r = await _reader.ExecuteListAsync(target.PawnId, ct);
                     return r.IsOk
                         ? Result<object?, RimMindError>.Ok(r.Value)
                         : Result<object?, RimMindError>.Err(r.Error);
@@ -158,32 +166,61 @@ namespace RimMind.Infrastructure.Mechanisms
             }
         }
 
+        /// <summary>
+        /// Builds read args. An explicit but unparseable pawn_id yields PawnId 0 here; the execution path
+        /// rejects such calls before building args.
+        /// </summary>
         internal MechanismReadArgs BuildReadArgs(ToolCallArgs args)
         {
             var root = TryParseArguments(args.ArgumentsJson);
+            return BuildReadArgs(root, args, ResolveTargetPawn(root, args).PawnId);
+        }
+
+        private MechanismReadArgs BuildReadArgs(JObject? root, ToolCallArgs args, int pawnId)
+        {
             return new MechanismReadArgs
             {
                 MechanismId = _metadata.MechanismId,
-                PawnId = ResolvePawnId(root, args, "pawn_id"),
+                PawnId = pawnId,
                 MapId = ExtractNullableInt(root, "map_id"),
                 DefName = ExtractDefName(root, includeFilterDefName: true),
                 TraceId = args.TraceId
             };
         }
 
+        /// <summary>
+        /// Builds write args. An explicit but unparseable pawn_id yields PawnId 0 here; the execution path
+        /// rejects such calls before building args.
+        /// </summary>
         internal MechanismWriteArgs BuildWriteArgs(ToolCallArgs args)
         {
             var root = TryParseArguments(args.ArgumentsJson);
+            return BuildWriteArgs(root, args, ResolveTargetPawn(root, args).PawnId);
+        }
+
+        private MechanismWriteArgs BuildWriteArgs(JObject? root, ToolCallArgs args, int pawnId)
+        {
+            var writeActions = _metadata?.GetWriteActions();
+            var paramsDict = ExtractParamsDictionary(root, writeActions);
+            var defName = ExtractDefName(root, includeFilterDefName: false);
+            if (string.IsNullOrEmpty(defName)
+                && paramsDict != null
+                && paramsDict.TryGetValue("def_name", out var mappedDefName)
+                && !string.IsNullOrEmpty(mappedDefName))
+            {
+                defName = mappedDefName;
+            }
+
             return new MechanismWriteArgs
             {
-                MechanismId = _metadata.MechanismId,
-                PawnId = ResolvePawnId(root, args, "pawn_id"),
+                MechanismId = _metadata!.MechanismId,
+                PawnId = pawnId,
                 MapId = ExtractNullableInt(root, "map_id"),
-                DefName = ExtractDefName(root, includeFilterDefName: false),
+                DefName = defName,
                 Action = ExtractString(root, "action") ?? _operation.ToString().ToLowerInvariant(),
                 ValueJson = ExtractValueJson(root),
                 TraceId = args.TraceId,
-                Params = ExtractParamsDictionary(root)
+                Params = paramsDict
             };
         }
 
@@ -205,10 +242,19 @@ namespace RimMind.Infrastructure.Mechanisms
         }
 
         internal static int ResolvePawnId(JObject? root, ToolCallArgs args, string key = "pawn_id")
-        {
-            var pawnId = ExtractInt(root, key, 0);
-            return pawnId != 0 ? pawnId : (args.PawnId ?? 0);
-        }
+            => ResolveTargetPawn(root, args, key).PawnId;
+
+        /// <summary>
+        /// Resolves the target pawn through the shared <see cref="PawnIdParser"/> (root or nested <c>params</c>;
+        /// accepts <c>12</c>, <c>"Pawn_12"</c>, <c>"NPC-12"</c>; falls back to the caller's PawnId, then NpcId).
+        /// </summary>
+        internal static PawnTargetResolution ResolveTargetPawn(JObject? root, ToolCallArgs args, string key = "pawn_id")
+            => PawnIdParser.ResolveTarget(root, key, args.PawnId, args.NpcId);
+
+        internal static RimMindError InvalidPawnTargetError(string toolId, PawnTargetResolution target)
+            => RimMindErrors.ToolExecution(
+                toolId,
+                $"pawn_id '{target.InvalidValue}' is not a valid pawn id (expected e.g. 12, \"Pawn_12\" or \"NPC-12\")");
 
         internal static string? ExtractDefName(JObject? root, bool includeFilterDefName)
         {
@@ -377,6 +423,11 @@ namespace RimMind.Infrastructure.Mechanisms
         }
 
         internal static Dictionary<string, string>? ExtractParamsDictionary(JObject? root)
+            => ExtractParamsDictionary(root, null);
+
+        internal static Dictionary<string, string>? ExtractParamsDictionary(
+            JObject? root,
+            IReadOnlyList<MechanismActionInfo>? writeActions)
         {
             if (root == null)
             {
@@ -413,9 +464,46 @@ namespace RimMind.Infrastructure.Mechanisms
                 dict ??= new Dictionary<string, string>(StringComparer.Ordinal);
                 if (!dict.ContainsKey(key))
                 {
-                    dict[key] = token.Type == JTokenType.String
-                        ? token.Value<string>() ?? string.Empty
-                        : token.ToString(Formatting.None);
+                    dict[key] = FormatTokenValue(token);
+                }
+            }
+
+            if (writeActions != null)
+            {
+                foreach (var wa in writeActions)
+                {
+                    if (wa?.ParameterDescriptors == null) continue;
+                    foreach (var pd in wa.ParameterDescriptors)
+                    {
+                        if (pd == null || string.IsNullOrWhiteSpace(pd.Name)) continue;
+
+                        if (TryGetToken(root, pd.Name, out var directToken) && directToken != null)
+                        {
+                            dict ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                            if (!dict.ContainsKey(pd.Name))
+                            {
+                                dict[pd.Name] = FormatTokenValue(directToken);
+                            }
+                        }
+
+                        if (pd.Aliases == null) continue;
+                        foreach (var alias in pd.Aliases)
+                        {
+                            if (string.IsNullOrWhiteSpace(alias)) continue;
+                            if (!TryGetToken(root, alias, out var aliasToken) || aliasToken == null) continue;
+
+                            var formatted = FormatTokenValue(aliasToken);
+                            dict ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                            if (!dict.ContainsKey(alias))
+                            {
+                                dict[alias] = formatted;
+                            }
+                            if (!dict.ContainsKey(pd.Name))
+                            {
+                                dict[pd.Name] = formatted;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -438,6 +526,13 @@ namespace RimMind.Infrastructure.Mechanisms
             }
 
             return dict != null && dict.Count > 0 ? dict : null;
+        }
+
+        private static string FormatTokenValue(JToken token)
+        {
+            return token.Type == JTokenType.String
+                ? token.Value<string>() ?? string.Empty
+                : token.ToString(Formatting.None);
         }
 
         private static bool TryGetToken(JObject? root, string key, out JToken? token)
@@ -486,13 +581,7 @@ namespace RimMind.Infrastructure.Mechanisms
             };
         }
 
-        private static RiskLevel MapRisk(MechanismRisk risk) => risk switch
-        {
-            MechanismRisk.Safe => RiskLevel.Low,
-            MechanismRisk.Moderate => RiskLevel.Medium,
-            MechanismRisk.Dangerous => RiskLevel.High,
-            _ => RiskLevel.Medium
-        };
+        private static RiskLevel MapRisk(MechanismRisk risk) => ToolManifestRiskResolver.MapMechanismRisk(risk);
 
         private static string BuildDescription(IMechanismMetadata metadata, MechanismOperationType operation)
         {
@@ -583,6 +672,23 @@ namespace RimMind.Infrastructure.Mechanisms
 
                 foreach (var wa in writeActions)
                 {
+                    if (wa.ParameterDescriptors != null)
+                    {
+                        foreach (var pd in wa.ParameterDescriptors)
+                        {
+                            if (pd == null || string.IsNullOrWhiteSpace(pd.Name)) continue;
+                            var jsonType = string.IsNullOrWhiteSpace(pd.JsonType) ? "string" : pd.JsonType;
+                            var desc = !string.IsNullOrWhiteSpace(pd.Description)
+                                ? pd.Description
+                                : $"Parameter for {wa.Action}";
+                            properties[pd.Name] = new { type = jsonType, description = desc };
+                            if (pd.Required && !required.Contains(pd.Name))
+                            {
+                                required.Add(pd.Name);
+                            }
+                        }
+                    }
+
                     if (wa.RequiredParams == null) continue;
                     foreach (var p in wa.RequiredParams)
                     {
