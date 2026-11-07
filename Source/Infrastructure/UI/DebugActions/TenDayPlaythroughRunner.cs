@@ -1228,7 +1228,7 @@ namespace RimMind.Infrastructure.UI
 
             _report.TotalLiveLlmRequests++;
 
-            float timeout = 65f;
+            float timeout = 95f;
             float elapsed = 0f;
             while (!completed && elapsed < timeout)
             {
@@ -1458,7 +1458,7 @@ namespace RimMind.Infrastructure.UI
 
             _report.TotalLiveLlmRequests++;
 
-            float timeout = 65f;
+            float timeout = 95f;
             float elapsed = 0f;
             while (!completed && elapsed < timeout)
             {
@@ -1958,7 +1958,7 @@ namespace RimMind.Infrastructure.UI
 
             _report.TotalLiveLlmRequests++;
 
-            float timeout = 65f;
+            float timeout = 95f;
             float elapsed = 0f;
             while (!completed && elapsed < timeout)
             {

@@ -384,6 +384,85 @@ namespace RimMind.Tests.Contracts
             Assert.Single(emitted);
         }
 
+        [Fact]
+        public async Task SendAsync_DowngradesResponseFormatCapabilityOnHttp400_AndHonorsForceJsonModeFalse()
+        {
+            OpenAIClient.InvalidateFormatCache();
+
+            var schemaEnvelope = new LlmRequestEnvelope
+            {
+                RequestId = "req-format-downgrade",
+                ModId = "RimMind.Storyteller",
+                JsonSchema = "{\"type\":\"object\",\"properties\":{\"narrative\":{\"type\":\"string\"}}}",
+                Messages = new List<ChatMessage>
+                {
+                    new ChatMessage { Role = "user", Content = "Evaluate colony state." }
+                }
+            };
+
+            // 1. ForceJsonMode = false strips JsonSchema so response_format is omitted completely
+            var noJsonModeSettings = new FakeOpenAISettings
+            {
+                ApiEndpoint = "https://api.deepseek.com/v1",
+                ModelName = "deepseek-chat",
+                ForceJsonMode = false
+            };
+            string? capturedDisabledJson = null;
+            var noJsonClient = new OpenAIClient(
+                noJsonModeSettings,
+                postAsyncOverride: (_, json, _, _, _, _, _) =>
+                {
+                    capturedDisabledJson = json;
+                    return Task.FromResult(("{\"choices\":[{\"message\":{\"content\":\"{\\\"narrative\\\":\\\"ok\\\"}\"}}],\"usage\":{\"total_tokens\":10}}", 200L));
+                });
+
+            var disabledRes = await noJsonClient.SendAsync(schemaEnvelope);
+            Assert.True(disabledRes.IsOk);
+            Assert.NotNull(capturedDisabledJson);
+            Assert.DoesNotContain("\"response_format\"", capturedDisabledJson!);
+
+            // 2. ForceJsonMode = true on an endpoint rejecting json_schema AND json_object (HTTP 400)
+            // automatically downgrades json_schema -> json_object -> none on the same node and caches the capability
+            OpenAIClient.InvalidateFormatCache();
+            var settings = new FakeOpenAISettings
+            {
+                ApiEndpoint = "http://localhost:11434/v1",
+                ModelName = "qwen2.5:7b",
+                ForceJsonMode = true
+            };
+            var payloads = new List<string>();
+            var client = new OpenAIClient(
+                settings,
+                postAsyncOverride: (_, json, _, _, _, _, _) =>
+                {
+                    payloads.Add(json);
+                    if (json.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
+                    {
+                        throw HttpTransport.HttpException.FromResponse(
+                            400,
+                            "{\"error\":{\"message\":\"response_format is not supported by this model\"}}",
+                            "Bad Request");
+                    }
+
+                    return Task.FromResult(("{\"choices\":[{\"message\":{\"content\":\"{\\\"narrative\\\":\\\"downgraded-ok\\\"}\"}}],\"usage\":{\"total_tokens\":15}}", 200L));
+                });
+
+            var firstRes = await client.SendAsync(schemaEnvelope);
+            Assert.True(firstRes.IsOk);
+            Assert.Equal("{\"narrative\":\"downgraded-ok\"}", firstRes.Value.Content);
+            Assert.Equal(3, payloads.Count);
+            Assert.Contains("\"json_schema\"", payloads[0]);
+            Assert.Contains("\"json_object\"", payloads[1]);
+            Assert.DoesNotContain("\"response_format\"", payloads[2]);
+            Assert.Equal("none", OpenAIClient.GetCachedFormatCapability("http://localhost:11434/v1", "qwen2.5:7b"));
+
+            // 3. Subsequent request uses cached capability ("none") immediately in 1 round-trip
+            var secondRes = await client.SendAsync(schemaEnvelope);
+            Assert.True(secondRes.IsOk);
+            Assert.Equal(4, payloads.Count);
+            Assert.DoesNotContain("\"response_format\"", payloads[3]);
+        }
+
         private sealed class FaultingAfterFirstLineStream : Stream
         {
             private readonly byte[] _firstBytes;

@@ -29,11 +29,11 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             float connectTimeout = 60f,
             CancellationToken cancellationToken = default);
 
-        private const long DefaultNodeIsolationMs = 60_000L;
+        private const long DefaultNodeIsolationMs = 180_000L;
         private const long TransientRateLimitIsolationMs = 2_000L;
         private const long PermanentNodeIsolationMs = 1_800_000L;
 
-        private static readonly ConcurrentDictionary<string, string> _formatCapabilityCache = new();
+        private static readonly ConcurrentDictionary<string, string> _formatCapabilityCache = new(StringComparer.OrdinalIgnoreCase);
         private static readonly ConcurrentDictionary<string, long> _endpointIsolatedUntilMs = new(StringComparer.OrdinalIgnoreCase);
         private static readonly ConcurrentDictionary<string, long> _endpointExhaustedUntilMs = new(StringComparer.OrdinalIgnoreCase);
 
@@ -44,7 +44,14 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             _endpointExhaustedUntilMs.Clear();
         }
 
-        private string BuildCacheKey() => $"{_settings.ApiEndpoint}|{_settings.ModelName}";
+        internal static string? GetCachedFormatCapability(string? endpoint, string? model)
+        {
+            return _formatCapabilityCache.TryGetValue(BuildFormatCacheKey(endpoint, model), out string? mode)
+                ? mode
+                : null;
+        }
+
+        private string BuildCacheKey() => BuildFormatCacheKey(_settings.ApiEndpoint, _settings.ModelName);
 
         private static string BuildNodeKey(BackupEndpointNode node) =>
             $"{(node.ApiEndpoint ?? string.Empty).Trim().TrimEnd('/')}|{(node.ModelName ?? string.Empty).Trim()}|{(string.IsNullOrEmpty(node.ApiKey) ? string.Empty : (node.ApiKey.Length > 8 ? node.ApiKey.Substring(node.ApiKey.Length - 8) : node.ApiKey))}";
@@ -85,7 +92,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         {
             if (ex == null) return false;
             if (ex is HttpTransport.HttpException httpEx &&
-                (httpEx.StatusCode == 401 || httpEx.StatusCode == 402 || httpEx.StatusCode == 403))
+                (httpEx.StatusCode == 401 || httpEx.StatusCode == 402 || httpEx.StatusCode == 403 || httpEx.StatusCode == 410))
             {
                 return true;
             }
@@ -97,6 +104,9 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                    msg.IndexOf("invalid_api_key", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    msg.IndexOf("billing_not_active", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    msg.IndexOf("model_not_found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   msg.IndexOf("ModelDeprecated", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   msg.IndexOf("has been deprecated", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   msg.IndexOf("Model is unavailable", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    msg.IndexOf("is not supported by any configured account", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
@@ -138,7 +148,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         }
 
         private static float ResolveTimeoutSeconds(bool isLocal, int candidateCount, int attempt) =>
-            isLocal ? 300f : ((candidateCount > 1 && attempt < candidateCount - 1) ? 45f : 60f);
+            isLocal ? 300f : ((candidateCount > 1 && attempt < candidateCount - 1) ? 25f : 60f);
 
         public bool IsConfigured() => _settings.IsConfigured();
 
@@ -240,6 +250,58 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             return healthy;
         }
 
+        private async Task<(string responseText, long httpStatusCode)> PostWithFormatFallbackAsync(
+            BackupEndpointNode node,
+            string endpoint,
+            string effectiveModel,
+            RimMind.Domain.Llm.LlmRequestEnvelope envelope,
+            string initialJson,
+            string? headerName,
+            string? headerValue,
+            float connectTimeout)
+        {
+            string currentJson = initialJson;
+            string cacheKey = BuildFormatCacheKey(node.ApiEndpoint, effectiveModel);
+
+            while (true)
+            {
+                try
+                {
+                    var (responseText, httpStatusCode) = await _postAsync(
+                        endpoint, currentJson, $"Bearer {node.ApiKey}",
+                        headerName: headerName, headerValue: headerValue,
+                        connectTimeout: connectTimeout,
+                        cancellationToken: envelope.Ct);
+
+                    if (httpStatusCode == 400 && currentJson.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
+                    {
+                        throw HttpTransport.HttpException.FromResponse((int)httpStatusCode, responseText, null);
+                    }
+
+                    return (responseText, httpStatusCode);
+                }
+                catch (HttpTransport.HttpException httpEx) when (
+                    httpEx.StatusCode == 400 &&
+                    currentJson.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
+                {
+                    string nextFormat = currentJson.IndexOf("\"json_schema\"", StringComparison.Ordinal) >= 0
+                        ? "json_object"
+                        : "none";
+
+                    _formatCapabilityCache[cacheKey] = nextFormat;
+                    _logSink?.LogFromBackground(
+                        $"[RimMind-Core] Node '{node.Name}' ({effectiveModel}) rejected response_format with HTTP 400; downgrading format capability to '{nextFormat}' and retrying on same node.");
+
+                    currentJson = BuildEnvelopeRequestJson(
+                        envelope,
+                        stream: false,
+                        modelNameOverride: effectiveModel,
+                        endpointOverride: node.ApiEndpoint,
+                        formatModeOverride: nextFormat);
+                }
+            }
+        }
+
         public async Task<Result<RimMind.Domain.Llm.LlmResponse, RimMindError>> SendAsync(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
         {
             if (!IsConfigured())
@@ -280,11 +342,15 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     string? headerName = isOpenCode ? "x-opencode-session" : null;
                     string? headerValue = isOpenCode ? ResolveSessionId(envelope) : null;
 
-                    (string responseText, long httpStatusCode) = await _postAsync(
-                        endpoint, json, $"Bearer {node.ApiKey}",
-                        headerName: headerName, headerValue: headerValue,
-                        connectTimeout: connectTimeout,
-                        cancellationToken: envelope.Ct);
+                    (string responseText, long httpStatusCode) = await PostWithFormatFallbackAsync(
+                        node,
+                        endpoint,
+                        effectiveModel,
+                        envelope,
+                        json,
+                        headerName,
+                        headerValue,
+                        connectTimeout);
 
                     var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
                     string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
@@ -414,11 +480,15 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     {
                         await Task.Delay(1200 * backoffAttempt, envelope.Ct);
                         var sw = Stopwatch.StartNew();
-                        (string responseText, long httpStatusCode) = await _postAsync(
-                            endpoint, json, $"Bearer {retryNode.ApiKey}",
-                            headerName: headerName, headerValue: headerValue,
-                            connectTimeout: connectTimeout,
-                            cancellationToken: envelope.Ct);
+                        (string responseText, long httpStatusCode) = await PostWithFormatFallbackAsync(
+                            retryNode,
+                            endpoint,
+                            effectiveModel,
+                            envelope,
+                            json,
+                            headerName,
+                            headerValue,
+                            connectTimeout);
 
                         var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
                         string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
@@ -645,6 +715,16 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 }
                 catch (Exception ex)
                 {
+                    if (ex is HttpTransport.HttpException httpEx &&
+                        httpEx.StatusCode == 400 &&
+                        json.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
+                    {
+                        string nextFormat = json.IndexOf("\"json_schema\"", StringComparison.Ordinal) >= 0
+                            ? "json_object"
+                            : "none";
+                        _formatCapabilityCache[BuildFormatCacheKey(node.ApiEndpoint, effectiveModel)] = nextFormat;
+                    }
+
                     long cooldownMs = ResolveNodeIsolationCooldownMs(ex, out bool isPermQuota);
                     RecordNodeFailure(node, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), cooldownMs, isPermQuota);
 
