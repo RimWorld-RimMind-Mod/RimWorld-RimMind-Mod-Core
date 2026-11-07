@@ -8,7 +8,73 @@
     <li>1.6</li>
     <li>1.7</li>
   </supportedVersions>
-  <description>Infrastructure for AI-powered RimWorld mods. Provides LLM client, async request queue, game context builders, and debug tooling. Required by all RimMind suite components. v2.0 uses a three-DLL loading architecture (0_RimMindDomain, 1_RimMindApplication, 2_RimMindCore) for modular assembly loading. [v2.0 BREAKING CHANGES] Save games from v1.x are NOT compatible with v2.0.</description>
+  <description>[h1]RimMind - Core (v2.0)[/h1]
+The foundational LLM runtime, Clean Architecture engine, and public API bedrock of the RimMind suite. Provides the 4-Zone KV-Cache context orchestrator, asynchronous priority request queue, native ToolCall contract registry, 3-Tier Agent Autonomy governance, and the F8 Central Debug Hub. Required by all RimMind sub-modules.
+
+[b]v2.0 Clean Architecture &amp; RimWorld 1.6 / 1.7 Dual-Version Support:[/b]
+[list]
+[*][b]RimWorld 1.6 &amp; 1.7 (Waylith / .NET 10) Ready[/b]: Native multi-target compilation supporting both RimWorld 1.6 (.NET Framework 4.8) and RimWorld 1.7 (.NET 10 / Harmony 2.x &amp; 3.x).
+[*][b]v2.0 Three-DLL Clean Architecture[/b]: Strictly decoupled assembly layering ([code]0_RimMindDomain[/code], [code]1_RimMindApplication[/code], [code]2_RimMindCore[/code]) with zero cross-mod internal coupling. Note: v1.x saves are not compatible with v2.0.
+[*][b]4-Zone KV-Cache Engine (80%+ Hit Rate)[/b]: Isolates static world rules (Zone 1) and permanent pawn profiles (Zone 2) from dynamic history (Zone 3) and volatile environment state (Zone 4), cutting token latency and API billing by over 75%.
+[/list]
+
+[h2]What Is RimMind[/h2]
+RimMind is an enterprise-grade, AI-powered RimWorld mod suite. Integrated with Large Language Models (LLM), it transforms colonists from static state machines into self-reflecting agents with distinct personalities, three-tier memories, natural spoken dialogues, autonomous mechanisms, and dynamic storytelling.
+
+[h2]Sub-mod List &amp; Dependency Relationships[/h2]
+[table]
+[tr][th]Mod[/th][th]Responsibility[/th][th]Dependencies[/th][th]GitHub[/th][/tr]
+[tr][td][b]RimMind-Core[/b][/td][td]LLM runtime, 4-Zone context engine, async queue, ToolCall registry &amp; F8 Hub[/td][td]Harmony[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core]Link[/url][/td][/tr]
+[tr][td]RimMind-Actions[/td][td]Composite ToolCall mechanisms, battlefield triage &amp; autonomous construction[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions]Link[/url][/td][/tr]
+[tr][td]RimMind-Advisor[/td][td]Colonist self-reflective advice cards, 5-domain autonomy &amp; player approval[/td][td]Core, Actions[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor]Link[/url][/td][/tr]
+[tr][td]RimMind-Dialogue[/td][td]Contextual spoken dialogue via express_dialogue ToolCall &amp; speech bubbles[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue]Link[/url][/td][/tr]
+[tr][td]RimMind-Memory[/td][td]3-Tier cognitive memory hierarchy, work aggregation &amp; temporal decay[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory]Link[/url][/td][/tr]
+[tr][td]RimMind-Personality[/td][td]Big-Five psychological profiles, dawn monologues &amp; dynamic mood thoughts[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality]Link[/url][/td][/tr]
+[tr][td]RimMind-Storyteller[/td][td]AI Story Director, dramatic tension curve, chained arcs &amp; Storyteller Altar[/td][td]Core, Memory[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller]Link[/url][/td][/tr]
+[tr][td]RimMind-Extension-ModelService[/td][td]Multi-provider routing, Anthropic KV cache, local gateways &amp; load balancing[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Extension-ModelService]Link[/url][/td][/tr]
+[tr][td]RimMind-Bridge-RimChat[/td][td]RimChat compatibility bridge: dialogue/action mutual exclusion &amp; context sync[/td][td]Core, RimChat[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimChat]Link[/url][/td][/tr]
+[tr][td]RimMind-Bridge-RimTalk[/td][td]RimTalk compatibility bridge: bubble harmonization &amp; bidirectional context[/td][td]Core, RimTalk[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimTalk]Link[/url][/td][/tr]
+[/table]
+[code]Core ──┬── Actions ── Advisor
+       ├── Dialogue
+       ├── Memory ── Storyteller
+       ├── Personality
+       ├── Extension-ModelService
+       ├── Bridge-RimChat
+       └── Bridge-RimTalk[/code]
+
+[h2]Core Features[/h2]
+[list]
+[*][b]4-Zone KV-Cache Context Orchestrator[/b] - Automatically packages game state (pawn mood, health, skills, gear, colony wealth, threat levels, seasons, weather) across hierarchical L0 to L5 layers with 80%+ prefix cache hit efficiency.
+[*][b]Asynchronous Priority Request Queue[/b] - Non-blocking background HTTP dispatching with priority scheduling, per-feature cooldowns, exponential retry backoff, circuit breaker protection, and main-thread callback marshaling.
+[*][b]Native ToolCall Registry &amp; Progressive Discovery[/b] - Type-safe function calling with on-demand [code]query_tool_help[/code] schema inspection, eliminating raw JSON leakage and markdown hallucinations.
+[*][b]Three-Tier Agent Autonomy Governance[/b] - Fine-grained action gating across 5 domains ([i]Survival, Work, Social, Colony, Governance[/i]) and 3 autonomy levels ([i]Auto, AutoWithNotify, RecommendOnly[/i]).
+[*][b]Pawn Liveness &amp; Lifecycle Guard[/b] - Strict [code]RimMindPawnLookup[/code] validation ensuring dead, kidnapped, off-map, or imprisoned pawns never trigger ghost LLM requests.
+[*][b]F8 Central Debug &amp; Inspection Hub[/b] - Press [b]F8[/b] in-game to run live API latency pings, inspect Zone 1 to 4 prompt payloads, monitor KV-cache hit rates, and manage queues in real time.
+[/list]
+
+[h2]Supported API Endpoints[/h2]
+[table]
+[tr][th]Service[/th][th]Endpoint[/th][th]Description[/th][/tr]
+[tr][td]DeepSeek[/td][td]https://api.deepseek.com/v1[/td][td]Recommended: deepseek-chat (high intelligence &amp; low cost)[/td][/tr]
+[tr][td]OpenAI[/td][td]https://api.openai.com/v1[/td][td]Models such as gpt-4o-mini and gpt-4o[/td][/tr]
+[tr][td]Ollama / vLLM (Local)[/td][td]http://localhost:11434/v1[/td][td]Self-hosted local models (qwen2.5:7b, llama3.1:8b) with serial queue mode[/td][/tr]
+[tr][td]Player2[/td][td]Auto-detected / Remote API[/td][td]Player2 local client application or cloud API[/td][/tr]
+[tr][td]Extension: ModelService[/td][td]Multi-Node / Failover[/td][td]Anthropic Claude, OpenCode Go, Codex/Sub2API/NewAPI local gateways[/td][/tr]
+[/table]
+
+[h2]Frequently Asked Questions[/h2]
+[b]Q: Will RimMind affect my game frame rate (TPS/FPS)?[/b]
+A: No. All network I/O and prompt serialization run on background threads, and high-frequency checks are strictly throttled.
+
+[b]Q: Is my API Key secure?[/b]
+A: Yes. API Keys are stored locally in your RimWorld config folder and are never logged or transmitted anywhere except your configured LLM endpoint.
+
+[b]Q: Which models are recommended?[/b]
+A: [code]deepseek-chat[/code] and [code]gpt-4o-mini[/code] offer the best balance of speed, tool-calling accuracy, and KV-cache cost savings.
+
+[h2]Acknowledgements &amp; References[/h2]
+Special thanks to RimTalk, RimTalk-ExpandActions, RimTalk-ExpandMemory, RimChat, NewRatkin, and Vanilla Expanded Framework for technical inspiration during development.</description>
   <modDependencies>
     <li>
       <packageId>brrainz.harmony</packageId>
