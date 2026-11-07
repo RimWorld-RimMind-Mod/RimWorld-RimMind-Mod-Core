@@ -682,9 +682,17 @@ namespace RimMind.Infrastructure.UI
                     var execResult = task.Result;
                     if (execResult.IsErr)
                     {
-                        item.Status = "FAIL";
                         item.IsError = true;
                         item.ErrorMessage = $"Result.Err: {execResult.Error.Code} - {execResult.Error.Message}";
+                        if (IsExpectedDomainRejection(tool.Definition.Id, execResult.Error.Message))
+                        {
+                            item.Status = "DOMAIN_REJECT";
+                            item.Notes = $"Domain rule rejected safely: {execResult.Error.Message}";
+                        }
+                        else
+                        {
+                            item.Status = "FAIL";
+                        }
                     }
                     else
                     {
@@ -905,6 +913,42 @@ namespace RimMind.Infrastructure.UI
                     dict["patient_id"] = pawnId;
                     dict["reason"] = "Autotest triage";
                     break;
+
+                case "actions_place_blueprint":
+                case "actions.place_blueprint":
+                case "place_blueprint":
+                    dict["building_def"] = "SleepingSpot";
+                    dict["auto_construct"] = false;
+                    break;
+
+                case "actions_manage_zone":
+                case "actions.manage_zone":
+                case "manage_zone":
+                    dict["zone_type"] = "Stockpile";
+                    dict["width"] = 3;
+                    dict["height"] = 3;
+                    break;
+
+                case "actions_designate_resources":
+                case "actions.designate_resources":
+                case "designate_resources":
+                    dict["designation_type"] = "ChopWood";
+                    dict["max_count"] = 2;
+                    dict["radius"] = 40;
+                    break;
+
+                case "actions_add_worktable_bill":
+                case "actions.add_worktable_bill":
+                case "add_worktable_bill":
+                    dict["recipe_def"] = "CookMealSimple";
+                    break;
+
+                case "actions_plan_room_project":
+                case "actions.plan_room_project":
+                case "plan_room_project":
+                    dict["room_type"] = "Shelter";
+                    dict["size"] = 4;
+                    break;
             }
 
             return new ToolCallArgs
@@ -913,7 +957,8 @@ namespace RimMind.Infrastructure.UI
                 ToolName = toolId,
                 ArgumentsJson = JsonConvert.SerializeObject(dict),
                 PawnId = pawnId > 0 ? pawnId : null,
-                NpcId = pawnId > 0 ? $"NPC-{pawnId}" : null
+                NpcId = pawnId > 0 ? $"NPC-{pawnId}" : null,
+                IsPlayerApproved = true
             };
         }
 
@@ -975,6 +1020,22 @@ namespace RimMind.Infrastructure.UI
             if (toolId == "pawn.job.set" && (error.IndexOf("missing", StringComparison.OrdinalIgnoreCase) >= 0
                 || error.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0
                 || error.IndexOf("No job available", StringComparison.OrdinalIgnoreCase) >= 0))
+                return true;
+
+            // Composite actions on fresh -quicktest map: resource safety guard or missing worktable
+            if ((toolId == "actions_plan_room_project" || toolId == "actions_place_blueprint") &&
+                (error.IndexOf("[Safety Guard]", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 error.IndexOf("minimum survival threshold", StringComparison.OrdinalIgnoreCase) >= 0))
+                return true;
+
+            if (toolId == "actions_add_worktable_bill" &&
+                (error.IndexOf("No worktable found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 error.IndexOf("worktable", StringComparison.OrdinalIgnoreCase) >= 0))
+                return true;
+
+            if (toolId == "actions_designate_resources" &&
+                (error.IndexOf("No valid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 error.IndexOf("found within", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
             return false;
