@@ -13,6 +13,7 @@ using Xunit;
 
 namespace RimMind.Tests.Contracts
 {
+    [Collection("UI drawing")]
     public sealed class UiLifecycleContract
     {
         [Fact]

@@ -453,7 +453,7 @@ namespace RimMind.Tests.Contracts
         private static string FindRepoRoot()
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !File.Exists(Path.Combine(dir.FullName, "RimMind.sln")))
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "RimMind-Core", "Source")))
             {
                 dir = dir.Parent;
             }
