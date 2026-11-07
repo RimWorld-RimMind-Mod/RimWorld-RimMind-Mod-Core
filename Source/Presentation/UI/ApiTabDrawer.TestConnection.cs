@@ -52,7 +52,7 @@ namespace RimMind.Presentation.UI
                 notConfiguredKey = "RimMind.Settings.Player2.NotAvailable";
                 requireConfiguredClient = false;
             }
-            else if (s.Provider == "extended_service")
+            else if (!string.IsNullOrEmpty(AIProviderRegistry.GetSettingsTabId(s.Provider, providerRegistry)))
             {
                 getClient = () => clientManager?.GetClient();
                 stage = "modelservice-client";
@@ -253,6 +253,10 @@ namespace RimMind.Presentation.UI
 
         internal static string GetProviderLabel(string p)
         {
+            string? descriptorKey = AIProviderRegistry.GetDisplayLabelKey(p);
+            if (!string.IsNullOrEmpty(descriptorKey) && descriptorKey!.CanTranslate())
+                return (string)descriptorKey.Translate();
+
             string key = $"RimMind.Settings.Provider.{NormalizeProviderTranslationSuffix(p)}";
             return key.CanTranslate() ? (string)key.Translate() : p;
         }
@@ -263,7 +267,6 @@ namespace RimMind.Presentation.UI
             {
                 "openai" => "OpenAI",
                 "player2" => "Player2",
-                "extended_service" => "ExtendedService",
                 _ => providerId ?? string.Empty
             };
         }

@@ -19,6 +19,7 @@ using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Features.Registry;
 using RimMind.Application.Features.Requests.Queue;
 using RimMind.Presentation.Runtime.Composition;
+using RimMind.Presentation.Runtime.Services;
 using Verse;
 
 namespace RimMind.Presentation.Runtime
@@ -32,36 +33,69 @@ namespace RimMind.Presentation.Runtime
     public sealed class RimMindRuntime : IRimMindRuntime
     {
         // Sub-managers (SRP decomposition)
-        private readonly RimMindCompositionRoot.CompositionResult _composition;
+        private readonly RuntimeServiceSnapshot? _services;
+        private readonly RimMindCompositionRoot.CompositionResult? _composition;
         private readonly RimMindLifecycleManager _lifecycleManager;
         private readonly RimMindExtensionManager _extensionManager;
         private readonly ExtensionRegistryCatalog _extensions;
 
-        // Public properties — delegate to CompositionResult
-        public IAgentBus AgentBus => _composition.AgentBus;
-        public IContextEngine ContextEngine => _composition.ContextEngine;
-        public IHistoryManager HistoryManager => _composition.HistoryManager;
-        public IClientManager ClientManager => _composition.ClientManager;
-        public IAudioPlayer AudioPlayer => _composition.AudioPlayer;
-        public IProviderRegistry ProviderRegistry => _composition.ProviderRegistry;
-        public IOverlayService OverlayService => _composition.OverlayService;
-        public IRequestQueue Queue => _composition.Queue;
-        public ITelemetryCollector Telemetry => _composition.Telemetry;
-        public IToolRegistry ToolRegistry => _composition.ToolRegistry;
-        public IGameMechanismRegistry MechanismRegistry => _composition.MechanismRegistry;
-        public IWindowService? WindowService => _composition.WindowService;
-        public IContextKeyRegistry ContextKeys => _composition.ContextKeyRegistry;
-        public IRelevanceTable RelevanceTable => _composition.RelevanceTable;
-        public IRelevanceLearner ContextLearner => _composition.RelevanceLearner;
-        public IGameContextBuilder GameContextBuilder => _composition.GameContextBuilder;
+        public RuntimeServiceSnapshot? Services => _services ?? _composition?.Services;
 
-        public IPipeline<BusPublishContext> BusPublishPipeline => _composition.BusPublishPipeline;
-        public IPipeline<LlmRequestContext> UnifiedPipeline => _composition.UnifiedPipeline;
+        private T ResolveRequired<T>(Func<RimMindCompositionRoot.CompositionResult, T> fallback)
+            where T : class
+        {
+            if (_services != null)
+                return _services.GetRequired<T>();
+            if (_composition != null)
+                return fallback(_composition);
+            throw new InvalidOperationException($"Cannot resolve required service '{typeof(T).FullName}'.");
+        }
+
+        private T? ResolveOptional<T>(Func<RimMindCompositionRoot.CompositionResult, T?> fallback)
+            where T : class
+        {
+            if (_services != null)
+                return _services.Get<T>();
+            return _composition != null ? fallback(_composition) : null;
+        }
+
+        // Public properties — resolve directly from RuntimeServiceSnapshot (with CompositionResult override fallback)
+        public IAgentBus AgentBus => ResolveRequired<IAgentBus>(c => c.AgentBus);
+        public IContextEngine ContextEngine => ResolveRequired<IContextEngine>(c => c.ContextEngine);
+        public IHistoryManager HistoryManager => ResolveRequired<IHistoryManager>(c => c.HistoryManager);
+        public IClientManager ClientManager => ResolveRequired<IClientManager>(c => c.ClientManager);
+        public IAudioPlayer AudioPlayer => ResolveRequired<IAudioPlayer>(c => c.AudioPlayer);
+        public IProviderRegistry ProviderRegistry => ResolveRequired<IProviderRegistry>(c => c.ProviderRegistry);
+        public IOverlayService OverlayService => ResolveRequired<IOverlayService>(c => c.OverlayService);
+        public IRequestQueue Queue => ResolveRequired<IRequestQueue>(c => c.Queue);
+        public ITelemetryCollector Telemetry => ResolveRequired<ITelemetryCollector>(c => c.Telemetry);
+        public IToolRegistry ToolRegistry => ResolveRequired<IToolRegistry>(c => c.ToolRegistry);
+        public IGameMechanismRegistry MechanismRegistry => ResolveRequired<IGameMechanismRegistry>(c => c.MechanismRegistry);
+        public IWindowService? WindowService => ResolveOptional<IWindowService>(c => c.WindowService);
+        public IContextKeyRegistry ContextKeys => ResolveRequired<IContextKeyRegistry>(c => c.ContextKeyRegistry);
+        public IRelevanceTable RelevanceTable => ResolveRequired<IRelevanceTable>(c => c.RelevanceTable);
+        public IRelevanceLearner ContextLearner => ResolveRequired<IRelevanceLearner>(c => c.RelevanceLearner);
+        public IGameContextBuilder GameContextBuilder => ResolveRequired<IGameContextBuilder>(c => c.GameContextBuilder);
+
+        public IPipeline<BusPublishContext> BusPublishPipeline => ResolveRequired<IPipeline<BusPublishContext>>(c => c.BusPublishPipeline);
+        public IPipeline<LlmRequestContext> UnifiedPipeline => ResolveRequired<IPipeline<LlmRequestContext>>(c => c.UnifiedPipeline);
 
         public IReadOnlyList<IParameterTuner> ParameterTunersList => _extensionManager.ParameterTuners;
         public Func<Pawn, AgentIdentity?>? AgentIdentityProvider => _extensionManager.AgentIdentityProvider;
         public IAgentActionBridge AgentActionBridge => _extensionManager.AgentActionBridge;
         public bool IsShutdown => _lifecycleManager.IsShutdown;
+
+        internal RimMindRuntime(
+            RuntimeServiceSnapshot services,
+            RimMindLifecycleManager lifecycleManager,
+            RimMindExtensionManager extensionManager,
+            ExtensionRegistryCatalog extensions)
+        {
+            _services = services ?? throw new ArgumentNullException(nameof(services));
+            _lifecycleManager = lifecycleManager ?? throw new ArgumentNullException(nameof(lifecycleManager));
+            _extensionManager = extensionManager ?? throw new ArgumentNullException(nameof(extensionManager));
+            _extensions = extensions ?? throw new ArgumentNullException(nameof(extensions));
+        }
 
         internal RimMindRuntime(
             RimMindCompositionRoot.CompositionResult composition,
@@ -70,6 +104,7 @@ namespace RimMind.Presentation.Runtime
             ExtensionRegistryCatalog extensions)
         {
             _composition = composition ?? throw new ArgumentNullException(nameof(composition));
+            _services = composition.Services;
             _lifecycleManager = lifecycleManager ?? throw new ArgumentNullException(nameof(lifecycleManager));
             _extensionManager = extensionManager ?? throw new ArgumentNullException(nameof(extensionManager));
             _extensions = extensions ?? throw new ArgumentNullException(nameof(extensions));
@@ -97,8 +132,8 @@ namespace RimMind.Presentation.Runtime
         {
             _extensionManager.AddMiddleware(
                 middleware,
-                _composition.BusPublishPipeline,
-                _composition.UnifiedPipeline);
+                BusPublishPipeline,
+                UnifiedPipeline);
         }
 
         public void RegisterAgentIdentityProvider(Func<Pawn, AgentIdentity?> provider)
@@ -118,6 +153,6 @@ namespace RimMind.Presentation.Runtime
         public IAIClient? GetClient() => ClientManager.GetClient();
         public void InvalidateClientCache() => ClientManager.InvalidateCache();
         public IAIClient? GetPlayer2Client() => ClientManager.GetPlayer2Client();
-        public ISettingsProvider? GetSettingsProvider() => _composition.SettingsProvider;
+        public ISettingsProvider? GetSettingsProvider() => ResolveOptional<ISettingsProvider>(c => c.SettingsProvider);
     }
 }

@@ -1,14 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Interfaces.Agent;
-using RimMind.Application.Common.Threading;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Mechanisms;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Common.Threading;
 using RimMind.Application.Features.Agent;
 using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.Common;
@@ -25,11 +26,16 @@ namespace RimMind.Infrastructure.Agent
     {
         private readonly IGameMechanismRegistry _registry;
         private readonly IToolRegistry? _toolRegistry;
+        private readonly Func<IReadOnlyList<IToolArgumentAdapter>>? _argumentAdapterProvider;
 
-        public MechanismActionExecutor(IGameMechanismRegistry registry, IToolRegistry? toolRegistry = null)
+        public MechanismActionExecutor(
+            IGameMechanismRegistry registry,
+            IToolRegistry? toolRegistry = null,
+            Func<IReadOnlyList<IToolArgumentAdapter>>? argumentAdapterProvider = null)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _toolRegistry = toolRegistry;
+            _argumentAdapterProvider = argumentAdapterProvider;
         }
 
         public Result<Unit, RimMindError> ExecuteDecision(AgentDecision decision, int pawnId)
@@ -43,7 +49,7 @@ namespace RimMind.Infrastructure.Agent
             if (string.Equals(decision.ActionIntent, "dialogue.free", StringComparison.OrdinalIgnoreCase))
                 return Result<Unit, RimMindError>.Ok(Unit.Value);
 
-            // 1. Try finding registered tool in IToolRegistry
+            // 1. Try finding registered tool in IToolRegistry (which resolves canonical IDs and Manifest.Aliases)
             var toolId = ResolveToolId(decision.ActionIntent);
             var tool = _toolRegistry?.FindById(toolId);
             if (tool != null)
@@ -83,39 +89,17 @@ namespace RimMind.Infrastructure.Agent
             return _registry.FindById(mechanismId) != null;
         }
 
-        private static string ResolveToolId(string actionIntent)
+        internal static string ResolveToolId(string actionIntent)
         {
-            if (string.IsNullOrEmpty(actionIntent)) return "";
-            if (string.Equals(actionIntent, "designate_map_order", StringComparison.OrdinalIgnoreCase))
-                return "actions_designate_resources";
-            if (string.Equals(actionIntent, "place_blueprint", StringComparison.OrdinalIgnoreCase))
-                return "actions_place_blueprint";
-            if (string.Equals(actionIntent, "add_worktable_bill", StringComparison.OrdinalIgnoreCase))
-                return "actions_add_worktable_bill";
-            if (string.Equals(actionIntent, "manage_equipment", StringComparison.OrdinalIgnoreCase))
-                return "actions_manage_equipment";
-            if (string.Equals(actionIntent, "manage_zone", StringComparison.OrdinalIgnoreCase))
-                return "actions_manage_zone";
-            if (string.Equals(actionIntent, "plan_room_project", StringComparison.OrdinalIgnoreCase))
-                return "actions_plan_room_project";
-            if (string.Equals(actionIntent, "query_buildable_structures", StringComparison.OrdinalIgnoreCase))
-                return "actions_query_buildable_structures";
-            if (string.Equals(actionIntent, "eat_and_recreation", StringComparison.OrdinalIgnoreCase))
-                return "actions.eat_and_recreation";
-            if (string.Equals(actionIntent, "stabilize_rest", StringComparison.OrdinalIgnoreCase))
-                return "actions.stabilize_rest";
-            if (string.Equals(actionIntent, "emergency_flee", StringComparison.OrdinalIgnoreCase))
-                return "actions.emergency_flee";
-            if (string.Equals(actionIntent, "triage_patient", StringComparison.OrdinalIgnoreCase))
-                return "actions.triage_patient";
-            return actionIntent;
+            if (string.IsNullOrWhiteSpace(actionIntent)) return "";
+            return actionIntent.Trim();
         }
 
-        private static Result<Unit, RimMindError> ExecuteTool(IToolHandler tool, AgentDecision decision, int pawnId)
+        private Result<Unit, RimMindError> ExecuteTool(IToolHandler tool, AgentDecision decision, int pawnId)
         {
             try
             {
-                string argsJson = AdaptToolArguments(tool.Definition.Id, decision, pawnId);
+                string argsJson = AdaptToolArguments(tool, decision, pawnId);
                 var toolArgs = new ToolCallArgs
                 {
                     ToolCallId = string.IsNullOrEmpty(decision.ToolCallId) ? Guid.NewGuid().ToString("N") : decision.ToolCallId,
@@ -148,8 +132,9 @@ namespace RimMind.Infrastructure.Agent
             }
         }
 
-        private static string AdaptToolArguments(string toolId, AgentDecision decision, int pawnId)
+        private string AdaptToolArguments(IToolHandler tool, AgentDecision decision, int pawnId)
         {
+            string toolId = tool.Definition.Id;
             JObject obj;
             if (!string.IsNullOrWhiteSpace(decision.Param))
             {
@@ -171,17 +156,9 @@ namespace RimMind.Infrastructure.Agent
             if (pawnId > 0)
             {
                 bool isSelfTargetedTool =
-                    toolId == "actions_stabilize_rest" ||
-                    toolId == "actions.stabilize_rest" ||
-                    toolId == "stabilize_rest" ||
-                    toolId == "actions_eat_and_recreation" ||
-                    toolId == "actions.eat_and_recreation" ||
-                    toolId == "eat_and_recreation" ||
-                    toolId == "actions_emergency_flee" ||
-                    toolId == "actions.emergency_flee" ||
-                    toolId == "emergency_flee" ||
-                    toolId == "prioritize_work" ||
-                    toolId == "take_job";
+                    tool.Definition?.Manifest?.IsSelfTargeted == true ||
+                    string.Equals(toolId, "prioritize_work", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(toolId, "take_job", StringComparison.OrdinalIgnoreCase);
 
                 bool shouldOverride = isSelfTargetedTool || !obj.ContainsKey("pawn_id") || obj["pawn_id"]?.Type == JTokenType.String;
                 if (!shouldOverride && obj["pawn_id"]?.Type == JTokenType.Integer)
@@ -199,93 +176,48 @@ namespace RimMind.Infrastructure.Agent
                 }
             }
 
-            if (toolId == "actions_designate_resources")
+            var adapters = GetArgumentAdapters();
+            if (adapters != null)
             {
-                string targetStr = (obj["target"]?.ToString() ?? obj["target_name"]?.ToString() ?? "").Trim();
-                bool isFoodOrCropTarget =
-                    targetStr.IndexOf("berr", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("food", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("edible", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("crop", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("rice", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("potato", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("corn", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("healroot", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("agave", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    targetStr.IndexOf("ambrosia", StringComparison.OrdinalIgnoreCase) >= 0;
-
-                if (obj.TryGetValue("order_type", StringComparison.OrdinalIgnoreCase, out var otVal))
+                for (int i = 0; i < adapters.Count; i++)
                 {
-                    string ot = otVal.ToString();
-                    if (ot.Equals("CutPlants", StringComparison.OrdinalIgnoreCase))
-                        obj["designation_type"] = isFoodOrCropTarget ? "Harvest" : "ChopWood";
-                    else if (ot.Equals("ChopWood", StringComparison.OrdinalIgnoreCase))
-                        obj["designation_type"] = "ChopWood";
-                    else if (ot.Equals("Harvest", StringComparison.OrdinalIgnoreCase))
-                        obj["designation_type"] = "Harvest";
-                    else if (ot.Equals("Mine", StringComparison.OrdinalIgnoreCase))
-                        obj["designation_type"] = "Mine";
-                    else
-                        obj["designation_type"] = ot;
-                }
-                else if (!obj.ContainsKey("designation_type"))
-                {
-                    obj["designation_type"] = isFoodOrCropTarget ? "Harvest" : "ChopWood";
-                }
-            }
-            else if (toolId == "actions.eat_and_recreation" || toolId == "actions.stabilize_rest" ||
-                     toolId == "eat_and_recreation" || toolId == "stabilize_rest")
-            {
-                if (!obj.ContainsKey("reason"))
-                {
-                    obj["reason"] = !string.IsNullOrEmpty(decision.Reason) ? decision.Reason : "autonomous recovery";
+                    var adapter = adapters[i];
+                    if (adapter == null) continue;
+                    if (adapter.CanAdapt(toolId) ||
+                        (!string.IsNullOrWhiteSpace(decision.ActionIntent) && adapter.CanAdapt(decision.ActionIntent)))
+                    {
+                        obj = adapter.AdaptArguments(toolId, obj, decision, pawnId) ?? obj;
+                    }
                 }
             }
 
             return obj.ToString(Newtonsoft.Json.Formatting.None);
         }
 
-        private static Result<bool, RimMindError> InvokeWriteOperation(
-            IGameMechanism mechanism, MechanismWriteArgs args, MechanismOperationType preferredOp)
+        private IReadOnlyList<IToolArgumentAdapter>? GetArgumentAdapters()
         {
-            var supportedOps = mechanism.SupportedOperations;
+            if (_argumentAdapterProvider != null)
+                return _argumentAdapterProvider();
 
             try
             {
-                // Try preferred operation first if supported
-                if (supportedOps.Contains(preferredOp))
-                {
-                    return ExecuteOperation(mechanism, args, preferredOp);
-                }
+                return RimMind.Presentation.Api.RimMindAPI.Ext.Get<IToolArgumentAdapter>()?.All;
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
-                // Fallback: Trigger is the primary operation for agent-initiated actions
-                if (supportedOps.Contains(MechanismOperationType.Trigger))
+        private static Result<bool, RimMindError> InvokeWriteOperation(
+            IGameMechanism mechanism, MechanismWriteArgs args, MechanismOperationType preferredOp)
+        {
+            try
+            {
+                var selectedOp = MechanismWriteOperationSelector.Select(mechanism.SupportedOperations, preferredOp);
+                if (selectedOp.HasValue)
                 {
-                    return ExecuteOperation(mechanism, args, MechanismOperationType.Trigger);
-                }
-
-                // Set for state-changing operations
-                if (supportedOps.Contains(MechanismOperationType.Set))
-                {
-                    return ExecuteOperation(mechanism, args, MechanismOperationType.Set);
-                }
-
-                // Add for additive operations
-                if (supportedOps.Contains(MechanismOperationType.Add))
-                {
-                    return ExecuteOperation(mechanism, args, MechanismOperationType.Add);
-                }
-
-                // Toggle for boolean state operations
-                if (supportedOps.Contains(MechanismOperationType.Toggle))
-                {
-                    return ExecuteOperation(mechanism, args, MechanismOperationType.Toggle);
-                }
-
-                // Remove for removal operations
-                if (supportedOps.Contains(MechanismOperationType.Remove))
-                {
-                    return ExecuteOperation(mechanism, args, MechanismOperationType.Remove);
+                    return ExecuteOperation(mechanism, args, selectedOp.Value);
                 }
 
                 return Result<bool, RimMindError>.Err(

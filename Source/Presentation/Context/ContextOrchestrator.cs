@@ -124,13 +124,33 @@ namespace RimMind.Presentation.Context
         /// All layer builds run in parallel via Task.WhenAll. Each Provider is wrapped
         /// in try-catch so a single failure does not affect others.
         /// </summary>
-        public async Task<ContextSnapshot?> BuildSnapshotFromEnvelopeAsync(string npcId, string? currentQuery,
+        public Task<ContextSnapshot?> BuildSnapshotFromEnvelopeAsync(string npcId, string? currentQuery,
             int maxTokens = 800, float temperature = 0.7f, string? scenarioId = null,
             HashSet<string>? skipLayers = null,
+            CancellationToken ct = default)
+            => BuildSnapshotFromEnvelopeAsync(
+                npcId,
+                currentQuery,
+                maxTokens,
+                temperature,
+                scenarioId,
+                skipLayers,
+                hints: null,
+                ct: ct);
+
+        public async Task<ContextSnapshot?> BuildSnapshotFromEnvelopeAsync(string npcId, string? currentQuery,
+            int maxTokens, float temperature, string? scenarioId,
+            HashSet<string>? skipLayers,
+            IReadOnlyDictionary<string, string>? hints,
             CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             if (_disposed) return null;
+
+            string? speakerName = hints != null && hints.TryGetValue("SpeakerName", out var sn) && !string.IsNullOrEmpty(sn)
+                ? sn
+                : null;
+            bool isMonologue = hints != null && hints.TryGetValue("IsMonologue", out var im) && bool.TryParse(im, out var parsedMonologue) && parsedMonologue;
 
             var ctx = new BuildContext(
                 NpcId: npcId,
@@ -141,9 +161,9 @@ namespace RimMind.Presentation.Context
                 MaxTokens: maxTokens,
                 Temperature: temperature,
                 Map: null,
-                SpeakerName: null,
+                SpeakerName: speakerName,
                 MaxRounds: 0,
-                IsMonologue: false
+                IsMonologue: isMonologue
             );
 
             string scenario = ctx.Scenario;
@@ -176,12 +196,24 @@ namespace RimMind.Presentation.Context
             PopulateSnapshotKeys(snapshot, schedule, filteredKeys);
             snapshot.BudgetValue = budget;
 
+            IReadOnlyDictionary<string, object?>? providerHints = null;
+            if (hints != null && hints.Count > 0)
+            {
+                var dict = new Dictionary<string, object?>(hints.Count, StringComparer.Ordinal);
+                foreach (var kvp in hints)
+                {
+                    dict[kvp.Key] = kvp.Value;
+                }
+                providerHints = dict;
+            }
+
             // Build ProviderContext for async provider calls
             var providerCtx = new ProviderContext(ctx.Scenario, Domain.ValueObjects.TraceContext.Current ?? "")
             {
                 PawnId = (pawn as Verse.Pawn)?.thingIDNumber ?? 0,
                 NpcId = ctx.NpcId,
                 MapId = (pawn as Verse.Pawn)?.Map?.uniqueID,
+                Hints = providerHints,
             };
 
             var layerBatchBuilder = new AsyncContextLayerBatchBuilder(
@@ -197,6 +229,8 @@ namespace RimMind.Presentation.Context
             snapshot.AddEntries(layerResults.L2.Entries);
             if (skipLayers == null || !skipLayers.Contains("L3"))
                 snapshot.AddEntries(layerResults.L3.Entries);
+            if (skipLayers == null || !skipLayers.Contains("L4"))
+                snapshot.AddEntries(layerResults.L4.Entries);
             snapshot.AddEntries(layerResults.L5.Entries);
 
             // Convert entries to ChatMessages
@@ -204,12 +238,14 @@ namespace RimMind.Presentation.Context
             var l1Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L1.Entries, "L1");
             var l2Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L2.Entries, "L2");
             var l3Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L3.Entries, "L3");
+            var l4Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L4.Entries, "L4");
             var l5Msg = _buildServices.LayerBuilder.EntriesToLayerMessage(layerResults.L5.Entries, "L5");
 
             snapshot.LatencyByLayerMs["L0"] = layerResults.L0.ElapsedMilliseconds;
             snapshot.LatencyByLayerMs["L1"] = layerResults.L1.ElapsedMilliseconds;
             snapshot.LatencyByLayerMs["L2"] = layerResults.L2.ElapsedMilliseconds;
             snapshot.LatencyByLayerMs["L3"] = layerResults.L3.ElapsedMilliseconds;
+            snapshot.LatencyByLayerMs["L4"] = layerResults.L4.ElapsedMilliseconds;
             snapshot.LatencyByLayerMs["L5"] = layerResults.L5.ElapsedMilliseconds;
 
             // 4-Zone Cache-Optimized Context Order:
@@ -221,7 +257,12 @@ namespace RimMind.Presentation.Context
             if (l0Msg != null) { messages.Add(l0Msg); snapshot.Meta.L0Tokens = EstimateTokens(l0Msg.Content); }
             if (l1Msg != null) { messages.Add(l1Msg); snapshot.Meta.L1Tokens = EstimateTokens(l1Msg.Content); }
 
-            // Zone 3: Append-Only History (Completed past turns)
+            // Zone 3: Append-Only History (Completed past turns and L4 history providers)
+            if (l4Msg != null && (skipLayers == null || !skipLayers.Contains("L4")))
+            {
+                messages.Add(l4Msg);
+                snapshot.Meta.L4Tokens += EstimateTokens(l4Msg.Content);
+            }
             AppendConversationHistory(ctx, schedule, scenario, messages, snapshot);
 
             // Zone 4: Volatile Tail Suffix (Real-time dynamic observations)
@@ -320,7 +361,7 @@ namespace RimMind.Presentation.Context
         private void PopulateSnapshotKeys(ContextSnapshot snapshot, BudgetAllocation schedule, List<KeyMeta> filteredKeys)
         {
             var allScheduledKeys = schedule.L0Keys.Concat(schedule.L1Keys)
-                .Concat(schedule.L2Keys).Concat(schedule.L3Keys).Concat(schedule.L5Keys)
+                .Concat(schedule.L2Keys).Concat(schedule.L3Keys).Concat(schedule.L4Keys).Concat(schedule.L5Keys)
                 .Select(k => k.Key).ToArray();
             var scheduledKeySet = new HashSet<string>(allScheduledKeys);
             var trimmedKeyNames = filteredKeys.Where(k => !scheduledKeySet.Contains(k.Key))
@@ -328,7 +369,7 @@ namespace RimMind.Presentation.Context
             snapshot.IncludedKeys = allScheduledKeys;
             snapshot.TrimmedKeys = trimmedKeyNames;
 
-            foreach (var key in schedule.L2Keys.Concat(schedule.L3Keys).Concat(schedule.L5Keys))
+            foreach (var key in schedule.L2Keys.Concat(schedule.L3Keys).Concat(schedule.L4Keys).Concat(schedule.L5Keys))
             {
                 if (schedule.KeyScores.TryGetValue(key.Key, out var score) && score > 0)
                     snapshot.KeyScores[key.Key] = score;

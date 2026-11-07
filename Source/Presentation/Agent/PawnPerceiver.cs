@@ -25,8 +25,8 @@ namespace RimMind.Presentation.Agent
         private readonly IPawnAgentVerse _agent;
         private readonly IAgentBus _agentBus;
         private readonly IExtensionRegistry<IPerceptionSource>? _sourceRegistry;
+        private readonly List<IPerceptionSource> _directSources = new List<IPerceptionSource>();
         private readonly List<IPerceptionSource> _sources = new List<IPerceptionSource>();
-        private int _lastRegistryCount = -1;
         private readonly HashSet<string> _sensedHediffs = new HashSet<string>();
         private int _lastPerceptionTick;
         private int _perceptionInterval = DefaultPerceptionInterval;
@@ -42,27 +42,39 @@ namespace RimMind.Presentation.Agent
         public void RegisterSource(IPerceptionSource source)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
-            _sources.RemoveAll(s => string.Equals(s.Id, source.Id, StringComparison.Ordinal));
-            _sources.Add(source);
-            _sources.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
+            _directSources.RemoveAll(s => string.Equals(s.Id, source.Id, StringComparison.Ordinal));
+            _directSources.Add(source);
+            _directSources.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
         }
+
+        internal IReadOnlyList<IPerceptionSource> GetActiveSources() => GetSortedSources();
 
         private List<IPerceptionSource> GetSortedSources()
         {
-            if (_sourceRegistry != null)
+            _sources.Clear();
+            var registered = _sourceRegistry?.All;
+            if (registered != null)
             {
-                var registered = _sourceRegistry.All;
-                if (registered != null && registered.Count != _lastRegistryCount)
+                for (int i = 0; i < registered.Count; i++)
                 {
-                    _sources.Clear();
-                    for (int i = 0; i < registered.Count; i++)
-                    {
-                        _sources.Add(registered[i]);
-                    }
-                    _sources.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
-                    _lastRegistryCount = registered.Count;
+                    var src = registered[i];
+                    if (src != null)
+                        _sources.Add(src);
                 }
             }
+
+            for (int i = 0; i < _directSources.Count; i++)
+            {
+                var direct = _directSources[i];
+                _sources.RemoveAll(s => string.Equals(s.Id, direct.Id, StringComparison.Ordinal));
+                _sources.Add(direct);
+            }
+
+            if (_sources.Count > 1)
+            {
+                _sources.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
+            }
+
             return _sources;
         }
 

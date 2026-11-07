@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Abstractions;
+using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Pipeline;
 using RimMind.Application.Common.Models;
@@ -33,14 +36,40 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
         private enum CircuitState { Closed, Open, HalfOpen }
 
-        private CircuitState _state = CircuitState.Closed;
-        private int _consecutiveFailures;
-        private DateTime _openedAtUtc;
-        private bool _canaryInProgress;
+        private sealed class CircuitBucket
+        {
+            public CircuitState State = CircuitState.Closed;
+            public int ConsecutiveFailures;
+            public DateTime OpenedAtUtc;
+            public bool CanaryInProgress;
+        }
 
-        internal string CurrentStateName { get { lock (_syncRoot) return _state.ToString(); } }
-        internal int ConsecutiveFailuresCount { get { lock (_syncRoot) return _consecutiveFailures; } }
-        internal bool IsCanaryInProgress { get { lock (_syncRoot) return _canaryInProgress; } }
+        private readonly Dictionary<string, CircuitBucket> _buckets = new Dictionary<string, CircuitBucket>(StringComparer.Ordinal);
+        private CircuitBucket _lastBucket = new CircuitBucket();
+
+        internal string CurrentStateName { get { lock (_syncRoot) return _lastBucket.State.ToString(); } }
+        internal int ConsecutiveFailuresCount { get { lock (_syncRoot) return _lastBucket.ConsecutiveFailures; } }
+        internal bool IsCanaryInProgress { get { lock (_syncRoot) return _lastBucket.CanaryInProgress; } }
+
+        internal string GetStateName(IAIClient client)
+        {
+            lock (_syncRoot)
+            {
+                return _buckets.TryGetValue(ResolveClientKey(client), out var bucket)
+                    ? bucket.State.ToString()
+                    : CircuitState.Closed.ToString();
+            }
+        }
+
+        internal int GetConsecutiveFailuresCount(IAIClient client)
+        {
+            lock (_syncRoot)
+            {
+                return _buckets.TryGetValue(ResolveClientKey(client), out var bucket)
+                    ? bucket.ConsecutiveFailures
+                    : 0;
+            }
+        }
 
         public CircuitBreakerMiddleware(ICircuitBreakerSettings? settings = null, ILogSink? log = null)
         {
@@ -51,15 +80,17 @@ namespace RimMind.Application.Features.Pipeline.Unified
         public async Task InvokeAsync(LlmRequestContext context, MiddlewareDelegate<LlmRequestContext> next)
         {
             bool isCanary = false;
+            CircuitBucket bucket;
 
             lock (_syncRoot)
             {
-                if (_state == CircuitState.Open)
+                bucket = GetOrCreateBucketLocked(context);
+                if (bucket.State == CircuitState.Open)
                 {
-                    if (DateTime.UtcNow - _openedAtUtc >= OpenDuration)
+                    if (DateTime.UtcNow - bucket.OpenedAtUtc >= OpenDuration)
                     {
-                        _state = CircuitState.HalfOpen;
-                        _canaryInProgress = false;
+                        bucket.State = CircuitState.HalfOpen;
+                        bucket.CanaryInProgress = false;
                         _log?.Message("[UnifiedCircuitBreaker] Transitioning to HalfOpen");
                     }
                     else
@@ -69,16 +100,16 @@ namespace RimMind.Application.Features.Pipeline.Unified
                     }
                 }
 
-                if (_state == CircuitState.HalfOpen)
+                if (bucket.State == CircuitState.HalfOpen)
                 {
-                    if (_canaryInProgress)
+                    if (bucket.CanaryInProgress)
                     {
                         _log?.Warning("[UnifiedCircuitBreaker] HalfOpen canary already in progress, short-circuiting request");
                         ShortCircuitOpen(context);
                         return;
                     }
 
-                    _canaryInProgress = true;
+                    bucket.CanaryInProgress = true;
                     isCanary = true;
                     _log?.Message("[UnifiedCircuitBreaker] Allowing single canary probe through");
                 }
@@ -92,9 +123,10 @@ namespace RimMind.Application.Features.Pipeline.Unified
             {
                 lock (_syncRoot)
                 {
+                    bucket = GetOrCreateBucketLocked(context);
                     if (isCanary)
                     {
-                        _canaryInProgress = false;
+                        bucket.CanaryInProgress = false;
                     }
                 }
                 throw;
@@ -103,23 +135,57 @@ namespace RimMind.Application.Features.Pipeline.Unified
             {
                 lock (_syncRoot)
                 {
-                    OnFailureLocked(new RimMindError(RimMindErrorCode.ClientTransientFailure, "Downstream middleware threw exception"), isCanary);
+                    bucket = GetOrCreateBucketLocked(context);
+                    OnFailureLocked(bucket, new RimMindError(RimMindErrorCode.ClientTransientFailure, "Downstream middleware threw exception"), isCanary);
                 }
                 throw;
             }
 
             lock (_syncRoot)
             {
+                bucket = GetOrCreateBucketLocked(context);
                 if (context.Result?.IsErr == true)
                 {
-                    OnFailureLocked(context.Result.Value.Error, isCanary);
+                    OnFailureLocked(bucket, context.Result.Value.Error, isCanary);
                 }
                 else
                 {
-                    OnSuccessLocked(isCanary);
+                    OnSuccessLocked(bucket, isCanary);
                 }
             }
         }
+
+        private CircuitBucket GetOrCreateBucketLocked(LlmRequestContext context)
+        {
+            string key = ResolveProviderKey(context);
+            if (!_buckets.TryGetValue(key, out var bucket))
+            {
+                bucket = new CircuitBucket();
+                _buckets[key] = bucket;
+            }
+            _lastBucket = bucket;
+            return bucket;
+        }
+
+        private static string ResolveProviderKey(LlmRequestContext context)
+        {
+            if (context.Envelope?.Hints != null
+                && context.Envelope.Hints.TryGetValue("ProviderId", out var providerId)
+                && !string.IsNullOrWhiteSpace(providerId))
+            {
+                return providerId!;
+            }
+
+            if (context.Client != null)
+            {
+                return ResolveClientKey(context.Client);
+            }
+
+            return "default";
+        }
+
+        private static string ResolveClientKey(IAIClient client)
+            => $"client:{client.GetType().FullName}:{RuntimeHelpers.GetHashCode(client)}";
 
         private void ShortCircuitOpen(LlmRequestContext context)
         {
@@ -128,21 +194,21 @@ namespace RimMind.Application.Features.Pipeline.Unified
             context.ShortCircuit("circuit_open");
         }
 
-        private void OnSuccessLocked(bool isCanary)
+        private void OnSuccessLocked(CircuitBucket bucket, bool isCanary)
         {
-            _consecutiveFailures = 0;
-            _state = CircuitState.Closed;
+            bucket.ConsecutiveFailures = 0;
+            bucket.State = CircuitState.Closed;
             if (isCanary)
             {
-                _canaryInProgress = false;
+                bucket.CanaryInProgress = false;
             }
         }
 
-        private void OnFailureLocked(RimMindError? error, bool isCanary)
+        private void OnFailureLocked(CircuitBucket bucket, RimMindError? error, bool isCanary)
         {
             if (isCanary)
             {
-                _canaryInProgress = false;
+                bucket.CanaryInProgress = false;
             }
 
             // Do NOT increment failures or trip circuit breaker on cancellation or non-transport/local errors
@@ -155,20 +221,20 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 return;
             }
 
-            if (_state == CircuitState.HalfOpen)
+            if (bucket.State == CircuitState.HalfOpen)
             {
-                _state = CircuitState.Open;
-                _openedAtUtc = DateTime.UtcNow;
+                bucket.State = CircuitState.Open;
+                bucket.OpenedAtUtc = DateTime.UtcNow;
                 _log?.Warning("[UnifiedCircuitBreaker] Canary probe failed. Circuit reopening.");
                 return;
             }
 
-            _consecutiveFailures++;
-            if (_consecutiveFailures >= FailureThreshold)
+            bucket.ConsecutiveFailures++;
+            if (bucket.ConsecutiveFailures >= FailureThreshold)
             {
-                _state = CircuitState.Open;
-                _openedAtUtc = DateTime.UtcNow;
-                _log?.Warning($"[UnifiedCircuitBreaker] Circuit opened after {_consecutiveFailures} consecutive failures");
+                bucket.State = CircuitState.Open;
+                bucket.OpenedAtUtc = DateTime.UtcNow;
+                _log?.Warning($"[UnifiedCircuitBreaker] Circuit opened after {bucket.ConsecutiveFailures} consecutive failures");
             }
         }
     }

@@ -32,6 +32,10 @@ namespace RimMind.Infrastructure.UI.DebugActions
         private static ShowcaseSceneCaptureRunner? _active;
         private static bool _startupChecked;
 
+        // Snapshot of the player's Core settings/prefs: the showcase applies a fake API key and layout
+        // overrides that must never reach the player's config. Restored on finish, init failure and destroy.
+        private SettingsOverrideScope? _settingsScope;
+
         private static readonly Dictionary<string, string> SubmoduleShowcaseMap = new(StringComparer.OrdinalIgnoreCase)
         {
             ["01-core-hub.jpg"] = "RimMind-Core",
@@ -66,17 +70,40 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 return;
             }
 
+            ShowcaseSceneCaptureRunner? runner = null;
             try
             {
-                var runner = Current.Root.gameObject.AddComponent<ShowcaseSceneCaptureRunner>();
+                runner = Current.Root.gameObject.AddComponent<ShowcaseSceneCaptureRunner>();
                 _active = runner;
+                runner.BeginSettingsOverride();
                 runner.StartCoroutine(runner.Run(runId, repoRoot));
             }
             catch (Exception ex)
             {
                 Log.Error("[RimMind-Core] Showcase scene capture failed to start: " + ex);
                 _active = null;
+                if (runner != null)
+                {
+                    runner.RestorePlayerSettings();
+                    Destroy(runner);
+                }
             }
+        }
+
+        private void BeginSettingsOverride()
+        {
+            _settingsScope = CoreSettingsOverrideScope.Begin("ShowcaseCapture");
+            _settingsScope.TrackExternal(() => Prefs.DevMode, v => Prefs.DevMode = v);
+            _settingsScope.TrackExternal(() => Prefs.AdaptiveTrainingEnabled, v => Prefs.AdaptiveTrainingEnabled = v);
+            _settingsScope.TrackExternal(() => LiveAiProbeState.OfflineSimulationMode, v => LiveAiProbeState.OfflineSimulationMode = v);
+        }
+
+        private void RestorePlayerSettings() => CoreSettingsOverrideScope.End(ref _settingsScope);
+
+        private void OnDestroy()
+        {
+            RestorePlayerSettings();
+            if (_active == this) _active = null;
         }
 
         private IEnumerator Run(string runId, string? repoRoot)
@@ -405,6 +432,7 @@ namespace RimMind.Infrastructure.UI.DebugActions
             Log.Message("[RimMind-Core] All 10 showcase scenes captured successfully! Shutting down in 3 frames...");
             for (int i = 0; i < 3; i++) yield return null;
 
+            RestorePlayerSettings();
             Root.Shutdown();
         }
 

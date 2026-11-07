@@ -231,10 +231,24 @@ namespace RimMind.Tests.Contracts
             ContractCaseRunner.Run(
                 ("AIProviderRegistry RequiresApiKey respects player2 and extended_service defaults", () =>
                 {
-                    Assert.False(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("player2", null));
-                    Assert.False(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("extended_service", null));
-                    Assert.True(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("openai", null));
-                    Assert.True(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("custom_provider", null));
+                    try
+                    {
+                        RimMind.Application.Common.Helpers.AIProviderRegistry.Register(
+                            new RimMind.Application.Common.Helpers.AIProviderDescriptor(
+                                "extended_service",
+                                RequiresApiKey: false,
+                                SettingsTabId: "model_service",
+                                OwnerModId: "mcocdaa.RimMindModelService"));
+
+                        Assert.False(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("player2", null));
+                        Assert.False(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("extended_service", null));
+                        Assert.True(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("openai", null));
+                        Assert.True(RimMind.Application.Common.Helpers.AIProviderRegistry.RequiresApiKey("custom_provider", null));
+                    }
+                    finally
+                    {
+                        RimMind.Application.Common.Helpers.AIProviderRegistry.ResetToDefaults();
+                    }
                 }));
         }
     }

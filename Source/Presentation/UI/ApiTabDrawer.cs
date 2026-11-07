@@ -208,7 +208,7 @@ namespace RimMind.Presentation.UI
 
             listing.Gap(6f);
 
-            if (s.Provider == "extended_service")
+            if (!string.IsNullOrEmpty(AIProviderRegistry.GetSettingsTabId(s.Provider, providerRegistry)))
             {
                 DrawExtendedServiceSection(listing, s, providerRegistry, scope);
             }
@@ -381,13 +381,15 @@ namespace RimMind.Presentation.UI
                 new Color(0.5f, 0.9f, 0.6f));
             listing.Gap(4f);
 
-            bool isRegistered = providerRegistry?.FindById("extended_service") != null;
-            if (isRegistered)
+            string? settingsTabId = AIProviderRegistry.GetSettingsTabId(s.Provider, providerRegistry);
+            bool isRegistered = !string.IsNullOrEmpty(s.Provider)
+                && (providerRegistry?.FindById(s.Provider) != null || !string.IsNullOrEmpty(settingsTabId));
+            if (isRegistered && !string.IsNullOrEmpty(settingsTabId))
             {
                 Rect btnRow = listing.GetRect(28f);
                 if (Widgets.ButtonText(btnRow, UiText.Get("RimMind.Settings.ModelService.OpenTab")))
                 {
-                    RimMindCoreSettingsUI.CurrentTab = "model_service";
+                    RimMindCoreSettingsUI.CurrentTab = settingsTabId!;
                 }
                 TooltipHandler.TipRegion(btnRow, UiText.Get("RimMind.Settings.ModelService.OpenTab.Desc"));
             }

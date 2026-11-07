@@ -49,10 +49,13 @@ namespace RimMind.Presentation.Context
             Task<ContextLayerBuildOutcome> l3Task = skipLayers != null && skipLayers.Contains("L3")
                 ? Task.FromResult(ContextLayerBuildOutcome.Skipped("L3"))
                 : BuildLayerAsync("L3", schedule.L3Keys, pawn, providerContext, npcId, scenario, ct);
+            Task<ContextLayerBuildOutcome> l4Task = skipLayers != null && skipLayers.Contains("L4")
+                ? Task.FromResult(ContextLayerBuildOutcome.Skipped("L4"))
+                : BuildLayerAsync("L4", schedule.L4Keys, pawn, providerContext, npcId, scenario, ct);
             Task<ContextLayerBuildOutcome> l5Task = BuildLayerAsync("L5", schedule.L5Keys, pawn, providerContext, npcId, scenario, ct);
 
-            ContextLayerBuildOutcome[] outcomes = await Task.WhenAll(l0Task, l1Task, l2Task, l3Task, l5Task).ConfigureAwait(false);
-            return new AsyncContextLayerBatch(outcomes[0], outcomes[1], outcomes[2], outcomes[3], outcomes[4]);
+            ContextLayerBuildOutcome[] outcomes = await Task.WhenAll(l0Task, l1Task, l2Task, l3Task, l4Task, l5Task).ConfigureAwait(false);
+            return new AsyncContextLayerBatch(outcomes[0], outcomes[1], outcomes[2], outcomes[3], outcomes[4], outcomes[5]);
         }
 
         private async Task<ContextLayerBuildOutcome> BuildLayerAsync(
@@ -109,5 +112,6 @@ namespace RimMind.Presentation.Context
         ContextLayerBuildOutcome L1,
         ContextLayerBuildOutcome L2,
         ContextLayerBuildOutcome L3,
+        ContextLayerBuildOutcome L4,
         ContextLayerBuildOutcome L5);
 }

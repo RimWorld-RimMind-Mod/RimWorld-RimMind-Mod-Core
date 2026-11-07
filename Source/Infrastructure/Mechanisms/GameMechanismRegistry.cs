@@ -31,6 +31,7 @@ namespace RimMind.Infrastructure.Mechanisms
             {
                 foreach (var op in mechanism.SupportedOperations)
                 {
+                    if (op == MechanismOperationType.List) continue;
                     var handler = new MechanismToolHandler(mechanism, mechanism, mechanism, mechanism, op, _jsonExtractor!);
                     _toolRegistry.Register(handler);
                 }
@@ -51,12 +52,16 @@ namespace RimMind.Infrastructure.Mechanisms
             {
                 foreach (var op in mechanism.SupportedOperations)
                 {
+                    if (op == MechanismOperationType.List) continue;
                     var toolId = $"{mechanism.MechanismId}.{OperationSuffix(op)}";
                     _toolRegistry.Unregister(toolId);
                 }
 
-                var listToolId = $"{mechanismId}.list";
-                _toolRegistry.Unregister(listToolId);
+                if (mechanism.SupportedOperations.Contains(MechanismOperationType.List))
+                {
+                    var listToolId = $"{mechanismId}.list";
+                    _toolRegistry.Unregister(listToolId);
+                }
             }
 
             return true;

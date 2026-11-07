@@ -24,6 +24,7 @@ using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.Enums;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
+using RimMind.Infrastructure.UI.DebugActions;
 using RimMind.Infrastructure.Verse;
 using RimMind.Presentation;
 using RimMind.Presentation.Agent;
@@ -115,6 +116,8 @@ namespace RimMind.Infrastructure.UI
         private bool _interactiveBridgeEnabled;
         private bool _maxUsageMode;
         private static readonly Dictionary<int, string> _recentActionFailures = new();
+        // Snapshot of the player's Core settings and prefs; restored on finish, fault, init failure and destroy.
+        private SettingsOverrideScope? _settingsScope;
 
         private int _totalDays = 10;
 
@@ -132,9 +135,10 @@ namespace RimMind.Infrastructure.UI
                 return;
             }
 
+            TenDayPlaythroughRunner? runner = null;
             try
             {
-                var runner = Current.Root.gameObject.AddComponent<TenDayPlaythroughRunner>();
+                runner = Current.Root.gameObject.AddComponent<TenDayPlaythroughRunner>();
                 _active = runner;
                 runner.Initialize(runId ?? Guid.NewGuid().ToString("N"), totalDays);
             }
@@ -142,6 +146,11 @@ namespace RimMind.Infrastructure.UI
             {
                 Log.Error("[RimMind-Playthrough] Failed to initialize playthrough runner: " + ex);
                 _active = null;
+                if (runner != null)
+                {
+                    runner.RestorePlayerSettings();
+                    Destroy(runner);
+                }
             }
         }
 
@@ -150,6 +159,11 @@ namespace RimMind.Infrastructure.UI
             _runId = runId;
             _totalDays = totalDays > 0 ? totalDays : 10;
             _clock.Start();
+
+            // Snapshot player settings (and the global prefs this run flips) before the first override.
+            _settingsScope = CoreSettingsOverrideScope.Begin("Playthrough");
+            _settingsScope.TrackExternal(() => Prefs.DevMode, v => Prefs.DevMode = v);
+            _settingsScope.TrackExternal(() => Prefs.AdaptiveTrainingEnabled, v => Prefs.AdaptiveTrainingEnabled = v);
 
             // Override credentials from environment if provided
             string? envKey = Environment.GetEnvironmentVariable("RIMMIND_TEST_API_KEY");
@@ -294,8 +308,17 @@ namespace RimMind.Infrastructure.UI
                 RimMindCoreMod.Settings.requestTimeoutMs = 90000;
             }
 
-            StartCoroutine(SafeRunSubRoutine(PlaythroughRoutine(), "PlaythroughMain", 0));
+            StartCoroutine(RunPlaythroughThenRestore());
         }
+
+        private IEnumerator RunPlaythroughThenRestore()
+        {
+            yield return SafeRunSubRoutine(PlaythroughRoutine(), "PlaythroughMain", 0);
+            // Reached when the main routine faulted (SafeRunSubRoutine swallows it) or ended without shutdown.
+            RestorePlayerSettings();
+        }
+
+        private void RestorePlayerSettings() => CoreSettingsOverrideScope.End(ref _settingsScope);
 
         private static IEnumerator SafeRunSubRoutine(IEnumerator? routine, string stepName, int day)
         {
@@ -538,6 +561,7 @@ namespace RimMind.Infrastructure.UI
             // Wait 3 seconds, then shutdown game process
             yield return new WaitForSecondsRealtime(3f);
 
+            RestorePlayerSettings();
             Root.Shutdown();
         }
 
@@ -992,171 +1016,6 @@ namespace RimMind.Infrastructure.UI
             }
         }
 
-        private static MoodThoughtEntry? GetWorstNegativeThought(Pawn pawn)
-        {
-            if (pawn == null) return null;
-            var data = PawnDataExtractor.Extract(pawn, null);
-            if (data.MoodThoughts == null || data.MoodThoughts.Count == 0) return null;
-            return data.MoodThoughts
-                .Where(t => t.Offset < -0.01f && !string.IsNullOrEmpty(t.Label))
-                .OrderBy(t => t.Offset)
-                .FirstOrDefault();
-        }
-
-        private static string GenerateDynamicMorningThoughtFallback(Pawn pawn, int day)
-        {
-            bool zh = IsChineseLanguageActive();
-            float temp = pawn.AmbientTemperature;
-            int tempRounded = Mathf.RoundToInt(temp);
-            var worstNegative = GetWorstNegativeThought(pawn);
-
-            if (worstNegative != null)
-            {
-                string labelLower = worstNegative.Label.ToLowerInvariant();
-                if (worstNegative.Offset <= -10f || labelLower.Contains("died") || labelLower.Contains("lost") || labelLower.Contains("kill") || labelLower.Contains("dead") || labelLower.Contains("death") || labelLower.Contains("死") || labelLower.Contains("亡"))
-                {
-                    return zh
-                        ? $"在巨大的丧亲剧痛中醒来（{worstNegative.Label}），眼前全是倒在血泊里的身影。这片绝望的荒野，第 {day} 天只能麻木地咬牙往前挪。"
-                        : $"Waking up in overwhelming grief ({worstNegative.Label}); Day {day} in this unforgiving rimworld takes every ounce of willpower just to keep moving.";
-                }
-                if (labelLower.Contains("corpse") || labelLower.Contains("rot") || labelLower.Contains("尸") || labelLower.Contains("烂"))
-                {
-                    return zh
-                        ? "满脑子都是营地边那具未掩埋的腐烂死尸，令人作呕的恶臭甚至渗进了梦里。今天必须先处理掉这具尸体！"
-                        : "The unburied corpse near camp is still haunting my thoughts; we must bury or dispose of it today.";
-                }
-                if (labelLower.Contains("hung") || labelLower.Contains("starv") || labelLower.Contains("饥") || labelLower.Contains("饿"))
-                {
-                    return zh
-                        ? $"肚子饿得绞痛难忍，浑身发虚冒冷汗。第 {day} 天清晨的首要死命令就是哪怕生吞也得找到口吃的！"
-                        : $"My stomach is cramping from hunger on Day {day} morning; finding food right now is the top priority.";
-                }
-                if (labelLower.Contains("rebuff") || labelLower.Contains("拒") || labelLower.Contains("insult") || labelLower.Contains("slight") || labelLower.Contains("辱") || labelLower.Contains("嘲"))
-                {
-                    return zh
-                        ? $"清晨醒来心里还在窝火（{worstNegative.Label}），胸口堵得直发慌，但在这种鬼地方，今天依然得硬着头皮去干活。"
-                        : $"Still stinging from yesterday's tension ({worstNegative.Label}), but there is too much work on Day {day} to slow down.";
-                }
-                if (labelLower.Contains("chill") || labelLower.Contains("cold") || labelLower.Contains("寒") || labelLower.Contains("冷") || labelLower.Contains("freez") || temp < 0f)
-                {
-                    return zh
-                        ? $"清晨醒来屋里冷得刺骨（{tempRounded}°C），手脚都冻得发麻失去知觉。第 {day} 天必须尽快解决取暖，否则全得冻死！"
-                        : $"Woke up shivering in the biting cold ({tempRounded}°C); we need better heating and shelter on Day {day}.";
-                }
-                if (labelLower.Contains("heat") || labelLower.Contains("sweat") || labelLower.Contains("hot") || labelLower.Contains("热") || labelLower.Contains("汗") || labelLower.Contains("暑") || temp > 30f)
-                {
-                    return zh
-                        ? $"天刚亮就已被闷热酷暑逼醒（{tempRounded}°C），浑身大汗脱水。今天必须赶紧搭设降温设施，谨防全员中暑倒毙。"
-                        : $"Woke up drenched in sweat from the stifling heat ({tempRounded}°C); we need cooling today before heatstroke hits.";
-                }
-                if (labelLower.Contains("dark") || labelLower.Contains("黑"))
-                {
-                    return zh
-                        ? $"在昏暗压抑的环境中醒来，周围黑漆漆的一片。第 {day} 天必须尽快给生活区装上照明。"
-                        : $"Waking up in the gloomy dark again; we should set up proper lighting in the living quarters on Day {day}.";
-                }
-                if (labelLower.Contains("tattered") || labelLower.Contains("apparel") || labelLower.Contains("破") || labelLower.Contains("naked") || labelLower.Contains("裸"))
-                {
-                    return zh
-                        ? $"身上的衣物破损严重到处透风，穿在身上格外难受。第 {day} 天必须抽空缝制或寻找新的御寒衣物。"
-                        : $"These tattered clothes barely hold together anymore; I need to find or tailor replacement apparel on Day {day}.";
-                }
-                if (labelLower.Contains("pain") || labelLower.Contains("痛") || labelLower.Contains("wound") || labelLower.Contains("伤"))
-                {
-                    return zh
-                        ? $"身上的旧伤隐隐剧痛，咬牙从硬地上撑起来。第 {day} 天只要还有一口气在，就得把防线守住。"
-                        : $"Old wounds are still aching this morning, but as long as I can stand on Day {day}, I'll hold the line.";
-                }
-                if (worstNegative.Offset <= -6f)
-                {
-                    return zh
-                        ? $"清晨醒来心头沉重如铁，受“{worstNegative.Label}”反复折磨。在这残忍的边缘世界，第 {day} 天除了死撑别无选择。"
-                        : $"Woke up with a heavy heart weighed down by \"{worstNegative.Label}\", bracing for Day {day} on the rim.";
-                }
-                return zh
-                    ? $"清晨醒来受“{worstNegative.Label}”困扰，胸口烦闷。理了理杂乱的心绪，第 {day} 天的求生还得继续。"
-                    : $"Bothered by \"{worstNegative.Label}\" at dawn, steadying my mind for Day {day}'s survival tasks.";
-            }
-
-            // Physical temperature check (strictly forbid mentioning heatwave/sandstorm if below 0)
-            if (temp < 0f)
-            {
-                return zh
-                    ? $"清晨霜雪皑皑，周围冰冷刺骨（{tempRounded}°C）。呵出一口白气，开始第 {day} 天的严寒生存与营地维系。"
-                    : $"Frost covers the camp in the freezing air ({tempRounded}°C); exhaling a white plume as Day {day} begins.";
-            }
-            if (temp > 30f)
-            {
-                return zh
-                    ? $"天刚亮就已闷热难耐（{tempRounded}°C）。第 {day} 天需要注意防暑降温，避免在正午烈日下过度脱水。"
-                    : $"Already sweltering at dawn ({tempRounded}°C); pacing our outdoor labor on Day {day} to avoid heatstroke.";
-            }
-
-            if (!zh)
-            {
-                string[] enMorningThoughts = new[]
-                {
-                    $"Cool, crisp air outside the barracks as Day {day} begins; time to get our daily colony tasks in order.",
-                    $"Woke up reasonably rested on Day {day}; focusing on steady progress for food and shelter today.",
-                    $"Morning light hits the perimeter walls and workshops; keeping everyone safe and fed is the goal for Day {day}."
-                };
-                return enMorningThoughts[day % enMorningThoughts.Length];
-            }
-
-            string[] seasonalMorningThoughts = new[]
-            {
-                $"天刚蒙蒙亮，营房外空气微凉清新。第 {day} 天的开拓开始了，把手头的活计按部就班做好。",
-                $"清晨醒来休整得还算充分，第 {day} 天要稳扎稳打，优先维持营地运作与物资供给。",
-                $"晨光洒在防御墙与工坊上，营地正一天天成形。为了大家平安生活，今天也要认真做好分内工作。"
-            };
-            return seasonalMorningThoughts[day % seasonalMorningThoughts.Length];
-        }
-
-        private static readonly Queue<string> _recentFallbackHistory = new Queue<string>();
-
-        private static string NormalizeFallbackSkeleton(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return string.Empty;
-            int commaIdx = text.IndexOf('，');
-            if (commaIdx >= 0 && commaIdx < 15)
-            {
-                return text.Substring(commaIdx + 1).Trim();
-            }
-            int enComma = text.IndexOf(',');
-            if (enComma >= 0 && enComma < 15)
-            {
-                return text.Substring(enComma + 1).Trim();
-            }
-            return text.Trim();
-        }
-
-        private static string PickNonRepeatingFallback(string[] variants, int day)
-        {
-            if (variants == null || variants.Length == 0) return string.Empty;
-            foreach (var v in variants)
-            {
-                string skel = NormalizeFallbackSkeleton(v);
-                if (!_recentFallbackHistory.Contains(skel))
-                {
-                    RecordFallbackHistory(skel);
-                    return v;
-                }
-            }
-            string fallback = variants[day % variants.Length];
-            RecordFallbackHistory(NormalizeFallbackSkeleton(fallback));
-            return fallback;
-        }
-
-        private static void RecordFallbackHistory(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            _recentFallbackHistory.Enqueue(text);
-            while (_recentFallbackHistory.Count > 50)
-            {
-                _recentFallbackHistory.Dequeue();
-            }
-        }
-
         private static readonly Dictionary<string, List<string>> _pairDialogueChronicle = new Dictionary<string, List<string>>();
 
         private static string MakeDialoguePairKey(string a, string b)
@@ -1188,188 +1047,6 @@ namespace RimMind.Infrastructure.UI
             {
                 list.RemoveAt(0);
             }
-        }
-
-        private static string GenerateDynamicSocialDialogueFallback(Pawn speaker, Pawn listener, int day)
-        {
-            bool zh = IsChineseLanguageActive();
-            float temp = speaker.AmbientTemperature;
-            int tempRounded = Mathf.RoundToInt(temp);
-            string listenerName = listener.Name.ToStringShort;
-            var worstNegative = GetWorstNegativeThought(speaker);
-
-            if (!zh)
-            {
-                if (worstNegative != null)
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}, dealing with \"{worstNegative.Label}\" has me worn thin today—let's just get this job done.",
-                        $"{listenerName}, my head is still heavy from \"{worstNegative.Label}\", so let's keep focused and watch each other's backs."
-                    }, day);
-                }
-                if (temp < 0f)
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}, it's {tempRounded}°C out here—finish up this haul and let's get back inside before frostbite sets in.",
-                        $"{listenerName}, my fingers are going numb in this {tempRounded}°C chill; don't stay outside too long."
-                    }, day);
-                }
-                if (temp > 30f)
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}, it's {tempRounded}°C in the shade—make sure you grab some water before we finish this shift.",
-                        $"{listenerName}, this {tempRounded}°C heat is brutal; pace yourself so you don't collapse."
-                    }, day);
-                }
-                return PickNonRepeatingFallback(new[]
-                {
-                    $"{listenerName}, once we wrap up this batch of work, let's take a breather in the rec room.",
-                    $"{listenerName}, the stockpile is looking much more organized—thanks for lending a hand today.",
-                    $"{listenerName}, the compound is holding together well; let's keep this steady pace going."
-                }, day);
-            }
-
-            if (worstNegative != null)
-            {
-                string labelLower = worstNegative.Label.ToLowerInvariant();
-                if (worstNegative.Offset <= -10f || labelLower.Contains("died") || labelLower.Contains("lost") || labelLower.Contains("kill") || labelLower.Contains("dead") || labelLower.Contains("death") || labelLower.Contains("死") || labelLower.Contains("亡"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，我一闭上眼全是倒在血泊里的景象……这破地方到底要带走多少人？我现在连话都懒得说。",
-                        $"{listenerName}，又一位战友永远留在了废土上，心口像被掏空了一样疼，我现在只想一个人呆着。",
-                        $"{listenerName}，别跟我搭话了，满脑子都是那场惨剧，手头活忙完我得去坟地那边坐坐。"
-                    }, day);
-                }
-                if (labelLower.Contains("corpse") || labelLower.Contains("rot") || labelLower.Contains("尸") || labelLower.Contains("烂"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，那具烂在地里的死尸你看见了吗？恶臭熏得我想吐，连呼吸都觉得恶心！赶紧去把它挖坑埋了！",
-                        $"{listenerName}，空气里全是腐烂的臭味，再不清理掉那些暴露的尸骨，全营地都得闹疫病！"
-                    }, day);
-                }
-                if (labelLower.Contains("rebuff") || labelLower.Contains("拒"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，刚才的事别再提了，尴尬得要命。手头活干你的去，别来烦我。",
-                        $"{listenerName}，各干各的吧，我现在情绪有点乱，不想多聊。"
-                    }, day);
-                }
-                if (labelLower.Contains("insult") || labelLower.Contains("slight") || labelLower.Contains("辱") || labelLower.Contains("嘲"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，少拿那种眼神看我，我现在火气大得很，不想吵架就别招惹我。",
-                        $"{listenerName}，管好你自己那张嘴，我现在没什么耐心听那些冷嘲热讽。"
-                    }, day);
-                }
-                if (labelLower.Contains("greedy") || labelLower.Contains("bedroom") || labelLower.Contains("房") || labelLower.Contains("床"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，天天挤在这个破烂窝棚里，连翻个身都憋屈。到底什么时候才能给弄个像样的单间？",
-                        $"{listenerName}，睡地上翻来覆去浑身酸痛，营地哪怕搭几张像样的木床也好啊。",
-                        $"{listenerName}，这临时通铺吵得人根本合不上眼，真希望能早日有一间遮风挡雨的个人居所。"
-                    }, day);
-                }
-                if (labelLower.Contains("hung") || labelLower.Contains("starv") || labelLower.Contains("饥") || labelLower.Contains("饿"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，胃里烧得像吞了炭火，两眼直发黑。再找不到吃的，咱们谁也别想撑过这星期！",
-                        $"{listenerName}，肚子饿得咕咕叫，走路都在打晃，今天无论如何得把农田和食物库弄妥当。"
-                    }, day);
-                }
-                if (labelLower.Contains("chill") || labelLower.Contains("cold") || labelLower.Contains("寒") || labelLower.Contains("冷") || labelLower.Contains("freez") || temp < 0f)
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，这外头冷得骨头都在打颤（{tempRounded}°C），手指冻得连工具都拿不稳了。忙完手头赶紧去暖和一下！",
-                        $"{listenerName}，呵气成冰的天气（{tempRounded}°C），站在外头直打哆嗦，工棚那边要是能生堆篝火就好了。",
-                        $"{listenerName}，寒风顺着领口直灌，手脚都冻麻了（{tempRounded}°C），赶紧把这批活干完进屋暖和。"
-                    }, day);
-                }
-                if (labelLower.Contains("heat") || labelLower.Contains("sweat") || labelLower.Contains("hot") || labelLower.Contains("热") || labelLower.Contains("汗") || labelLower.Contains("暑") || temp > 30f)
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，这鬼天气热得像地狱的熔炉（{tempRounded}°C），浑身黏糊糊全是汗，干一会儿记得多喝水，千万别热倒了。",
-                        $"{listenerName}，这大热天动弹两下就浑身湿透（{tempRounded}°C），要是营地能搭个降温凉棚就好了。",
-                        $"{listenerName}，正午太阳太毒了（{tempRounded}°C），手头力气活先缓一缓，别在烈日底下脱水了。"
-                    }, day);
-                }
-                if (labelLower.Contains("dark") || labelLower.Contains("黑"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，这片区域太暗了，摸黑干活眼睛吃不消，咱们得建议尽快加装几盏灯。",
-                        $"{listenerName}，周围黑灯瞎火的容易磕碰，真希望营地能早点把火把或者照明立起来。",
-                        $"{listenerName}，在黑暗里干活全凭手感，效率太低了，咱们得跟管事的反映下照明问题。"
-                    }, day);
-                }
-                if (labelLower.Contains("tattered") || labelLower.Contains("apparel") || labelLower.Contains("破") || labelLower.Contains("naked") || labelLower.Contains("裸"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，我这衣服磨损得厉害，到处漏风，工坊要是产出了新布料得优先缝制一套新的。",
-                        $"{listenerName}，身上的破布连遮羞都勉强，哪天要是能缝上一套结实的新衣服就好了。"
-                    }, day);
-                }
-                if (labelLower.Contains("pain") || labelLower.Contains("痛") || labelLower.Contains("wound") || labelLower.Contains("伤"))
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，身上的旧伤还在隐隐作痛，咬着牙硬挺罢了。手头这批活先料理完吧。",
-                        $"{listenerName}，伤口隐隐作痛，但手头的工作不能落下，稍微缓缓继续干。"
-                    }, day);
-                }
-                if (worstNegative.Offset <= -6f)
-                {
-                    return PickNonRepeatingFallback(new[]
-                    {
-                        $"{listenerName}，光是应付“{worstNegative.Label}”就把人折腾得够呛，这边缘世界的鬼日子真是多过一天都嫌累。",
-                        $"{listenerName}，今天心里堵得慌（“{worstNegative.Label}”），干活打不起精神，先熬过今天再说吧。",
-                        $"{listenerName}，心头被“{worstNegative.Label}”折磨得够呛，在这废土求生，真是每一步都在熬。"
-                    }, day);
-                }
-                return PickNonRepeatingFallback(new[]
-                {
-                    $"{listenerName}，手头这摊“{worstNegative.Label}”闹心得很，先专注把活干完吧，省得回头又出岔子。",
-                    $"{listenerName}，心里虽有些挂碍（“{worstNegative.Label}”），不过大家都在忙，我也加把劲料理完分内工作。"
-                }, day);
-            }
-
-            // Physical environment check (strictly forbid mentioning heatwave/sandstorm if below 0)
-            if (temp < 0f)
-            {
-                return PickNonRepeatingFallback(new[]
-                {
-                    $"{listenerName}，外头气温已经降到 {tempRounded}°C 了，冰天雪地的，千万别在户外呆太久，谨防冻伤。",
-                    $"{listenerName}，呵一口气全是白雾（{tempRounded}°C），保暖衣物千万裹紧点。"
-                }, day);
-            }
-            if (temp > 30f)
-            {
-                return PickNonRepeatingFallback(new[]
-                {
-                    $"{listenerName}，这天气热得像蒸笼（{tempRounded}°C），干一会儿记得歇歇多喝水，小心别中暑了。",
-                    $"{listenerName}，烈日当头（{tempRounded}°C），大家都辛苦了，喝口凉水缓一缓。"
-                }, day);
-            }
-
-            string[] dialogues = new[]
-            {
-                $"{listenerName}，手头这批活儿弄得差不多了，等忙完这段咱们去娱乐室坐会儿吧。",
-                $"{listenerName}，今天工作节奏保持得不错，我们按部就班把手头的事务料理完。",
-                $"{listenerName}，仓库那边的物资清点得差不多了，有你搭把手效率确实高不少。",
-                $"{listenerName}，营地总算有点模样了，大家同心协力，日子总会越过越踏实的。"
-            };
-            return PickNonRepeatingFallback(dialogues, day);
         }
 
         private static string SanitizeThoughtTag(string? rawTag)
@@ -1584,27 +1261,41 @@ namespace RimMind.Infrastructure.UI
 
                 if (string.IsNullOrWhiteSpace(thoughtText))
                 {
-                    thoughtText = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : GenerateDynamicMorningThoughtFallback(pawn, day);
+                    thoughtText = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : string.Empty;
                 }
 
                 thoughtText = StripModelXmlTags(thoughtText);
 
-                if (recordInReport)
+                if (!string.IsNullOrWhiteSpace(thoughtText))
                 {
-                    report.MorningPawnName = pawn.Name?.ToStringShort ?? "Colonist";
-                    report.MorningThought = thoughtText;
+                    if (recordInReport)
+                    {
+                        report.MorningPawnName = pawn.Name?.ToStringShort ?? "Colonist";
+                        report.MorningThought = thoughtText;
+                    }
+                    Log.Message($"[RimMind-Playthrough][Day {day}] Morning Thought ({pawn.Name.ToStringShort}): {thoughtText}");
                 }
-                Log.Message($"[RimMind-Playthrough][Day {day}] Morning Thought ({pawn.Name.ToStringShort}): {thoughtText}");
+                else
+                {
+                    if (recordInReport)
+                    {
+                        report.MorningPawnName = pawn.Name?.ToStringShort ?? "Colonist";
+                        report.MorningThought = string.Empty;
+                    }
+                    Log.Warning($"[RimMind-Playthrough][Day {day}] Morning thought failed ({pawn.Name.ToStringShort}): empty LLM response");
+                }
             }
             else
             {
-                string fallback = GenerateDynamicMorningThoughtFallback(pawn, day);
+                string errMsg = responseResult != null && !responseResult.Value.IsOk
+                    ? responseResult.Value.Error.Message
+                    : "LLM response timed out or returned null";
                 if (recordInReport)
                 {
                     report.MorningPawnName = pawn.Name?.ToStringShort ?? "Colonist";
-                    report.MorningThought = fallback;
+                    report.MorningThought = string.Empty;
                 }
-                Log.Warning($"[RimMind-Playthrough][Day {day}] Morning thought fallback ({pawn.Name.ToStringShort}): {responseResult?.Error.Message}");
+                Log.Warning($"[RimMind-Playthrough][Day {day}] Morning thought failed ({pawn.Name.ToStringShort}): {errMsg}");
             }
         }
 
@@ -1800,14 +1491,14 @@ namespace RimMind.Infrastructure.UI
                                      args["text"]?.ToString() ??
                                      args["content"]?.ToString();
 
-                    finalSpeech = !string.IsNullOrWhiteSpace(speech) ? speech!.Trim() : (!string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : GenerateDynamicSocialDialogueFallback(speaker, listener, day));
+                    finalSpeech = !string.IsNullOrWhiteSpace(speech) ? speech!.Trim() : (!string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : string.Empty);
                     finalTag = SanitizeThoughtTag(args["thought_tag"]?.ToString());
                     int relDelta = args["relation_delta"]?.Value<int>() ?? 1;
                     finalRelDelta = Mathf.Clamp(relDelta, -5, 5);
                 }
                 else
                 {
-                    finalSpeech = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : GenerateDynamicSocialDialogueFallback(speaker, listener, day);
+                    finalSpeech = !string.IsNullOrWhiteSpace(val.Content) ? val.Content.Trim() : string.Empty;
                     finalTag = "FRIENDLY";
                     finalRelDelta = 1;
                 }
@@ -1869,35 +1560,46 @@ namespace RimMind.Infrastructure.UI
 
                 if (string.IsNullOrWhiteSpace(finalSpeech))
                 {
-                    finalSpeech = GenerateDynamicSocialDialogueFallback(speaker, listener, day);
+                    if (recordInReport)
+                    {
+                        report.DialogueSpeaker = speaker.Name?.ToStringShort ?? "Speaker";
+                        report.DialogueListener = listener.Name?.ToStringShort ?? "Listener";
+                        report.DialogueSpeech = string.Empty;
+                        report.DialogueThoughtTag = string.Empty;
+                        report.DialogueRelationDelta = 0;
+                    }
+                    Log.Warning($"[RimMind-Playthrough][Day {day}] Dialogue failed ({speaker.Name.ToStringShort} -> {listener.Name.ToStringShort}): empty LLM response");
                 }
-
-                RecordPlaythroughDialogue(speaker.Name.ToStringShort, listener.Name.ToStringShort, finalSpeech);
-
-                if (recordInReport)
+                else
                 {
-                    report.DialogueSpeaker = speaker.Name?.ToStringShort ?? "Speaker";
-                    report.DialogueListener = listener.Name?.ToStringShort ?? "Listener";
-                    report.DialogueSpeech = finalSpeech;
-                    report.DialogueThoughtTag = finalTag;
-                    report.DialogueRelationDelta = finalRelDelta;
-                }
+                    RecordPlaythroughDialogue(speaker.Name.ToStringShort, listener.Name.ToStringShort, finalSpeech);
 
-                Log.Message($"[RimMind-Playthrough][Day {day}] Dialogue: {speaker.Name.ToStringShort} -> {listener.Name.ToStringShort}: \"{finalSpeech}\" (Tag: {finalTag}, Rel: {finalRelDelta})");
+                    if (recordInReport)
+                    {
+                        report.DialogueSpeaker = speaker.Name?.ToStringShort ?? "Speaker";
+                        report.DialogueListener = listener.Name?.ToStringShort ?? "Listener";
+                        report.DialogueSpeech = finalSpeech;
+                        report.DialogueThoughtTag = finalTag;
+                        report.DialogueRelationDelta = finalRelDelta;
+                    }
+
+                    Log.Message($"[RimMind-Playthrough][Day {day}] Dialogue: {speaker.Name.ToStringShort} -> {listener.Name.ToStringShort}: \"{finalSpeech}\" (Tag: {finalTag}, Rel: {finalRelDelta})");
+                }
             }
             else
             {
-                string fallback = GenerateDynamicSocialDialogueFallback(speaker, listener, day);
-                RecordPlaythroughDialogue(speaker.Name.ToStringShort, listener.Name.ToStringShort, fallback);
+                string errMsg = responseResult != null && !responseResult.Value.IsOk
+                    ? responseResult.Value.Error.Message
+                    : "LLM response timed out or returned null";
                 if (recordInReport)
                 {
                     report.DialogueSpeaker = speaker.Name?.ToStringShort ?? "Speaker";
                     report.DialogueListener = listener.Name?.ToStringShort ?? "Listener";
-                    report.DialogueSpeech = fallback;
-                    report.DialogueThoughtTag = "FRIENDLY";
-                    report.DialogueRelationDelta = 1;
+                    report.DialogueSpeech = string.Empty;
+                    report.DialogueThoughtTag = string.Empty;
+                    report.DialogueRelationDelta = 0;
                 }
-                Log.Warning($"[RimMind-Playthrough][Day {day}] Dialogue fallback ({speaker.Name.ToStringShort} -> {listener.Name.ToStringShort}): {responseResult?.Error.Message}");
+                Log.Warning($"[RimMind-Playthrough][Day {day}] Dialogue failed ({speaker.Name.ToStringShort} -> {listener.Name.ToStringShort}): {errMsg}");
             }
         }
 
@@ -2582,15 +2284,12 @@ namespace RimMind.Infrastructure.UI
                 // Explicitly record physical failure to working memory for agent to learn and self-correct next round
                 try
                 {
-                    if (global::Verse.ModsConfig.IsActive("mcocdaa.RimMindMemory"))
-                    {
-                        RimMindAPI.Memory.AddPawnMemory(
-                            $"[Action Failed] Autonomous action failed: {errMsg}",
-                            RimMind.Application.Common.Models.Memory.MemoryKind.Event,
-                            Find.TickManager.TicksGame,
-                            0.8f,
-                            agentPawn.ThingID);
-                    }
+                    RimMindAPI.Memory.AddPawnMemory(
+                        $"[Action Failed] Autonomous action failed: {errMsg}",
+                        RimMind.Application.Common.Models.Memory.MemoryKind.Event,
+                        Find.TickManager.TicksGame,
+                        0.8f,
+                        agentPawn.ThingID);
                 }
                 catch (Exception) { }
             }
@@ -4581,6 +4280,7 @@ namespace RimMind.Infrastructure.UI
 
         private void OnDestroy()
         {
+            RestorePlayerSettings();
             if (_active == this) _active = null;
         }
     }

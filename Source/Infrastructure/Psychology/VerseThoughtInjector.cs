@@ -1,5 +1,6 @@
 using System;
 using RimMind.Application.Common.Interfaces.Agent.Psychology;
+using RimMind.Application.Common.Models.Psychology;
 using RimMind.Domain.Agent.Psychology;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
@@ -22,6 +23,20 @@ namespace RimMind.Infrastructure.Psychology
     public sealed class VerseThoughtInjector : IThoughtInjector
     {
         private const string DynamicThoughtDefName = "RimMind_DynamicThought";
+
+        public Result<RimMindDynamicThought, RimMindError> Inject(ThoughtSpec spec)
+        {
+            if (spec == null)
+                return Result<RimMindDynamicThought, RimMindError>.Err(
+                    RimMindErrors.Internal("ThoughtSpec cannot be null"));
+
+            string text = string.IsNullOrWhiteSpace(spec.Description)
+                || string.Equals(spec.Label, spec.Description, StringComparison.Ordinal)
+                ? spec.Label
+                : (string.IsNullOrWhiteSpace(spec.Label) ? spec.Description : $"{spec.Label}\n{spec.Description}");
+
+            return InjectThought(spec.PawnId, text, spec.MoodOffset, spec.DurationTicks, spec.OwnerModId);
+        }
 
         public Result<RimMindDynamicThought, RimMindError> InjectThought(
             int pawnId, string thoughtText, float moodOffset, int durationTicks, string source)

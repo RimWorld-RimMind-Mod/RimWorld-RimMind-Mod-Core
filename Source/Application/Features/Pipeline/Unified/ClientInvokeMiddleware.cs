@@ -149,30 +149,6 @@ namespace RimMind.Application.Features.Pipeline.Unified
         private static LlmRequestEnvelope CloneWithCancellationToken(
             LlmRequestEnvelope envelope,
             System.Threading.CancellationToken cancellationToken)
-        {
-            return new LlmRequestEnvelope
-            {
-                RequestId = envelope.RequestId,
-                TraceId = envelope.TraceId,
-                ScenarioId = envelope.ScenarioId,
-                ModId = envelope.ModId,
-                Messages = envelope.Messages,
-                SystemAugmentations = envelope.SystemAugmentations,
-                JsonSchema = envelope.JsonSchema,
-                Tools = envelope.Tools,
-                ToolDispatchMode = envelope.ToolDispatchMode,
-                Examples = envelope.Examples,
-                MaxTokens = envelope.MaxTokens,
-                Temperature = envelope.Temperature,
-                Priority = envelope.Priority,
-                ExpireAtTicks = envelope.ExpireAtTicks,
-                MaxRetryCount = envelope.MaxRetryCount,
-                IsStreaming = envelope.IsStreaming,
-                OnStreamChunk = envelope.OnStreamChunk,
-                Ct = cancellationToken,
-                NpcId = envelope.NpcId,
-                GameStateInfo = envelope.GameStateInfo
-            };
-        }
+            => envelope.WithCancellationToken(cancellationToken);
     }
 }

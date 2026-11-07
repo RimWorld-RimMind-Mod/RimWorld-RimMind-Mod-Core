@@ -31,12 +31,24 @@ namespace RimMind.Infrastructure.Mechanisms
         }
 
         public string Id => Definition.Id;
-        public string OwnerModId => RimMindOwnerConsts.CoreModId;
+        public string OwnerModId => string.IsNullOrWhiteSpace(_metadata?.OwnerModId)
+            ? RimMindOwnerConsts.CoreModId
+            : _metadata.OwnerModId;
         public ToolDefinition Definition { get; }
 
         public async Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
         {
-            var pawnId = MechanismToolHelper.ResolveNullablePawnId(_jsonExtractor, args, "pawn_id");
+            var target = MechanismToolHelper.ResolveTarget(_jsonExtractor, args, "pawn_id");
+            if (!target.IsValid)
+            {
+                return Result<ToolResult, RimMindError>.Ok(new ToolResult
+                {
+                    ToolCallId = args.ToolCallId,
+                    Content = MechanismToolHandler.InvalidPawnTargetError(Id, target).Message,
+                    IsError = true
+                });
+            }
+            var pawnId = target.PawnId > 0 ? target.PawnId : (int?)null;
             var category = MechanismToolHelper.ExtractString(_jsonExtractor, args.ArgumentsJson, "category");
 
             var result = await _reader.ExecuteListAsync(pawnId, ct).ConfigureAwait(false);

@@ -4,6 +4,7 @@ namespace RimMind.Presentation.UI.Framework
     {
         public const float WindowInset = 8f;
         public const float Padding = 6f;
+        public const float ElementGap = 4f;
         public const float SectionGap = 12f;
         public const float HeaderHeight = 30f;
         public const float TabHeight = 30f;

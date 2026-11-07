@@ -41,51 +41,80 @@ namespace RimMind.Presentation.Runtime
     {
         public sealed class CompositionResult
         {
+            private readonly Dictionary<Type, object?> _overrides = new Dictionary<Type, object?>();
+
+            public CompositionResult()
+            {
+            }
+
+            public CompositionResult(RuntimeServiceSnapshot services)
+            {
+                Services = services ?? throw new ArgumentNullException(nameof(services));
+            }
+
+            public RuntimeServiceSnapshot? Services { get; init; }
+
+            private T ResolveRequired<T>() where T : class
+            {
+                if (_overrides.TryGetValue(typeof(T), out var overridden) && overridden is T typed)
+                    return typed;
+                if (Services == null)
+                    throw new InvalidOperationException($"Cannot resolve required service '{typeof(T).FullName}' without a RuntimeServiceSnapshot.");
+                return Services.GetRequired<T>();
+            }
+
+            private T? ResolveOptional<T>() where T : class
+            {
+                if (_overrides.TryGetValue(typeof(T), out var overridden))
+                    return overridden as T;
+                return Services?.Get<T>();
+            }
+
             // Application layer services
-            public IAgentBus AgentBus { get; init; } = null!;
-            public IToolRegistry ToolRegistry { get; init; } = null!;
-            public IRequestQueue Queue { get; init; } = null!;
-            public ITelemetryCollector Telemetry { get; init; } = null!;
-            public IFlywheelParameterStore ParameterStore { get; init; } = null!;
+            public IAgentBus AgentBus { get => ResolveRequired<IAgentBus>(); init => _overrides[typeof(IAgentBus)] = value; }
+            public IToolRegistry ToolRegistry { get => ResolveRequired<IToolRegistry>(); init => _overrides[typeof(IToolRegistry)] = value; }
+            public IRequestQueue Queue { get => ResolveRequired<IRequestQueue>(); init => _overrides[typeof(IRequestQueue)] = value; }
+            public ITelemetryCollector Telemetry { get => ResolveRequired<ITelemetryCollector>(); init => _overrides[typeof(ITelemetryCollector)] = value; }
+            public IFlywheelParameterStore ParameterStore { get => ResolveRequired<IFlywheelParameterStore>(); init => _overrides[typeof(IFlywheelParameterStore)] = value; }
 
             // Infrastructure layer services
-            public IAudioPlayer AudioPlayer { get; init; } = null!;
-            public ITickProvider TickProvider { get; init; } = null!;
-            public IThreadChecker ThreadChecker { get; init; } = null!;
-            public ILogSink LogSink { get; init; } = null!;
-            public ITranslationService TranslationService { get; init; } = null!;
-            public IGameMechanismRegistry MechanismRegistry { get; init; } = null!;
-            public IWindowService? WindowService { get; init; }
-            public IPlayer2Lifecycle Player2Lifecycle { get; init; } = null!;
+            public IAudioPlayer AudioPlayer { get => ResolveRequired<IAudioPlayer>(); init => _overrides[typeof(IAudioPlayer)] = value; }
+            public ITickProvider TickProvider { get => ResolveRequired<ITickProvider>(); init => _overrides[typeof(ITickProvider)] = value; }
+            public IThreadChecker ThreadChecker { get => ResolveRequired<IThreadChecker>(); init => _overrides[typeof(IThreadChecker)] = value; }
+            public ILogSink LogSink { get => ResolveRequired<ILogSink>(); init => _overrides[typeof(ILogSink)] = value; }
+            public ITranslationService TranslationService { get => ResolveRequired<ITranslationService>(); init => _overrides[typeof(ITranslationService)] = value; }
+            public IGameMechanismRegistry MechanismRegistry { get => ResolveRequired<IGameMechanismRegistry>(); init => _overrides[typeof(IGameMechanismRegistry)] = value; }
+            public IWindowService? WindowService { get => ResolveOptional<IWindowService>(); init => _overrides[typeof(IWindowService)] = value; }
+            public IPlayer2Lifecycle Player2Lifecycle { get => ResolveRequired<IPlayer2Lifecycle>(); init => _overrides[typeof(IPlayer2Lifecycle)] = value; }
 
             // Presentation layer services
-            public IProviderRegistry ProviderRegistry { get; init; } = null!;
-            public IHistoryManager HistoryManager { get; init; } = null!;
-            public IClientManager ClientManager { get; init; } = null!;
-            public ISensorManager SensorManager { get; init; } = null!;
-            public IOverlayService OverlayService { get; init; } = null!;
-            public IContextEngine ContextEngine { get; init; } = null!;
-            public IPawnAgentFactoryVerse PawnAgentFactory { get; init; } = null!;
-            public IGameContextBuilder GameContextBuilder { get; init; } = null!;
-            public IResponseDispatcher ResponseDispatcher { get; init; } = null!;
-            public IContextKeyRegistry ContextKeyRegistry { get; init; } = null!;
-            public IContextKeyProvider ContextKeyProvider { get; init; } = null!;
-            public IContextCacheManager CacheManager { get; init; } = null!;
-            public IContextDiffTracker DiffTracker { get; init; } = null!;
-            public IContextLayerBuilder LayerBuilder { get; init; } = null!;
-            public IBudgetScheduler BudgetScheduler { get; init; } = null!;
-            public IRelevanceTable RelevanceTable { get; init; } = null!;
-            public IRelevanceLearner RelevanceLearner { get; init; } = null!;
+            public IProviderRegistry ProviderRegistry { get => ResolveRequired<IProviderRegistry>(); init => _overrides[typeof(IProviderRegistry)] = value; }
+            public IHistoryManager HistoryManager { get => ResolveRequired<IHistoryManager>(); init => _overrides[typeof(IHistoryManager)] = value; }
+            public IClientManager ClientManager { get => ResolveRequired<IClientManager>(); init => _overrides[typeof(IClientManager)] = value; }
+            public ISensorManager SensorManager { get => ResolveRequired<ISensorManager>(); init => _overrides[typeof(ISensorManager)] = value; }
+            public IOverlayService OverlayService { get => ResolveRequired<IOverlayService>(); init => _overrides[typeof(IOverlayService)] = value; }
+            public IContextEngine ContextEngine { get => ResolveRequired<IContextEngine>(); init => _overrides[typeof(IContextEngine)] = value; }
+            public IPawnAgentFactoryVerse PawnAgentFactory { get => ResolveRequired<IPawnAgentFactoryVerse>(); init => _overrides[typeof(IPawnAgentFactoryVerse)] = value; }
+            public IGameContextBuilder GameContextBuilder { get => ResolveRequired<IGameContextBuilder>(); init => _overrides[typeof(IGameContextBuilder)] = value; }
+            public IResponseDispatcher ResponseDispatcher { get => ResolveRequired<IResponseDispatcher>(); init => _overrides[typeof(IResponseDispatcher)] = value; }
+            public IContextKeyRegistry ContextKeyRegistry { get => ResolveRequired<IContextKeyRegistry>(); init => _overrides[typeof(IContextKeyRegistry)] = value; }
+            public IContextKeyProvider ContextKeyProvider { get => ResolveRequired<IContextKeyProvider>(); init => _overrides[typeof(IContextKeyProvider)] = value; }
+            public IContextCacheManager CacheManager { get => ResolveRequired<IContextCacheManager>(); init => _overrides[typeof(IContextCacheManager)] = value; }
+            public IContextDiffTracker DiffTracker { get => ResolveRequired<IContextDiffTracker>(); init => _overrides[typeof(IContextDiffTracker)] = value; }
+            public IContextLayerBuilder LayerBuilder { get => ResolveRequired<IContextLayerBuilder>(); init => _overrides[typeof(IContextLayerBuilder)] = value; }
+            public IBudgetScheduler BudgetScheduler { get => ResolveRequired<IBudgetScheduler>(); init => _overrides[typeof(IBudgetScheduler)] = value; }
+            public IRelevanceTable RelevanceTable { get => ResolveRequired<IRelevanceTable>(); init => _overrides[typeof(IRelevanceTable)] = value; }
+            public IRelevanceLearner RelevanceLearner { get => ResolveRequired<IRelevanceLearner>(); init => _overrides[typeof(IRelevanceLearner)] = value; }
 
             // Pipelines
-            public IPipeline<BusPublishContext> BusPublishPipeline { get; init; } = null!;
-            public IPipeline<LlmRequestContext> UnifiedPipeline { get; init; } = null!;
+            public IPipeline<BusPublishContext> BusPublishPipeline { get => ResolveRequired<IPipeline<BusPublishContext>>(); init => _overrides[typeof(IPipeline<BusPublishContext>)] = value; }
+            public IPipeline<LlmRequestContext> UnifiedPipeline { get => ResolveRequired<IPipeline<LlmRequestContext>>(); init => _overrides[typeof(IPipeline<LlmRequestContext>)] = value; }
 
-            public INpcManagerAccessor NpcManagers { get; init; } = null!;
-            public IAIDebugLogAccessor AIDebugLogs { get; init; } = null!;
+            public INpcManagerAccessor NpcManagers { get => ResolveRequired<INpcManagerAccessor>(); init => _overrides[typeof(INpcManagerAccessor)] = value; }
+            public IAIDebugLogAccessor AIDebugLogs { get => ResolveRequired<IAIDebugLogAccessor>(); init => _overrides[typeof(IAIDebugLogAccessor)] = value; }
 
             // Settings
-            public ISettingsProvider SettingsProvider { get; init; } = null!;
+            public ISettingsProvider SettingsProvider { get => ResolveRequired<ISettingsProvider>(); init => _overrides[typeof(ISettingsProvider)] = value; }
         }
 
         public RuntimeComposition Compose(
@@ -152,7 +181,8 @@ namespace RimMind.Presentation.Runtime
                     if (!string.IsNullOrEmpty(evt.NpcId) &&
                         (string.Equals(evt.NewState, "Dead", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(evt.NewState, "Removed", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(evt.NewState, "Despawned", StringComparison.OrdinalIgnoreCase)))
+                         string.Equals(evt.NewState, "Despawned", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(evt.NewState, "Terminated", StringComparison.OrdinalIgnoreCase)))
                     {
                         contextServices.ContextEngine.InvalidateNpc(evt.NpcId);
                     }
@@ -221,44 +251,7 @@ namespace RimMind.Presentation.Runtime
                     remoteSync.Settings,
                     remoteSync.Service);
 
-                var result = new CompositionResult
-                {
-                    AgentBus = agentBus,
-                    ToolRegistry = appBag.ToolRegistry,
-                    Queue = appBag.Queue,
-                    Telemetry = appBag.Telemetry,
-                    ParameterStore = flywheelParameterStore,
-                    AudioPlayer = infraBag.AudioPlayer,
-                    TickProvider = tickProvider,
-                    ThreadChecker = infraBag.ThreadChecker,
-                    LogSink = logSink,
-                    TranslationService = infraBag.TranslationService,
-                    MechanismRegistry = infraBag.MechanismRegistry,
-                    WindowService = infraBag.WindowService,
-                    Player2Lifecycle = infraBag.Player2Lifecycle,
-                    ProviderRegistry = contextServices.ProviderRegistry,
-                    HistoryManager = contextServices.HistoryManager,
-                    ClientManager = clientServices.ClientManager,
-                    SensorManager = uiServices.SensorManager,
-                    OverlayService = uiServices.OverlayService,
-                    ContextEngine = contextServices.ContextEngine,
-                    PawnAgentFactory = agentServices.PawnAgentFactory,
-                    GameContextBuilder = agentServices.GameContextBuilder,
-                    ResponseDispatcher = agentServices.ResponseDispatcher,
-                    ContextKeyRegistry = contextServices.ContextKeyRegistry,
-                    ContextKeyProvider = contextServices.ContextKeyProvider,
-                    CacheManager = contextServices.CacheManager,
-                    DiffTracker = contextServices.DiffTracker,
-                    LayerBuilder = contextServices.LayerBuilder,
-                    BudgetScheduler = contextServices.BudgetScheduler,
-                    RelevanceTable = contextServices.RelevanceTable,
-                    RelevanceLearner = contextServices.RelevanceLearner,
-                    BusPublishPipeline = busPublishPipeline,
-                    UnifiedPipeline = unifiedPipeline,
-                    NpcManagers = npcManagers,
-                    AIDebugLogs = aiDebugLogs,
-                    SettingsProvider = resolvedSettings
-                };
+                var result = new CompositionResult(services.Build());
 
                 var lifecycle = new RimMindLifecycleManager(
                     result.Telemetry,

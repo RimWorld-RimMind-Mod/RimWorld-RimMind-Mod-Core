@@ -4,9 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
+using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Features.Json;
+using RimMind.Application.Features.Tools;
 using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.Common;
 using RimMind.Domain.Llm;
@@ -69,14 +71,31 @@ public static class ThinkStrategyHelper
 
     private static readonly List<ChatMessage> CachedDecisionExamples = CreateDecisionExamples();
 
-    public static bool IsQueryToolName(string? toolName)
+    public static bool IsQueryToolName(string? toolName, IToolRegistry? toolRegistry = null)
     {
         if (string.IsNullOrWhiteSpace(toolName)) return false;
-        return toolName!.StartsWith("query", StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("actions_query", StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("get_", StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("list_", StringComparison.OrdinalIgnoreCase)
-            || toolName.StartsWith("inspect_", StringComparison.OrdinalIgnoreCase);
+
+        var registry = toolRegistry ?? ToolRegistry.Current;
+        var handler = registry?.FindById(toolName!);
+        if (handler?.Definition?.Manifest != null)
+        {
+            return handler.Definition.Manifest.Kind == ToolKind.Query;
+        }
+
+        return HasQueryPrefix(toolName!) || HasUnqualifiedQueryPrefix(toolName!);
+    }
+
+    private static bool HasQueryPrefix(string name)
+        => name.StartsWith("query", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("get_", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("list_", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("inspect_", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasUnqualifiedQueryPrefix(string name)
+    {
+        int sep = name.IndexOfAny(new[] { '_', '.' });
+        if (sep <= 0 || sep + 1 >= name.Length) return false;
+        return HasQueryPrefix(name.Substring(sep + 1));
     }
 
     private static string TruncateReason(string? text, int maxChars = 240)

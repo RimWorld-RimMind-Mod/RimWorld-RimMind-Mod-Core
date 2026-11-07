@@ -15,6 +15,7 @@ namespace RimMind.Infrastructure.UI
     {
         // ── Spacing (delegated to Theme) ────────────────────────
         public const float Padding = RimMindUITheme.Padding;
+        public const float ElementGap = RimMindUITheme.ElementGap;
         public const float SectionGap = RimMindUITheme.SectionGap;
         public const float LineHeight = RimMindUITheme.LineHeight;
         public const float BtnHeight = RimMindUITheme.BtnHeight;

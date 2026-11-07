@@ -11,9 +11,15 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         public string Role = "";
 
         [JsonProperty("content")]
-        public string Content = "";
+        public string? Content = "";
 
-        [JsonProperty("tool_calls")]
+        [JsonProperty("reasoning_content", NullValueHandling = NullValueHandling.Ignore)]
+        public string? ReasoningContent;
+
+        [JsonProperty("tool_call_id", NullValueHandling = NullValueHandling.Ignore)]
+        public string? ToolCallId;
+
+        [JsonProperty("tool_calls", NullValueHandling = NullValueHandling.Ignore)]
         public List<Player2ToolCallDto>? ToolCalls;
     }
 

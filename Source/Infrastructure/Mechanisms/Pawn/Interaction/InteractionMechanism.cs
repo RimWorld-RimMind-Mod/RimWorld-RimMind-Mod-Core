@@ -118,8 +118,11 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Interaction
 
         private static int ExtractIntParam(MechanismWriteArgs args, string key)
         {
-            if (args.Params != null && args.Params.TryGetValue(key, out var val) && int.TryParse(val, out var result))
-                return result;
+            if (args.Params != null && args.Params.TryGetValue(key, out var val))
+            {
+                if (int.TryParse(val, out var result)) return result;
+                if (Application.Features.Tools.PawnIdParser.TryParse(val, out var pawnId)) return pawnId;
+            }
             return 0;
         }
     }

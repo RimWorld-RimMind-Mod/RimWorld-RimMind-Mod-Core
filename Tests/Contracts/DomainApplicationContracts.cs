@@ -18,6 +18,7 @@ using Xunit;
 
 namespace RimMind.Tests.Contracts
 {
+    [Collection("ScenarioRegistry")]
     public sealed class DomainApplicationContracts
     {
         [Fact]
@@ -398,14 +399,14 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("IToolRegistry? toolRegistry = null", source, StringComparison.Ordinal);
                     Assert.Contains("_toolRegistry?.FindById(toolId)", source, StringComparison.Ordinal);
                 }),
-                ("MechanismActionExecutor resolves designate_map_order, place_blueprint, and composite tool aliases", () =>
+                ("MechanismActionExecutor delegates alias resolution to IToolRegistry and adapts arguments via Manifest and IToolArgumentAdapter", () =>
                 {
                     var source = ReadSource("Infrastructure/Agent/MechanismActionExecutor.cs");
-                    Assert.Contains("actions_designate_resources", source, StringComparison.Ordinal);
-                    Assert.Contains("designate_map_order", source, StringComparison.Ordinal);
-                    Assert.Contains("actions_place_blueprint", source, StringComparison.Ordinal);
-                    Assert.Contains("actions.eat_and_recreation", source, StringComparison.Ordinal);
-                    Assert.Contains("actions.stabilize_rest", source, StringComparison.Ordinal);
+                    Assert.DoesNotContain("actions_designate_resources", source, StringComparison.Ordinal);
+                    Assert.DoesNotContain("actions_place_blueprint", source, StringComparison.Ordinal);
+                    Assert.DoesNotContain("actions.stabilize_rest", source, StringComparison.Ordinal);
+                    Assert.Contains("Manifest?.IsSelfTargeted", source, StringComparison.Ordinal);
+                    Assert.Contains("IToolArgumentAdapter", source, StringComparison.Ordinal);
                     Assert.Contains("execResult.Value.IsError", source, StringComparison.Ordinal);
                 }),
                 ("ToolMechanismComposition passes tool registry to executor", () =>

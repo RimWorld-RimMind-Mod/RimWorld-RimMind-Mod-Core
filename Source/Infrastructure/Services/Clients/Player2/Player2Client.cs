@@ -350,12 +350,19 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         }
 
         internal (string endpoint, string json) BuildPayload(RimMind.Domain.Llm.LlmRequestEnvelope envelope, bool stream)
+            => BuildPayload(envelope, stream, CurrentApiUrl, _settings?.MaxTokens ?? 800);
+
+        internal static (string endpoint, string json) BuildPayload(
+            RimMind.Domain.Llm.LlmRequestEnvelope envelope,
+            bool stream,
+            string baseUrl,
+            int defaultMaxTokens = 800)
         {
-            int maxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : (_settings?.MaxTokens ?? 800);
+            int maxTokens = envelope.MaxTokens > 0 ? envelope.MaxTokens : defaultMaxTokens;
 
             if (!string.IsNullOrEmpty(envelope.NpcId))
             {
-                string endpoint = $"{CurrentApiUrl}/npcs/{Uri.EscapeDataString(envelope.NpcId!)}/chat";
+                string endpoint = $"{baseUrl}/npcs/{Uri.EscapeDataString(envelope.NpcId!)}/chat";
                 var npcBody = new
                 {
                     messages = BuildEnvelopeMessages(envelope),
@@ -370,7 +377,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             else
             {
-                string endpoint = $"{CurrentApiUrl}/v1/chat/completions";
+                string endpoint = $"{baseUrl}/v1/chat/completions";
                 var body = new Player2RequestDto
                 {
                     Model = "default",
@@ -380,30 +387,16 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                     Stream = stream,
                 };
 
-                if (TryParseJsonSchema(envelope.JsonSchema, out var parsedSchema))
+                if (OpenAI.OpenAIRequestSerializer.TryParseJson(envelope.JsonSchema, out var parsedSchema))
                 {
                     body.ResponseFormat = new { type = "json_schema", json_schema = new { name = "response", schema = parsedSchema } };
                 }
 
-                if (envelope.Tools != null && envelope.Tools.Count > 0)
+                var (tools, toolChoice) = OpenAI.OpenAIRequestSerializer.BuildTools(envelope);
+                if (tools != null && tools.Count > 0)
                 {
-                    body.Tools = new List<object>();
-                    foreach (var t in envelope.Tools.OrderBy(t => t.Name, StringComparer.Ordinal))
-                    {
-                        body.Tools.Add(new
-                        {
-                            type = "function",
-                            function = new
-                            {
-                                name = t.Name?.Replace('.', '_') ?? "",
-                                description = t.Description,
-                                parameters = t.Parameters != null
-                                    ? JsonConvert.DeserializeObject(t.Parameters)
-                                    : new { type = "object", properties = new { } },
-                            },
-                        });
-                    }
-                    body.ToolChoice = envelope.Tools.Any(t => t.ToolChoice == "required") ? "required" : "auto";
+                    body.Tools = tools.Cast<object>().ToList();
+                    body.ToolChoice = toolChoice;
                 }
 
                 string json = JsonConvert.SerializeObject(body, Formatting.None,
@@ -489,52 +482,37 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
         }
 
-        private List<RimMind.Domain.Llm.ChatMessage> BuildEnvelopeMessages(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
+        private static List<RimMind.Domain.Llm.ChatMessage> BuildEnvelopeMessages(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
         {
             return envelope.Messages ?? new List<RimMind.Domain.Llm.ChatMessage>();
         }
 
-        private List<Player2MessageDto> BuildEnvelopePlayer2Messages(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
+        internal static List<Player2MessageDto> BuildEnvelopePlayer2Messages(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
         {
-            var messages = new List<Player2MessageDto>();
-
-            if (envelope.Messages != null && envelope.Messages.Count > 0)
+            var openAiMessages = OpenAI.OpenAIRequestSerializer.BuildMessages(envelope, mergeConsecutivePlainRoles: true);
+            var messages = new List<Player2MessageDto>(openAiMessages.Count);
+            for (int i = 0; i < openAiMessages.Count; i++)
             {
-                foreach (var m in envelope.Messages)
+                var m = openAiMessages[i];
+                messages.Add(new Player2MessageDto
                 {
-                    messages.Add(new Player2MessageDto { Role = m.Role, Content = m.Content });
-                }
-            }
-
-            return MergeConsecutiveSameRole(messages);
-        }
-
-        private static List<Player2MessageDto> MergeConsecutiveSameRole(List<Player2MessageDto> messages)
-        {
-            if (messages == null || messages.Count <= 1) return messages!;
-
-            var merged = new List<Player2MessageDto>(messages.Count);
-            var current = messages[0];
-
-            for (int i = 1; i < messages.Count; i++)
-            {
-                if (string.Equals(current.Role, messages[i].Role, StringComparison.OrdinalIgnoreCase))
-                {
-                    current = new Player2MessageDto
+                    Role = m.role,
+                    Content = m.content ?? "",
+                    ReasoningContent = m.reasoning_content,
+                    ToolCallId = m.tool_call_id,
+                    ToolCalls = m.tool_calls?.Select(tc => new Player2ToolCallDto
                     {
-                        Role = current.Role,
-                        Content = current.Content + "\n" + messages[i].Content
-                    };
-                }
-                else
-                {
-                    merged.Add(current);
-                    current = messages[i];
-                }
+                        Id = tc.Id,
+                        Type = tc.Type,
+                        Function = tc.Function == null ? null : new Player2ToolCallFunctionDto
+                        {
+                            Name = tc.Function.Name,
+                            Arguments = tc.Function.Arguments,
+                        },
+                    }).ToList(),
+                });
             }
-            merged.Add(current);
-
-            return merged;
+            return messages;
         }
 
         private async Task<(string text, long statusCode)> PostAsync(string url, string jsonBody, CancellationToken ct = default)

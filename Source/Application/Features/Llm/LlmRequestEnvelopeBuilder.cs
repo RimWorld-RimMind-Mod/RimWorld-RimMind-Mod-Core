@@ -26,6 +26,7 @@ namespace RimMind.Application.Features.Llm
         private float _temperature = 0.7f;
         private int? _expireAtTicks;
         private int? _maxRetryCount;
+        private Dictionary<string, string>? _hints;
 
         public static LlmRequestEnvelopeBuilder ForScenario(string scenarioId)
         {
@@ -157,6 +158,36 @@ namespace RimMind.Application.Features.Llm
             return this;
         }
 
+        public LlmRequestEnvelopeBuilder WithHint(string key, string? value)
+        {
+            if (string.IsNullOrEmpty(key)) return this;
+            _hints ??= new Dictionary<string, string>(StringComparer.Ordinal);
+            if (value == null)
+                _hints.Remove(key);
+            else
+                _hints[key] = value;
+            return this;
+        }
+
+        public LlmRequestEnvelopeBuilder WithHints(IReadOnlyDictionary<string, string>? hints)
+        {
+            if (hints == null || hints.Count == 0)
+            {
+                _hints = null;
+                return this;
+            }
+
+            _hints ??= new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var kvp in hints)
+            {
+                if (!string.IsNullOrEmpty(kvp.Key) && kvp.Value != null)
+                {
+                    _hints[kvp.Key] = kvp.Value;
+                }
+            }
+            return this;
+        }
+
         public LlmRequestEnvelope Build()
         {
             if (string.IsNullOrEmpty(_scenarioId))
@@ -185,6 +216,9 @@ namespace RimMind.Application.Features.Llm
                 Ct = _ct,
                 NpcId = _npcId,
                 GameStateInfo = _gameStateInfo,
+                Hints = _hints != null && _hints.Count > 0
+                    ? new Dictionary<string, string>(_hints, StringComparer.Ordinal)
+                    : null,
             };
         }
     }

@@ -39,6 +39,7 @@ namespace RimMind.Presentation.Agent
         internal IDreamThoughtInjector? DreamThoughtInjector => _dreamThoughtInjector;
         internal ITraitEvolver TraitEvolver => _traitEvolver;
         internal ICompletionFence CompletionFence => _completionFence;
+        internal IExtensionRegistry<IPerceptionSource>? PerceptionSourceRegistry => _perceptionSourceRegistry;
 
         internal PawnAgentFactory(
             IAgentTickSettings? tickSettings,
@@ -71,12 +72,23 @@ namespace RimMind.Presentation.Agent
         public IPawnAgent Create(Pawn pawn, IAgentBus agentBus)
         {
             var agent = new PawnAgent(pawn, _tickSettings!, agentBus, log: _log);
-            agent.RebuildCollaborators(
-                new PawnPerceiver(agent, agentBus, _perceptionSourceRegistry),
-                new PawnThinker(agent, _tickSettings!, agentBus, _innerVoiceHandler, _psychologyWatcher, _tickProvider, _dreamGenerator, _dreamThoughtInjector, _traitEvolver, _log, _completionFence),
-                new PawnActor(agent, _actionExecutor),
-                new PawnRecorder(agent, agentBus));
+            WireCollaborators(agent, agentBus);
             return agent;
+        }
+
+        /// <summary>
+        /// Single collaborator-building path shared by <see cref="Create"/> and save/load deserialization,
+        /// ensuring <see cref="IPerceptionSource"/> registry and runtime completion fence are always wired.
+        /// </summary>
+        internal void WireCollaborators(PawnAgent agent, IAgentBus? agentBus = null)
+        {
+            if (agent == null) throw new ArgumentNullException(nameof(agent));
+            var bus = agentBus ?? _agentBus;
+            agent.RebuildCollaborators(
+                new PawnPerceiver(agent, bus, _perceptionSourceRegistry),
+                new PawnThinker(agent, _tickSettings!, bus, _innerVoiceHandler, _psychologyWatcher, _tickProvider, _dreamGenerator, _dreamThoughtInjector, _traitEvolver, _log, _completionFence),
+                new PawnActor(agent, _actionExecutor),
+                new PawnRecorder(agent, bus));
         }
 
         public void SerializeAgent(ref IPawnAgent? agent, string label)

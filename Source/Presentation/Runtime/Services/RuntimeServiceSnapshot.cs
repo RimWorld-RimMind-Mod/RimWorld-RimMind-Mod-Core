@@ -50,6 +50,12 @@ namespace RimMind.Presentation.Runtime.Services
             return _services.TryGetValue(typeof(T), out var service) ? (T)service : null;
         }
 
+        public T? Get<T>()
+            where T : class
+        {
+            return GetOptional<T>();
+        }
+
         public bool Contains<T>()
             where T : class
         {

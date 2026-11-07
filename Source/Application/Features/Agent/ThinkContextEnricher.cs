@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Interfaces.Agent.Psychology;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Features.Agent.InnerVoice;
+using RimMind.Application.Features.Tools;
 using RimMind.Domain.Llm;
 
 namespace RimMind.Application.Features.Agent
@@ -15,15 +19,21 @@ namespace RimMind.Application.Features.Agent
     {
         private readonly InnerVoiceHandler? _innerVoiceHandler;
         private readonly IPsychologyWatcher? _psychologyWatcher;
+        private readonly IExtensionRegistry<IThinkContributor>? _contributorRegistry;
+        private readonly Func<IExtensionRegistry<IThinkContributor>?>? _contributorRegistryProvider;
 
         public int Order => 10;
 
         public ThinkContextEnricher(
             InnerVoiceHandler? voiceHandler = null,
-            IPsychologyWatcher? psychologyWatcher = null)
+            IPsychologyWatcher? psychologyWatcher = null,
+            IExtensionRegistry<IThinkContributor>? contributorRegistry = null,
+            Func<IExtensionRegistry<IThinkContributor>?>? contributorRegistryProvider = null)
         {
             _innerVoiceHandler = voiceHandler;
             _psychologyWatcher = psychologyWatcher;
+            _contributorRegistry = contributorRegistry;
+            _contributorRegistryProvider = contributorRegistryProvider;
         }
 
         public void Enrich(LlmRequestEnvelope envelope, IAgentInfo agent)
@@ -47,7 +57,7 @@ namespace RimMind.Application.Features.Agent
             _psychologyWatcher?.CheckAndPublish(agent, pawnId);
         }
 
-        public void EnrichEnvelope(LlmRequestEnvelope envelope, string npcId, string? voiceText)
+        public void EnrichEnvelope(LlmRequestEnvelope envelope, string npcId, string? voiceText, int pawnId = 0)
         {
             if (envelope == null) return;
 
@@ -59,6 +69,32 @@ namespace RimMind.Application.Features.Agent
 
             if (_psychologyWatcher?.HasUrgentEvent(npcId) == true)
                 envelope.GameStateInfo.AddSection("psychology_alert", "Urgent psychological event pending");
+
+            var registry = _contributorRegistry ?? _contributorRegistryProvider?.Invoke();
+            var contributors = registry?.All;
+            if (contributors != null && contributors.Count > 0)
+            {
+                int resolvedPawnId = pawnId;
+                if (resolvedPawnId <= 0 && !string.IsNullOrEmpty(npcId))
+                {
+                    PawnIdParser.TryParse(npcId, out resolvedPawnId);
+                }
+
+                var sections = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var contributor in contributors.OrderBy(c => c.Order))
+                {
+                    if (contributor == null) continue;
+                    contributor.Contribute(npcId, resolvedPawnId, sections);
+                }
+
+                foreach (var kv in sections)
+                {
+                    if (!string.IsNullOrEmpty(kv.Key) && !string.IsNullOrEmpty(kv.Value))
+                    {
+                        envelope.GameStateInfo.AddSection(kv.Key, kv.Value);
+                    }
+                }
+            }
         }
 
         public string FormatToolCallResults(IReadOnlyList<ToolResult> results, int round)

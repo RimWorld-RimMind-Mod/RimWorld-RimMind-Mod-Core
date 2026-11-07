@@ -52,7 +52,7 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("ICompletionFence", factory, StringComparison.Ordinal);
                     Assert.Contains("CompletionFence", factory, StringComparison.Ordinal);
                     Assert.Contains("_completionFence)", factory, StringComparison.Ordinal);
-                    Assert.Contains("factory.CompletionFence)", agent, StringComparison.Ordinal);
+                    Assert.Contains("factory.WireCollaborators(concrete", agent, StringComparison.Ordinal);
                 }),
                 ("proactive executor forwards the thinker runtime fence", () =>
                 {

@@ -9,6 +9,7 @@ namespace RimMind.Application.Common.Models.Context
         public List<KeyMeta> L1Keys = new List<KeyMeta>();
         public List<KeyMeta> L2Keys = new List<KeyMeta>();
         public List<KeyMeta> L3Keys = new List<KeyMeta>();
+        public List<KeyMeta> L4Keys = new List<KeyMeta>();
         public List<KeyMeta> L5Keys = new List<KeyMeta>();
         public Dictionary<string, float> KeyScores = new Dictionary<string, float>();
         public int MaxHistoryRounds = 6;

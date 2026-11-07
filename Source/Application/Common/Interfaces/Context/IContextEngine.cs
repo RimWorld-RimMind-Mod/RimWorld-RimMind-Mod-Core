@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using RimMind.Application.Common.Models.Context;
 
 namespace RimMind.Application.Common.Interfaces.Context
 {
@@ -11,5 +15,14 @@ namespace RimMind.Application.Common.Interfaces.Context
     /// </summary>
     public interface IContextEngine : IContextBuilder, IContextCache, IContextInvalidation, IDisposable
     {
+        Task<ContextSnapshot?> BuildSnapshotFromEnvelopeAsync(
+            string npcId,
+            string? currentQuery,
+            int maxTokens,
+            float temperature,
+            string? scenarioId,
+            HashSet<string>? skipLayers,
+            IReadOnlyDictionary<string, string>? hints,
+            CancellationToken ct = default);
     }
 }

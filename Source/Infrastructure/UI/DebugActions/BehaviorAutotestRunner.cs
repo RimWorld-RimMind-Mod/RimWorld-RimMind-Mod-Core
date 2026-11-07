@@ -31,6 +31,7 @@ using RimWorld;
 using UnityEngine;
 using Verse;
 using RimMind.Infrastructure.UI.DebugCenter;
+using RimMind.Infrastructure.UI.DebugActions;
 
 namespace RimMind.Infrastructure.UI
 {
@@ -95,6 +96,8 @@ namespace RimMind.Infrastructure.UI
         private bool _isHeadless;
         private BehaviorAutotestReport _report = new();
         private readonly Stopwatch _clock = new();
+        // Snapshot of the player's Core settings; restored on finish, init failure and destroy.
+        private SettingsOverrideScope? _settingsScope;
 
         internal static void CheckStartup()
         {
@@ -158,9 +161,10 @@ namespace RimMind.Infrastructure.UI
                 return;
             }
 
+            BehaviorAutotestRunner? runner = null;
             try
             {
-                var runner = Current.Root.gameObject.AddComponent<BehaviorAutotestRunner>();
+                runner = Current.Root.gameObject.AddComponent<BehaviorAutotestRunner>();
                 _active = runner;
                 runner.Initialize(runId ?? Guid.NewGuid().ToString("N"), isHeadless);
             }
@@ -168,6 +172,11 @@ namespace RimMind.Infrastructure.UI
             {
                 Log.Error("[RimMind-Core] Failed to initialize behavior autotest runner: " + ex);
                 _active = null;
+                if (runner != null)
+                {
+                    runner.RestorePlayerSettings();
+                    Destroy(runner);
+                }
             }
         }
 
@@ -176,6 +185,9 @@ namespace RimMind.Infrastructure.UI
             _runId = runId;
             _isHeadless = isHeadless;
             _clock.Start();
+
+            // Snapshot player settings before the first harness override; never persisted while overridden.
+            _settingsScope = CoreSettingsOverrideScope.Begin("BehaviorAutotest");
 
             // Override credentials from environment if provided (secure sandbox execution)
             string? envKey = Environment.GetEnvironmentVariable("RIMMIND_TEST_API_KEY");
@@ -991,7 +1003,7 @@ namespace RimMind.Infrastructure.UI
                     RimMindCoreMod.Settings.maxConcurrentRequests = 3;
                     RimMindCoreMod.Settings.requestTimeoutMs = 25000;
                     RimMindCoreMod.Settings.defaultModCooldownTicks = 15 * 60;
-                    RimMindCoreMod.Settings.Write();
+                    // In-memory only: persisting here would write the harness API key/endpoint to the player's config.
 
                     if (RimMindCoreMod.Settings.maxTokens == 600 &&
                         RimMindCoreMod.Settings.maxConcurrentRequests == 3 &&
@@ -1011,7 +1023,6 @@ namespace RimMind.Infrastructure.UI
                     RimMindCoreMod.Settings.maxConcurrentRequests = 1;
                     RimMindCoreMod.Settings.requestTimeoutMs = 60000;
                     RimMindCoreMod.Settings.defaultModCooldownTicks = 60 * 60;
-                    RimMindCoreMod.Settings.Write();
 
                     if (RimMindCoreMod.Settings.maxTokens == 400 &&
                         RimMindCoreMod.Settings.maxConcurrentRequests == 1 &&
@@ -1031,7 +1042,6 @@ namespace RimMind.Infrastructure.UI
                     RimMindCoreMod.Settings.maxConcurrentRequests = 2;
                     RimMindCoreMod.Settings.requestTimeoutMs = 45000;
                     RimMindCoreMod.Settings.defaultModCooldownTicks = 30 * 60;
-                    RimMindCoreMod.Settings.Write();
 
                     if (RimMindCoreMod.Settings.maxTokens == 800 &&
                         RimMindCoreMod.Settings.maxConcurrentRequests == 2 &&
@@ -1052,7 +1062,6 @@ namespace RimMind.Infrastructure.UI
                     RimMindCoreMod.Settings.maxConcurrentRequests = origConcurrent;
                     RimMindCoreMod.Settings.requestTimeoutMs = origTimeout;
                     RimMindCoreMod.Settings.defaultModCooldownTicks = origCooldown;
-                    RimMindCoreMod.Settings.Write();
                 }
 
                 // 2. RequestOverlay Interaction: Register -> Hold Pending -> Resolve -> Clear
@@ -1236,6 +1245,8 @@ namespace RimMind.Infrastructure.UI
         private void FinalizeReport()
         {
             _clock.Stop();
+            // Restore before anything that could persist settings or shut the process down.
+            RestorePlayerSettings();
             _report.TotalDurationMs = _clock.ElapsedMilliseconds;
             _report.OverallStatus = _report.TotalFailed == 0 ? "PASS" : "FAIL";
 
@@ -1275,8 +1286,12 @@ namespace RimMind.Infrastructure.UI
             Destroy(this);
         }
 
+        private void RestorePlayerSettings() => CoreSettingsOverrideScope.End(ref _settingsScope);
+
         private void OnDestroy()
         {
+            // Abort path (coroutine fault, quit to menu, root teardown): still hand the player's settings back.
+            RestorePlayerSettings();
             if (_active == this) _active = null;
         }
     }

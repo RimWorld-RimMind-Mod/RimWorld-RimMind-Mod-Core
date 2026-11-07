@@ -5,17 +5,13 @@ namespace RimMind.Presentation.Runtime.Services
     public sealed class GameServiceRef<T>
         where T : class
     {
-        private readonly object _cacheLock = new object();
         private readonly GameServiceHub _hub;
-        private readonly bool _required;
-        private T? _cached;
-        private long _boundGeneration = -1;
-        private GameLifecycleState _boundState = GameLifecycleState.NeverPublished;
+        private readonly GenerationCachedServiceRef<T> _cache;
 
         internal GameServiceRef(GameServiceHub hub, bool required)
         {
             _hub = hub ?? throw new ArgumentNullException(nameof(hub));
-            _required = required;
+            _cache = new GenerationCachedServiceRef<T>(required, "game");
         }
 
         public static GameServiceRef<T> Required()
@@ -28,79 +24,26 @@ namespace RimMind.Presentation.Runtime.Services
             return new GameServiceRef<T>(GameServiceHub.Shared, required: false);
         }
 
-        public long BoundGeneration
-        {
-            get
-            {
-                lock (_cacheLock)
-                {
-                    return _boundGeneration;
-                }
-            }
-        }
+        public long BoundGeneration => _cache.BoundGeneration;
 
-        public T Value
-        {
-            get
-            {
-                if (!_required)
-                {
-                    throw new InvalidOperationException("Value is only valid for a required game service reference.");
-                }
+        public T Value =>
+            _cache.GetRequiredValue<GameLifecycleState>(
+                RefreshCache,
+                static (serviceType, state, generation) =>
+                    new GameServiceUnavailableException(serviceType, state, generation));
 
-                RefreshCache();
-                lock (_cacheLock)
-                {
-                    if (_cached == null)
-                    {
-                        throw new GameServiceUnavailableException(typeof(T), _boundState, _boundGeneration);
-                    }
-
-                    return _cached;
-                }
-            }
-        }
-
-        public T? ValueOrDefault
-        {
-            get
-            {
-                if (_required)
-                {
-                    throw new InvalidOperationException("ValueOrDefault is only valid for an optional game service reference.");
-                }
-
-                RefreshCache();
-                T? value;
-                long generation;
-                GameLifecycleState state;
-                lock (_cacheLock)
-                {
-                    value = _cached;
-                    generation = _boundGeneration;
-                    state = _boundState;
-                }
-
-                if (value == null)
-                {
-                    _hub.RecordOptionalMissing(typeof(T), generation, state);
-                }
-
-                return value;
-            }
-        }
+        public T? ValueOrDefault =>
+            _cache.GetOptionalValue<GameLifecycleState>(
+                RefreshCache,
+                (serviceType, generation, state) =>
+                    _hub.RecordOptionalMissing(serviceType, generation, state));
 
         private void RefreshCache()
         {
             var scope = _hub.Capture();
-            lock (_cacheLock)
+            if (_cache.NeedsRefresh(scope.Generation))
             {
-                if (scope.Generation > _boundGeneration)
-                {
-                    _cached = scope.GetOptional<T>();
-                    _boundGeneration = scope.Generation;
-                    _boundState = scope.Snapshot.State;
-                }
+                _cache.Cache(scope.Generation, scope.Snapshot.State, scope.GetOptional<T>());
             }
         }
     }
