@@ -17,6 +17,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
 
+      - name: Normalize Workspace Directory Alias
+        run: |
+          if [ ! -e "../RimMind-Core" ]; then
+            ln -s "$GITHUB_WORKSPACE" "../RimMind-Core"
+          fi
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:

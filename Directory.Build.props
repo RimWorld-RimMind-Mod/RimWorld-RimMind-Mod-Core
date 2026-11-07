@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion Condition="'$(LangVersion)' == ''">10.0</LangVersion>
+    <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <RestoreSources Condition="'$(RestoreSources)' == '' and Exists('$(UserProfile)\.nuget\packages\krafs.rimworld.ref')">$(UserProfile)\.nuget\packages</RestoreSources>
+  </PropertyGroup>
+</Project>

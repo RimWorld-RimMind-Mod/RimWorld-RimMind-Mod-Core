@@ -70,6 +70,10 @@ namespace RimMind.Tests.Contracts
         {
             string repoRoot = FindRepositoryRoot();
             string propsPath = Path.Combine(repoRoot, "Directory.Build.props");
+            if (!File.Exists(propsPath))
+            {
+                propsPath = Path.Combine(repoRoot, "RimMind-Core", "Directory.Build.props");
+            }
 
             ContractCaseRunner.Run(
                 ("Directory.Build.props exists at repository root and sets conditional C# 10, Nullable, and Deterministic defaults", () =>
