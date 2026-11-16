@@ -386,6 +386,51 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal("actions_query_buildable_structures", parsed.Value.ActionIntent);
                     Assert.Equal("call_q1", parsed.Value.ToolCallId);
                     Assert.True(parsed.Value.WantsMoreToolCalls);
+                }),
+                ("suffix _query and .query tools set WantsMoreToolCalls true", () =>
+                {
+                    Assert.True(ThinkStrategyHelper.IsQueryToolName("map_wealth_query"));
+                    Assert.True(ThinkStrategyHelper.IsQueryToolName("pawn_draft_query"));
+                    Assert.True(ThinkStrategyHelper.IsQueryToolName("pawn_health_query"));
+                    Assert.True(ThinkStrategyHelper.IsQueryToolName("pawn.health.query"));
+
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "",
+                        ToolCallsJson = "[{\"id\":\"call_q2\",\"function\":{\"name\":\"map_wealth_query\",\"arguments\":\"{}\"}}]"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("map_wealth_query", parsed.Value.ActionIntent);
+                    Assert.True(parsed.Value.WantsMoreToolCalls);
+                }),
+                ("truncated <Action> JSON recovers intended action via JsonRepairer instead of falling back to dialogue.free", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "<Action>{\"action\":\"place_blueprint\",\"reason\":\"Building a wooden bed for colonist"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("place_blueprint", parsed.Value.ActionIntent);
+                    Assert.Equal("Building a wooden bed for colonist", parsed.Value.Reason);
+                }),
+                ("raw JSON tool object and to= commentary are extracted as tool calls", () =>
+                {
+                    var rawJsonParsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "{\"name\": \"actions_eat_and_recreation\", \"parameters\": {\"reason\": \"Need food\"}}"
+                    });
+                    Assert.True(rawJsonParsed.IsOk);
+                    Assert.Equal("actions_eat_and_recreation", rawJsonParsed.Value.ActionIntent);
+                    Assert.Equal("Need food", rawJsonParsed.Value.Reason);
+                    Assert.Contains("\"reason\":\"Need food\"", rawJsonParsed.Value.Param, StringComparison.Ordinal);
+
+                    var toCommentaryParsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "Checking current work assignment to=pawn_job_query"
+                    });
+                    Assert.True(toCommentaryParsed.IsOk);
+                    Assert.Equal("pawn_job_query", toCommentaryParsed.Value.ActionIntent);
+                    Assert.True(toCommentaryParsed.Value.WantsMoreToolCalls);
                 }));
         }
 

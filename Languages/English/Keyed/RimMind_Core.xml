@@ -34,7 +34,7 @@
   <RimMind.Settings.ApiEndpoint>API Endpoint</RimMind.Settings.ApiEndpoint>
   <RimMind.Settings.ApiEndpoint.Desc>AI service API address. Supports OpenAI-compatible interfaces (e.g. DeepSeek, local Ollama).</RimMind.Settings.ApiEndpoint.Desc>
   <RimMind.Settings.ModelName>Model Name</RimMind.Settings.ModelName>
-  <RimMind.Settings.ModelName.Desc>The model ID to use, e.g. deepseek-v4-flash or gpt-4o-mini.</RimMind.Settings.ModelName.Desc>
+  <RimMind.Settings.ModelName.Desc>The model ID to use, e.g. deepseek-flash, deepseek-v4-pro, or gpt-4o-mini.</RimMind.Settings.ModelName.Desc>
   <RimMind.Settings.BackupEndpoints>Backup API Failover Nodes</RimMind.Settings.BackupEndpoints>
   <RimMind.Settings.BackupEndpoints.Desc>Ordered failover list of backup API endpoints. When the primary endpoint fails (HTTP 503/502/429, timeout, or empty response), RimMind automatically switches to the next healthy backup node and isolates the failing node for 60s.</RimMind.Settings.BackupEndpoints.Desc>
   <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go Backup</RimMind.Settings.BackupEndpoints.AddOpenCode>
@@ -338,6 +338,7 @@
   <RimMind.Prompt.Combat.Fighting>Fighting: {0}</RimMind.Prompt.Combat.Fighting>
   <RimMind.Prompt.Combat.NotInCombat>Not in combat</RimMind.Prompt.Combat.NotInCombat>
   <RimMind.Prompt.Colony.Status>Pop: {0} Wealth: {1} Threats: {2}</RimMind.Prompt.Colony.Status>
+  <RimMind.Prompt.Colony.ActiveThreats>ACTIVE THREATS NEAR YOU: {0}. Consider drafting to fight, fleeing indoors, or keeping distance.</RimMind.Prompt.Colony.ActiveThreats>
   <RimMind.Prompt.Target.Info>Target: {0}</RimMind.Prompt.Target.Info>
   <!-- Agent Mode Switch Notification -->
   <RimMind.Agent.ModeChanged>{0} switched to {1} mode</RimMind.Agent.ModeChanged>
@@ -510,6 +511,18 @@
   <RimMind.UI.DebugTable.Header.Model>Model</RimMind.UI.DebugTable.Header.Model>
   <RimMind.UI.DebugTable.Header.Summary>Summary</RimMind.UI.DebugTable.Header.Summary>
   <RimMind.UI.DebugTable.Header.Request>Request</RimMind.UI.DebugTable.Header.Request>
+  <RimMind.UI.DebugTable.Header.Tool>Tool</RimMind.UI.DebugTable.Header.Tool>
+  <RimMind.UI.DebugTable.Header.Category>Category</RimMind.UI.DebugTable.Header.Category>
+  <RimMind.UI.DebugTable.Header.OwnerMod>Owner Mod</RimMind.UI.DebugTable.Header.OwnerMod>
+  <RimMind.UI.DebugTable.Header.Kind>Kind</RimMind.UI.DebugTable.Header.Kind>
+  <RimMind.UI.DebugTable.Header.Title>Display Name</RimMind.UI.DebugTable.Header.Title>
+  <RimMind.UI.DebugTable.Header.Domain>Domain</RimMind.UI.DebugTable.Header.Domain>
+  <RimMind.UI.DebugTable.Header.OpCount>Ops</RimMind.UI.DebugTable.Header.OpCount>
+  <RimMind.UI.DebugTable.Header.Operations>Operations</RimMind.UI.DebugTable.Header.Operations>
+  <RimMind.UI.DebugTable.Header.Risk>Risk</RimMind.UI.DebugTable.Header.Risk>
+  <RimMind.UI.DebugTable.Header.Score>Score</RimMind.UI.DebugTable.Header.Score>
+  <RimMind.UI.DebugTable.Header.Layer>Layer</RimMind.UI.DebugTable.Header.Layer>
+  <RimMind.UI.DebugTable.Header.CacheScope>Cache Scope</RimMind.UI.DebugTable.Header.CacheScope>
   <RimMind.UI.DebugTable.Empty>No debug records are available.</RimMind.UI.DebugTable.Empty>
   <RimMind.UI.DebugTable.Status.Waiting>Waiting</RimMind.UI.DebugTable.Status.Waiting>
   <RimMind.UI.DebugTable.Status.Streaming>Streaming</RimMind.UI.DebugTable.Status.Streaming>
@@ -833,4 +846,63 @@
   <RimMind.Inspector.SuffHealth>Physical &amp; health state complete: includes pain, bleeding, and severe illness severity filtering.</RimMind.Inspector.SuffHealth>
   <RimMind.Inspector.SuffPathing>Spatial &amp; pathing closed-loop: C# JobDispatcher resolves pathfinding automatically without dumping full-map coordinates into prompts.</RimMind.Inspector.SuffPathing>
   <RimMind.Inspector.SuffSocial>Social relations supported: direct relations and partner information included.</RimMind.Inspector.SuffSocial>
+  <RimMind.UI.Hub.Tab.Traces>AI Traces</RimMind.UI.Hub.Tab.Traces>
+  <RimMind.UI.Hub.Tab.Capabilities>Capabilities</RimMind.UI.Hub.Tab.Capabilities>
+  <RimMind.UI.Traces.SubTab.Rollout>Agent Rollout</RimMind.UI.Traces.SubTab.Rollout>
+  <RimMind.UI.Traces.SubTab.RolloutTip>Inspect multi-turn stateful Agent rollouts with L0-L4 context prefix reuse, thoughts, tool calls, and in-game execution outcomes.</RimMind.UI.Traces.SubTab.RolloutTip>
+  <RimMind.UI.Traces.SubTab.Ephemeral>Ephemeral Requests</RimMind.UI.Traces.SubTab.Ephemeral>
+  <RimMind.UI.Traces.SubTab.EphemeralTip>Inspect one-off non-agent LLM requests (Dialogue, Personality, Storyteller, Advisor, probes) with multi-dimensional filters and formatted JSON/XML.</RimMind.UI.Traces.SubTab.EphemeralTip>
+  <RimMind.UI.Traces.Filter.All>All</RimMind.UI.Traces.Filter.All>
+  <RimMind.UI.Traces.Filter.ModAll>Mod: All</RimMind.UI.Traces.Filter.ModAll>
+  <RimMind.UI.Traces.Filter.ScenarioAll>Scenario: All</RimMind.UI.Traces.Filter.ScenarioAll>
+  <RimMind.UI.Traces.Filter.ActorAll>Actor: All</RimMind.UI.Traces.Filter.ActorAll>
+  <RimMind.UI.Traces.Filter.ActorTip>Filter by colonist agent or request initiator.</RimMind.UI.Traces.Filter.ActorTip>
+  <RimMind.UI.Traces.Filter.StateAll>State: All</RimMind.UI.Traces.Filter.StateAll>
+  <RimMind.UI.Traces.Filter.SearchTip>Search prompt, response, tool name, arguments, or error text.</RimMind.UI.Traces.Filter.SearchTip>
+  <RimMind.UI.Traces.Filter.Reset>Reset</RimMind.UI.Traces.Filter.Reset>
+  <RimMind.UI.Traces.Filter.IncludeRollout>Include Rollout Turns</RimMind.UI.Traces.Filter.IncludeRollout>
+  <RimMind.UI.Traces.Filter.IncludeRolloutTip>Also list individual turns belonging to Agent Rollouts in this table.</RimMind.UI.Traces.Filter.IncludeRolloutTip>
+  <RimMind.UI.Traces.Rollout.Empty>No Agent rollouts recorded matching current filters.</RimMind.UI.Traces.Rollout.Empty>
+  <RimMind.UI.Traces.Rollout.SummaryHeader>Rollout Summary</RimMind.UI.Traces.Rollout.SummaryHeader>
+  <RimMind.UI.Traces.Outcome.Title>In-Game Action Outcome</RimMind.UI.Traces.Outcome.Title>
+  <RimMind.UI.Traces.Outcome.Succeeded>Executed</RimMind.UI.Traces.Outcome.Succeeded>
+  <RimMind.UI.Traces.Outcome.Failed>Rejected</RimMind.UI.Traces.Outcome.Failed>
+  <RimMind.UI.Traces.Detail.Reasoning>Reasoning / Thought</RimMind.UI.Traces.Detail.Reasoning>
+  <RimMind.UI.Capabilities.Tip.ToolCalls>Registered LLM ToolCalls with autonomy domains, risk levels, and JSON schemas.</RimMind.UI.Capabilities.Tip.ToolCalls>
+  <RimMind.UI.Capabilities.Tip.Mechanisms>Low-level RimWorld game state query and mutation mechanisms.</RimMind.UI.Capabilities.Tip.Mechanisms>
+  <RimMind.UI.Capabilities.Tip.ContextKeys>Prompt context variables and providers available to templates.</RimMind.UI.Capabilities.Tip.ContextKeys>
+  <RimMind.UI.Capabilities.CategoryAll>Category: All</RimMind.UI.Capabilities.CategoryAll>
+  <RimMind.UI.Capabilities.CategoryPrefix>Category</RimMind.UI.Capabilities.CategoryPrefix>
+  <RimMind.UI.Capabilities.FilterCategoryTip>Filter capabilities by functional category or scope.</RimMind.UI.Capabilities.FilterCategoryTip>
+  <RimMind.UI.Capabilities.SearchTip>Filter by name, ID, domain, or description.</RimMind.UI.Capabilities.SearchTip>
+  <RimMind.UI.Capabilities.MetaHeader>Metadata</RimMind.UI.Capabilities.MetaHeader>
+  <RimMind.UI.Capabilities.DescriptionHeader>Description</RimMind.UI.Capabilities.DescriptionHeader>
+  <RimMind.UI.Capabilities.SchemaHeader>Parameters JSON Schema</RimMind.UI.Capabilities.SchemaHeader>
+  <RimMind.UI.AgentsPage.Permissions.Title>Agent Permissions</RimMind.UI.AgentsPage.Permissions.Title>
+  <RimMind.UI.AgentsPage.Permissions.TitleTip>Configure which action domains this colonist agent may execute autonomously, require approval for, or disable completely.</RimMind.UI.AgentsPage.Permissions.TitleTip>
+  <RimMind.UI.AgentsPage.Permissions.PresetWorkOnly>Work Only</RimMind.UI.AgentsPage.Permissions.PresetWorkOnly>
+  <RimMind.UI.AgentsPage.Permissions.PresetWorkOnlyTip>Allow survival jobs and resource marking, but forbid placing any construction blueprints or changing Work Tab priorities.</RimMind.UI.AgentsPage.Permissions.PresetWorkOnlyTip>
+  <RimMind.UI.AgentsPage.Permissions.PresetDefault>Default</RimMind.UI.AgentsPage.Permissions.PresetDefault>
+  <RimMind.UI.AgentsPage.Permissions.PresetDefaultTip>Restore balanced default permissions (auto survival/marking, approval for bills/blueprints/high-risk, work priority edits off).</RimMind.UI.AgentsPage.Permissions.PresetDefaultTip>
+  <RimMind.UI.AgentsPage.Permissions.PresetFullAuto>Full Auto</RimMind.UI.AgentsPage.Permissions.PresetFullAuto>
+  <RimMind.UI.AgentsPage.Permissions.PresetFullAutoTip>Allow autonomous execution across survival, marking, bills, blueprints, and work priorities (high-risk still asks approval).</RimMind.UI.AgentsPage.Permissions.PresetFullAutoTip>
+  <RimMind.UI.AgentsPage.Permissions.ApplyAll>Apply to All</RimMind.UI.AgentsPage.Permissions.ApplyAll>
+  <RimMind.UI.AgentsPage.Permissions.ApplyAllTip>Copy this colonist's permission profile to all active colonist agents.</RimMind.UI.AgentsPage.Permissions.ApplyAllTip>
+  <RimMind.UI.AgentsPage.Permissions.AppliedAllToast>Applied permission settings to all active colonist agents.</RimMind.UI.AgentsPage.Permissions.AppliedAllToast>
+  <RimMind.AutonomyLevel.Auto>Auto</RimMind.AutonomyLevel.Auto>
+  <RimMind.AutonomyLevel.Ask>Ask</RimMind.AutonomyLevel.Ask>
+  <RimMind.AutonomyLevel.Off>Off</RimMind.AutonomyLevel.Off>
+  <RimMind.AutonomyDomain.EmergencySurvival>Survival &amp; Jobs</RimMind.AutonomyDomain.EmergencySurvival>
+  <RimMind.AutonomyDomain.EmergencySurvivalTip>Eating, resting, tending, rescuing, moving, and queueing/taking non-blueprint work jobs.</RimMind.AutonomyDomain.EmergencySurvivalTip>
+  <RimMind.AutonomyDomain.ResourceMarking>Resource Marking</RimMind.AutonomyDomain.ResourceMarking>
+  <RimMind.AutonomyDomain.ResourceMarkingTip>Designating trees to chop, plants to harvest, ore to mine, or wildlife to hunt.</RimMind.AutonomyDomain.ResourceMarkingTip>
+  <RimMind.AutonomyDomain.WorktableBills>Worktable Bills</RimMind.AutonomyDomain.WorktableBills>
+  <RimMind.AutonomyDomain.WorktableBillsTip>Creating, pausing, modifying, or deleting production bills on worktables.</RimMind.AutonomyDomain.WorktableBillsTip>
+  <RimMind.AutonomyDomain.BlueprintPlacement>Blueprint Placement</RimMind.AutonomyDomain.BlueprintPlacement>
+  <RimMind.AutonomyDomain.BlueprintPlacementTip>Placing furniture, beds, walls, doors, power, or room construction blueprints. Set to Off to restrict AI to non-blueprint labor.</RimMind.AutonomyDomain.BlueprintPlacementTip>
+  <RimMind.AutonomyDomain.HighRiskOperations>High-Risk Actions</RimMind.AutonomyDomain.HighRiskOperations>
+  <RimMind.AutonomyDomain.HighRiskOperationsTip>Deconstructing structures, arresting pawns, or destructive colony actions.</RimMind.AutonomyDomain.HighRiskOperationsTip>
+  <RimMind.AutonomyDomain.WorkPriorityModification>Work Priorities</RimMind.AutonomyDomain.WorkPriorityModification>
+  <RimMind.AutonomyDomain.WorkPriorityModificationTip>Modifying colonist Work Tab numeric priorities (1-4). Off by default so AI does not overwrite player Work Tab settings.</RimMind.AutonomyDomain.WorkPriorityModificationTip>
+  <RimMind.Prompt.ColonyRooms>ColonyRooms: [{0}]</RimMind.Prompt.ColonyRooms>
 </LanguageData>

@@ -24,6 +24,20 @@ namespace RimMind.Presentation.Agent.Perception
             if (agent is IPawnAgentVerse pawnAgent)
             {
                 var pawn = pawnAgent.Pawn;
+                if (pawn != null && !pawn.Dead)
+                {
+                    var threats = ThreatScanner.FindNearbyThreats(pawn);
+                    if (threats.Count > 0)
+                    {
+                        entries.Add(new PerceptionBufferEntry
+                        {
+                            PerceptionType = "combat",
+                            Content = $"DANGER: hostile nearby - {ThreatScanner.Describe(pawn, threats)}. Draft to fight (pawn.draft), flee indoors, or keep away.",
+                            Importance = RimMindDefaults.PerceptionCriticalThreshold,
+                            Tick = Find.TickManager.TicksGame
+                        });
+                    }
+                }
                 if (pawn?.Drafted == true)
                 {
                     entries.Add(new PerceptionBufferEntry

@@ -216,7 +216,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 error.Code == RimMindErrorCode.Cancelled ||
                 error.Code == RimMindErrorCode.ClientNotConfigured ||
                 error.Code == RimMindErrorCode.PipelineShortCircuited ||
-                error.Code == RimMindErrorCode.ContextBuildFailed))
+                error.Code == RimMindErrorCode.ContextBuildFailed ||
+                error.Code == RimMindErrorCode.ContentFiltered))
             {
                 return;
             }

@@ -10,6 +10,7 @@ namespace RimMind.Application.Common.Models.Mechanisms
         public string? DefName { get; init; }
         public string Action { get; init; } = "";
         public string? ValueJson { get; init; }
+        public string? RawArgumentsJson { get; init; }
         public string? TraceId { get; init; }
         public Dictionary<string, string>? Params { get; init; }
     }

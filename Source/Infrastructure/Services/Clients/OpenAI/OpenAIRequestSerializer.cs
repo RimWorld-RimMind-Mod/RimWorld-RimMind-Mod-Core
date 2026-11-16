@@ -102,9 +102,26 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 
                 if (token["error"] != null && token["error"]!.Type != JTokenType.Null)
                 {
-                    string errMsg = token["error"]?["message"]?.ToString() ?? "Unknown API error";
-                    return Result<LlmResponse, RimMindError>.Err(
-                        RimMindErrors.ClientPermanent(LogSanitizer.ForLog(errMsg)));
+                    string errMsg = AsString(token["error"]?["message"]) ?? "Unknown API error";
+                    string errType = AsString(token["error"]?["type"]) ?? string.Empty;
+                    string errCode = AsString(token["error"]?["code"]) ?? string.Empty;
+                    string safeErr = LogSanitizer.ForLog(errMsg);
+
+                    if (errMsg.IndexOf("Content Exists Risk", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        errCode.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        errType.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ContentFiltered(safeErr));
+                    }
+
+                    if (string.Equals(errType, "server_error", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(errType, "api_error", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(errCode, "server_error", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientTransient(safeErr));
+                    }
+
+                    return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientPermanent(safeErr));
                 }
 
                 var choices = token["choices"] as JArray;
@@ -124,6 +141,23 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 string content = AsString(message["content"]) ?? string.Empty;
                 string? reasoningContent = AsString(message["reasoning_content"]);
                 string? finishReason = AsString(choices[0]["finish_reason"]);
+                string? refusal = AsString(message["refusal"]);
+
+                if (string.Equals(finishReason, "content_filter", StringComparison.OrdinalIgnoreCase) ||
+                    !string.IsNullOrWhiteSpace(refusal))
+                {
+                    string refusalDetail = !string.IsNullOrWhiteSpace(refusal)
+                        ? LogSanitizer.ForLog(refusal!)
+                        : "Response blocked by upstream content filter (finish_reason=content_filter).";
+                    return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ContentFiltered(refusalDetail));
+                }
+
+                if (string.Equals(finishReason, "insufficient_system_resource", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(finishReason, "aborted", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Result<LlmResponse, RimMindError>.Err(
+                        RimMindErrors.ClientTransient($"Upstream generation interrupted (finish_reason={finishReason})."));
+                }
 
                 string? toolCallsJson = null;
                 var toolCalls = message["tool_calls"] as JArray;
@@ -167,11 +201,23 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     content = reasoningContent!;
                 }
 
+                // Some providers (e.g. json_object validation failure) replace non-JSON output with spaces (U+0020)
+                if (toolCallsJson == null &&
+                    content.Length > 0 &&
+                    string.IsNullOrWhiteSpace(content) &&
+                    string.IsNullOrWhiteSpace(reasoningContent))
+                {
+                    return Result<LlmResponse, RimMindError>.Err(
+                        RimMindErrors.ClientTransient("Upstream returned whitespace-only content."));
+                }
+
                 var usage = token["usage"];
                 int promptTokens = AsInt(usage?["prompt_tokens"]) ?? 0;
                 int completionTokens = AsInt(usage?["completion_tokens"]) ?? 0;
                 int totalTokens = AsInt(usage?["total_tokens"]) ?? (promptTokens + completionTokens);
-                int cachedTokens = AsInt(usage?["prompt_tokens_details"]?["cached_tokens"]) ?? 0;
+                int cachedTokens = AsInt(usage?["prompt_tokens_details"]?["cached_tokens"])
+                    ?? AsInt(usage?["prompt_cache_hit_tokens"])
+                    ?? 0;
 
                 var llmResponse = new LlmResponse
                 {

@@ -22,11 +22,15 @@ namespace RimMind.Tests.Contracts
                     Assert.True(loop.ShouldContinue(requestMoreTools, currentDepth: 0));
                     Assert.False(loop.ShouldContinue(requestMoreTools, currentDepth: 1));
                 }),
-                ("pawn thinker wires tick settings into the real loop", () =>
+                ("pawn thinker wires tick settings into the real loop and resets workflow phase on early exit/timeout", () =>
                 {
                     var thinker = ReadSource("Presentation/Agent/PawnThinker.cs");
                     Assert.Contains(
                         "new AgenticLoopService(tickSettings.MaxToolCallDepth)",
+                        thinker,
+                        StringComparison.Ordinal);
+                    Assert.Contains(
+                        "if (_agent.WorkflowPhase == AgentWorkflowPhase.Thinking)",
                         thinker,
                         StringComparison.Ordinal);
                 }),

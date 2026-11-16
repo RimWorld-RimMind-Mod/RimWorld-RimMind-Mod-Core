@@ -28,6 +28,12 @@ namespace RimMind.Domain.Agent.Policies
         /// <summary>
         /// High-risk irreversible or costly actions (demolishing permanent structures, consuming scarce components, medical surgery).
         /// </summary>
-        HighRiskOperations = 4
+        HighRiskOperations = 4,
+
+        /// <summary>
+        /// Modifying colonist Work Tab priorities (e.g. pawn.work.set / assign_work priority bump).
+        /// Disabled by default to preserve player Work Tab schedules.
+        /// </summary>
+        WorkPriorityModification = 5
     }
 }

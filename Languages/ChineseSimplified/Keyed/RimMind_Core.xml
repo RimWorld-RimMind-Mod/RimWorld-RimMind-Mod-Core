@@ -34,7 +34,7 @@
   <RimMind.Settings.ApiEndpoint>API 端点</RimMind.Settings.ApiEndpoint>
   <RimMind.Settings.ApiEndpoint.Desc>AI 服务的 API 地址。支持 OpenAI 兼容接口（如 DeepSeek、本地 Ollama 等）。</RimMind.Settings.ApiEndpoint.Desc>
   <RimMind.Settings.ModelName>模型名称</RimMind.Settings.ModelName>
-  <RimMind.Settings.ModelName.Desc>要使用的模型 ID，如 deepseek-v4-flash、gpt-4o-mini 等。</RimMind.Settings.ModelName.Desc>
+  <RimMind.Settings.ModelName.Desc>要使用的模型 ID，如 deepseek-flash、deepseek-v4-pro、gpt-4o-mini 等。</RimMind.Settings.ModelName.Desc>
   <RimMind.Settings.BackupEndpoints>备用 API 容灾节点列表 (Failover List)</RimMind.Settings.BackupEndpoints>
   <RimMind.Settings.BackupEndpoints.Desc>按顺序排列的备用 API 节点列表。当主 API 节点请求失败（如 HTTP 503/502/429、超时或空响应）时，RimMind 会在单次请求内自动平滑切换至列表中的下一个可用备用节点，并对故障节点执行 60 秒临时隔离。</RimMind.Settings.BackupEndpoints.Desc>
   <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go 备用</RimMind.Settings.BackupEndpoints.AddOpenCode>
@@ -338,6 +338,7 @@
   <RimMind.Prompt.Combat.Fighting>战斗中：{0}</RimMind.Prompt.Combat.Fighting>
   <RimMind.Prompt.Combat.NotInCombat>未在战斗中</RimMind.Prompt.Combat.NotInCombat>
   <RimMind.Prompt.Colony.Status>人口：{0} 财富：{1} 威胁：{2}</RimMind.Prompt.Colony.Status>
+  <RimMind.Prompt.Colony.ActiveThreats>附近的活跃威胁：{0}。考虑征召迎战、躲入室内或保持距离。</RimMind.Prompt.Colony.ActiveThreats>
   <RimMind.Prompt.Target.Info>目标：{0}</RimMind.Prompt.Target.Info>
   <!-- Agent Mode Switch Notification -->
   <RimMind.Agent.ModeChanged>{0} 切换为 {1} 模式</RimMind.Agent.ModeChanged>
@@ -510,6 +511,18 @@
   <RimMind.UI.DebugTable.Header.Model>模型</RimMind.UI.DebugTable.Header.Model>
   <RimMind.UI.DebugTable.Header.Summary>摘要</RimMind.UI.DebugTable.Header.Summary>
   <RimMind.UI.DebugTable.Header.Request>请求</RimMind.UI.DebugTable.Header.Request>
+  <RimMind.UI.DebugTable.Header.Tool>工具</RimMind.UI.DebugTable.Header.Tool>
+  <RimMind.UI.DebugTable.Header.Category>分类</RimMind.UI.DebugTable.Header.Category>
+  <RimMind.UI.DebugTable.Header.OwnerMod>所属模组</RimMind.UI.DebugTable.Header.OwnerMod>
+  <RimMind.UI.DebugTable.Header.Kind>类型</RimMind.UI.DebugTable.Header.Kind>
+  <RimMind.UI.DebugTable.Header.Title>显示名称</RimMind.UI.DebugTable.Header.Title>
+  <RimMind.UI.DebugTable.Header.Domain>权限域</RimMind.UI.DebugTable.Header.Domain>
+  <RimMind.UI.DebugTable.Header.OpCount>操作数</RimMind.UI.DebugTable.Header.OpCount>
+  <RimMind.UI.DebugTable.Header.Operations>支持操作</RimMind.UI.DebugTable.Header.Operations>
+  <RimMind.UI.DebugTable.Header.Risk>风险等级</RimMind.UI.DebugTable.Header.Risk>
+  <RimMind.UI.DebugTable.Header.Score>分数</RimMind.UI.DebugTable.Header.Score>
+  <RimMind.UI.DebugTable.Header.Layer>层级</RimMind.UI.DebugTable.Header.Layer>
+  <RimMind.UI.DebugTable.Header.CacheScope>缓存域</RimMind.UI.DebugTable.Header.CacheScope>
   <RimMind.UI.DebugTable.Empty>暂无调试记录。</RimMind.UI.DebugTable.Empty>
   <RimMind.UI.DebugTable.Status.Waiting>等待中</RimMind.UI.DebugTable.Status.Waiting>
   <RimMind.UI.DebugTable.Status.Streaming>流式返回中</RimMind.UI.DebugTable.Status.Streaming>
@@ -833,4 +846,63 @@
   <RimMind.Inspector.SuffHealth>生理与健康状态完备：包含疼痛、出血、严重疾病严重度过滤。</RimMind.Inspector.SuffHealth>
   <RimMind.Inspector.SuffPathing>空间与路径闭环：由底层 C# JobDispatcher 自动解析目标寻路，无需在 Prompt 中堆砌全图坐标。</RimMind.Inspector.SuffPathing>
   <RimMind.Inspector.SuffSocial>社交关系支持：直接关系人与伴侣信息已包含。</RimMind.Inspector.SuffSocial>
+  <RimMind.UI.Hub.Tab.Traces>AI 轨迹与请求</RimMind.UI.Hub.Tab.Traces>
+  <RimMind.UI.Hub.Tab.Capabilities>能力与机制</RimMind.UI.Hub.Tab.Capabilities>
+  <RimMind.UI.Traces.SubTab.Rollout>Agent 决策轨迹</RimMind.UI.Traces.SubTab.Rollout>
+  <RimMind.UI.Traces.SubTab.RolloutTip>查看多轮有状态 Agent 决策轨迹，包含 L0-L4 上下文层前缀复用标记、思考过程、工具调用与游戏内真实落盘结果。</RimMind.UI.Traces.SubTab.RolloutTip>
+  <RimMind.UI.Traces.SubTab.Ephemeral>临时单次请求</RimMind.UI.Traces.SubTab.Ephemeral>
+  <RimMind.UI.Traces.SubTab.EphemeralTip>查看非 Agent 的单次临时请求（对话、人格、叙事者、顾问及探测），支持多维筛选与 JSON/XML 结构化展示。</RimMind.UI.Traces.SubTab.EphemeralTip>
+  <RimMind.UI.Traces.Filter.All>全部</RimMind.UI.Traces.Filter.All>
+  <RimMind.UI.Traces.Filter.ModAll>模块: 全部</RimMind.UI.Traces.Filter.ModAll>
+  <RimMind.UI.Traces.Filter.ScenarioAll>场景: 全部</RimMind.UI.Traces.Filter.ScenarioAll>
+  <RimMind.UI.Traces.Filter.ActorAll>对象: 全部</RimMind.UI.Traces.Filter.ActorAll>
+  <RimMind.UI.Traces.Filter.ActorTip>按殖民者 Agent 或请求发起对象筛选。</RimMind.UI.Traces.Filter.ActorTip>
+  <RimMind.UI.Traces.Filter.StateAll>状态: 全部</RimMind.UI.Traces.Filter.StateAll>
+  <RimMind.UI.Traces.Filter.SearchTip>搜索提示词、响应内容、工具名称、参数或报错信息。</RimMind.UI.Traces.Filter.SearchTip>
+  <RimMind.UI.Traces.Filter.Reset>重置</RimMind.UI.Traces.Filter.Reset>
+  <RimMind.UI.Traces.Filter.IncludeRollout>包含轨迹单轮</RimMind.UI.Traces.Filter.IncludeRollout>
+  <RimMind.UI.Traces.Filter.IncludeRolloutTip>在此列表中同时显示属于 Agent 轨迹的单轮底层请求。</RimMind.UI.Traces.Filter.IncludeRolloutTip>
+  <RimMind.UI.Traces.Rollout.Empty>当前筛选条件下暂无 Agent 决策轨迹记录。</RimMind.UI.Traces.Rollout.Empty>
+  <RimMind.UI.Traces.Rollout.SummaryHeader>轨迹摘要</RimMind.UI.Traces.Rollout.SummaryHeader>
+  <RimMind.UI.Traces.Outcome.Title>游戏内动作执行结果</RimMind.UI.Traces.Outcome.Title>
+  <RimMind.UI.Traces.Outcome.Succeeded>已生效</RimMind.UI.Traces.Outcome.Succeeded>
+  <RimMind.UI.Traces.Outcome.Failed>未生效</RimMind.UI.Traces.Outcome.Failed>
+  <RimMind.UI.Traces.Detail.Reasoning>推理与思考</RimMind.UI.Traces.Detail.Reasoning>
+  <RimMind.UI.Capabilities.Tip.ToolCalls>已注册的 LLM ToolCall 工具集，包含自治权限域、风险等级与 JSON 参数定义。</RimMind.UI.Capabilities.Tip.ToolCalls>
+  <RimMind.UI.Capabilities.Tip.Mechanisms>底层 RimWorld 游戏状态查询与修改机制注册表。</RimMind.UI.Capabilities.Tip.Mechanisms>
+  <RimMind.UI.Capabilities.Tip.ContextKeys>提示词模板可用的上下文变量与数据提供器。</RimMind.UI.Capabilities.Tip.ContextKeys>
+  <RimMind.UI.Capabilities.CategoryAll>分类: 全部</RimMind.UI.Capabilities.CategoryAll>
+  <RimMind.UI.Capabilities.CategoryPrefix>分类</RimMind.UI.Capabilities.CategoryPrefix>
+  <RimMind.UI.Capabilities.FilterCategoryTip>按功能分类或作用域筛选能力项。</RimMind.UI.Capabilities.FilterCategoryTip>
+  <RimMind.UI.Capabilities.SearchTip>按名称、ID、权限域或描述关键字筛选。</RimMind.UI.Capabilities.SearchTip>
+  <RimMind.UI.Capabilities.MetaHeader>元数据</RimMind.UI.Capabilities.MetaHeader>
+  <RimMind.UI.Capabilities.DescriptionHeader>功能说明</RimMind.UI.Capabilities.DescriptionHeader>
+  <RimMind.UI.Capabilities.SchemaHeader>参数 JSON Schema</RimMind.UI.Capabilities.SchemaHeader>
+  <RimMind.UI.AgentsPage.Permissions.Title>自治权限控制</RimMind.UI.AgentsPage.Permissions.Title>
+  <RimMind.UI.AgentsPage.Permissions.TitleTip>配置该殖民者 Agent 在各行为域下允许自动执行、需审批或完全禁用（禁用后对应工具不会暴露给该 Agent）。</RimMind.UI.AgentsPage.Permissions.TitleTip>
+  <RimMind.UI.AgentsPage.Permissions.PresetWorkOnly>仅工作</RimMind.UI.AgentsPage.Permissions.PresetWorkOnly>
+  <RimMind.UI.AgentsPage.Permissions.PresetWorkOnlyTip>允许执行日常生存工作与资源标记，禁止放置任何建筑蓝图或篡改工作面板优先级。</RimMind.UI.AgentsPage.Permissions.PresetWorkOnlyTip>
+  <RimMind.UI.AgentsPage.Permissions.PresetDefault>均衡默认</RimMind.UI.AgentsPage.Permissions.PresetDefault>
+  <RimMind.UI.AgentsPage.Permissions.PresetDefaultTip>恢复默认权限（生存与标记自动执行，清单/蓝图/高风险需审批，禁止修改工作优先级）。</RimMind.UI.AgentsPage.Permissions.PresetDefaultTip>
+  <RimMind.UI.AgentsPage.Permissions.PresetFullAuto>全自动</RimMind.UI.AgentsPage.Permissions.PresetFullAuto>
+  <RimMind.UI.AgentsPage.Permissions.PresetFullAutoTip>允许自动执行生存、标记、清单、蓝图放置与工作优先级调整（高风险操作仍需审批）。</RimMind.UI.AgentsPage.Permissions.PresetFullAutoTip>
+  <RimMind.UI.AgentsPage.Permissions.ApplyAll>应用至全员</RimMind.UI.AgentsPage.Permissions.ApplyAll>
+  <RimMind.UI.AgentsPage.Permissions.ApplyAllTip>将当前殖民者的权限配置同步应用到所有活跃殖民者 Agent。</RimMind.UI.AgentsPage.Permissions.ApplyAllTip>
+  <RimMind.UI.AgentsPage.Permissions.AppliedAllToast>已将权限设置同步应用至所有活跃殖民者 Agent。</RimMind.UI.AgentsPage.Permissions.AppliedAllToast>
+  <RimMind.AutonomyLevel.Auto>自动</RimMind.AutonomyLevel.Auto>
+  <RimMind.AutonomyLevel.Ask>审批</RimMind.AutonomyLevel.Ask>
+  <RimMind.AutonomyLevel.Off>禁止</RimMind.AutonomyLevel.Off>
+  <RimMind.AutonomyDomain.EmergencySurvival>生存与工作调度</RimMind.AutonomyDomain.EmergencySurvival>
+  <RimMind.AutonomyDomain.EmergencySurvivalTip>进食、休息、包扎、救援、移动，以及接取或排队非蓝图类日常工作。</RimMind.AutonomyDomain.EmergencySurvivalTip>
+  <RimMind.AutonomyDomain.ResourceMarking>资源采集标记</RimMind.AutonomyDomain.ResourceMarking>
+  <RimMind.AutonomyDomain.ResourceMarkingTip>标记砍树、收获野生作物、开采矿脉或狩猎野生动物。</RimMind.AutonomyDomain.ResourceMarkingTip>
+  <RimMind.AutonomyDomain.WorktableBills>工作台生产清单</RimMind.AutonomyDomain.WorktableBills>
+  <RimMind.AutonomyDomain.WorktableBillsTip>在各类工作台上新建、暂停、修改或删除制作清单。</RimMind.AutonomyDomain.WorktableBillsTip>
+  <RimMind.AutonomyDomain.BlueprintPlacement>建筑蓝图放置</RimMind.AutonomyDomain.BlueprintPlacement>
+  <RimMind.AutonomyDomain.BlueprintPlacementTip>放置床铺、家具、墙体、门、电力或房间规划蓝图。设为“禁止”可限制 AI 仅从事非蓝图工作。</RimMind.AutonomyDomain.BlueprintPlacementTip>
+  <RimMind.AutonomyDomain.HighRiskOperations>高风险敏感操作</RimMind.AutonomyDomain.HighRiskOperations>
+  <RimMind.AutonomyDomain.HighRiskOperationsTip>拆除已有建筑、逮捕人员等不可逆或高风险殖民地操作。</RimMind.AutonomyDomain.HighRiskOperationsTip>
+  <RimMind.AutonomyDomain.WorkPriorityModification>工作优先级表</RimMind.AutonomyDomain.WorkPriorityModification>
+  <RimMind.AutonomyDomain.WorkPriorityModificationTip>修改殖民者工作面板的数字优先级（1-4）。默认禁止，防止 AI 覆盖玩家手动配置的工作表。</RimMind.AutonomyDomain.WorkPriorityModificationTip>
+  <RimMind.Prompt.ColonyRooms>殖民地房间拓扑: [{0}]</RimMind.Prompt.ColonyRooms>
 </LanguageData>

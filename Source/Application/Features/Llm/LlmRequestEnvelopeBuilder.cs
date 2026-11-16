@@ -24,6 +24,7 @@ namespace RimMind.Application.Features.Llm
         private CancellationToken _ct = default;
         private int _maxTokens = 800;
         private float _temperature = 0.7f;
+        private ReasoningEffort _reasoningEffort = ReasoningEffort.Auto;
         private int? _expireAtTicks;
         private int? _maxRetryCount;
         private Dictionary<string, string>? _hints;
@@ -146,6 +147,12 @@ namespace RimMind.Application.Features.Llm
             return this;
         }
 
+        public LlmRequestEnvelopeBuilder WithReasoningEffort(ReasoningEffort effort)
+        {
+            _reasoningEffort = effort;
+            return this;
+        }
+
         public LlmRequestEnvelopeBuilder WithExpireAtTicks(int? ticks)
         {
             _expireAtTicks = ticks;
@@ -208,6 +215,7 @@ namespace RimMind.Application.Features.Llm
                 Examples = _examples,
                 MaxTokens = _maxTokens,
                 Temperature = _temperature,
+                ReasoningEffort = _reasoningEffort,
                 Priority = _priority,
                 ExpireAtTicks = _expireAtTicks,
                 MaxRetryCount = _maxRetryCount,

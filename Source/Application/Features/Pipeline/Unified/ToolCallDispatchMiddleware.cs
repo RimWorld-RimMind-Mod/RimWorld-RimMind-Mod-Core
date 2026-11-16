@@ -71,12 +71,14 @@ namespace RimMind.Application.Features.Pipeline.Unified
             {
                 var result = await DispatchToolCallAsync(tc, context, context.Ct);
                 results.Add(result);
-                _traceLog?.AddToolCall(
+                _traceLog?.AddToolCallDetailed(
                     requestId,
                     result.ToolCallId ?? tc.Id,
                     result.ToolName ?? tc.FunctionName,
                     !result.IsError,
-                    result.IsError ? result.Content : null);
+                    result.IsError ? result.Content : null,
+                    tc.ArgumentsJson,
+                    result.Content);
             }
 
             // Store results in context for downstream consumers

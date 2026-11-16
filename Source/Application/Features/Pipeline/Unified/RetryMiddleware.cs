@@ -46,6 +46,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
                         return;
                     if (context.Result.HasValue && context.Result.Value.IsErr &&
                         (context.Result.Value.Error.Code == RimMindErrorCode.ClientPermanentFailure ||
+                         context.Result.Value.Error.Code == RimMindErrorCode.ContentFiltered ||
+                         context.Result.Value.Error.Code == RimMindErrorCode.ClientQuotaOrAuthFailure ||
                          context.Result.Value.Error.Code == RimMindErrorCode.Cancelled))
                         return;
                     if (context.IsShortCircuited

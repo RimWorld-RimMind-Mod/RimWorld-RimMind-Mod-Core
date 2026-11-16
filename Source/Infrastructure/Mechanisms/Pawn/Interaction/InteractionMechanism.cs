@@ -76,18 +76,67 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Interaction
                         var job = joyGiver.Worker.TryGiveJob(pawn);
                         if (job != null)
                         {
-                            pawn.jobs.StartJob(job, JobCondition.InterruptForced);
-                            return Task.FromResult(Result<bool, RimMindError>.Ok(true));
+                            return Task.FromResult(RimMind.Infrastructure.Mechanisms.Pawn.Job.JobActionDispatcher.StartJobVerified(pawn, job, MechanismId));
                         }
                     }
+
+                    foreach (var fallbackGiver in DefDatabase<JoyGiverDef>.AllDefsListForReading)
+                    {
+                        if (fallbackGiver == null || fallbackGiver.defName == "SocialRelax" || fallbackGiver.Worker == null)
+                            continue;
+                        try
+                        {
+                            var fallbackJob = fallbackGiver.Worker.TryGiveJob(pawn);
+                            if (fallbackJob != null)
+                            {
+                                return Task.FromResult(RimMind.Infrastructure.Mechanisms.Pawn.Job.JobActionDispatcher.StartJobVerified(pawn, fallbackJob, MechanismId));
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore individual joy giver exceptions and try next
+                        }
+                    }
+
+                    var nearbyPeer = targetPawn;
+                    if (nearbyPeer == null && pawn.Map != null)
+                    {
+                        var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(pawn.Map);
+                        for (int i = 0; i < colonists.Count; i++)
+                        {
+                            var other = colonists[i];
+                            if (other != null && other != pawn && RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(other) && !other.Downed)
+                            {
+                                nearbyPeer = other;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (nearbyPeer != null)
+                    {
+                        InteractionDef chitchatDef = DefDatabase<InteractionDef>.GetNamedSilentFail("Chitchat");
+                        if (chitchatDef != null)
+                        {
+                            try { pawn.interactions?.TryInteractWith(nearbyPeer, chitchatDef); } catch { }
+                        }
+                    }
+
+                    if (JobDefOf.Wait_Wander != null && pawn.jobs != null)
+                    {
+                        var wanderJob = JobMaker.MakeJob(JobDefOf.Wait_Wander);
+                        wanderJob.expiryInterval = 600;
+                        wanderJob.checkOverrideOnExpire = true;
+                        return Task.FromResult(RimMind.Infrastructure.Mechanisms.Pawn.Job.JobActionDispatcher.StartJobVerified(pawn, wanderJob, MechanismId));
+                    }
+
                     return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction(MechanismId, "social_relax: no social relax available")));
 
                 case "give_item":
                     if (targetPawn == null)
                         return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId)));
                     var giveJob = JobMaker.MakeJob(JobDefOf.Goto, new LocalTargetInfo(targetPawn));
-                    pawn.jobs.StartJob(giveJob, JobCondition.InterruptForced);
-                    return Task.FromResult(Result<bool, RimMindError>.Ok(true));
+                    return Task.FromResult(RimMind.Infrastructure.Mechanisms.Pawn.Job.JobActionDispatcher.StartJobVerified(pawn, giveJob, MechanismId));
 
                 case "romance_attempt":
                     if (targetPawn == null)

@@ -27,6 +27,7 @@
 ### 核心特性
 - **4-Zone KV-Cache 深度前缀优化**：将不变的世界观规则（Zone 1）与小人永久档案（Zone 2）固定在前缀，将历史（Zone 3）与易变的环境时间天气（Zone 4）隔离在报文末尾，实现 80%+ 的前缀缓存命中率。
 - **三层智能体自治分级治理（`RimMindAPI.Autonomy`）**：按五大自治领域（`Survival` 生存、`Work` 劳作、`Social` 社交、`Colony` 殖民地、`Governance` 统治）与三档自治级别（`Auto` 自动执行、`AutoWithNotify` 自动并通知、`RecommendOnly` 仅建议审批）结合 `ToolManifest.RiskLevel` 精准门控智能体动作。
+- **供应商无关引擎核心不变量（`ReasoningEffort` / `ContentFiltered` / `ISpeechSynthesizer` / `ISpeechRecognizer`）**：在 Domain 与 Application 层纯抽象定义思考预算控制、内容风控不重试/不熔断语义、账单配额失效隔离及正交语音合成/识别扩展端口，零厂商硬编码。
 - **原生 ToolCall 注册中心与渐进式工具发现（`query_tool_help`）**：强类型工具定义配合 `QueryToolHelpTool` 按需加载详细参数 Schema，大幅压缩常驻 Prompt Token 消耗并彻底杜绝 Markdown 格式解析错误。
 - **主备端点容灾与异步优先级请求队列**：纯后台线程执行 HTTP/JSON 请求，内置 `BackupEndpointNode` 主备节点自动故障转移、仅针对真实传输故障计数的 `CircuitBreakerMiddleware` 断路器，并通过 `RequestCompletionInbox` 在主线程安全消费 Unity/Verse 副作用。
 - **Pawn 存活与生命周期守卫（`RimMindPawnLookup`）**：提供线程安全的 Pawn 索引与销毁驱逐机制（`IsActiveSpawnedColonist`、`IsEligibleColonist`、`IsActiveColonyAnimal`、`UncachePawn`），杜绝阵亡、离图或囚犯 Pawn 产生幽灵请求。
@@ -104,7 +105,7 @@ flowchart TD
 |---|---|---|
 | **AI Provider** | `openai` | 支持 OpenAI 兼容端点、DeepSeek、Player2 与扩展网关 |
 | **API 端点与备用节点** | `https://api.deepseek.com/v1` | 主 OpenAI Chat Completions URL 及 `BackupEndpointNode` 自动故障转移列表 |
-| **模型名称** | `deepseek-chat` | 目标大语言模型标识符 |
+| **模型名称** | `deepseek-flash` | 目标大语言模型标识符（如 `deepseek-flash`、`deepseek-v4-pro`、`gpt-4o-mini`） |
 | **智能体自治策略** | 按领域分级 | 独立配置五大领域（`Survival`/`Work`/`Social`/`Colony`/`Governance`）的自治级别（`Auto`/`AutoWithNotify`/`RecommendOnly`） |
 | **最大并发请求数** | `3` | 同时发送给大模型的请求上限（1~10） |
 | **请求超时** | `60秒` | 等待 AI 响应的最大超时时限（10~180秒） |

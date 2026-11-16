@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Linq;
 using RimMind.Presentation.UI.Layout;
+using UnityEngine;
 using Verse;
 
 namespace RimMind.Infrastructure.UI.Layout
@@ -19,25 +21,66 @@ namespace RimMind.Infrastructure.UI.Layout
             bool prevTracing = LayoutConflictStore.TracingEnabled;
             LayoutConflictStore.TracingEnabled = true;
 
-            LongEventHandler.ExecuteWhenFinished(() =>
+            if (Current.Root != null && Current.Root.gameObject != null)
             {
+                var verifier = Current.Root.gameObject.AddComponent<DeferredLayoutVerifier>();
+                verifier.Begin(windows, prevTracing, reportResult);
+                return;
+            }
+
+            LongEventHandler.ExecuteWhenFinished(() => EvaluateAndClose(windows, prevTracing, reportResult));
+        }
+
+        private static void EvaluateAndClose(
+            Window[] windows,
+            bool prevTracing,
+            Action<LayoutAutotestEvaluation> reportResult)
+        {
+            try
+            {
+                LayoutAutotestEvaluation evaluation = LayoutAutotestEvaluator.Evaluate(
+                    windows.Select(window => window.GetType().Name),
+                    windowName => LayoutConflictStore.TryGet(windowName, out LayoutReport? layoutReport)
+                        ? layoutReport
+                        : null);
+
+                LogEvaluation(evaluation);
+                reportResult(evaluation);
+            }
+            finally
+            {
+                LayoutConflictStore.TracingEnabled = prevTracing;
+                CloseWindows(windows);
+            }
+        }
+
+        private sealed class DeferredLayoutVerifier : MonoBehaviour
+        {
+            public void Begin(
+                Window[] windows,
+                bool prevTracing,
+                Action<LayoutAutotestEvaluation> reportResult)
+            {
+                StartCoroutine(WaitAndEvaluateRoutine(windows, prevTracing, reportResult));
+            }
+
+            private IEnumerator WaitAndEvaluateRoutine(
+                Window[] windows,
+                bool prevTracing,
+                Action<LayoutAutotestEvaluation> reportResult)
+            {
+                for (int i = 0; i < 3; i++)
+                    yield return new WaitForEndOfFrame();
+
                 try
                 {
-                    LayoutAutotestEvaluation evaluation = LayoutAutotestEvaluator.Evaluate(
-                        windows.Select(window => window.GetType().Name),
-                        windowName => LayoutConflictStore.TryGet(windowName, out LayoutReport? layoutReport)
-                            ? layoutReport
-                            : null);
-
-                    LogEvaluation(evaluation);
-                    reportResult(evaluation);
+                    EvaluateAndClose(windows, prevTracing, reportResult);
                 }
                 finally
                 {
-                    LayoutConflictStore.TracingEnabled = prevTracing;
-                    CloseWindows(windows);
+                    Destroy(this);
                 }
-            });
+            }
         }
 
         private static void LogEvaluation(LayoutAutotestEvaluation evaluation)

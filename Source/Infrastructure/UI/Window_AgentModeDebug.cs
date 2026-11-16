@@ -101,9 +101,8 @@ namespace RimMind.Infrastructure.UI
 
             float contentH = _cachedPawns.Count * RimMindUI.LineHeight;
             Rect viewRect = new Rect(listRect.x, listRect.y, listRect.width - 16f, contentH);
-            Widgets.BeginScrollView(listRect, ref _pawnListScrollPos, viewRect);
             scope.Record(listRect, "ScrollView:PawnListOuter");
-            scope.Record(viewRect, "ScrollView:PawnListContent");
+            Widgets.BeginScrollView(listRect, ref _pawnListScrollPos, viewRect);
 
             float rowY = listRect.y;
             for (int i = 0; i < _cachedPawns.Count; i++)
@@ -116,7 +115,6 @@ namespace RimMind.Infrastructure.UI
                 string label = $"{pawn.Name?.ToStringShort ?? pawn.LabelShort}";
 
                 Rect rowRect = new Rect(viewRect.x, rowY, viewRect.width, RimMindUI.LineHeight);
-                scope.Record(rowRect, $"PawnRow:{i}");
                 if (i == _selectedPawnIndex)
                     Widgets.DrawBoxSolid(rowRect, RimMindUI.ColorTabActive);
 
@@ -162,9 +160,8 @@ namespace RimMind.Infrastructure.UI
 
             float contentH = CalculateDetailContentHeight(agent, currentMode, rect.width);
             Rect viewRect = new Rect(rect.x, rect.y, rect.width - 16f, contentH);
-            Widgets.BeginScrollView(rect, ref _detailScrollPos, viewRect);
             scope.Record(rect, "ScrollView:DetailOuter");
-            scope.Record(viewRect, "ScrollView:DetailContent");
+            Widgets.BeginScrollView(rect, ref _detailScrollPos, viewRect);
 
             float y = viewRect.y;
 

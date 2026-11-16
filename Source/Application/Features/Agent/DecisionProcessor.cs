@@ -37,6 +37,7 @@ namespace RimMind.Application.Features.Agent
         private readonly IDecisionValidator _validator;
         private readonly IToolRegistry? _toolRegistry;
         private readonly IAgenticLoopService _loopService;
+        private readonly Action<string, string, bool, string?, string?>? _recordTraceOutcome;
 
         public DecisionProcessor(
             IAgentControl agent,
@@ -50,7 +51,8 @@ namespace RimMind.Application.Features.Agent
             ILogSink? log = null,
             IDecisionValidator? validator = null,
             IToolRegistry? toolRegistry = null,
-            IAgenticLoopService? loopService = null)
+            IAgenticLoopService? loopService = null,
+            Action<string, string, bool, string?, string?>? recordTraceOutcome = null)
         {
             _agent = agent ?? throw new ArgumentNullException(nameof(agent));
             _agentBus = agentBus ?? throw new ArgumentNullException(nameof(agentBus));
@@ -64,6 +66,7 @@ namespace RimMind.Application.Features.Agent
             _validator = validator ?? new DecisionValidator();
             _toolRegistry = toolRegistry;
             _loopService = loopService ?? new AgenticLoopService();
+            _recordTraceOutcome = recordTraceOutcome;
         }
 
         public bool ProcessResult(
@@ -86,12 +89,15 @@ namespace RimMind.Application.Features.Agent
                 return true;
             }
 
+            string? requestId = context?.Envelope?.RequestId;
             var response = result.Value;
             var toolCallResults = context?.ToolCallResults;
 
             var decision = strategy.ParseDecision(_agent, response, toolCallResults);
             if (!decision.IsOk)
             {
+                if (!string.IsNullOrWhiteSpace(requestId))
+                    _recordTraceOutcome?.Invoke(requestId!, "parse_error", false, decision.Error.Message, null);
                 _resetThinking();
                 _transitionWorkflow(AgentWorkflowPhase.Idle);
                 _log?.Warning($"[RimMind.Thinker] action=ParseFailed npcId={_agent.NpcId} modeId={_agent.CurrentModeId.Value} error={decision.Error}");
@@ -118,6 +124,8 @@ namespace RimMind.Application.Features.Agent
                 if (!validation.IsValid)
                 {
                     var failReason = validation.Reason ?? "Decision validation failed";
+                    if (!string.IsNullOrWhiteSpace(requestId))
+                        _recordTraceOutcome?.Invoke(requestId!, decision.Value.ActionIntent ?? "action", false, failReason, decision.Value.Param);
                     _log?.Warning($"[RimMind.DecisionProcessor] validation failed: {failReason}");
                     _agentBus.Publish(new DecisionFailedEvent(
                         _agent.NpcId,
@@ -144,17 +152,31 @@ namespace RimMind.Application.Features.Agent
 
             _transitionWorkflow(AgentWorkflowPhase.Acting);
 
+            var paramPreview = decision.Value.Param ?? "";
+            if (paramPreview.Length > 240) paramPreview = paramPreview.Substring(0, 240) + "...";
+            _log?.Message($"[RimMind.DecisionProcessor] Executing npcId={_agent.NpcId} action={decision.Value.ActionIntent} target={decision.Value.TargetPawnId} param={paramPreview}");
             var execResult = _executeDecision(decision.Value);
             var execSuccess = execResult.IsOk;
 
+            if (!string.IsNullOrWhiteSpace(requestId))
+            {
+                _recordTraceOutcome?.Invoke(
+                    requestId!,
+                    decision.Value.ActionIntent ?? "action",
+                    execSuccess,
+                    execSuccess ? decision.Value.Reason : (execResult.Error?.Message ?? "Action failed"),
+                    paramPreview);
+            }
+
             if (!execSuccess)
             {
-                _log?.Warning($"[RimMind.DecisionProcessor] Action execution failed for npcId={_agent.NpcId} action={decision.Value.ActionIntent} error={execResult.Error.Message}");
+                string failMsg = execResult.Error?.Message ?? "Action failed";
+                _log?.Warning($"[RimMind.DecisionProcessor] Action execution failed for npcId={_agent.NpcId} action={decision.Value.ActionIntent} error={failMsg}");
                 _agentBus.Publish(new DecisionFailedEvent(
                     _agent.NpcId,
                     _getPawnId(),
                     decision.Value.ActionIntent ?? "action",
-                    execResult.Error.Message));
+                    failMsg));
             }
 
             _transitionWorkflow(AgentWorkflowPhase.Recording);

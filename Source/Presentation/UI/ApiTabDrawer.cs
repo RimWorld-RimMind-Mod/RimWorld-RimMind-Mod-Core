@@ -277,7 +277,7 @@ namespace RimMind.Presentation.UI
             // 2. DeepSeek (标准 OpenAI 兼容端点)
             options.Add(new FloatMenuOption(UiText.Get("RimMind.Settings.Provider.DeepSeek"), () =>
             {
-                ApplyProviderPreset(s, "openai", "https://api.deepseek.com/v1", "deepseek-chat", "DeepSeek");
+                ApplyProviderPreset(s, "openai", "https://api.deepseek.com/v1", "deepseek-flash", "DeepSeek");
             }));
 
             // 3. Player2 (本地/云端)
@@ -638,7 +638,7 @@ namespace RimMind.Presentation.UI
                     name = $"Backup #{list.Count + 1}",
                     provider = "openai",
                     apiEndpoint = "https://api.deepseek.com/v1",
-                    modelName = "deepseek-chat",
+                    modelName = "deepseek-flash",
                     apiKey = string.Empty,
                     enabled = true
                 });

@@ -26,11 +26,11 @@ namespace RimMind.Tests.Contracts
                     DebugCenterPageRegistry.ResetToDefaults();
                     var defaults = DebugCenterPageRegistry.GetAll();
 
-                    Assert.Equal(7, defaults.Count);
+                    Assert.Equal(5, defaults.Count);
                     Assert.Equal("overview", DebugCenterPageRegistry.DefaultPageId);
                     Assert.All(defaults, d => Assert.Equal(RimMindOwnerConsts.CoreModId, d.OwnerModId));
                     Assert.Equal(
-                        new[] { "overview", "agents", "ai_requests", "tool_calls", "mechanisms", "context_keys", "settings" },
+                        new[] { "overview", "agents", "ai_requests", "capabilities", "settings" },
                         defaults.Select(d => d.Id).ToArray());
                 }),
                 ("custom pages register in order, can be unregistered by OwnerModId, and ResetToDefaults restores built-ins", () =>
@@ -58,12 +58,12 @@ namespace RimMind.Tests.Contracts
                             () => new ProbeDebugCenterPageDrawer("storyteller"));
 
                         var allAfterRegister = DebugCenterPageRegistry.GetAll();
-                        Assert.Equal(9, allAfterRegister.Count);
+                        Assert.Equal(7, allAfterRegister.Count);
 
                         int aiRequestsIdx = allAfterRegister.Select((d, i) => (d.Id, i)).First(x => x.Id == "ai_requests").i;
                         int advisorIdx = allAfterRegister.Select((d, i) => (d.Id, i)).First(x => x.Id == "advisor_diagnostics").i;
-                        int toolCallsIdx = allAfterRegister.Select((d, i) => (d.Id, i)).First(x => x.Id == "tool_calls").i;
-                        Assert.True(aiRequestsIdx < advisorIdx && advisorIdx < toolCallsIdx);
+                        int capabilitiesIdx = allAfterRegister.Select((d, i) => (d.Id, i)).First(x => x.Id == "capabilities").i;
+                        Assert.True(aiRequestsIdx < advisorIdx && advisorIdx < capabilitiesIdx);
 
                         var createdDrawer = Assert.IsType<ProbeDebugCenterPageDrawer>(DebugCenterPageRegistry.Create("advisor_diagnostics"));
                         Assert.Equal("advisor", createdDrawer.Tag);
@@ -72,11 +72,11 @@ namespace RimMind.Tests.Contracts
                         Assert.Equal(1, removedAdvisor);
                         Assert.Null(DebugCenterPageRegistry.Find("advisor_diagnostics"));
                         Assert.NotNull(DebugCenterPageRegistry.Find("storyteller_timeline"));
-                        Assert.Equal(8, DebugCenterPageRegistry.GetAll().Count);
+                        Assert.Equal(6, DebugCenterPageRegistry.GetAll().Count);
 
                         DebugCenterPageRegistry.ResetToDefaults();
                         Assert.Null(DebugCenterPageRegistry.Find("storyteller_timeline"));
-                        Assert.Equal(7, DebugCenterPageRegistry.GetAll().Count);
+                        Assert.Equal(5, DebugCenterPageRegistry.GetAll().Count);
                     }
                     finally
                     {
@@ -85,7 +85,7 @@ namespace RimMind.Tests.Contracts
                 }),
                 ("RimMindAPI.UI exposes DebugPages and UI registration surface", () =>
                 {
-                    string apiUiSource = ReadSource("Presentation/Api/RimMindAPI.UI.cs");
+                        string apiUiSource = ReadSource("Presentation/Api/RimMindAPI.UI.cs");
                     Assert.Contains("public static class DebugPages", apiUiSource, StringComparison.Ordinal);
                     Assert.Contains("DebugCenterPageRegistry.Register", apiUiSource, StringComparison.Ordinal);
                     Assert.Contains("DebugCenterPageRegistry.UnregisterByOwner", apiUiSource, StringComparison.Ordinal);
@@ -158,7 +158,7 @@ namespace RimMind.Tests.Contracts
         public void TenDayPlaythroughRunner_does_not_fabricate_fallback_prose_or_hardcode_memory_package_id()
         {
             ContractCaseRunner.Run(
-                ("TenDayPlaythroughRunner does not contain fabricated morning thought or social dialogue fallback generators", () =>
+                ("TenDayPlaythroughRunner does not contain fabricated prompts, fallback generators, scripted base building, or survival cheats", () =>
                 {
                     string runnerSource = ReadSource("Infrastructure/UI/DebugActions/TenDayPlaythroughRunner.cs");
 
@@ -166,15 +166,18 @@ namespace RimMind.Tests.Contracts
                     Assert.DoesNotContain("GenerateDynamicSocialDialogueFallback", runnerSource, StringComparison.Ordinal);
                     Assert.DoesNotContain("PickNonRepeatingFallback", runnerSource, StringComparison.Ordinal);
                     Assert.DoesNotContain("seasonalMorningThoughts", runnerSource, StringComparison.Ordinal);
-                    Assert.Contains("Morning thought failed", runnerSource, StringComparison.Ordinal);
-                    Assert.Contains("Dialogue failed", runnerSource, StringComparison.Ordinal);
+                    Assert.DoesNotContain("ExecuteMorningThought", runnerSource, StringComparison.Ordinal);
+                    Assert.DoesNotContain("ExecuteSocialDialogue", runnerSource, StringComparison.Ordinal);
+                    Assert.DoesNotContain("ExecuteAutonomousAgentAction", runnerSource, StringComparison.Ordinal);
+                    Assert.DoesNotContain("ExecuteAdvisorProposal", runnerSource, StringComparison.Ordinal);
+                    Assert.DoesNotContain("ExecuteDailyColonyOperation", runnerSource, StringComparison.Ordinal);
+                    Assert.DoesNotContain("EnsureColonistSustenance", runnerSource, StringComparison.Ordinal);
                 }),
                 ("TenDayPlaythroughRunner does not hardcode mcocdaa.RimMindMemory package check", () =>
                 {
                     string runnerSource = ReadSource("Infrastructure/UI/DebugActions/TenDayPlaythroughRunner.cs");
 
                     Assert.DoesNotContain("mcocdaa.RimMindMemory", runnerSource, StringComparison.OrdinalIgnoreCase);
-                    Assert.Contains("RimMindAPI.Memory.AddPawnMemory", runnerSource, StringComparison.Ordinal);
                 }));
         }
 

@@ -21,7 +21,7 @@ namespace RimMind.Infrastructure.UI
         private readonly RimMindTabbedPageHostDrawer _tabDrawer = new();
         private readonly RuntimeBinding _runtimeBinding = new();
 
-        public override Vector2 InitialSize => new Vector2(780f, 580f);
+        public override Vector2 InitialSize => new Vector2(900f, 620f);
 
         public Window_RimMindHub()
             : this(DebugCenterPageRegistry.DefaultPageId, selectedPawn: null)
@@ -33,8 +33,11 @@ namespace RimMind.Infrastructure.UI
             _pages = DebugCenterPageRegistry.CreateAllRegistrations();
             foreach (DebugCenterPageRegistration page in _pages)
                 _drawerCache[page.Descriptor.Id] = page.CreateDrawer();
-            _pageId = ResolvePageId(initialPageId);
+            DebugCenterNavigation.ResolveRoute(initialPageId, out string resolvedPageId, out string? resolvedSubTabId);
+            _pageId = ResolvePageId(resolvedPageId);
             _context = new DebugCenterPageContext(selectedPawn, _navigation);
+            if (!string.IsNullOrWhiteSpace(resolvedSubTabId))
+                _navigation.SetRequestedSubTab(resolvedSubTabId);
             forcePause = false;
             closeOnClickedOutside = true;
             absorbInputAroundWindow = false;
@@ -49,7 +52,13 @@ namespace RimMind.Infrastructure.UI
 
         internal string CurrentPageId => _pageId;
         internal IDebugCenterPageDrawer CurrentDrawer => _drawerCache[_pageId];
-        internal void SelectPage(string pageId) => _pageId = ResolvePageId(pageId);
+        internal void SelectPage(string pageId)
+        {
+            DebugCenterNavigation.ResolveRoute(pageId, out string resolvedPageId, out string? resolvedSubTabId);
+            _pageId = ResolvePageId(resolvedPageId);
+            if (!string.IsNullOrWhiteSpace(resolvedSubTabId))
+                _navigation.SetRequestedSubTab(resolvedSubTabId);
+        }
 
         protected override void DrawContents(Rect inRect, RimMindLayoutScope scope)
         {
@@ -149,7 +158,8 @@ namespace RimMind.Infrastructure.UI
 
         private static string ResolvePageId(string pageId)
         {
-            return DebugCenterPageRegistry.Find(pageId)?.Id
+            DebugCenterNavigation.ResolveRoute(pageId, out string resolvedPageId, out _);
+            return DebugCenterPageRegistry.Find(resolvedPageId)?.Id
                 ?? DebugCenterPageRegistry.DefaultPageId;
         }
     }

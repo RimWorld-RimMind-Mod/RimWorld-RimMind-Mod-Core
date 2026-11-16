@@ -13,6 +13,8 @@ namespace RimMind.Infrastructure.Patches
         [HarmonyPostfix]
         public static void Postfix(ThingDef __instance)
         {
+            if (__instance == null || __instance.IsCorpse) return;
+            if (__instance.thingClass == null || !typeof(Pawn).IsAssignableFrom(__instance.thingClass)) return;
             if (__instance.race?.intelligence != Intelligence.Humanlike) return;
 
             __instance.comps ??= new List<CompProperties>();

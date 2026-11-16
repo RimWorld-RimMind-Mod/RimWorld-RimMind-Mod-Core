@@ -56,7 +56,7 @@ RimMind is an enterprise-grade, AI-powered RimWorld mod suite. Integrated with L
 [h2]Supported API Endpoints[/h2]
 [table]
 [tr][th]Service[/th][th]Endpoint[/th][th]Description[/th][/tr]
-[tr][td]DeepSeek[/td][td]https://api.deepseek.com/v1[/td][td]Recommended: deepseek-chat (high intelligence &amp; low cost)[/td][/tr]
+[tr][td]DeepSeek[/td][td]https://api.deepseek.com/v1[/td][td]Recommended: deepseek-flash / deepseek-v4-pro (high intelligence &amp; low cost)[/td][/tr]
 [tr][td]OpenAI[/td][td]https://api.openai.com/v1[/td][td]Models such as gpt-4o-mini and gpt-4o[/td][/tr]
 [tr][td]Ollama / vLLM (Local)[/td][td]http://localhost:11434/v1[/td][td]Self-hosted local models (qwen2.5:7b, llama3.1:8b) with serial queue mode[/td][/tr]
 [tr][td]Player2[/td][td]Auto-detected / Remote API[/td][td]Player2 local client application or cloud API[/td][/tr]
@@ -71,7 +71,7 @@ A: No. All network I/O and prompt serialization run on background threads, and h
 A: Yes. API Keys are stored locally in your RimWorld config folder and are never logged or transmitted anywhere except your configured LLM endpoint.
 
 [b]Q: Which models are recommended?[/b]
-A: [code]deepseek-chat[/code] and [code]gpt-4o-mini[/code] offer the best balance of speed, tool-calling accuracy, and KV-cache cost savings.
+A: [code]deepseek-flash[/code], [code]deepseek-v4-pro[/code], and [code]gpt-4o-mini[/code] offer the best balance of speed, tool-calling accuracy, and KV-cache cost savings.
 
 [h2]Acknowledgements &amp; References[/h2]
 Special thanks to RimTalk, RimTalk-ExpandActions, RimTalk-ExpandMemory, RimChat, NewRatkin, and Vanilla Expanded Framework for technical inspiration during development.</description>

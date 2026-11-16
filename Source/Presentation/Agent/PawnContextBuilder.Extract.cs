@@ -17,7 +17,7 @@ namespace RimMind.Presentation.Agent
             if (pawn == null) return "";
             var data = PawnDataExtractor.Extract(pawn, _logSink);
             var parts = new List<string>();
-            parts.Add(data.Name);
+            parts.Add(pawn.thingIDNumber > 0 ? $"{data.Name} (pawn_id: {pawn.thingIDNumber})" : data.Name);
             parts.Add($"{data.Age}yo");
             parts.Add(data.GenderLabel);
             parts.Add(data.RaceLabel);
@@ -100,7 +100,10 @@ namespace RimMind.Presentation.Agent
             if (pawn == null) return "";
             var data = PawnDataExtractor.Extract(pawn, _logSink);
             if (!data.HasMap) return "";
-            return Tr("RimMind.Prompt.Colony.Status", data.ColonistCount, $"{data.ColonyWealth:F0}", data.ThreatCount);
+            string status = Tr("RimMind.Prompt.Colony.Status", data.ColonistCount, $"{data.ColonyWealth:F0}", data.ThreatCount);
+            if (!string.IsNullOrEmpty(data.ThreatSummary))
+                status += " " + Tr("RimMind.Prompt.Colony.ActiveThreats", data.ThreatSummary);
+            return status;
         }
 
         public string ExtractHealth(Pawn pawn)

@@ -145,7 +145,7 @@ namespace RimMind.Infrastructure.UI.DebugActions
             // Ensure core settings are set to optimal showcase values (including API key so no warning alert appears)
             RimMindCoreMod.Settings.provider = "openai";
             RimMindCoreMod.Settings.apiEndpoint = "https://api.deepseek.com/v1";
-            RimMindCoreMod.Settings.modelName = "deepseek-chat";
+            RimMindCoreMod.Settings.modelName = "deepseek-flash";
             RimMindCoreMod.Settings.apiKey = "sk-rimmind-showcase-verified-key";
             RimMindCoreMod.Settings.maxConcurrentRequests = 3;
             RimMindCoreMod.Settings.maxTokens = 800;
@@ -622,13 +622,13 @@ namespace RimMind.Infrastructure.UI.DebugActions
                     ?? GameServiceHub.Shared.Capture().GetOptional<IAIRequestTraceLog>();
                 if (traceLog != null)
                 {
-                    traceLog.StartRequest("req-personality-1", "RimMind-Personality", "deepseek-chat", "破晓心境自白", "观察日出麦浪", "");
+                    traceLog.StartRequest("req-personality-1", "RimMind-Personality", "deepseek-flash", "破晓心境自白", "观察日出麦浪", "");
                     traceLog.CompleteRequest("req-personality-1", "“初升的朝阳照在木屋与麦浪上，虽然昨天屁股被松鼠咬得很痛，但有热饭和伙伴在身边，生活依旧充满希望。”", 340, 180);
 
-                    traceLog.StartRequest("req-actions-1", "RimMind-Actions", "deepseek-chat", "自主建造决策", "place_blueprint(Bed, WoodLog)", "");
+                    traceLog.StartRequest("req-actions-1", "RimMind-Actions", "deepseek-flash", "自主建造决策", "place_blueprint(Bed, WoodLog)", "");
                     traceLog.CompleteRequest("req-actions-1", "{\"tool\":\"place_blueprint\",\"building_def\":\"Bed\",\"stuff_def\":\"WoodLog\",\"reason\":\"为同伴补充温暖的木床\"}", 412, 210);
 
-                    traceLog.StartRequest("req-dialogue-1", "RimMind-Dialogue", "deepseek-chat", "食堂晚宴交谈", "express_dialogue(speech, relation_delta=+6)", "");
+                    traceLog.StartRequest("req-dialogue-1", "RimMind-Dialogue", "deepseek-flash", "食堂晚宴交谈", "express_dialogue(speech, relation_delta=+6)", "");
                     traceLog.CompleteRequest("req-dialogue-1", "“终于端上热气腾腾的烤肉排了，今晚总算不用啃皮靴营养膏啦！”", 285, 165);
                 }
 

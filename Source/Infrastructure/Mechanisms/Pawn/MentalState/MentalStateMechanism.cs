@@ -71,7 +71,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.MentalState
             if (mentalStateDef == null)
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
 
-            pawn.mindState?.mentalStateHandler?.TryStartMentalState(mentalStateDef, "Triggered by AI", true);
+            bool started = pawn.mindState?.mentalStateHandler?.TryStartMentalState(mentalStateDef, "Triggered by AI", true) == true;
+            if (!started)
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction(MechanismId, $"Mental state '{args.DefName}' could not start on this pawn")));
             return Task.FromResult(Result<bool, RimMindError>.Ok(true));
         }
     }

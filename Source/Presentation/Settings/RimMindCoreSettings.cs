@@ -14,7 +14,7 @@ namespace RimMind.Presentation.Settings
     public class RimMindCoreSettings : ModSettings, IOpenAISettings
     {
         public const string DefaultApiEndpoint = "https://api.deepseek.com/v1";
-        public const string DefaultModelName = "deepseek-v4-flash";
+        public const string DefaultModelName = "deepseek-flash";
 
         public string? SavedModVersion;
 

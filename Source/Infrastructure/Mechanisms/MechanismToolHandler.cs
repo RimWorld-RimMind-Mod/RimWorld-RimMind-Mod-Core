@@ -54,7 +54,11 @@ namespace RimMind.Infrastructure.Mechanisms
             "x",
             "z",
             "cell_x",
-            "cell_z"
+            "cell_z",
+            "queue_position",
+            "priorities_json",
+            "jobs_json",
+            "job_index"
         };
 
         private readonly IMechanismReader _reader;
@@ -219,6 +223,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 DefName = defName,
                 Action = ExtractString(root, "action") ?? _operation.ToString().ToLowerInvariant(),
                 ValueJson = ExtractValueJson(root),
+                RawArgumentsJson = args.ArgumentsJson,
                 TraceId = args.TraceId,
                 Params = paramsDict
             };
@@ -241,15 +246,37 @@ namespace RimMind.Infrastructure.Mechanisms
             }
         }
 
+        internal static Func<int, bool>? PawnExistsPredicate { get; set; }
+
         internal static int ResolvePawnId(JObject? root, ToolCallArgs args, string key = "pawn_id")
             => ResolveTargetPawn(root, args, key).PawnId;
 
         /// <summary>
         /// Resolves the target pawn through the shared <see cref="PawnIdParser"/> (root or nested <c>params</c>;
         /// accepts <c>12</c>, <c>"Pawn_12"</c>, <c>"NPC-12"</c>; falls back to the caller's PawnId, then NpcId).
+        /// Also falls back to the caller pawn if the LLM guessed a small ordinal id (1..20) that does not exist
+        /// in the game while the caller pawn exists.
         /// </summary>
         internal static PawnTargetResolution ResolveTargetPawn(JObject? root, ToolCallArgs args, string key = "pawn_id")
-            => PawnIdParser.ResolveTarget(root, key, args.PawnId, args.NpcId);
+        {
+            var resolution = PawnIdParser.ResolveTarget(root, key, args.PawnId, args.NpcId);
+            if (resolution.IsValid && resolution.IsExplicit && resolution.PawnId >= 1 && resolution.PawnId <= 20)
+            {
+                int callerId = args.PawnId.HasValue && args.PawnId.Value > 0
+                    ? args.PawnId.Value
+                    : (PawnIdParser.TryParse(args.NpcId, out var parsedNpc) && parsedNpc > 0 ? parsedNpc : 0);
+                var pawnExists = PawnExistsPredicate;
+                if (callerId > 0
+                    && callerId != resolution.PawnId
+                    && pawnExists != null
+                    && !pawnExists(resolution.PawnId)
+                    && pawnExists(callerId))
+                {
+                    return PawnTargetResolution.Fallback(callerId);
+                }
+            }
+            return resolution;
+        }
 
         internal static RimMindError InvalidPawnTargetError(string toolId, PawnTargetResolution target)
             => RimMindErrors.ToolExecution(
@@ -576,7 +603,11 @@ namespace RimMind.Infrastructure.Mechanisms
                 Manifest = new ToolManifest
                 {
                     RiskLevel = MapRisk(mechanismRisk),
-                    RequiresApproval = mechanismRisk >= MechanismRisk.Dangerous
+                    RequiresApproval = mechanismRisk >= MechanismRisk.Dangerous,
+                    DefaultDomain = string.Equals(metadata.MechanismId, "pawn.work", StringComparison.OrdinalIgnoreCase)
+                        && operation == MechanismOperationType.Set
+                        ? RimMind.Domain.Agent.Policies.AutonomyDomain.WorkPriorityModification
+                        : (RimMind.Domain.Agent.Policies.AutonomyDomain?)null
                 }
             };
         }

@@ -141,11 +141,12 @@ namespace RimMind.Infrastructure.Agent
                 try
                 {
                     var parsed = JToken.Parse(decision.Param!);
-                    obj = parsed as JObject ?? new JObject();
+                    obj = parsed as JObject ?? BuildObjectFromScalarParam(toolId, parsed.Type == JTokenType.String ? parsed.Value<string>() : parsed.ToString());
                 }
                 catch
                 {
-                    obj = new JObject();
+                    // Plain text Param (e.g. "Construction"): keep it as the def target instead of discarding it.
+                    obj = BuildObjectFromScalarParam(toolId, decision.Param);
                 }
             }
             else
@@ -160,11 +161,25 @@ namespace RimMind.Infrastructure.Agent
                     string.Equals(toolId, "prioritize_work", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(toolId, "take_job", StringComparison.OrdinalIgnoreCase);
 
-                bool shouldOverride = isSelfTargetedTool || !obj.ContainsKey("pawn_id") || obj["pawn_id"]?.Type == JTokenType.String;
-                if (!shouldOverride && obj["pawn_id"]?.Type == JTokenType.Integer)
+                // Only fill pawn_id when it is missing or unparseable. An explicit but non-resolving id must
+                // reach the mechanism and fail there; silently redirecting it to the caller made target-style
+                // writes (thought/inspiration/mental state) land on the wrong pawn while reporting success.
+                bool shouldOverride = isSelfTargetedTool || !obj.ContainsKey("pawn_id");
+                if (!shouldOverride)
                 {
-                    int existingId = obj["pawn_id"]!.Value<int>();
-                    if (existingId <= 0 || RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(existingId) == null)
+                    var rawId = obj["pawn_id"];
+                    if (rawId?.Type == JTokenType.Integer)
+                    {
+                        shouldOverride = rawId.Value<int>() <= 0;
+                    }
+                    else if (rawId?.Type == JTokenType.String)
+                    {
+                        if (RimMind.Application.Features.Tools.PawnIdParser.TryParse(rawId.Value<string>(), out int parsedId) && parsedId > 0)
+                            obj["pawn_id"] = parsedId;
+                        else
+                            shouldOverride = true;
+                    }
+                    else
                     {
                         shouldOverride = true;
                     }
@@ -173,6 +188,30 @@ namespace RimMind.Infrastructure.Agent
                 if (shouldOverride)
                 {
                     obj["pawn_id"] = pawnId;
+                }
+            }
+
+            if (string.Equals(toolId, "pawn.job.set", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(toolId, "pawn_job_set", StringComparison.OrdinalIgnoreCase))
+            {
+                string? currentAction = obj.Value<string>("action");
+                if (string.IsNullOrWhiteSpace(currentAction) ||
+                    string.Equals(currentAction, "set", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (obj["work_type"] != null || obj["job_type"] != null || obj["def_name"] != null)
+                    {
+                        obj["action"] = "assign_work";
+                    }
+                    else if (obj["cell_x"] != null || obj["x"] != null)
+                    {
+                        obj["action"] = "move_to";
+                    }
+                    else if (ContainsFoodKeyword(decision.Param) || ContainsFoodKeyword(decision.Reason))
+                    {
+                        obj["action"] = "eat_food";
+                    }
+                    // Otherwise leave 'action' unset: pawn.job rejects it with the list of valid operations.
+                    // A silent force_rest default made colonists lie down instead of working or eating.
                 }
             }
 
@@ -192,6 +231,44 @@ namespace RimMind.Infrastructure.Agent
             }
 
             return obj.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        private static JObject BuildObjectFromScalarParam(string toolId, string? raw)
+        {
+            var obj = new JObject();
+            var value = raw?.Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(value)) return obj;
+
+            // pawn.job.set resolves its sub-action from keywords below; a def target would force assign_work.
+            if (string.Equals(toolId, "pawn.job.set", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(toolId, "pawn_job_set", StringComparison.OrdinalIgnoreCase))
+                return obj;
+
+            obj["def_name"] = value;
+            if (IsWorkPriorityTool(toolId))
+            {
+                obj["work_type"] = value;
+                obj["priority"] = 1;
+            }
+            return obj;
+        }
+
+        private static bool IsWorkPriorityTool(string toolId)
+        {
+            return string.Equals(toolId, "pawn.work.set", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(toolId, "pawn_work_set", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(toolId, "prioritize_work", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex FoodKeywordPattern = new System.Text.RegularExpressions.Regex(
+            @"\b(eat|eating|food|meal|meals|hunger|hungry|starving|starvation|nutrition)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        private static bool ContainsFoodKeyword(string? text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+            // Whole words only: substring matching turned "retreat from the threat" into eat_food.
+            return FoodKeywordPattern.IsMatch(text!);
         }
 
         private IReadOnlyList<IToolArgumentAdapter>? GetArgumentAdapters()

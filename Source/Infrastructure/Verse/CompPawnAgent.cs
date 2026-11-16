@@ -56,7 +56,7 @@ namespace RimMind.Infrastructure.Verse
         private Texture2D? _agentIcon;
         private Texture2D? _agentDevIcon;
 
-        private Pawn Pawn => (Pawn)parent;
+        private Pawn? PawnOrNull => parent as Pawn;
 
         public override void CompTick()
         {
@@ -196,8 +196,11 @@ namespace RimMind.Infrastructure.Verse
         public override void PostExposeData()
         {
             base.PostExposeData();
+            if (!(parent is Pawn p))
+                return;
+
             bool skipSavingAgent = Scribe.mode == LoadSaveMode.Saving
-                && (_agent == null || !(parent is Pawn p) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p));
+                && (_agent == null || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p));
             if (!skipSavingAgent)
             {
                 EnsureServicesCached();
@@ -231,6 +234,9 @@ namespace RimMind.Infrastructure.Verse
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
+            if (!(parent is Pawn pawn))
+                yield break;
+
             yield return new Command_Action
             {
                 defaultLabel = "RimMind.Agent.Gizmo.Control".Translate(),
@@ -238,7 +244,7 @@ namespace RimMind.Infrastructure.Verse
                 icon = AgentIcon,
                 action = () =>
                 {
-                    Find.WindowStack.Add(Window_RimMindHub.OpenAgentsForPawn(Pawn));
+                    Find.WindowStack.Add(Window_RimMindHub.OpenAgentsForPawn(pawn));
                 },
             };
 
@@ -251,7 +257,7 @@ namespace RimMind.Infrastructure.Verse
                     icon = AgentDevIcon,
                     action = () =>
                     {
-                        Log.Message($"[RimMind-Core] {Pawn.Name?.ToStringShort}\n{Agent.GetDebugInfo()}");
+                        Log.Message($"[RimMind-Core] {pawn.Name?.ToStringShort}\n{Agent.GetDebugInfo()}");
                     },
                 };
             }
@@ -286,10 +292,12 @@ namespace RimMind.Infrastructure.Verse
         {
             get
             {
+                var pawn = PawnOrNull;
+                if (pawn == null) return false;
                 var session = ActiveIntentSession;
                 if (session == null) return false;
                 int currentTick = Find.TickManager?.TicksGame ?? 0;
-                if (!session.IsActive(Pawn, currentTick))
+                if (!session.IsActive(pawn, currentTick))
                 {
                     ClearIntentSession();
                     return false;
@@ -374,6 +382,5 @@ namespace RimMind.Infrastructure.Verse
             Agent = factory.Create(pawn, agentBus) as IPawnAgentVerse;
             _agentRuntimeGeneration = generation;
         }
-
     }
 }

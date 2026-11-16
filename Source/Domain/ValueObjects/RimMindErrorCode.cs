@@ -6,6 +6,8 @@ namespace RimMind.Domain.ValueObjects
         ClientTransientFailure = 1001,
         ClientPermanentFailure = 1002,
         ClientCircuitOpen = 1003,
+        ContentFiltered = 1004,
+        ClientQuotaOrAuthFailure = 1005,
 
         ContextBuildFailed = 2000,
         PipelineShortCircuited = 2001,

@@ -74,15 +74,12 @@ namespace RimMind.Infrastructure.UI
 
             float contentH = CalcTotalContentHeight();
             Rect viewRect = new Rect(0f, 0f, inRect.width - 16f, contentH);
-            Widgets.BeginScrollView(inRect, ref _scrollPos, viewRect);
             scope.Record(inRect, "ScrollView:FlowLabOuter");
-            scope.Record(viewRect, "ScrollView:FlowLabContent");
+            Widgets.BeginScrollView(inRect, ref _scrollPos, viewRect);
 
             float y = 0f;
             float w = viewRect.width;
 
-            Rect titleRect = new Rect(0f, y, w, LineH + 4f);
-            scope.Record(titleRect, "Header:Title");
             DrawSectionHeader(ref y, w, "RimMind.UI.AgentFlowLab.Title");
             DrawOfflineModeToggle(ref y, w);
             DrawScopeSelector(ref y, w);

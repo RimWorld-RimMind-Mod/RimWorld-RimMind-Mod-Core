@@ -7,6 +7,18 @@ namespace RimMind.Infrastructure.UI.DebugTables
 {
     public sealed class MechanismsDebugTableModelBuilder : IDebugTableModelBuilder
     {
+        private static readonly string[] Headers =
+        {
+            "RimMind.UI.DebugTable.Header.Id",
+            "RimMind.UI.DebugTable.Header.Status",
+            "RimMind.UI.DebugTable.Header.OpCount",
+            "RimMind.UI.DebugTable.Header.Scope",
+            "RimMind.UI.DebugTable.Header.OwnerMod",
+            "RimMind.UI.DebugTable.Header.Operations",
+            "RimMind.UI.DebugTable.Header.Risk",
+            "RimMind.UI.DebugTable.Header.Summary"
+        };
+
         private IGameMechanismRegistry? _registry;
         private long _cachedGeneration = long.MinValue;
         private DebugTableModel? _cachedModel;
@@ -32,7 +44,8 @@ namespace RimMind.Infrastructure.UI.DebugTables
         {
             return new DebugTableModel(
                 "RimMind.UI.Hub.Tab.Mechanisms".Translate(),
-                mechanisms.Select(ToRow));
+                mechanisms.Select(ToRow),
+                Headers);
         }
 
         private static DebugTableRow ToRow(IGameMechanism mechanism)
@@ -40,17 +53,18 @@ namespace RimMind.Infrastructure.UI.DebugTables
             string operations = mechanism.SupportedOperations.Count > 0
                 ? string.Join(", ", mechanism.SupportedOperations.Select(DebugTableEnumLabels.For))
                 : "RimMind.UI.DebugTable.Mechanisms.NoOperations".Translate().ToString();
+            string opCount = "RimMind.UI.DebugTable.Mechanisms.OperationCount".Translate(mechanism.SupportedOperations.Count).ToString();
 
             return DebugTableRow.Create(
                 mechanism.MechanismId,
                 DebugTableStatus.Completed,
-                string.Empty,
+                opCount,
                 DebugTableEnumLabels.For(mechanism.Scope),
                 mechanism.OwnerModId ?? string.Empty,
                 operations,
                 DebugTableEnumLabels.For(mechanism.Risk),
                 mechanism.Docs.Summary,
-                "RimMind.UI.DebugTable.Mechanisms.OperationCount".Translate(mechanism.SupportedOperations.Count).ToString());
+                opCount);
         }
     }
 }
