@@ -21,6 +21,7 @@ namespace RimMind.Domain.Llm
         public List<ChatMessage>? Examples { get; init; }
         public int MaxTokens { get; init; } = 800;
         public float Temperature { get; init; } = 0.7f;
+        public ReasoningEffort ReasoningEffort { get; init; } = ReasoningEffort.Auto;
 
         // === Dispatch ===
         public AIRequestPriority Priority { get; init; } = AIRequestPriority.Normal;
@@ -40,6 +41,57 @@ namespace RimMind.Domain.Llm
         public LlmRequestEnvelope WithCancellationToken(CancellationToken cancellationToken)
             => Clone(cancellationToken);
 
+        public LlmRequestEnvelope WithTraceAndHints(
+            string traceId,
+            IReadOnlyDictionary<string, string>? extraHints)
+        {
+            Dictionary<string, string>? mergedHints = null;
+            if (Hints != null && Hints.Count > 0)
+            {
+                mergedHints = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var kvp in Hints)
+                {
+                    if (!string.IsNullOrEmpty(kvp.Key) && kvp.Value != null)
+                        mergedHints[kvp.Key] = kvp.Value;
+                }
+            }
+            if (extraHints != null && extraHints.Count > 0)
+            {
+                mergedHints ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var kvp in extraHints)
+                {
+                    if (!string.IsNullOrEmpty(kvp.Key) && kvp.Value != null)
+                        mergedHints[kvp.Key] = kvp.Value;
+                }
+            }
+
+            return new LlmRequestEnvelope
+            {
+                RequestId = RequestId,
+                TraceId = string.IsNullOrWhiteSpace(traceId) ? TraceId : traceId,
+                ScenarioId = ScenarioId,
+                ModId = ModId,
+                Messages = Messages,
+                SystemAugmentations = SystemAugmentations,
+                JsonSchema = JsonSchema,
+                Tools = Tools,
+                ToolDispatchMode = ToolDispatchMode,
+                Examples = Examples,
+                MaxTokens = MaxTokens,
+                Temperature = Temperature,
+                ReasoningEffort = ReasoningEffort,
+                Priority = Priority,
+                ExpireAtTicks = ExpireAtTicks,
+                MaxRetryCount = MaxRetryCount,
+                IsStreaming = IsStreaming,
+                OnStreamChunk = OnStreamChunk,
+                Ct = Ct,
+                NpcId = NpcId,
+                GameStateInfo = GameStateInfo,
+                Hints = mergedHints,
+            };
+        }
+
         public LlmRequestEnvelope Clone(CancellationToken? cancellationToken = null)
         {            return new LlmRequestEnvelope
             {
@@ -55,6 +107,7 @@ namespace RimMind.Domain.Llm
                 Examples = Examples,
                 MaxTokens = MaxTokens,
                 Temperature = Temperature,
+                ReasoningEffort = ReasoningEffort,
                 Priority = Priority,
                 ExpireAtTicks = ExpireAtTicks,
                 MaxRetryCount = MaxRetryCount,

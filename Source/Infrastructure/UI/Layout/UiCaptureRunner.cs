@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using RimMind.Presentation.Runtime.Services;
@@ -16,8 +17,14 @@ namespace RimMind.Infrastructure.UI.Layout
     // Opt-in, short-lived MonoBehaviour: Update supplies the watchdog even if end-of-frame stalls.
     internal sealed class UiCaptureRunner : MonoBehaviour
     {
+        private static readonly PropertyInfo? UiScalePreferenceProperty =
+            typeof(Prefs).GetProperty("UIScalePreference", BindingFlags.Public | BindingFlags.Static);
+
         private static UiCaptureRunner? _active;
         private static bool _startupChecked;
+
+        private static float GetConfiguredUiScale()
+            => UiScalePreferenceProperty?.GetValue(null) is float pref ? pref : Prefs.UIScale;
         private readonly Stopwatch _clock = new();
         private UiCaptureSequence _sequence = null!;
         private UiCaptureArtifacts _artifacts = null!;
@@ -72,7 +79,7 @@ namespace RimMind.Infrastructure.UI.Layout
                 RunId = runId, CoreAssemblyMvid = typeof(UiCaptureRunner).Assembly.ManifestModule.ModuleVersionId.ToString(),
                 GameAssemblyMvid = typeof(Game).Assembly.ManifestModule.ModuleVersionId.ToString(),
                 GameVersion = VersionControl.CurrentVersionStringWithRev, Width = Screen.width, Height = Screen.height,
-                UiScale = Prefs.UIScale, Language = LanguageDatabase.activeLanguage.folderName,
+                UiScale = GetConfiguredUiScale(), Language = LanguageDatabase.activeLanguage.folderName,
                 ExpectedSceneIds = _scenes.Select(s => s.Id).ToArray()
             };
             Log.Message("[RimMind-Core] UI capture started: " + _artifacts.DirectoryPath);
@@ -174,7 +181,7 @@ namespace RimMind.Infrastructure.UI.Layout
             int index = windows.IndexOf(_window);
             if (index < 0 || windows.Skip(index + 1).Any(w => w.windowRect.Overlaps(_window.windowRect)))
             { Abort("window-occluded"); return false; }
-            if (Screen.width != _manifest.Width || Screen.height != _manifest.Height || Prefs.UIScale != _manifest.UiScale)
+            if (Screen.width != _manifest.Width || Screen.height != _manifest.Height || GetConfiguredUiScale() != _manifest.UiScale)
             { Abort("display-changed"); return false; }
             return true;
         }

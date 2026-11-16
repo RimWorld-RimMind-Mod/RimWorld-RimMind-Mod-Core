@@ -41,15 +41,16 @@ namespace RimMind.Infrastructure.UI.Framework
             scope.Record(layout.BottomBar, "Table:BottomBar");
 
             DrawToolbar(layout.Toolbar, model.Title);
+            IReadOnlyList<string> headers = model.HeaderKeys ?? DebugTableHeaderKeys;
             if (model.Rows.Count == 0)
             {
                 DrawEmptyTableBody(layout.Body);
-                DrawDebugHeaders(layout, scroll.x);
+                DrawHeaders(layout, headers, scroll.x);
                 return;
             }
 
             DrawDebugRows(layout, model.Rows, ref scroll);
-            DrawDebugHeaders(layout, scroll.x);
+            DrawHeaders(layout, headers, scroll.x);
         }
 
         public string? DrawSelectable(Rect rect, DebugTableModel model, string? selectedId, ref Vector2 scroll, RimMindLayoutScope scope)
@@ -61,15 +62,16 @@ namespace RimMind.Infrastructure.UI.Framework
             scope.Record(layout.BottomBar, "Table:BottomBar");
 
             DrawToolbar(layout.Toolbar, model.Title);
+            IReadOnlyList<string> headers = model.HeaderKeys ?? DebugTableHeaderKeys;
             if (model.Rows.Count == 0)
             {
                 DrawEmptyTableBody(layout.Body);
-                DrawDebugHeaders(layout, scroll.x);
+                DrawHeaders(layout, headers, scroll.x);
                 return null;
             }
 
             string? nextSelectedId = DrawSelectableDebugRows(layout, model.Rows, selectedId, ref scroll);
-            DrawDebugHeaders(layout, scroll.x);
+            DrawHeaders(layout, headers, scroll.x);
             return nextSelectedId;
         }
 
@@ -90,10 +92,11 @@ namespace RimMind.Infrastructure.UI.Framework
             scope.Record(layout.BottomBar, "Table:BottomBar");
 
             DrawToolbar(layout.Toolbar, model.Title);
+            IReadOnlyList<string> compactHeaders = model.CompactHeaderKeys ?? CompactListHeaderKeys;
             if (model.Rows.Count == 0)
             {
                 DrawEmptyTableBody(layout.Body);
-                DrawHeaders(layout, CompactListHeaderKeys, scroll.x);
+                DrawHeaders(layout, compactHeaders, scroll.x);
                 return null;
             }
 
@@ -102,7 +105,7 @@ namespace RimMind.Infrastructure.UI.Framework
                 model.Rows,
                 selectedId,
                 ref scroll);
-            DrawHeaders(layout, CompactListHeaderKeys, scroll.x);
+            DrawHeaders(layout, compactHeaders, scroll.x);
             return nextSelectedId;
         }
 

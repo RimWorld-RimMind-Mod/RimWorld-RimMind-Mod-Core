@@ -50,31 +50,17 @@ namespace RimMind.Infrastructure.UI.DebugCenter
 
             Register(new DebugCenterPageDescriptor(
                 "ai_requests",
-                "RimMind.UI.Hub.Tab.AIRequests",
+                "RimMind.UI.Hub.Tab.Traces",
                 20,
                 IsDefault: false,
                 OwnerModId: RimMindOwnerConsts.CoreModId), () => new AIRequestsDebugCenterPageDrawer(log: null));
 
             Register(new DebugCenterPageDescriptor(
-                "tool_calls",
-                "RimMind.UI.Hub.Tab.ToolCalls",
+                "capabilities",
+                "RimMind.UI.Hub.Tab.Capabilities",
                 30,
                 IsDefault: false,
-                OwnerModId: RimMindOwnerConsts.CoreModId), () => new ToolCallsDebugCenterPageDrawer(new ToolCallsDebugTableModelBuilder()));
-
-            Register(new DebugCenterPageDescriptor(
-                "mechanisms",
-                "RimMind.UI.Hub.Tab.Mechanisms",
-                40,
-                IsDefault: false,
-                OwnerModId: RimMindOwnerConsts.CoreModId), () => new MechanismsDebugCenterPageDrawer(new MechanismsDebugTableModelBuilder()));
-
-            Register(new DebugCenterPageDescriptor(
-                "context_keys",
-                "RimMind.UI.Hub.Tab.ContextKeys",
-                50,
-                IsDefault: false,
-                OwnerModId: RimMindOwnerConsts.CoreModId), () => new ContextKeysDebugCenterPageDrawer(new ContextKeysDebugTableModelBuilder()));
+                OwnerModId: RimMindOwnerConsts.CoreModId), () => new CapabilitiesDebugCenterPageDrawer());
 
             Register(new DebugCenterPageDescriptor(
                 "settings",

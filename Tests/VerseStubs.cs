@@ -112,6 +112,7 @@ namespace RimWorld
     public class Faction
     {
         public static Faction OfPlayer = new();
+        public bool HostileToPlayer;
     }
 
     public static class KidnapAIUtility
@@ -181,6 +182,11 @@ namespace Verse
         public Pawn_RelationsTracker? relations;
         public object jobs = new();
         public RaceProperties RaceProps = new();
+        public bool InAggroMentalState;
+        public MentalStateDef? MentalStateDef;
+        public string KindLabel = "creature";
+        public bool HostileTo(RimWorld.Faction? other)
+            => Faction != null && other != null && !ReferenceEquals(Faction, other) && (Faction.HostileToPlayer || other.HostileToPlayer);
 
         public T? GetComp<T>() where T : ThingComp
         {
@@ -213,6 +219,15 @@ namespace Verse
         public IntVec3(int x, int y, int z) { this.x = x; this.y = y; this.z = z; }
         public float DistanceTo(IntVec3 other)
             => (float)Math.Sqrt((x - other.x) * (x - other.x) + (z - other.z) * (z - other.z));
+        public int DistanceToSquared(IntVec3 other)
+            => (x - other.x) * (x - other.x) + (z - other.z) * (z - other.z);
+    }
+
+    public class MentalStateDef : Def { }
+
+    public static class GridsUtility
+    {
+        public static bool Fogged(this IntVec3 c, Map? map) => false;
     }
 
     public class Def

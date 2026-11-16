@@ -341,7 +341,8 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 Widgets.Label(freqLabelRect, freqTitle);
                 TooltipHandler.TipRegion(freqLabelRect, freqTip);
 
-                float freqSliderW = cardW - 150f - 190f - 32f;
+                const float freqValW = 255f;
+                float freqSliderW = Mathf.Max(120f, cardW - 150f - freqValW - 32f);
                 Rect freqSliderRect = new Rect(freqLabelRect.xMax + 4f, rY, freqSliderW, 22f);
                 float newFreq = Widgets.HorizontalSlider(freqSliderRect, curFreq, 0.1f, 3.5f, roundTo: 0.1f);
                 if (Mathf.Abs(newFreq - curFreq) > 0.05f)
@@ -351,7 +352,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 }
                 TooltipHandler.TipRegion(freqSliderRect, freqTip);
 
-                Rect freqValRect = new Rect(freqSliderRect.xMax + 6f, rY, 190f, 22f);
+                Rect freqValRect = new Rect(freqSliderRect.xMax + 6f, rY, freqValW, 22f);
                 GUI.color = new Color(0.4f, 0.8f, 1.0f);
                 string freqDesc = ApiTabDrawer.GetActivityFrequencyDescription(curFreq);
                 Widgets.Label(freqValRect, $"{freqDesc} ({curFreq:F1}x)");
@@ -431,7 +432,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             Rect pSelectBtn = new Rect(pLabelRect.xMax + 8f, pY, pSelectW, 26f);
             if (Widgets.ButtonText(pSelectBtn, "RimMind.UI.Hub.SelectColonist".Translate()))
             {
-                var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList();
+                var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetEligibleColonists(Find.CurrentMap).ToList();
                 if (colonists != null && colonists.Count > 0)
                 {
                     var options = colonists.Select(p => new FloatMenuOption(p.LabelShortCap, () =>
@@ -555,22 +556,28 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
                 context.Navigation.GoTo("agents");
 
             Rect nav2 = new Rect(nav1.xMax + 8f, row1Y, btnW, btnH);
-            if (Widgets.ButtonText(nav2, "RimMind.UI.Hub.Tab.AIRequests".Translate()))
-                context.Navigation.GoTo("ai_requests");
+            string rolloutBtnLabel = "RimMind.UI.Traces.SubTab.Rollout".CanTranslate()
+                ? "RimMind.UI.Traces.SubTab.Rollout".Translate().ToString()
+                : "Agent Rollout";
+            if (Widgets.ButtonText(nav2, rolloutBtnLabel))
+                context.Navigation.GoTo("ai_requests", "rollout");
 
             Rect nav3 = new Rect(nav2.xMax + 8f, row1Y, btnW, btnH);
-            if (Widgets.ButtonText(nav3, "RimMind.UI.Hub.Tab.ToolCalls".Translate()))
-                context.Navigation.GoTo("tool_calls");
+            string ephemeralBtnLabel = "RimMind.UI.Traces.SubTab.Ephemeral".CanTranslate()
+                ? "RimMind.UI.Traces.SubTab.Ephemeral".Translate().ToString()
+                : "One-Off Requests";
+            if (Widgets.ButtonText(nav3, ephemeralBtnLabel))
+                context.Navigation.GoTo("ai_requests", "ephemeral");
 
             float row2Y = row1Y + btnH + 6f;
 
             Rect nav4 = new Rect(4f, row2Y, btnW, btnH);
-            if (Widgets.ButtonText(nav4, "RimMind.UI.Hub.Tab.Mechanisms".Translate()))
-                context.Navigation.GoTo("mechanisms");
+            if (Widgets.ButtonText(nav4, "RimMind.UI.Hub.Tab.ToolCalls".Translate()))
+                context.Navigation.GoTo("capabilities", "tool_calls");
 
             Rect nav5 = new Rect(nav4.xMax + 8f, row2Y, btnW, btnH);
-            if (Widgets.ButtonText(nav5, "RimMind.UI.Hub.Tab.ContextKeys".Translate()))
-                context.Navigation.GoTo("context_keys");
+            if (Widgets.ButtonText(nav5, "RimMind.UI.Hub.Tab.Mechanisms".Translate()))
+                context.Navigation.GoTo("capabilities", "mechanisms");
 
             Rect nav6 = new Rect(nav5.xMax + 8f, row2Y, btnW, btnH);
             if (Widgets.ButtonText(nav6, "RimMind.UI.Hub.OpenSettings".Translate()))

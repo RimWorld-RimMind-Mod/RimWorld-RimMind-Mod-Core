@@ -36,6 +36,7 @@
     <Compile Include="../Source/Infrastructure/Cache/EmbedCache.cs" />
     <Compile Include="../Source/Presentation/Agent/PerceptionBuffer.cs" />
     <Compile Include="../Source/Presentation/Agent/PawnPerceiver.cs" />
+    <Compile Include="../Source/Presentation/Agent/ThreatScanner.cs" />
     <Compile Include="../Source/Presentation/Agent/Perception/*.cs" />
     <Compile Include="../Source/Infrastructure/Agent/MechanismActionExecutor.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgent.cs" />

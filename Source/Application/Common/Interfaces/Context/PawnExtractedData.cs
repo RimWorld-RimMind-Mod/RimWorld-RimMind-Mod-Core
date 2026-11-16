@@ -38,6 +38,7 @@ namespace RimMind.Application.Common.Interfaces.Context
         public int ColonistCount;
         public float ColonyWealth;
         public int ThreatCount;
+        public string ThreatSummary = "";
         public List<HediffEntry> Hediffs = new List<HediffEntry>();
         public bool InMentalState;
         public string MentalStateInspectLine = "";

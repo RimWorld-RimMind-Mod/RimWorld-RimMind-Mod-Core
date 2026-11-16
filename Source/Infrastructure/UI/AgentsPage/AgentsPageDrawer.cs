@@ -17,6 +17,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         {
             _listDrawer.ScrollToBottom();
             _activityDrawer.ScrollToBottom();
+            _detailDrawer.ScrollToBottom();
         }
 
         public void Draw(Rect rect, Pawn? hubSelectedPawn, RimMindLayoutScope scope)

@@ -69,6 +69,11 @@ public static class ThinkStrategyHelper
         RegexOptions.IgnoreCase | RegexOptions.Compiled,
         RegexTimeout);
 
+    private static readonly Regex ToToolCommentaryRegex = new Regex(
+        @"\bto=(?:functions\.|tools\.)?(?<fn>[a-z_][a-z0-9_.]*)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        RegexTimeout);
+
     private static readonly List<ChatMessage> CachedDecisionExamples = CreateDecisionExamples();
 
     public static bool IsQueryToolName(string? toolName, IToolRegistry? toolRegistry = null)
@@ -89,7 +94,9 @@ public static class ThinkStrategyHelper
         => name.StartsWith("query", StringComparison.OrdinalIgnoreCase)
             || name.StartsWith("get_", StringComparison.OrdinalIgnoreCase)
             || name.StartsWith("list_", StringComparison.OrdinalIgnoreCase)
-            || name.StartsWith("inspect_", StringComparison.OrdinalIgnoreCase);
+            || name.StartsWith("inspect_", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith("_query", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".query", StringComparison.OrdinalIgnoreCase);
 
     private static bool HasUnqualifiedQueryPrefix(string name)
     {
@@ -110,7 +117,36 @@ public static class ThinkStrategyHelper
         IReadOnlyList<ToolResult>? toolCallResults = null)
     {
         var json = JsonTagExtractor.Extract<ActionJson>(response.Content, "Action");
-        var hasAction = json != null;
+        if (json == null && !string.IsNullOrEmpty(response.Content))
+        {
+            const string openTag = "<Action>";
+            int tagIdx = response.Content.IndexOf(openTag, StringComparison.OrdinalIgnoreCase);
+            if (tagIdx >= 0)
+            {
+                string rawAfterTag = response.Content.Substring(tagIdx + openTag.Length).Trim();
+                int closeIdx = rawAfterTag.IndexOf("</Action>", StringComparison.OrdinalIgnoreCase);
+                if (closeIdx >= 0)
+                    rawAfterTag = rawAfterTag.Substring(0, closeIdx).Trim();
+
+                string sanitized = JsonTagExtractor.SanitizeJsonContent(rawAfterTag);
+                if (!string.IsNullOrEmpty(sanitized))
+                {
+                    try
+                    {
+                        string repaired = JsonRepairer.Repair(sanitized);
+                        json = Newtonsoft.Json.JsonConvert.DeserializeObject<ActionJson>(repaired);
+                    }
+                    catch
+                    {
+                        // Ignore unrecoverable truncated payload
+                    }
+                }
+            }
+        }
+
+        // Models sometimes echo the "<Action>...</Action>" schema placeholder literally; never let a
+        // placeholder action shadow a real tool call or reach the tool registry.
+        var hasAction = json != null && IsMeaningfulActionName(json.action);
         var hasToolCalls = !string.IsNullOrEmpty(response.ToolCallsJson);
 
         if (!hasAction && !hasToolCalls)
@@ -165,10 +201,93 @@ public static class ThinkStrategyHelper
         });
     }
 
+    internal static bool IsMeaningfulActionName(string? action)
+    {
+        if (string.IsNullOrWhiteSpace(action)) return false;
+        foreach (var ch in action!)
+        {
+            if (ch != '.' && ch != '\u2026' && !char.IsWhiteSpace(ch)) return true;
+        }
+        return false;
+    }
+
     internal static (string? Id, string? Name, string? ArgsJson, string? Reason) TryExtractToolCallFromContent(string? content)
     {
         if (string.IsNullOrWhiteSpace(content)) return (null, null, null, null);
         string trimmed = content!.Trim();
+
+        // 0. Check raw JSON tool call object: {"name": "actions_eat_and_recreation", "parameters": {...}} or {"tool": "...", "arguments": {...}}
+        int firstBrace = trimmed.IndexOf('{');
+        if (firstBrace >= 0)
+        {
+            int lastBrace = trimmed.LastIndexOf('}');
+            string jsonCandidate = lastBrace > firstBrace
+                ? trimmed.Substring(firstBrace, lastBrace - firstBrace + 1)
+                : trimmed.Substring(firstBrace);
+
+            Newtonsoft.Json.Linq.JObject? rawObj = null;
+            try
+            {
+                rawObj = Newtonsoft.Json.Linq.JToken.Parse(jsonCandidate) as Newtonsoft.Json.Linq.JObject;
+            }
+            catch
+            {
+                try
+                {
+                    string repaired = JsonRepairer.Repair(trimmed.Substring(firstBrace));
+                    rawObj = Newtonsoft.Json.Linq.JToken.Parse(repaired) as Newtonsoft.Json.Linq.JObject;
+                }
+                catch { }
+            }
+
+            if (rawObj != null)
+            {
+                string? rawToolName = rawObj.Value<string>("name")
+                    ?? rawObj.Value<string>("tool")
+                    ?? (rawObj["function"] as Newtonsoft.Json.Linq.JObject)?.Value<string>("name");
+                if (!string.IsNullOrWhiteSpace(rawToolName) && IsValidFallbackToolIdentifier(rawToolName))
+                {
+                    var paramsToken = rawObj["parameters"]
+                        ?? rawObj["arguments"]
+                        ?? rawObj["args"]
+                        ?? rawObj["param"]
+                        ?? (rawObj["function"] as Newtonsoft.Json.Linq.JObject)?["arguments"];
+                    string? argsJson = null;
+                    string? reason = rawObj.Value<string>("reason");
+                    if (paramsToken is Newtonsoft.Json.Linq.JObject paramsObj)
+                    {
+                        argsJson = paramsObj.ToString(Newtonsoft.Json.Formatting.None);
+                        reason ??= paramsObj.Value<string>("reason");
+                    }
+                    else if (paramsToken != null && paramsToken.Type == Newtonsoft.Json.Linq.JTokenType.String)
+                    {
+                        argsJson = paramsToken.ToString();
+                        if (!string.IsNullOrWhiteSpace(argsJson))
+                        {
+                            try
+                            {
+                                if (Newtonsoft.Json.Linq.JToken.Parse(argsJson!) is Newtonsoft.Json.Linq.JObject parsedParams)
+                                    reason ??= parsedParams.Value<string>("reason");
+                            }
+                            catch { }
+                        }
+                    }
+                    else
+                    {
+                        var copyObj = (Newtonsoft.Json.Linq.JObject)rawObj.DeepClone();
+                        copyObj.Remove("name");
+                        copyObj.Remove("tool");
+                        copyObj.Remove("function");
+                        copyObj.Remove("id");
+                        copyObj.Remove("type");
+                        if (copyObj.HasValues)
+                            argsJson = copyObj.ToString(Newtonsoft.Json.Formatting.None);
+                    }
+
+                    return (rawObj.Value<string>("id"), rawToolName, argsJson ?? "{}", reason);
+                }
+            }
+        }
 
         // 1. Check pseudo-function call syntax: tool_name(key=val, ...)
         // Require a structured tool identifier (containing '_' or '.') immediately followed by '('
@@ -226,6 +345,59 @@ public static class ThinkStrategyHelper
                 }
                 string argsJson = jObj.ToString(Newtonsoft.Json.Formatting.None);
                 string? reason = jObj.Value<string>("reason");
+                return (null, fnName, argsJson, reason);
+            }
+        }
+
+        // 2. Check commentary syntax: to=tool_name or to=functions.tool_name [optional {...}]
+        Match toMatch;
+        try
+        {
+            toMatch = ToToolCommentaryRegex.Match(trimmed);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return (null, null, null, null);
+        }
+
+        if (toMatch.Success)
+        {
+            string fnName = toMatch.Groups["fn"].Value;
+            if (IsValidFallbackToolIdentifier(fnName))
+            {
+                string afterMatch = trimmed.Substring(toMatch.Index + toMatch.Length).Trim();
+                string? argsJson = "{}";
+                string? reason = null;
+                int braceStart = afterMatch.IndexOf('{');
+                int braceEnd = afterMatch.LastIndexOf('}');
+                if (braceStart >= 0 && braceEnd > braceStart)
+                {
+                    string candidate = afterMatch.Substring(braceStart, braceEnd - braceStart + 1);
+                    try
+                    {
+                        if (Newtonsoft.Json.Linq.JToken.Parse(candidate) is Newtonsoft.Json.Linq.JObject argObj)
+                        {
+                            argsJson = argObj.ToString(Newtonsoft.Json.Formatting.None);
+                            reason = argObj.Value<string>("reason");
+                        }
+                    }
+                    catch { }
+                }
+                else if (braceStart >= 0)
+                {
+                    string candidate = afterMatch.Substring(braceStart);
+                    try
+                    {
+                        string repaired = JsonRepairer.Repair(candidate);
+                        if (Newtonsoft.Json.Linq.JToken.Parse(repaired) is Newtonsoft.Json.Linq.JObject argObj)
+                        {
+                            argsJson = argObj.ToString(Newtonsoft.Json.Formatting.None);
+                            reason = argObj.Value<string>("reason");
+                        }
+                    }
+                    catch { }
+                }
+
                 return (null, fnName, argsJson, reason);
             }
         }

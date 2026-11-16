@@ -23,10 +23,34 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(AutonomyLevel.RequireApproval, policy.GetLevel(AutonomyDomain.WorktableBills));
                     Assert.Equal(AutonomyLevel.RequireApproval, policy.GetLevel(AutonomyDomain.BlueprintPlacement));
                     Assert.Equal(AutonomyLevel.RequireApproval, policy.GetLevel(AutonomyDomain.HighRiskOperations));
+                    Assert.Equal(AutonomyLevel.Disabled, policy.GetLevel(AutonomyDomain.WorkPriorityModification));
 
                     Assert.True(policy.CanExecuteAutonomous(AutonomyDomain.EmergencySurvival));
                     Assert.True(policy.RequiresApproval(AutonomyDomain.BlueprintPlacement));
                     Assert.False(policy.IsDisabled(AutonomyDomain.WorktableBills));
+                    Assert.True(policy.IsDisabled(AutonomyDomain.WorkPriorityModification));
+                }),
+                ("work-only and full-auto presets plus CopyFrom apply cleanly", () =>
+                {
+                    var policy = AgentAutonomyPolicy.CreateDefault();
+                    policy.ApplyWorkOnlyNoBlueprintsPreset();
+
+                    Assert.Equal(AutonomyLevel.FullAutonomous, policy.GetLevel(AutonomyDomain.EmergencySurvival));
+                    Assert.Equal(AutonomyLevel.FullAutonomous, policy.GetLevel(AutonomyDomain.ResourceMarking));
+                    Assert.Equal(AutonomyLevel.FullAutonomous, policy.GetLevel(AutonomyDomain.WorktableBills));
+                    Assert.Equal(AutonomyLevel.Disabled, policy.GetLevel(AutonomyDomain.BlueprintPlacement));
+                    Assert.Equal(AutonomyLevel.RequireApproval, policy.GetLevel(AutonomyDomain.HighRiskOperations));
+                    Assert.Equal(AutonomyLevel.Disabled, policy.GetLevel(AutonomyDomain.WorkPriorityModification));
+
+                    var peer = AgentAutonomyPolicy.CreateDefault();
+                    peer.ApplyFullAutonomousPreset();
+                    Assert.Equal(AutonomyLevel.FullAutonomous, peer.GetLevel(AutonomyDomain.BlueprintPlacement));
+                    Assert.Equal(AutonomyLevel.FullAutonomous, peer.GetLevel(AutonomyDomain.WorkPriorityModification));
+                    Assert.Equal(AutonomyLevel.RequireApproval, peer.GetLevel(AutonomyDomain.HighRiskOperations));
+
+                    peer.CopyFrom(policy);
+                    Assert.Equal(AutonomyLevel.Disabled, peer.GetLevel(AutonomyDomain.BlueprintPlacement));
+                    Assert.Equal(AutonomyLevel.Disabled, peer.GetLevel(AutonomyDomain.WorkPriorityModification));
                 }),
                 ("custom level overrides take effect immediately and clone works independently", () =>
                 {

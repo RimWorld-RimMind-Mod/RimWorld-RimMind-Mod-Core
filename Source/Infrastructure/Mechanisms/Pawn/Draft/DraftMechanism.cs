@@ -25,14 +25,15 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Draft
         {
             Summary = "Toggle pawn draft status",
             QueryDescription = "Query whether the pawn is currently drafted",
-            ToggleDescription = "Toggle pawn draft status. Actions: draft, undraft. Optional: urgent=true for emergency draft."
+            ToggleDescription = "Toggle pawn draft status. Actions: draft, undraft, toggle. Optional: urgent=true for emergency draft."
         };
 
         private static readonly IReadOnlyList<MechanismActionInfo> _writeActions =
             new List<MechanismActionInfo>
             {
                 new MechanismActionInfo { Action = "draft", Description = "Draft the pawn into combat mode" },
-                new MechanismActionInfo { Action = "undraft", Description = "Remove the pawn from combat mode" }
+                new MechanismActionInfo { Action = "undraft", Description = "Remove the pawn from combat mode" },
+                new MechanismActionInfo { Action = "toggle", Description = "Flip the pawn's current draft state" }
             }.AsReadOnly();
 
         public override IReadOnlyList<MechanismActionInfo>? GetWriteActions() => _writeActions;
@@ -68,6 +69,11 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Draft
                     return Task.FromResult(Result<bool, RimMindError>.Ok(true));
                 case "undraft":
                     pawn.drafter.Drafted = false;
+                    return Task.FromResult(Result<bool, RimMindError>.Ok(true));
+                case "toggle":
+                case "":
+                case null:
+                    pawn.drafter.Drafted = !pawn.drafter.Drafted;
                     return Task.FromResult(Result<bool, RimMindError>.Ok(true));
                 default:
                     return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction(MechanismId, args.Action)));

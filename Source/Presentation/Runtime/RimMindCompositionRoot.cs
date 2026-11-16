@@ -147,6 +147,8 @@ namespace RimMind.Presentation.Runtime
                 var infraBag = Infrastructure.DependencyInjection.AddInfrastructureServices(
                     appBag.ToolRegistry, appBag.JsonExtractor, resolvedSettings);
                 SettingsComposition.ComposeInfrastructureServices(services, infraBag);
+                Infrastructure.Mechanisms.MechanismToolHandler.PawnExistsPredicate =
+                    id => Api.RimMindPawnLookup.FindPawnByNumber(id) != null;
 
                 var logSink = infraBag.LogSink;
                 var tickProvider = infraBag.TickProvider;

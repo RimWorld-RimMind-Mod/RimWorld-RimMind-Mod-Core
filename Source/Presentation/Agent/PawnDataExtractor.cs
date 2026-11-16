@@ -106,7 +106,7 @@ namespace RimMind.Presentation.Agent
                         {
                             string n = other.Name?.ToStringShort ?? other.LabelShort ?? "";
                             if (!string.IsNullOrEmpty(n))
-                                nearby.Add(n);
+                                nearby.Add(other.thingIDNumber > 0 ? $"{n} (pawn_id: {other.thingIDNumber})" : n);
                         }
                     }
                     if (nearby.Count > 0)
@@ -138,6 +138,18 @@ namespace RimMind.Presentation.Agent
             }
             catch { result.ColonyWealth = 0f; }
             result.ThreatCount = 0;
+            try
+            {
+                // Active hostiles near the colony (raiders, manhunters, mad animals). Main thread only:
+                // mapPawns is not safe to enumerate from the background context builder.
+                if (pawn.Map != null && UnityData.IsInMainThread)
+                {
+                    var threats = ThreatScanner.FindNearbyThreats(pawn, 200f);
+                    result.ThreatCount = threats.Count;
+                    result.ThreatSummary = ThreatScanner.Describe(pawn, threats);
+                }
+            }
+            catch (System.Exception ex) { logSink?.Warning($"PawnDataExtractor: threat scan failed for {pawn.Name}: {ex.Message}"); }
             result.Hediffs = new List<HediffEntry>();
             result.InMentalState = pawn.MentalStateDef != null;
             result.MentalStateInspectLine = pawn.MentalStateDef != null ? (pawn.MentalStateDef.label ?? pawn.MentalStateDef.defName) : "";

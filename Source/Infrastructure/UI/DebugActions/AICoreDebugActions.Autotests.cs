@@ -24,15 +24,17 @@ namespace RimMind.Infrastructure.UI
     public static partial class RimMindCoreDebugActions
     {
         [DebugAction("Autotests", "Test H2 Actions Equivalence", actionType = DebugActionType.Action)]
-        public static void TestH2ActionsEquivalence()
+        public static void TestH2ActionsEquivalence() => RunH2EquivalenceCore();
+
+        internal static (int Pass, int Fail) RunH2EquivalenceCore()
         {
             RuntimeServiceScope runtimeScope = RuntimeServiceHub.Shared.Capture();
-            RunH2ActionsEquivalence(
+            return RunH2ActionsEquivalence(
                 runtimeScope.GetOptional<IGameMechanismRegistry>()?.All ?? new List<IGameMechanism>(),
                 runtimeScope.GetOptional<IToolRegistry>()?.All ?? new List<IToolHandler>());
         }
 
-        private static void RunH2ActionsEquivalence(
+        private static (int Pass, int Fail) RunH2ActionsEquivalence(
             IReadOnlyList<IGameMechanism> mechanisms,
             IReadOnlyList<IToolHandler> tools)
         {
@@ -58,18 +60,27 @@ namespace RimMind.Infrastructure.UI
 
                 foreach (var action in writeActions)
                 {
-                    // Convention: tool id = "mechanismId_action" or "mechanismId"
-                    string conventionToolId = $"{mech.MechanismId}_{action.Action}";
-                    string mechanismToolId = mech.MechanismId;
-                    if (toolIds.Contains(conventionToolId) || toolIds.Contains(mechanismToolId))
+                    // Convention: action-scoped id "mechanismId_action" or operation-scoped mechanism tool id
+                    string[] candidates =
                     {
-                        string matchedId = toolIds.Contains(conventionToolId) ? conventionToolId : mechanismToolId;
+                        $"{mech.MechanismId}_{action.Action}",
+                        mech.MechanismId,
+                        $"{mech.MechanismId}.set",
+                        $"{mech.MechanismId}.add",
+                        $"{mech.MechanismId}.remove",
+                        $"{mech.MechanismId}.toggle",
+                        $"{mech.MechanismId}.trigger",
+                        $"{mech.MechanismId}.watch"
+                    };
+                    string? matchedId = candidates.FirstOrDefault(toolIds.Contains);
+                    if (matchedId != null)
+                    {
                         sb.AppendLine($"  [PASS] {mech.MechanismId}.{action.Action} -> {matchedId}");
                         pass++;
                     }
                     else
                     {
-                        sb.AppendLine($"  [FAIL] {mech.MechanismId}.{action.Action} -> no matching tool (tried '{conventionToolId}', '{mechanismToolId}')");
+                        sb.AppendLine($"  [FAIL] {mech.MechanismId}.{action.Action} -> no matching tool");
                         Log.Error($"[Autotests] H2: {mech.MechanismId}.{action.Action} has no matching tool");
                         fail++;
                     }
@@ -85,6 +96,7 @@ namespace RimMind.Infrastructure.UI
             sb.AppendLine($"  Result: {pass} passed, {fail} failed");
             Log.Message(sb.ToString());
             ReportAutotest("H2", pass, fail);
+            return (pass, fail);
         }
 
         [DebugAction("Autotests", "Test P Visibility Entrypoints", actionType = DebugActionType.Action)]
@@ -119,7 +131,7 @@ namespace RimMind.Infrastructure.UI
             Check("Core icon asset", () => ContentFinder<Texture2D>.Get("UI/RimMind/Icon", false) != null);
             foreach (string pageId in new[]
             {
-                "overview", "agents", "ai_requests", "tool_calls", "mechanisms", "context_keys", "settings"
+                "overview", "agents", "ai_requests", "capabilities", "settings"
             })
             {
                 Check($"Debug center page: {pageId}", () =>
@@ -356,7 +368,9 @@ namespace RimMind.Infrastructure.UI
             ReportAutotest("L.ContextEvolution", pass, fail);
         }
         [DebugAction("Autotests", "Test UI Layout Conflict Detector", actionType = DebugActionType.Action)]
-        public static void TestUiLayoutConflictDetector()
+        public static void TestUiLayoutConflictDetector() => RunUiLayoutConflictCheck();
+
+        internal static void RunUiLayoutConflictCheck(Action<LayoutAutotestEvaluation>? onCompleted = null)
         {
             LayoutConflictStore.Clear();
             LayoutConflictStore.TracingEnabled = true;
@@ -387,6 +401,7 @@ namespace RimMind.Infrastructure.UI
                     evaluation.PassCount,
                     evaluation.FailCount,
                     evaluation.MissingReportCount);
+                onCompleted?.Invoke(evaluation);
             });
         }
 

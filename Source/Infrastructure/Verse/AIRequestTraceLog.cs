@@ -13,6 +13,7 @@ namespace RimMind.Infrastructure.Verse
         private readonly object _lock = new();
         private readonly List<AIRequestTraceEntry> _entries = new();
         private readonly Dictionary<string, AIRequestTraceEntry> _byId = new(System.StringComparer.Ordinal);
+        private readonly Dictionary<string, (int Length, int Hash)> _lastLayerHashByScopeAndTag = new(System.StringComparer.Ordinal);
         private long _revision;
         private long _entriesSnapshotCount;
 
@@ -82,6 +83,9 @@ namespace RimMind.Infrastructure.Verse
             if (string.IsNullOrWhiteSpace(npcId) && string.IsNullOrWhiteSpace(fallbackPawnId))
                 return true;
 
+            if (!string.IsNullOrWhiteSpace(entry.NpcId))
+                return MatchesId(entry.NpcId!.Trim(), npcId, fallbackPawnId);
+
             string source = entry.Source ?? string.Empty;
             int npcIdx = source.IndexOf("npc:", System.StringComparison.OrdinalIgnoreCase);
             if (npcIdx >= 0)
@@ -129,13 +133,19 @@ namespace RimMind.Infrastructure.Verse
                     existing.UserPrompt = userPrompt;
                     existing.AssistantPrompt = assistantPrompt;
                     existing.Response = string.Empty;
+                    existing.ReasoningContent = null;
                     existing.Error = null;
                     existing.TokensUsed = 0;
+                    existing.PromptTokens = 0;
+                    existing.CompletionTokens = 0;
+                    existing.CachedTokens = 0;
                     existing.ElapsedMs = 0;
                     existing.StartedAtUtc = System.DateTime.UtcNow;
                     existing.FinishedAtUtc = null;
                     existing.State = AIRequestTraceState.Running;
                     existing.ToolCalls.Clear();
+                    existing.Layers.Clear();
+                    existing.ActionOutcome = null;
                     _revision++;
                     return;
                 }
@@ -159,13 +169,100 @@ namespace RimMind.Infrastructure.Verse
             }
         }
 
+        public void UpdateRequestMetadata(
+            string requestId,
+            string traceId,
+            string rolloutId,
+            int turnIndex,
+            string modId,
+            string scenarioId,
+            string? npcId,
+            bool isAgentRollout)
+        {
+            lock (_lock)
+            {
+                var entry = FindOrCreate(requestId);
+                entry.TraceId = traceId ?? string.Empty;
+                entry.RolloutId = rolloutId ?? string.Empty;
+                entry.TurnIndex = turnIndex;
+                entry.ModId = modId ?? string.Empty;
+                entry.ScenarioId = scenarioId ?? string.Empty;
+                entry.NpcId = string.IsNullOrWhiteSpace(npcId) ? null : npcId;
+                entry.IsAgentRollout = isAgentRollout;
+                _revision++;
+            }
+        }
+
+        public void UpdateRequestLayers(string requestId, IReadOnlyList<AIRequestLayerTrace> layers)
+        {
+            if (layers == null)
+                return;
+
+            lock (_lock)
+            {
+                var entry = FindOrCreate(requestId);
+                entry.Layers.Clear();
+                string scope = !string.IsNullOrWhiteSpace(entry.NpcId)
+                    ? entry.NpcId!
+                    : (!string.IsNullOrWhiteSpace(entry.ModId) ? entry.ModId : entry.Source);
+
+                foreach (var layer in layers)
+                {
+                    if (layer == null) continue;
+                    string content = layer.Content ?? string.Empty;
+                    string hashKey = $"{scope}|{layer.Role}|{layer.LayerTag}";
+                    var sig = (content.Length, System.StringComparer.Ordinal.GetHashCode(content));
+                    bool isStableSystemLayer = string.Equals(layer.Role, "system", System.StringComparison.OrdinalIgnoreCase)
+                        || layer.LayerTag.StartsWith("L0", System.StringComparison.OrdinalIgnoreCase)
+                        || layer.LayerTag.StartsWith("L1", System.StringComparison.OrdinalIgnoreCase)
+                        || layer.LayerTag.StartsWith("L2", System.StringComparison.OrdinalIgnoreCase)
+                        || layer.LayerTag.StartsWith("L3", System.StringComparison.OrdinalIgnoreCase);
+
+                    bool reused = layer.IsPrefixReused;
+                    if (isStableSystemLayer
+                        && _lastLayerHashByScopeAndTag.TryGetValue(hashKey, out var prev)
+                        && prev.Length == sig.Length
+                        && prev.Hash == sig.Item2)
+                    {
+                        reused = true;
+                    }
+                    if (isStableSystemLayer)
+                        _lastLayerHashByScopeAndTag[hashKey] = sig;
+
+                    entry.Layers.Add(new AIRequestLayerTrace(
+                        layer.Role,
+                        layer.LayerTag,
+                        content,
+                        content.Length,
+                        reused));
+                }
+                _revision++;
+            }
+        }
+
         public void CompleteRequest(string requestId, string response, int tokensUsed, int elapsedMs)
+            => CompleteRequestDetailed(requestId, response, reasoningContent: null, tokensUsed, promptTokens: 0, completionTokens: 0, cachedTokens: 0, elapsedMs);
+
+        public void CompleteRequestDetailed(
+            string requestId,
+            string response,
+            string? reasoningContent,
+            int tokensUsed,
+            int promptTokens,
+            int completionTokens,
+            int cachedTokens,
+            int elapsedMs)
         {
             lock (_lock)
             {
                 var entry = FindOrCreate(requestId);
                 entry.Response = response;
+                if (!string.IsNullOrWhiteSpace(reasoningContent))
+                    entry.ReasoningContent = reasoningContent;
                 entry.TokensUsed = tokensUsed;
+                entry.PromptTokens = promptTokens;
+                entry.CompletionTokens = completionTokens;
+                entry.CachedTokens = cachedTokens;
                 entry.ElapsedMs = elapsedMs;
                 entry.FinishedAtUtc = System.DateTime.UtcNow;
                 entry.State = AIRequestTraceState.Completed;
@@ -202,6 +299,16 @@ namespace RimMind.Infrastructure.Verse
         }
 
         public void AddToolCall(string requestId, string toolCallId, string toolName, bool succeeded, string? error)
+            => AddToolCallDetailed(requestId, toolCallId, toolName, succeeded, error, argumentsJson: null, resultContent: null);
+
+        public void AddToolCallDetailed(
+            string requestId,
+            string toolCallId,
+            string toolName,
+            bool succeeded,
+            string? error,
+            string? argumentsJson,
+            string? resultContent)
         {
             lock (_lock)
             {
@@ -209,13 +316,76 @@ namespace RimMind.Infrastructure.Verse
                 int existingIdx = entry.ToolCalls.FindIndex(t => t.ToolCallId == toolCallId);
                 if (existingIdx >= 0)
                 {
+                    var existing = entry.ToolCalls[existingIdx];
                     entry.ToolCalls[existingIdx] = new AIRequestToolCallTrace(
-                        toolCallId, toolName, succeeded, error);
+                        toolCallId,
+                        toolName,
+                        succeeded,
+                        error,
+                        argumentsJson ?? existing.ArgumentsJson,
+                        resultContent ?? existing.ResultContent);
                 }
                 else
                 {
                     entry.ToolCalls.Add(new AIRequestToolCallTrace(
-                        toolCallId, toolName, succeeded, error));
+                        toolCallId,
+                        toolName,
+                        succeeded,
+                        error,
+                        argumentsJson,
+                        resultContent));
+                }
+                _revision++;
+            }
+        }
+
+        internal bool HasToolCall(string requestId, string toolCallId)
+        {
+            lock (_lock)
+            {
+                if (string.IsNullOrEmpty(requestId) || !_byId.TryGetValue(requestId, out var entry))
+                    return false;
+                return entry.ToolCalls.Any(t => t.ToolCallId == toolCallId);
+            }
+        }
+
+        public void RecordActionOutcome(
+            string requestId,
+            string actionIntent,
+            bool succeeded,
+            string? detail = null,
+            string? paramPreview = null)
+        {
+            if (string.IsNullOrWhiteSpace(requestId))
+                return;
+
+            lock (_lock)
+            {
+                if (!_byId.TryGetValue(requestId, out var entry))
+                    return;
+
+                entry.ActionOutcome = new AIRequestActionOutcomeTrace(
+                    actionIntent ?? string.Empty,
+                    succeeded,
+                    detail,
+                    paramPreview);
+
+                // Sync final terminal action outcome back onto any matching declared write-tool trace
+                // that had ResultContent == null (i.e. deferred from ToolCallDispatchMiddleware to DecisionProcessor).
+                for (int i = entry.ToolCalls.Count - 1; i >= 0; i--)
+                {
+                    var tc = entry.ToolCalls[i];
+                    if (tc.ResultContent == null
+                        && (string.Equals(tc.ToolName, actionIntent, System.StringComparison.OrdinalIgnoreCase)
+                            || entry.ToolCalls.Count == 1))
+                    {
+                        entry.ToolCalls[i] = tc with
+                        {
+                            Succeeded = succeeded,
+                            Error = succeeded ? null : (detail ?? tc.Error ?? "Action failed")
+                        };
+                        break;
+                    }
                 }
                 _revision++;
             }
@@ -227,6 +397,7 @@ namespace RimMind.Infrastructure.Verse
             {
                 _entries.Clear();
                 _byId.Clear();
+                _lastLayerHashByScopeAndTag.Clear();
                 _revision++;
             }
         }
@@ -268,25 +439,41 @@ namespace RimMind.Infrastructure.Verse
             var snapshot = new AIRequestTraceEntry
             {
                 RequestId = entry.RequestId,
+                TraceId = entry.TraceId,
+                RolloutId = entry.RolloutId,
+                TurnIndex = entry.TurnIndex,
+                ModId = entry.ModId,
+                ScenarioId = entry.ScenarioId,
+                NpcId = entry.NpcId,
+                IsAgentRollout = entry.IsAgentRollout,
                 Source = entry.Source,
                 Model = entry.Model,
                 SystemPrompt = entry.SystemPrompt,
                 UserPrompt = entry.UserPrompt,
                 AssistantPrompt = entry.AssistantPrompt,
                 Response = entry.Response,
+                ReasoningContent = entry.ReasoningContent,
                 Error = entry.Error,
                 TokensUsed = entry.TokensUsed,
+                PromptTokens = entry.PromptTokens,
+                CompletionTokens = entry.CompletionTokens,
+                CachedTokens = entry.CachedTokens,
                 ElapsedMs = entry.ElapsedMs,
                 StartedAtUtc = entry.StartedAtUtc,
                 FinishedAtUtc = entry.FinishedAtUtc,
-                State = entry.State
+                State = entry.State,
+                ActionOutcome = entry.ActionOutcome
             };
 
             snapshot.ToolCalls.AddRange(entry.ToolCalls.Select(toolCall => new AIRequestToolCallTrace(
                 toolCall.ToolCallId,
                 toolCall.ToolName,
                 toolCall.Succeeded,
-                toolCall.Error)));
+                toolCall.Error,
+                toolCall.ArgumentsJson,
+                toolCall.ResultContent)));
+
+            snapshot.Layers.AddRange(entry.Layers);
 
             return snapshot;
         }

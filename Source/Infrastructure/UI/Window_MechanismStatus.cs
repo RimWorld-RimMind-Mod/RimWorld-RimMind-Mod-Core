@@ -165,9 +165,8 @@ namespace RimMind.Infrastructure.UI
             }
 
             Rect viewRect = new Rect(rect.x, rect.y, rect.width - 16f, contentH);
-            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
             scope.Record(rect, "ScrollView:Outer");
-            scope.Record(viewRect, "ScrollView:Content");
+            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
 
             float y = rect.y;
             for (int i = 0; i < filtered.Count; i++)
@@ -176,7 +175,6 @@ namespace RimMind.Infrastructure.UI
                 float entryH = heights[i];
 
                 Rect entryRect = new Rect(viewRect.x, y, viewRect.width, entryH);
-                scope.Record(entryRect, $"MechanismEntry:{mech.MechanismId}");
                 Widgets.DrawBoxSolid(entryRect, new Color(0.12f, 0.12f, 0.16f, 0.7f));
 
                 DrawMechanismEntry(entryRect, mech, tools);

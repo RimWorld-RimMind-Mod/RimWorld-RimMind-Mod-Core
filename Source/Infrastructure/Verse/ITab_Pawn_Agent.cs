@@ -47,9 +47,8 @@ namespace RimMind.Infrastructure.Verse
             float contentH = CalculateContentHeight(agent, rect.width);
             var contentRect = new Rect(0f, 0f, rect.width - 16f, contentH);
 
-            Widgets.BeginScrollView(rect, ref _scrollPosition, contentRect);
             scope.Record(rect, "ScrollView:Outer");
-            scope.Record(contentRect, "ScrollView:Content");
+            Widgets.BeginScrollView(rect, ref _scrollPosition, contentRect);
 
             float curY = 0f;
 

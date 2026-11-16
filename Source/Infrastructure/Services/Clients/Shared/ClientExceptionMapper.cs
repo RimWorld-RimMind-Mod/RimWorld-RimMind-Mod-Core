@@ -61,6 +61,11 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
             if (ex is HttpTransport.HttpException httpEx)
             {
                 logSink?.LogFromBackground($"[RimMind-Core] {logPrefix} failed ({requestId}): {httpEx.Message}", isWarning: true);
+                if (IsContentModerationResponse(httpEx.StatusCode, httpEx.ClassificationText))
+                {
+                    return Result<LlmResponse, RimMindError>.Err(
+                        RimMindErrors.ContentFiltered(httpEx.Message, httpEx));
+                }
                 return Result<LlmResponse, RimMindError>.Err(
                     IsTransientHttpFailure(httpEx)
                         ? RimMindErrors.ClientTransient(httpEx.Message, httpEx)
@@ -100,5 +105,17 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
             return !isPermanentQuotaOrAuth &&
                 (httpEx.StatusCode == 408 || httpEx.StatusCode == 429 || httpEx.StatusCode >= 500 || isRateLimitOrQueue);
         }
+
+        internal static bool IsContentModerationResponse(int statusCode, string? responseBody)
+        {
+            return statusCode == 400 &&
+                   !string.IsNullOrEmpty(responseBody) &&
+                   (responseBody!.IndexOf("Content Exists Risk", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    responseBody.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        internal static bool IsContentFilteredHttpFailure(Exception? ex)
+            => ex is HttpTransport.HttpException httpEx &&
+               IsContentModerationResponse(httpEx.StatusCode, httpEx.ClassificationText);
     }
 }

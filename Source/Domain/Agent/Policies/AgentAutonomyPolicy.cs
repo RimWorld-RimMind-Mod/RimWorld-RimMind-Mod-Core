@@ -47,6 +47,36 @@ namespace RimMind.Domain.Agent.Policies
             _domainLevels[AutonomyDomain.WorktableBills] = AutonomyLevel.RequireApproval;
             _domainLevels[AutonomyDomain.BlueprintPlacement] = AutonomyLevel.RequireApproval;
             _domainLevels[AutonomyDomain.HighRiskOperations] = AutonomyLevel.RequireApproval;
+            _domainLevels[AutonomyDomain.WorkPriorityModification] = AutonomyLevel.Disabled;
+        }
+
+        public void ApplyWorkOnlyNoBlueprintsPreset()
+        {
+            _domainLevels[AutonomyDomain.EmergencySurvival] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.ResourceMarking] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.WorktableBills] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.BlueprintPlacement] = AutonomyLevel.Disabled;
+            _domainLevels[AutonomyDomain.HighRiskOperations] = AutonomyLevel.RequireApproval;
+            _domainLevels[AutonomyDomain.WorkPriorityModification] = AutonomyLevel.Disabled;
+        }
+
+        public void ApplyFullAutonomousPreset()
+        {
+            _domainLevels[AutonomyDomain.EmergencySurvival] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.ResourceMarking] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.WorktableBills] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.BlueprintPlacement] = AutonomyLevel.FullAutonomous;
+            _domainLevels[AutonomyDomain.HighRiskOperations] = AutonomyLevel.RequireApproval;
+            _domainLevels[AutonomyDomain.WorkPriorityModification] = AutonomyLevel.FullAutonomous;
+        }
+
+        public void CopyFrom(AgentAutonomyPolicy? other)
+        {
+            if (other == null) return;
+            foreach (AutonomyDomain domain in System.Enum.GetValues(typeof(AutonomyDomain)))
+            {
+                _domainLevels[domain] = other.GetLevel(domain);
+            }
         }
 
         public AgentAutonomyPolicy Clone()

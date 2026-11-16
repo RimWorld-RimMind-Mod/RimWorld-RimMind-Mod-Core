@@ -92,9 +92,8 @@ namespace RimMind.Infrastructure.UI
         {
             float contentH = CalculateScopedContentHeight(scopedAgent, rect.width);
             Rect viewRect = new Rect(rect.x, rect.y, rect.width - 16f, contentH);
-            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
             scope.Record(rect, "ScrollView:ScopedOuter");
-            scope.Record(viewRect, "ScrollView:ScopedContent");
+            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
 
             float y = viewRect.y + RimMindUI.Padding;
             float x = viewRect.x + RimMindUI.Padding;
@@ -229,14 +228,12 @@ namespace RimMind.Infrastructure.UI
             float btnW = 160f;
 
             Rect forceThinkBtn = new Rect(x, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(forceThinkBtn, "Button:ForceThink");
             if (Widgets.ButtonText(forceThinkBtn, "RimMind.UI.AgentStateDebug.SendTestRequest".Translate()))
             {
                 scopedAgent.ForceThink();
             }
 
             Rect requestLogBtn = new Rect(x + btnW + RimMindUI.Padding, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(requestLogBtn, "Button:RequestLog");
             if (Widgets.ButtonText(requestLogBtn, "RimMind.UI.AgentStateDebug.OpenRequestLog".Translate()))
             {
                 Find.WindowStack.Add(new Window_RequestLog());
@@ -244,14 +241,12 @@ namespace RimMind.Infrastructure.UI
             y += RimMindUI.BtnHeight + RimMindUI.Padding;
 
             Rect toolCallBtn = new Rect(x, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(toolCallBtn, "Button:ToolCallDebug");
             if (Widgets.ButtonText(toolCallBtn, "RimMind.UI.AgentStateDebug.OpenToolCallDebug".Translate()))
             {
                 Find.WindowStack.Add(new Window_ToolCallDebug());
             }
 
             Rect mechanismBtn = new Rect(x + btnW + RimMindUI.Padding, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(mechanismBtn, "Button:MechanismStatus");
             if (Widgets.ButtonText(mechanismBtn, "RimMind.UI.AgentStateDebug.OpenMechanismStatus".Translate()))
             {
                 Find.WindowStack.Add(new Window_MechanismStatus());
@@ -259,7 +254,6 @@ namespace RimMind.Infrastructure.UI
             y += RimMindUI.BtnHeight + RimMindUI.Padding;
 
             Rect destroyBtn = new Rect(x, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(destroyBtn, "Button:DestroyScopedAgent");
             if (Widgets.ButtonText(destroyBtn, "RimMind.UI.AgentStateDebug.DestroyScopedAgent".Translate()))
             {
                 var manager = RuntimeServiceHub.Shared.Capture().GetOptional<IScopedAgentManager>();
@@ -304,9 +298,8 @@ namespace RimMind.Infrastructure.UI
             IPawnAgentVerse? agent = CompPawnAgent.GetComp(pawn)?.ResolveCurrentAgent(runtimeScope);
             float contentH = CalculatePawnContentHeight(agent, rect.width);
             Rect viewRect = new Rect(rect.x, rect.y, rect.width - 16f, contentH);
-            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
             scope.Record(rect, "ScrollView:PawnOuter");
-            scope.Record(viewRect, "ScrollView:PawnContent");
+            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
 
             float y = viewRect.y + RimMindUI.Padding;
 
@@ -447,7 +440,6 @@ namespace RimMind.Infrastructure.UI
             float btnW = 160f;
 
             Rect createAgentBtn = new Rect(x, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(createAgentBtn, "Button:CreateAgent");
             if (Widgets.ButtonText(createAgentBtn, "RimMind.UI.AgentStateDebug.CreateAgent".Translate()))
             {
                 RuntimeServiceScope runtimeScope = RuntimeServiceHub.Shared.Capture();
@@ -466,7 +458,6 @@ namespace RimMind.Infrastructure.UI
             }
 
             Rect buildContextBtn = new Rect(x + btnW + RimMindUI.Padding, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(buildContextBtn, "Button:BuildContext");
             if (Widgets.ButtonText(buildContextBtn, "RimMind.UI.AgentStateDebug.BuildContext".Translate()))
             {
                 string npcId = $"NPC-{pawn.thingIDNumber}";
@@ -487,7 +478,6 @@ namespace RimMind.Infrastructure.UI
             y += RimMindUI.BtnHeight + RimMindUI.Padding;
 
             Rect testThinkBtn = new Rect(x, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(testThinkBtn, "Button:SendTestRequest");
             if (Widgets.ButtonText(testThinkBtn, "RimMind.UI.AgentStateDebug.SendTestRequest".Translate()))
             {
                 RuntimeServiceScope runtimeScope = RuntimeServiceHub.Shared.Capture();
@@ -495,7 +485,6 @@ namespace RimMind.Infrastructure.UI
             }
 
             Rect requestLogBtn = new Rect(x + btnW + RimMindUI.Padding, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(requestLogBtn, "Button:RequestLog");
             if (Widgets.ButtonText(requestLogBtn, "RimMind.UI.AgentStateDebug.OpenRequestLog".Translate()))
             {
                 Find.WindowStack.Add(new Window_RequestLog());
@@ -503,14 +492,12 @@ namespace RimMind.Infrastructure.UI
             y += RimMindUI.BtnHeight + RimMindUI.Padding;
 
             Rect toolCallBtn = new Rect(x, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(toolCallBtn, "Button:ToolCallDebug");
             if (Widgets.ButtonText(toolCallBtn, "RimMind.UI.AgentStateDebug.OpenToolCallDebug".Translate()))
             {
                 Find.WindowStack.Add(new Window_ToolCallDebug());
             }
 
             Rect mechanismBtn = new Rect(x + btnW + RimMindUI.Padding, y, btnW, RimMindUI.BtnHeight);
-            scope.Record(mechanismBtn, "Button:MechanismStatus");
             if (Widgets.ButtonText(mechanismBtn, "RimMind.UI.AgentStateDebug.OpenMechanismStatus".Translate()))
             {
                 Find.WindowStack.Add(new Window_MechanismStatus());

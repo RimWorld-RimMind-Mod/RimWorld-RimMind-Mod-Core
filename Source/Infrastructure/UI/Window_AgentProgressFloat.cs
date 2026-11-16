@@ -156,9 +156,8 @@ namespace RimMind.Infrastructure.UI
         {
             float contentH = _cachedEntries.Count * (EntryH + Padding) + Padding;
             Rect viewRect = new Rect(rect.x, rect.y, rect.width - 16f, contentH);
-            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
             scope.Record(rect, "ScrollView:Outer");
-            scope.Record(viewRect, "ScrollView:Content");
+            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
 
             float y = viewRect.y + Padding;
             float entryW = viewRect.width - Padding * 2;
@@ -167,7 +166,6 @@ namespace RimMind.Infrastructure.UI
             {
                 var entry = _cachedEntries[i];
                 Rect entryRect = new Rect(viewRect.x + Padding, y, entryW, EntryH);
-                scope.Record(entryRect, $"AgentEntry:{i}");
 
                 DrawAgentEntry(entryRect, entry, scope);
 
@@ -228,7 +226,6 @@ namespace RimMind.Infrastructure.UI
 
             float btnX = rect.xMax - 76f;
             Rect detailBtn = new Rect(btnX, rect.y + (rect.height - BtnHeight) / 2f, 72f, BtnHeight);
-            scope.Record(detailBtn, "Button:Details");
             if (Widgets.ButtonText(detailBtn, "RimMind.UI.AgentProgressFloat.Details".Translate()))
             {
                 if (entry.IsScopedAgent && entry.AgentControl != null)

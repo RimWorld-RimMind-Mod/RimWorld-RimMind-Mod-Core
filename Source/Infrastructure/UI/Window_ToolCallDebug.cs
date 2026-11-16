@@ -123,9 +123,8 @@ namespace RimMind.Infrastructure.UI
             }
 
             Rect viewRect = new Rect(rect.x, rect.y, rect.width - 16f, contentH);
-            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
             scope.Record(rect, "ScrollView:ToolListOuter");
-            scope.Record(viewRect, "ScrollView:ToolListContent");
+            Widgets.BeginScrollView(rect, ref _scrollPos, viewRect);
 
             float y = viewRect.y;
             foreach (var group in grouped)
@@ -140,7 +139,6 @@ namespace RimMind.Infrastructure.UI
                 foreach (var def in group)
                 {
                     Rect entryRect = new Rect(viewRect.x, y, viewRect.width, EntryH);
-                    scope.Record(entryRect, $"ToolEntry:{def.Id}");
                     bool selected = _selectedToolId == def.Id;
                     if (selected)
                         Widgets.DrawBoxSolid(entryRect, new Color(0.25f, 0.35f, 0.55f, 0.6f));

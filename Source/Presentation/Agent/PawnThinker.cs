@@ -17,11 +17,14 @@ using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Features.Agent;
 using RimMind.Application.Features.Agent.InnerVoice;
 using ThinkContextEnricher = RimMind.Application.Features.Agent.ThinkContextEnricher;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.Common;
 using RimMind.Domain.Enums;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
+using RimMind.Presentation.Runtime;
+using RimMind.Presentation.Runtime.Services;
 using Verse;
 
 namespace RimMind.Presentation.Agent
@@ -53,6 +56,8 @@ namespace RimMind.Presentation.Agent
         private IReadOnlyList<ToolDefinition>? _pendingAvailableTools;
         private int _pendingToolCallRound;
         private string? _pendingTraceId;
+        private string? _activeRolloutId;
+        private string? _activeTraceId;
         private ICompletionFence? _pendingCompletionFence;
         private CancellationToken _pendingGenerationToken;
 
@@ -94,7 +99,8 @@ namespace RimMind.Presentation.Agent
                 phase => agent.TransitionWorkflow(phase),
                 decision => agent.ExecuteDecision(decision),
                 () => agent.Pawn?.thingIDNumber ?? -1, log,
-                loopService: new AgenticLoopService(tickSettings.MaxToolCallDepth));
+                loopService: new AgenticLoopService(tickSettings.MaxToolCallDepth),
+                recordTraceOutcome: RecordTraceOutcome);
         }
 
         public bool IsThinking => _thinking;
@@ -115,6 +121,8 @@ namespace RimMind.Presentation.Agent
             _requestSentUtc = default;
             _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
             _pendingTraceId = null;
+            _activeRolloutId = null;
+            _activeTraceId = null;
             _pendingCompletionFence = null;
             _pendingGenerationToken = default;
         }
@@ -122,7 +130,12 @@ namespace RimMind.Presentation.Agent
         public void Tick()
         {
             if (_agent.State != AgentState.Active) return;
-            if (_hasPendingCallback) { _hasPendingCallback = false; ProcessPendingCallback(); }
+            if (_hasPendingCallback)
+            {
+                _hasPendingCallback = false;
+                ProcessPendingCallback();
+                return;
+            }
             if (_thinking && _requestSentUtc != default)
             {
                 var elapsedSec = (DateTime.UtcNow - _requestSentUtc).TotalSeconds;
@@ -130,7 +143,12 @@ namespace RimMind.Presentation.Agent
                 {
                     _log?.Warning($"[RimMind.Thinker] action=ThinkTimeout npcId={_agent.Identity.NpcId} modeId={_agent.CurrentModeId.Value} elapsedSec={elapsedSec:F1}");
                     _thinking = false; _requestSentTick = 0; _requestSentUtc = default;
+                    _lastThinkTick = Find.TickManager.TicksGame;
                     _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
+                    _activeRolloutId = null;
+                    _activeTraceId = null;
+                    _agent.TransitionWorkflow(AgentWorkflowPhase.Idle);
+                    return;
                 }
             }
             if (_thinking) return;
@@ -145,12 +163,15 @@ namespace RimMind.Presentation.Agent
             try
             {
                 var pawn = _agent.Pawn;
-                if (pawn == null || pawn.Dead) { _thinking = false; return; }
+                if (pawn == null || pawn.Dead) { _thinking = false; _agent.TransitionWorkflow(AgentWorkflowPhase.Idle); return; }
+                // Pawn liveness policy: a downed or mentally broken pawn cannot act on any decision,
+                // so do not spend an LLM request on it (avoids fake "success" actions while incapacitated).
+                if (IsIncapacitated(pawn)) { _thinking = false; _agent.TransitionWorkflow(AgentWorkflowPhase.Idle); return; }
                 RimMindPawnLookup.CachePawn(pawn);
                 var entries = _agent.PerceptionBuffer.Flush();
                 _cachedPerceptions = entries;
                 var mode = _agent.CurrentMode;
-                if (!mode.ShouldThink(_agent, entries)) { _thinking = false; return; }
+                if (!mode.ShouldThink(_agent, entries)) { _thinking = false; _agent.TransitionWorkflow(AgentWorkflowPhase.Idle); return; }
                 var pawnId = pawn.thingIDNumber;
                 var voiceText = _contextEnricher.ConsumeInnerVoice(_agent.Identity.NpcId);
                 _contextEnricher.CheckPsychology(_agent, pawnId);
@@ -158,7 +179,11 @@ namespace RimMind.Presentation.Agent
                 var strategy = mode.GetThinkStrategy();
                 var allowedToolIds = mode.AllowedToolIds(RimMindAPI.Tools);
                 var availableTools = RimMindAPI.Tools.GetAllDefinitions()
-                    .Where(d => allowedToolIds.Contains(d.Id)).ToList();
+                    .Where(d => allowedToolIds.Contains(d.Id))
+                    .Where(d => !IsToolDisabledForPawn(pawn, d))
+                    .ToList();
+                _activeTraceId = Guid.NewGuid().ToString("N");
+                _activeRolloutId = $"rollout-{_agent.Identity.NpcId}-{Find.TickManager?.TicksGame ?? 0}-{Guid.NewGuid().ToString("N").Substring(0, 6)}";
                 var envelope = strategy.BuildEnvelope(_agent, entries, availableTools);
                 EnrichEnvelope(envelope, voiceText);
                 _requestSentTick = Find.TickManager.TicksGame;
@@ -168,6 +193,9 @@ namespace RimMind.Presentation.Agent
             catch (Exception ex)
             {
                 _thinking = false;
+                _activeRolloutId = null;
+                _activeTraceId = null;
+                _agent.TransitionWorkflow(AgentWorkflowPhase.Idle);
                 _log?.Error($"[RimMind.Thinker] action=UnexpectedError npcId={_agent.Identity.NpcId} modeId={_agent.CurrentModeId.Value} error={ex}");
             }
         }
@@ -192,12 +220,20 @@ namespace RimMind.Presentation.Agent
             if (_completionFence.CancellationToken.IsCancellationRequested)
             { ResetThinkingState(); return; }
 
+            var trackedEnvelope = envelope.WithTraceAndHints(
+                _activeTraceId ?? envelope.TraceId,
+                new Dictionary<string, string>
+                {
+                    ["rollout_id"] = _activeRolloutId ?? string.Empty,
+                    ["turn_index"] = toolCallRound.ToString()
+                });
+
             _pendingStrategy = strategy;
             _pendingAvailableTools = availableTools;
             _pendingToolCallRound = toolCallRound;
-            _pendingTraceId = envelope.TraceId;
+            _pendingTraceId = trackedEnvelope.TraceId;
             var modeId = _agent.CurrentModeId;
-            RimMindAPI.Request.Send(envelope, (result, ctx) =>
+            RimMindAPI.Request.Send(trackedEnvelope, (result, ctx) =>
             {
                 if (!_completionFence.TryAcceptCompletion()) return;
                 _pendingResult = result;
@@ -224,6 +260,14 @@ namespace RimMind.Presentation.Agent
             var traceScope = _pendingTraceId != null ? TraceContext.BeginScope(_pendingTraceId) : null;
             try
             {
+                var actor = _agent.Pawn;
+                if (actor != null && (actor.Dead || IsIncapacitated(actor)))
+                {
+                    // The pawn went down (or died / broke) while the request was in flight: drop the decision.
+                    _log?.Message($"[RimMind.Thinker] action=DecisionDroppedIncapacitated npcId={_agent.Identity.NpcId}");
+                    ResetThinkingState();
+                    return;
+                }
                 _decisionProcessor.ProcessResult(_pendingResult, _pendingContext, _pendingStrategy!, _pendingAvailableTools!, _pendingToolCallRound);
             }
             catch (Exception ex)
@@ -257,7 +301,35 @@ namespace RimMind.Presentation.Agent
         private void ResetThinkingState()
         {
             _thinking = false;
+            _lastThinkTick = _tickProvider.TicksGame;
             _cachedPerceptions = Array.Empty<PerceptionBufferEntry>();
+            _activeRolloutId = null;
+            _activeTraceId = null;
+            if (_agent.WorkflowPhase == AgentWorkflowPhase.Thinking)
+                _agent.TransitionWorkflow(AgentWorkflowPhase.Idle);
+        }
+
+        private static bool IsToolDisabledForPawn(Verse.Pawn pawn, ToolDefinition def)
+        {
+            if (def?.Manifest?.DefaultDomain is AutonomyDomain domain)
+                return RimMindAPI.Autonomy.IsDisabled(pawn, domain);
+            if (!string.IsNullOrWhiteSpace(def?.Manifest?.AutonomyDomainId)
+                && Enum.TryParse<AutonomyDomain>(def!.Manifest.AutonomyDomainId, ignoreCase: true, out var parsed))
+                return RimMindAPI.Autonomy.IsDisabled(pawn, parsed);
+            return false;
+        }
+
+        private static void RecordTraceOutcome(
+            string requestId,
+            string actionIntent,
+            bool succeeded,
+            string? detail,
+            string? paramPreview)
+        {
+            if (string.IsNullOrWhiteSpace(requestId))
+                return;
+            RuntimeServiceHub.Shared.Capture().GetOptional<IAIRequestTraceLog>()?
+                .RecordActionOutcome(requestId, actionIntent, succeeded, detail, paramPreview);
         }
 
         private static IExtensionRegistry<IThinkContributor>? TryGetThinkContributorRegistry()
@@ -271,6 +343,8 @@ namespace RimMind.Presentation.Agent
                 return null;
             }
         }
+
+        private static bool IsIncapacitated(Verse.Pawn pawn) => pawn.Downed || pawn.InMentalState;
 
         public void ForceThink() => _lastThinkTick = 0;
 

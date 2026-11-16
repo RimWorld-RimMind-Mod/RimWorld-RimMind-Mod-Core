@@ -6,6 +6,7 @@ using System.Linq;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.UI;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Infrastructure.Verse;
 using RimMind.Presentation;
 using RimMind.Presentation.Runtime.Services;
@@ -252,7 +253,7 @@ namespace RimMind.Infrastructure.UI
                 yield return new WaitForEndOfFrame();
                 SaveFrame(clicksDir, "07-hub-overview.png");
 
-                string[] targetTabs = new[] { "agents", "ai_requests", "tool_calls", "mechanisms", "context_keys", "settings" };
+                string[] targetTabs = new[] { "agents", "ai_requests", "capabilities", "settings" };
                 int tabsNavigated = 1; // overview is already visited
                 foreach (var tabId in targetTabs)
                 {
@@ -265,6 +266,18 @@ namespace RimMind.Infrastructure.UI
                         tabsNavigated++;
                     }
                 }
+
+                hub.SelectPage("ai_requests:ephemeral");
+                yield return new WaitForEndOfFrame();
+                SaveFrame(clicksDir, "07b-hub-ai_requests-ephemeral.png");
+
+                hub.SelectPage("capabilities:mechanisms");
+                yield return new WaitForEndOfFrame();
+                SaveFrame(clicksDir, "07c-hub-capabilities-mechanisms.png");
+
+                hub.SelectPage("capabilities:context_keys");
+                yield return new WaitForEndOfFrame();
+                SaveFrame(clicksDir, "07d-hub-capabilities-context_keys.png");
 
                 if (hub.IsOpen) hub.Close(doCloseSound: false);
 
@@ -357,7 +370,7 @@ namespace RimMind.Infrastructure.UI
                 // ============================================================
                 // 10. PawnAgent Colonist Gizmo Click & Hub Opening
                 // ============================================================
-                var colonistPawn = Find.CurrentMap?.mapPawns?.FreeColonists?.FirstOrDefault();
+                var colonistPawn = RimMind.Presentation.Api.RimMindPawnLookup.GetEligibleColonists(Find.CurrentMap).FirstOrDefault();
                 if (colonistPawn != null)
                 {
                     var comp = CompPawnAgent.GetComp(colonistPawn);
@@ -377,6 +390,43 @@ namespace RimMind.Infrastructure.UI
                             {
                                 checksPassed++;
                                 result.Details.Add($"[PASS] Real Click: PawnAgent Gizmo clicked on colonist [{colonistPawn.Name?.ToStringShort}] -> Hub Agents page focused and rendered");
+                                if (comp.AutonomyPolicy != null)
+                                {
+                                    try
+                                    {
+                                        comp.AutonomyPolicy.ApplyWorkOnlyNoBlueprintsPreset();
+                                        if (comp.AutonomyPolicy.GetLevel(AutonomyDomain.BlueprintPlacement) == AutonomyLevel.Disabled &&
+                                            comp.AutonomyPolicy.GetLevel(AutonomyDomain.WorkPriorityModification) == AutonomyLevel.Disabled)
+                                        {
+                                            yield return new WaitForEndOfFrame();
+                                            SaveFrame(clicksDir, "10b-pawn-permissions-workonly.png");
+                                            checksPassed++;
+                                            result.Details.Add("[PASS] Real UI State: Agent Permissions preset [Work Only] applied (Blueprints=Off, WorkTab=Off)");
+                                        }
+                                        else
+                                        {
+                                            throw new InvalidOperationException("WorkOnly preset did not disable BlueprintPlacement and WorkPriorityModification");
+                                        }
+
+                                        comp.AutonomyPolicy.ApplyFullAutonomousPreset();
+                                        if (comp.AutonomyPolicy.GetLevel(AutonomyDomain.BlueprintPlacement) == AutonomyLevel.FullAutonomous &&
+                                            comp.AutonomyPolicy.GetLevel(AutonomyDomain.WorkPriorityModification) == AutonomyLevel.FullAutonomous)
+                                        {
+                                            yield return new WaitForEndOfFrame();
+                                            SaveFrame(clicksDir, "10c-pawn-permissions-fullauto.png");
+                                            checksPassed++;
+                                            result.Details.Add("[PASS] Real UI State: Agent Permissions preset [Full Auto] applied (Blueprints=Auto, WorkTab=Auto)");
+                                        }
+                                        else
+                                        {
+                                            throw new InvalidOperationException("FullAuto preset did not enable BlueprintPlacement and WorkPriorityModification");
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        comp.AutonomyPolicy.SetDefaultPreset();
+                                    }
+                                }
                                 openedHub.Close(false);
                             }
                             else

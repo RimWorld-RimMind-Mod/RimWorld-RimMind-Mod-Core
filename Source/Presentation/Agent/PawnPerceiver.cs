@@ -162,6 +162,18 @@ namespace RimMind.Presentation.Agent
                 }
             }
 
+            var nearbyThreats = ThreatScanner.FindNearbyThreats(pawn);
+            if (nearbyThreats.Count > 0)
+            {
+                _agent.PerceptionBuffer.Add(new PerceptionBufferEntry
+                {
+                    PerceptionType = "combat",
+                    Content = $"DANGER: hostile nearby - {ThreatScanner.Describe(pawn, nearbyThreats)}. Draft to fight (pawn.draft), flee indoors, or keep away.",
+                    Importance = CombatImportance,
+                    Tick = Find.TickManager.TicksGame
+                });
+            }
+
             if (pawn.Drafted)
             {
                 _agent.PerceptionBuffer.Add(new PerceptionBufferEntry

@@ -13,11 +13,25 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             Rect activity,
             Rect chat,
             ActionBarLayoutResult actionBar)
+            : this(list, detail, status, actions, default, activity, chat, actionBar)
+        {
+        }
+
+        public AgentPageRects(
+            Rect list,
+            Rect detail,
+            Rect status,
+            Rect actions,
+            Rect permissions,
+            Rect activity,
+            Rect chat,
+            ActionBarLayoutResult actionBar)
         {
             List = list;
             Detail = detail;
             Status = status;
             Actions = actions;
+            Permissions = permissions;
             Activity = activity;
             Chat = chat;
             ActionBar = actionBar;
@@ -27,6 +41,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         public Rect Detail { get; }
         public Rect Status { get; }
         public Rect Actions { get; }
+        public Rect Permissions { get; }
         public Rect Activity { get; }
         public Rect Chat { get; }
         public ActionBarLayoutResult ActionBar { get; }
@@ -34,10 +49,10 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
     public static class AgentPageLayout
     {
-        private const float MinActivityWidth = 260f;
-        private const float MinDetailWidth = 220f;
-        private const float MaxDetailWidth = 300f;
-        private const float DetailWidthRatio = 0.36f;
+        private const float MinActivityWidth = 250f;
+        private const float MinDetailWidth = 240f;
+        private const float MaxDetailWidth = 320f;
+        private const float DetailWidthRatio = 0.40f;
 
         public static AgentPageRects Calculate(Rect rect)
         {
@@ -72,12 +87,14 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 scrollable.height);
             Rect status = new Rect(detail.x, detail.y, detail.width, 80f);
             Rect actions = new Rect(detail.x, status.yMax + RimMindUiMetrics.Padding, detail.width, 70f);
+            float permY = actions.yMax + RimMindUiMetrics.Padding;
+            Rect permissions = new Rect(detail.x, permY, detail.width, Mathf.Max(0f, detail.yMax - permY));
             ActionBarLayoutResult actionBar = ActionBarLayout.Calculate(
                 actions,
                 new[] { "primary", "force_think", "open_requests" });
 
             Rect list = new Rect(split.List.x, split.List.y, split.List.width, scrollable.yMax - split.List.y);
-            return new AgentPageRects(list, detail, status, actions, activity, chat, actionBar);
+            return new AgentPageRects(list, detail, status, actions, permissions, activity, chat, actionBar);
         }
     }
 }

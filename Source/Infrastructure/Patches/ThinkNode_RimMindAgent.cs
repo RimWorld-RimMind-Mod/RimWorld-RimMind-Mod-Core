@@ -19,6 +19,7 @@ namespace RimMind.Infrastructure.Patches
                 if (!session.IsActive(pawn, currentTick))
                 {
                     comp.ClearIntentSession();
+                    comp.Agent.ForceThink();
                 }
                 else
                 {
@@ -58,11 +59,13 @@ namespace RimMind.Infrastructure.Patches
                     if (session.CompletionPredicate?.Invoke(pawn) == true)
                     {
                         comp.ClearIntentSession();
+                        comp.Agent.ForceThink();
                     }
                 }
                 else
                 {
                     comp.ClearIntentSession();
+                    comp.Agent.ForceThink();
                 }
             }
 

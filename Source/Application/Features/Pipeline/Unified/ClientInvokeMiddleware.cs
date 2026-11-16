@@ -7,6 +7,7 @@ using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Pipeline;
 using RimMind.Application.Common.Models;
+using RimMind.Application.Common.Models.Debug;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
@@ -122,6 +123,10 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 BuildPrompt(envelope, "system"),
                 BuildPrompt(envelope, "user"),
                 BuildPrompt(envelope, "assistant"));
+
+            var layers = AIRequestTraceEntry.ExtractLayerTraces(envelope.Messages);
+            if (layers.Count > 0)
+                _traceLog.UpdateRequestLayers(envelope.RequestId, layers);
         }
 
         private static string BuildPrompt(LlmRequestEnvelope envelope, string role)

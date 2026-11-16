@@ -29,6 +29,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 Examples = envelope.Examples,
                 MaxTokens = envelope.MaxTokens,
                 Temperature = envelope.Temperature,
+                ReasoningEffort = envelope.ReasoningEffort,
                 Priority = envelope.Priority,
                 ExpireAtTicks = envelope.ExpireAtTicks,
                 MaxRetryCount = envelope.MaxRetryCount,

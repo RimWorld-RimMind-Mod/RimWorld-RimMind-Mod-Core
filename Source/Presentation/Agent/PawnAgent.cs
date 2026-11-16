@@ -164,7 +164,9 @@ namespace RimMind.Presentation.Agent
             {
                 case AgentWorkflowPhase.Idle:
                     _perceiver.Tick();
-                    if (_thinker.ShouldThink())
+                    // An in-flight request or pending callback must keep the thinker ticking,
+                    // otherwise the callback is never consumed and the agent deadlocks.
+                    if (_thinker.IsThinking || _thinker.ShouldThink())
                         TransitionWorkflow(AgentWorkflowPhase.Thinking);
                     break;
 

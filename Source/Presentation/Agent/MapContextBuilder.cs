@@ -214,7 +214,7 @@ namespace RimMind.Presentation.Agent
                 float foodNutrition = 0f;
                 try
                 {
-                    foodNutrition = map.resourceCounter?.TotalHumanEdibleNutrition ?? 0f;
+                    foodNutrition = CountAvailableMapFoodNutrition(map);
                 }
                 catch (Exception ex) { WarnRateLimited("FoodNutrition", ex); }
                 otherSb.AppendLine(Tr("RimMind.Prompt.FoodStorage", $"{foodNutrition:F0}"));
@@ -259,6 +259,7 @@ namespace RimMind.Presentation.Agent
 
                 if (!brief && map.listerBuildings != null)
                 {
+                    AppendColonyRoomsSummary(map, otherSb);
                     var worktables = new List<string>();
                     try
                     {
@@ -448,6 +449,128 @@ namespace RimMind.Presentation.Agent
                 "Medium"  => Tr("RimMind.Prompt.Threat.Medium"),
                 _         => Tr("RimMind.Prompt.Threat.Low")
             };
+        }
+
+        private static float CountAvailableMapFoodNutrition(Map? map)
+        {
+            if (map == null) return 0f;
+            float counted = 0f;
+            try
+            {
+                counted = map.resourceCounter?.TotalHumanEdibleNutrition ?? 0f;
+                var foodThings = map.listerThings?.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree);
+                if (foodThings != null && foodThings.Count > 0)
+                {
+                    float unforbiddenTotal = 0f;
+                    for (int i = 0; i < foodThings.Count; i++)
+                    {
+                        var t = foodThings[i];
+                        if (t == null || !t.Spawned || t.Destroyed || t is Corpse || t is Pawn)
+                            continue;
+                        if (t.Position.Fogged(map) || t.IsForbidden(Faction.OfPlayer))
+                            continue;
+                        var ingestible = t.def?.ingestible;
+                        if (ingestible == null || !t.def!.IsNutritionGivingIngestible || !ingestible.HumanEdible)
+                            continue;
+                        if (ingestible.drugCategory != DrugCategory.None || ingestible.preferability < FoodPreferability.RawBad)
+                            continue;
+
+                        float nut = t.GetStatValue(StatDefOf.Nutrition);
+                        if (nut > 0f)
+                        {
+                            unforbiddenTotal += nut * Math.Max(1, t.stackCount);
+                        }
+                    }
+                    if (unforbiddenTotal > counted)
+                        counted = unforbiddenTotal;
+                }
+            }
+            catch (Exception ex) { WarnRateLimited("CountAvailableMapFoodNutrition", ex); }
+            return counted;
+        }
+
+        private static void AppendColonyRoomsSummary(Map map, StringBuilder sb)
+        {
+            if (map == null || sb == null) return;
+            try
+            {
+                var buildings = map.listerBuildings?.allBuildingsColonist;
+                if (buildings == null || buildings.Count == 0) return;
+
+                var stats = new Dictionary<int, (int Cells, int Beds, int Work, int Tables, long SumX, long SumZ, int Samples)>();
+                int limit = Math.Min(buildings.Count, 200);
+                int wallProbes = 0;
+
+                for (int i = 0; i < limit; i++)
+                {
+                    var b = buildings[i];
+                    if (b == null || !b.Spawned || b.Destroyed) continue;
+
+                    if (b.def != null && b.def.passability == Traversability.Impassable)
+                    {
+                        if (wallProbes < 48)
+                        {
+                            wallProbes++;
+                            for (int d = 0; d < 4; d++)
+                            {
+                                IntVec3 nCell = b.Position + GenAdj.CardinalDirections[d];
+                                if (!nCell.InBounds(map) || nCell.Fogged(map)) continue;
+                                Room? nRoom = nCell.GetRoom(map);
+                                if (nRoom == null || nRoom.PsychologicallyOutdoors || nRoom.TouchesMapEdge || nRoom.CellCount <= 0) continue;
+                                if (!stats.TryGetValue(nRoom.ID, out var cur))
+                                    cur = (nRoom.CellCount, 0, 0, 0, 0, 0, 0);
+                                stats[nRoom.ID] = (cur.Cells, cur.Beds, cur.Work, cur.Tables, cur.SumX + nCell.x, cur.SumZ + nCell.z, cur.Samples + 1);
+                            }
+                        }
+                        continue;
+                    }
+
+                    Room? room = b.Position.InBounds(map) ? b.Position.GetRoom(map) : null;
+                    if (room == null || room.PsychologicallyOutdoors || room.TouchesMapEdge || room.CellCount <= 0) continue;
+
+                    if (!stats.TryGetValue(room.ID, out var entry))
+                        entry = (room.CellCount, 0, 0, 0, 0, 0, 0);
+
+                    int addBeds = b is Building_Bed ? 1 : 0;
+                    int addWork = b is Building_WorkTable ? 1 : 0;
+                    int addTable = b.def?.surfaceType == SurfaceType.Eat ? 1 : 0;
+                    stats[room.ID] = (
+                        entry.Cells,
+                        entry.Beds + addBeds,
+                        entry.Work + addWork,
+                        entry.Tables + addTable,
+                        entry.SumX + b.Position.x,
+                        entry.SumZ + b.Position.z,
+                        entry.Samples + 1);
+                }
+
+                if (stats.Count == 0) return;
+
+                var ordered = stats
+                    .OrderByDescending(kv => kv.Value.Beds + kv.Value.Work + kv.Value.Tables)
+                    .ThenByDescending(kv => kv.Value.Cells)
+                    .Take(6)
+                    .Select(kv =>
+                    {
+                        var v = kv.Value;
+                        int cx = v.Samples > 0 ? (int)(v.SumX / v.Samples) : 0;
+                        int cz = v.Samples > 0 ? (int)(v.SumZ / v.Samples) : 0;
+                        string role = v.Beds > 1 ? "Barracks"
+                            : v.Beds == 1 ? "Bedroom"
+                            : v.Work > 0 ? "Workshop"
+                            : v.Tables > 0 ? "Dining"
+                            : "Indoor";
+                        return $"{role}@({cx},{cz},cells={v.Cells},beds={v.Beds},work={v.Work})";
+                    })
+                    .ToList();
+
+                string summaryList = string.Join("; ", ordered);
+                string key = "RimMind.Prompt.ColonyRooms";
+                sb.AppendLine(key.CanTranslate()
+                    ? Tr(key, summaryList)
+                    : $"ColonyRooms: [{summaryList}]");
+            }
+            catch (Exception ex) { WarnRateLimited("AppendColonyRoomsSummary", ex); }
         }
 
         private static int CountAvailableMapResource(Map? map, ThingDef? def)

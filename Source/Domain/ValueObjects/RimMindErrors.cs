@@ -23,6 +23,18 @@ namespace RimMind.Domain.ValueObjects
             TraceId = TraceContext.Current,
         };
 
+        public static RimMindError ContentFiltered(string message, Exception? inner = null) => new(RimMindErrorCode.ContentFiltered, message)
+        {
+            InnerException = inner,
+            TraceId = TraceContext.Current,
+        };
+
+        public static RimMindError ClientQuotaOrAuth(string message, Exception? inner = null) => new(RimMindErrorCode.ClientQuotaOrAuthFailure, message)
+        {
+            InnerException = inner,
+            TraceId = TraceContext.Current,
+        };
+
         public static RimMindError CircuitOpen() => new(RimMindErrorCode.ClientCircuitOpen, "Circuit breaker is open")
         {
             TraceId = TraceContext.Current,

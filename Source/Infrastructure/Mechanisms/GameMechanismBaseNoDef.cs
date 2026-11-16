@@ -96,6 +96,17 @@ namespace RimMind.Infrastructure.Mechanisms
                 };
                 return null;
             }
+            if (!allowDowned && pawn.InMentalState)
+            {
+                // Behaviour actions (allowDowned=false) need a pawn that obeys orders; mentally broken
+                // pawns ignore them in vanilla, so reporting success would be a fake outcome.
+                // State writes (work priorities, thoughts, needs) pass allowDowned=true and stay allowed.
+                error = RimMindErrors.PawnNotFound(pawnId) with
+                {
+                    Message = $"Pawn with ID {pawnId} is in a mental state ({pawn.MentalStateDef?.label}) and cannot be controlled"
+                };
+                return null;
+            }
             error = null;
             return pawn;
         }

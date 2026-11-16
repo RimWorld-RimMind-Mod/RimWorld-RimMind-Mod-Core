@@ -148,7 +148,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         }
 
         private static float ResolveTimeoutSeconds(bool isLocal, int candidateCount, int attempt) =>
-            isLocal ? 300f : ((candidateCount > 1 && attempt < candidateCount - 1) ? 25f : 60f);
+            isLocal ? 300f : ((candidateCount > 1 && attempt < candidateCount - 1) ? 40f : 60f);
 
         public bool IsConfigured() => _settings.IsConfigured();
 
@@ -273,7 +273,13 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                         connectTimeout: connectTimeout,
                         cancellationToken: envelope.Ct);
 
-                    if (httpStatusCode == 400 && currentJson.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
+                    bool isModeration = ClientExceptionMapper.IsContentModerationResponse((int)httpStatusCode, responseText);
+                    if (httpStatusCode == 400 && !isModeration && currentJson.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
+                    {
+                        throw HttpTransport.HttpException.FromResponse((int)httpStatusCode, responseText, null);
+                    }
+
+                    if (httpStatusCode >= 400)
                     {
                         throw HttpTransport.HttpException.FromResponse((int)httpStatusCode, responseText, null);
                     }
@@ -282,6 +288,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 }
                 catch (HttpTransport.HttpException httpEx) when (
                     httpEx.StatusCode == 400 &&
+                    !ClientExceptionMapper.IsContentFilteredHttpFailure(httpEx) &&
                     currentJson.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
                 {
                     string nextFormat = currentJson.IndexOf("\"json_schema\"", StringComparison.Ordinal) >= 0
@@ -300,6 +307,70 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                         formatModeOverride: nextFormat);
                 }
             }
+        }
+
+        private Result<RimMind.Domain.Llm.LlmResponse, RimMindError> BuildCompletedResponse(
+            string responseText,
+            long httpStatusCode,
+            RimMind.Domain.Llm.LlmRequestEnvelope envelope,
+            BackupEndpointNode node,
+            bool allowEmptyFailover,
+            Stopwatch sw,
+            string effectiveModel,
+            int attempt,
+            bool logSuccessDetails)
+        {
+            var parsed = OpenAIRequestSerializer.ParseResponse(responseText, envelope);
+            if (sw.IsRunning) sw.Stop();
+
+            if (parsed.IsErr)
+            {
+                var err = parsed.Error;
+                if (err.Code == RimMindErrorCode.ContentFiltered)
+                {
+                    return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Err(err);
+                }
+                if (err.Code == RimMindErrorCode.ClientTransientFailure)
+                {
+                    throw new HttpTransport.HttpException(err.Message, 503);
+                }
+                if (allowEmptyFailover)
+                {
+                    throw new HttpTransport.HttpException($"Node '{node.Name}' returned empty or invalid response payload: {err.Message}", 502);
+                }
+                return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Err(err);
+            }
+
+            var val = parsed.Value;
+            if (allowEmptyFailover &&
+                string.IsNullOrWhiteSpace(val.Content) &&
+                string.IsNullOrEmpty(val.ToolCallsJson))
+            {
+                throw new HttpTransport.HttpException($"Node '{node.Name}' returned empty response payload.", 502);
+            }
+
+            RecordNodeSuccess(node);
+
+            if (logSuccessDetails)
+            {
+                if (attempt > 0 || !string.Equals(node.Name, "Primary", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logSink?.LogFromBackground(
+                        $"[RimMind-Core] Request {envelope.RequestId} served by node '{node.Name}' ({node.ApiEndpoint}, model={effectiveModel}, {val.TokensUsed} tok, {sw.ElapsedMilliseconds}ms).");
+                }
+                else if (_settings.DebugLogging)
+                {
+                    _logSink?.LogFromBackground($"[RimMind-Core] << {envelope.RequestId} ({val.TokensUsed} tok)\n{LogSanitizer.ForLog(val.Content, LogSanitizer.DebugPayloadMaxChars)}");
+                }
+            }
+
+            return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Ok(
+                val.With(
+                    requestId: envelope.RequestId,
+                    state: RimMind.Domain.Llm.AIRequestState.Completed,
+                    priority: envelope.Priority,
+                    processingMs: sw.ElapsedMilliseconds,
+                    httpStatusCode: httpStatusCode));
         }
 
         public async Task<Result<RimMind.Domain.Llm.LlmResponse, RimMindError>> SendAsync(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
@@ -352,77 +423,16 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                         headerValue,
                         connectTimeout);
 
-                    var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
-                    string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
-                    string? reasoningContent = parsed?.choices?[0]?.message?.reasoning_content;
-                    int tokens = parsed?.usage?.total_tokens ?? 0;
-                    int promptTokens = parsed?.usage?.prompt_tokens ?? 0;
-                    int completionTokens = parsed?.usage?.completion_tokens ?? 0;
-                    int cachedTokens = parsed?.usage?.prompt_tokens_details?.cached_tokens ?? 0;
-                    var toolCallsDto = parsed?.choices?[0]?.message?.tool_calls;
-                    string? finishReason = parsed?.choices?[0]?.finish_reason;
-                    bool expectsTools = envelope.Tools != null && envelope.Tools.Count > 0;
-                    if (!expectsTools &&
-                        !string.Equals(finishReason, "length", StringComparison.OrdinalIgnoreCase) &&
-                        string.IsNullOrWhiteSpace(content) &&
-                        (toolCallsDto == null || toolCallsDto.Count == 0) &&
-                        !string.IsNullOrWhiteSpace(reasoningContent))
-                    {
-                        content = reasoningContent!;
-                    }
-                    sw.Stop();
-
-                    // If multiple nodes exist and this node returned an empty shell with 0 tokens and no content/tool_calls,
-                    // treat it as an upstream node failure so we can fail over to the next backup node.
-                    if (candidates.Count > 1 && attempt < candidates.Count - 1 &&
-                        (parsed?.choices == null || parsed.choices.Count == 0 ||
-                         (string.IsNullOrWhiteSpace(content) && (toolCallsDto == null || toolCallsDto.Count == 0))))
-                    {
-                        throw new HttpTransport.HttpException($"Node '{node.Name}' returned empty response payload.", 502);
-                    }
-
-                    RecordNodeSuccess(node);
-
-                    if (attempt > 0 || !string.Equals(node.Name, "Primary", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logSink?.LogFromBackground(
-                            $"[RimMind-Core] Request {envelope.RequestId} served by node '{node.Name}' ({node.ApiEndpoint}, model={effectiveModel}, {tokens} tok, {sw.ElapsedMilliseconds}ms).");
-                    }
-                    else if (_settings.DebugLogging)
-                    {
-                        _logSink?.LogFromBackground($"[RimMind-Core] << {envelope.RequestId} ({tokens} tok)\n{LogSanitizer.ForLog(content, LogSanitizer.DebugPayloadMaxChars)}");
-                    }
-
-                    var response = new RimMind.Domain.Llm.LlmResponse
-                    {
-                        RequestId = envelope.RequestId,
-                        Content = content,
-                        ReasoningContent = reasoningContent,
-                        TokensUsed = tokens,
-                        PromptTokens = promptTokens,
-                        CompletionTokens = completionTokens,
-                        CachedTokens = cachedTokens,
-                        State = RimMind.Domain.Llm.AIRequestState.Completed,
-                        Priority = envelope.Priority,
-                        ProcessingMs = sw.ElapsedMilliseconds,
-                        HttpStatusCode = httpStatusCode,
-                    };
-
-                    if (toolCallsDto != null && toolCallsDto.Count > 0)
-                    {
-                        var toolCallsJson = ToolCallJsonNormalizer.Normalize(
-                            toolCallsDto.Select(tc => new ToolCallEntry
-                            {
-                                Id = tc.Id,
-                                Type = tc.Type,
-                                FunctionName = tc.Function?.Name,
-                                FunctionArguments = tc.Function?.Arguments,
-                            }));
-                        if (toolCallsJson != null)
-                            response = response.With(toolCallsJson: toolCallsJson);
-                    }
-
-                    return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Ok(response);
+                    return BuildCompletedResponse(
+                        responseText,
+                        httpStatusCode,
+                        envelope,
+                        node,
+                        allowEmptyFailover: candidates.Count > 1 && attempt < candidates.Count - 1,
+                        sw,
+                        effectiveModel,
+                        attempt,
+                        logSuccessDetails: true);
                 }
                 catch (OperationCanceledException ex) when (envelope.Ct.IsCancellationRequested)
                 {
@@ -432,6 +442,11 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 catch (Exception ex)
                 {
                     sw.Stop();
+                    if (ClientExceptionMapper.IsContentFilteredHttpFailure(ex))
+                    {
+                        return ClientExceptionMapper.MapException(ex, nameof(OpenAIClient), envelope.RequestId, "request", _logSink, callerToken: envelope.Ct);
+                    }
+
                     long cooldownMs = ResolveNodeIsolationCooldownMs(ex, out bool isPermQuota);
                     RecordNodeFailure(node, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), cooldownMs, isPermQuota);
 
@@ -490,54 +505,16 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                             headerValue,
                             connectTimeout);
 
-                        var parsed = JsonConvert.DeserializeObject<OpenAIResponseDto>(responseText);
-                        string content = parsed?.choices?[0]?.message?.content ?? string.Empty;
-                        string? reasoningContent = parsed?.choices?[0]?.message?.reasoning_content;
-                        int tokens = parsed?.usage?.total_tokens ?? 0;
-                        int promptTokens = parsed?.usage?.prompt_tokens ?? 0;
-                        int completionTokens = parsed?.usage?.completion_tokens ?? 0;
-                        int cachedTokens = parsed?.usage?.prompt_tokens_details?.cached_tokens ?? 0;
-                        var toolCallsDto = parsed?.choices?[0]?.message?.tool_calls;
-                        if (string.IsNullOrWhiteSpace(content) &&
-                            (toolCallsDto == null || toolCallsDto.Count == 0) &&
-                            !string.IsNullOrWhiteSpace(reasoningContent))
-                        {
-                            content = reasoningContent!;
-                        }
-                        sw.Stop();
-
-                        RecordNodeSuccess(retryNode);
-
-                        var response = new RimMind.Domain.Llm.LlmResponse
-                        {
-                            RequestId = envelope.RequestId,
-                            Content = content,
-                            ReasoningContent = reasoningContent,
-                            TokensUsed = tokens,
-                            PromptTokens = promptTokens,
-                            CompletionTokens = completionTokens,
-                            CachedTokens = cachedTokens,
-                            State = RimMind.Domain.Llm.AIRequestState.Completed,
-                            Priority = envelope.Priority,
-                            ProcessingMs = sw.ElapsedMilliseconds,
-                            HttpStatusCode = httpStatusCode,
-                        };
-
-                        if (toolCallsDto != null && toolCallsDto.Count > 0)
-                        {
-                            var toolCallsJson = ToolCallJsonNormalizer.Normalize(
-                                toolCallsDto.Select(tc => new ToolCallEntry
-                                {
-                                    Id = tc.Id,
-                                    Type = tc.Type,
-                                    FunctionName = tc.Function?.Name,
-                                    FunctionArguments = tc.Function?.Arguments,
-                                }));
-                            if (toolCallsJson != null)
-                                response = response.With(toolCallsJson: toolCallsJson);
-                        }
-
-                        return Result<RimMind.Domain.Llm.LlmResponse, RimMindError>.Ok(response);
+                        return BuildCompletedResponse(
+                            responseText,
+                            httpStatusCode,
+                            envelope,
+                            retryNode,
+                            allowEmptyFailover: false,
+                            sw,
+                            effectiveModel,
+                            attempt: 0,
+                            logSuccessDetails: false);
                     }
                     catch (OperationCanceledException ex) when (envelope.Ct.IsCancellationRequested)
                     {
@@ -545,6 +522,10 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     }
                     catch (Exception ex)
                     {
+                        if (ClientExceptionMapper.IsContentFilteredHttpFailure(ex))
+                        {
+                            return ClientExceptionMapper.MapException(ex, nameof(OpenAIClient), envelope.RequestId, "request", _logSink, callerToken: envelope.Ct);
+                        }
                         lastException = ex;
                         if (!IsTransientConcurrencyOrRateLimitError(ex))
                             break;
@@ -715,6 +696,11 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 }
                 catch (Exception ex)
                 {
+                    if (ClientExceptionMapper.IsContentFilteredHttpFailure(ex))
+                    {
+                        return ClientExceptionMapper.MapException(ex, nameof(OpenAIClient), envelope.RequestId, "stream", _logSink, callerToken: effectiveCt);
+                    }
+
                     if (ex is HttpTransport.HttpException httpEx &&
                         httpEx.StatusCode == 400 &&
                         json.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)

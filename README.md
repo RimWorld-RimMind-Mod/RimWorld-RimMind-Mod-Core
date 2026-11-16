@@ -27,6 +27,7 @@
 ### Core Capabilities
 - **4-Zone KV-Cache Orchestrator**: Separates invariant world rules (Zone 1) and permanent pawn profiles (Zone 2) from dynamic history (Zone 3) and volatile environment states (Zone 4), delivering an 80%+ prefix cache hit rate.
 - **Three-Tier Agent Autonomy Governance (`RimMindAPI.Autonomy`)**: Fine-grained action gating across 5 domains (`Survival`, `Work`, `Social`, `Colony`, `Governance`) and 3 autonomy levels (`Auto`, `AutoWithNotify`, `RecommendOnly`) coupled with `ToolManifest.RiskLevel` verification.
+- **Vendor-Agnostic Engine Invariants (`ReasoningEffort`, `ContentFiltered`, `ISpeechSynthesizer`, `ISpeechRecognizer`)**: Expresses thinking latency budgets, content-moderation classification (no retry/circuit tripping), billing/auth failover (`ClientQuotaOrAuthFailure`), and orthogonal voice synthesis/recognition extension ports cleanly in Core's Domain & Application layers without vendor lock-in.
 - **Native ToolCall Registry & Progressive Schema Discovery (`query_tool_help`)**: Type-safe tool contracts with on-demand `QueryToolHelpTool` schema inspection, minimizing baseline prompt token footprint while eliminating markdown formatting errors.
 - **Primary + Backup Endpoint Failover & Priority Request Queue**: Thread-safe background HTTP/JSON dispatching with `BackupEndpointNode` automatic failover on HTTP 429/5xx, transport-aware `CircuitBreakerMiddleware`, and main-thread `RequestCompletionInbox` callback marshaling.
 - **Pawn Liveness & Lifecycle Guard (`RimMindPawnLookup`)**: Thread-safe pawn lookup and cache eviction (`IsActiveSpawnedColonist`, `IsEligibleColonist`, `IsActiveColonyAnimal`, `UncachePawn`) preventing ghost requests on dead, off-map, or imprisoned pawns.
@@ -104,7 +105,7 @@ Configurable via **Options -> Mod Settings -> RimMind-Core**:
 |---|---|---|
 | **AI Provider** | `openai` | Supports OpenAI-compatible endpoints, DeepSeek, Player2, and extended gateways |
 | **API Endpoint & Backup Nodes** | `https://api.deepseek.com/v1` | Primary OpenAI Chat Completions URL plus optional `BackupEndpointNode` failover list |
-| **Model Name** | `deepseek-chat` | Target LLM model identifier |
+| **Model Name** | `deepseek-flash` | Target LLM model identifier (`deepseek-flash`, `deepseek-v4-pro`, `gpt-4o-mini`, etc.) |
 | **Agent Autonomy Policies** | Domain-specific | Per-domain (`Survival`, `Work`, `Social`, `Colony`, `Governance`) level (`Auto`, `AutoWithNotify`, `RecommendOnly`) |
 | **Max Concurrent Requests** | `3` | Maximum simultaneous requests sent to the LLM (1~10) |
 | **Request Timeout** | `60s` | Maximum wait time for LLM response before timeout (10s~180s) |

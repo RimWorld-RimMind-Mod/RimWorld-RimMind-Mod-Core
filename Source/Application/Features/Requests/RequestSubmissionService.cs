@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Async;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Pipeline;
+using RimMind.Application.Common.Models.Context;
+using RimMind.Application.Common.Models.Debug;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Features.Requests.Queue;
 using RimMind.Domain.Llm;
@@ -72,7 +75,7 @@ namespace RimMind.Application.Features.Requests
                 result =>
                 {
                     elapsed.Stop();
-                    CompleteTrace(envelope.RequestId, result, elapsed.ElapsedMilliseconds);
+                    CompleteTrace(envelope, executor.Context, result, elapsed.ElapsedMilliseconds);
                     onComplete(result, executor.Context);
                 },
                 cancellationToken => executor.ExecuteAsync(envelope, cancellationToken),
@@ -127,20 +130,56 @@ namespace RimMind.Application.Features.Requests
 
         private void StartTrace(LlmRequestEnvelope envelope)
         {
-            _traceLog?.StartRequest(
+            if (_traceLog == null)
+                return;
+
+            _traceLog.StartRequest(
                 envelope.RequestId,
                 GetTraceSource(envelope),
                 _modelSettings?.ModelName ?? string.Empty,
                 BuildTracePrompt(envelope, "system"),
                 BuildTracePrompt(envelope, "user"),
                 BuildTracePrompt(envelope, "assistant"));
+
+            string rolloutId = string.Empty;
+            int turnIndex = 0;
+            if (envelope.Hints != null)
+            {
+                if (envelope.Hints.TryGetValue("rollout_id", out var hintedRollout) && !string.IsNullOrWhiteSpace(hintedRollout))
+                    rolloutId = hintedRollout;
+                if (envelope.Hints.TryGetValue("turn_index", out var hintedTurn) && int.TryParse(hintedTurn, out var parsedTurn))
+                    turnIndex = parsedTurn;
+            }
+
+            bool isAgentRollout = !string.IsNullOrWhiteSpace(rolloutId)
+                || string.Equals(envelope.ScenarioId, ScenarioIds.Decision, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(envelope.ModId, "RimMind.Agent", StringComparison.OrdinalIgnoreCase);
+
+            if (isAgentRollout && string.IsNullOrWhiteSpace(rolloutId))
+                rolloutId = !string.IsNullOrWhiteSpace(envelope.TraceId) ? envelope.TraceId : envelope.RequestId;
+
+            _traceLog.UpdateRequestMetadata(
+                envelope.RequestId,
+                envelope.TraceId,
+                rolloutId,
+                turnIndex,
+                envelope.ModId,
+                envelope.ScenarioId,
+                envelope.NpcId,
+                isAgentRollout);
+
+            var initialLayers = AIRequestTraceEntry.ExtractLayerTraces(envelope.Messages);
+            if (initialLayers.Count > 0)
+                _traceLog.UpdateRequestLayers(envelope.RequestId, initialLayers);
         }
 
         private void CompleteTrace(
-            string requestId,
+            LlmRequestEnvelope envelope,
+            LlmRequestContext? context,
             Result<LlmResponse, RimMindError> result,
             long elapsedMilliseconds)
         {
+            string requestId = envelope.RequestId;
             if (result.IsOk)
             {
                 var response = result.Value;
@@ -148,10 +187,14 @@ namespace RimMind.Application.Features.Requests
                     ? response.Content
                     : response.ToolCallsJson ?? string.Empty;
 
-                _traceLog?.CompleteRequest(
+                _traceLog?.CompleteRequestDetailed(
                     requestId,
                     responseContent,
+                    response.ReasoningContent,
                     response.TokensUsed,
+                    response.PromptTokens,
+                    response.CompletionTokens,
+                    response.CachedTokens,
                     (int)elapsedMilliseconds);
 
                 if (!string.IsNullOrWhiteSpace(response.ToolCallsJson) && _traceLog != null)
@@ -161,12 +204,29 @@ namespace RimMind.Application.Features.Requests
                         var calls = Newtonsoft.Json.JsonConvert.DeserializeObject<List<StructuredToolCall>>(response.ToolCallsJson!);
                         if (calls != null)
                         {
+                            var dispatched = context?.ToolCallResults;
                             foreach (var call in calls)
                             {
-                                if (!string.IsNullOrWhiteSpace(call.Name))
-                                {
-                                    _traceLog.AddToolCall(requestId, call.Id, call.Name, succeeded: true, error: null);
-                                }
+                                if (string.IsNullOrWhiteSpace(call.Name))
+                                    continue;
+
+                                bool alreadyDispatched = envelope.ToolDispatchMode == ToolCallDispatchMode.Auto
+                                    && dispatched != null
+                                    && dispatched.Any(r =>
+                                        (!string.IsNullOrEmpty(call.Id) && string.Equals(r.ToolCallId, call.Id, StringComparison.Ordinal))
+                                        || string.Equals(r.ToolName, call.Name, StringComparison.OrdinalIgnoreCase));
+
+                                if (alreadyDispatched)
+                                    continue;
+
+                                _traceLog.AddToolCallDetailed(
+                                    requestId,
+                                    call.Id,
+                                    call.Name,
+                                    succeeded: true,
+                                    error: null,
+                                    argumentsJson: call.Arguments,
+                                    resultContent: null);
                             }
                         }
                     }
