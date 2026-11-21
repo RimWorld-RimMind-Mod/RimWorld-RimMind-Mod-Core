@@ -278,7 +278,7 @@ namespace RimMind.Application.Common.Models.Debug
                 return true;
             string scenario = ResolveScenarioId(entry);
             string mod = ResolveModId(entry);
-            return string.Equals(scenario, "Decision", StringComparison.OrdinalIgnoreCase)
+            return Context.ScenarioIds.IsDecisionScenario(scenario)
                 || string.Equals(mod, "RimMind.Agent", StringComparison.OrdinalIgnoreCase);
         }
 

@@ -899,7 +899,7 @@ namespace RimMind.Infrastructure.UI.DebugCenter.Pages
             };
 
         private static string SafeTranslate(string key, string fallback)
-            => key.CanTranslate() ? key.Translate().ToString() : fallback;
+            => RimMindText.TrOr(key, fallback);
 
         private sealed record DetailBlock(
             string Key,

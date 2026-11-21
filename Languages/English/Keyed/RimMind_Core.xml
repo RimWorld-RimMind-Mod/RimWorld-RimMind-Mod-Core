@@ -39,7 +39,7 @@
   <RimMind.Settings.BackupEndpoints.Desc>Ordered failover list of backup API endpoints. When the primary endpoint fails (HTTP 503/502/429, timeout, or empty response), RimMind automatically switches to the next healthy backup node and isolates the failing node for 60s.</RimMind.Settings.BackupEndpoints.Desc>
   <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go Backup</RimMind.Settings.BackupEndpoints.AddOpenCode>
   <RimMind.Settings.BackupEndpoints.AddCustom>+ Custom Backup</RimMind.Settings.BackupEndpoints.AddCustom>
-  <RimMind.Settings.BackupEndpoints.Empty>No backup nodes configured. Click "+ OpenCode Go Backup" or "+ Custom Backup" to add automatic failover protection.</RimMind.Settings.BackupEndpoints.Empty>
+  <RimMind.Settings.BackupEndpoints.Empty>No backup nodes configured. Click "+ Custom Backup" to add automatic failover protection.</RimMind.Settings.BackupEndpoints.Empty>
   <RimMind.Settings.ForceJsonMode>Force JSON Mode (response_format)</RimMind.Settings.ForceJsonMode>
   <RimMind.Settings.ForceJsonModeDesc>Append response_format=json_object to the API request, forcing the model to return JSON. Disable this for local models that don't support this parameter.</RimMind.Settings.ForceJsonModeDesc>
   <RimMind.Settings.MaxTokens>Max Tokens</RimMind.Settings.MaxTokens>

@@ -143,6 +143,12 @@ namespace RimMind.Infrastructure.Mechanisms
                 case MechanismOperationType.Trigger:
                 case MechanismOperationType.Watch:
                 {
+                    var isMainThread = IsMainThreadPredicate;
+                    if (isMainThread != null && !isMainThread())
+                    {
+                        return Result<object?, RimMindError>.Err(
+                            RimMindErrors.ToolExecution(Id, $"Mutation tool '{Id}' cannot execute off the Unity main thread"));
+                    }
                     var writeArgs = BuildWriteArgs(root, args, target.PawnId);
                     var r = _operation switch
                     {
@@ -247,6 +253,7 @@ namespace RimMind.Infrastructure.Mechanisms
         }
 
         internal static Func<int, bool>? PawnExistsPredicate { get; set; }
+        internal static Func<bool>? IsMainThreadPredicate { get; set; }
 
         internal static int ResolvePawnId(JObject? root, ToolCallArgs args, string key = "pawn_id")
             => ResolveTargetPawn(root, args, key).PawnId;
@@ -593,6 +600,10 @@ namespace RimMind.Infrastructure.Mechanisms
             var description = BuildDescription(metadata, operation);
             var schema = BuildParameterSchema(metadata, operation);
             var mechanismRisk = metadata.GetRiskForOperation(operation);
+            var defaultDomain = (metadata as IMechanismAutonomyMetadata)?.GetAutonomyDomainForOperation(operation);
+            var kind = operation == MechanismOperationType.Query || operation == MechanismOperationType.List
+                ? ToolKind.Query
+                : ToolKind.Mutation;
 
             return new ToolDefinition
             {
@@ -602,14 +613,50 @@ namespace RimMind.Infrastructure.Mechanisms
                 Category = metadata.Scope.ToString().ToLowerInvariant(),
                 Manifest = new ToolManifest
                 {
+                    Kind = kind,
                     RiskLevel = MapRisk(mechanismRisk),
                     RequiresApproval = mechanismRisk >= MechanismRisk.Dangerous,
-                    DefaultDomain = string.Equals(metadata.MechanismId, "pawn.work", StringComparison.OrdinalIgnoreCase)
-                        && operation == MechanismOperationType.Set
-                        ? RimMind.Domain.Agent.Policies.AutonomyDomain.WorkPriorityModification
-                        : (RimMind.Domain.Agent.Policies.AutonomyDomain?)null
+                    DefaultDomain = defaultDomain,
+                    AutonomyDomainId = defaultDomain?.ToString(),
+                    Scopes = ResolveMechanismScopes(metadata, operation, defaultDomain)
                 }
             };
+        }
+
+        private static ToolScope ResolveMechanismScopes(
+            IMechanismMetadata metadata,
+            MechanismOperationType operation,
+            RimMind.Domain.Agent.Policies.AutonomyDomain? defaultDomain)
+        {
+            if (operation == MechanismOperationType.List)
+                return ToolScope.MetaQuery;
+
+            if (metadata.Scope == MechanismScope.World)
+                return ToolScope.WorldAdmin;
+
+            if (operation == MechanismOperationType.Query)
+                return ToolScope.MetaQuery;
+
+            if (defaultDomain == RimMind.Domain.Agent.Policies.AutonomyDomain.WorkPriorityModification)
+                return ToolScope.ColonyManage | ToolScope.ColonistSelf;
+
+            if (metadata.Scope == MechanismScope.Map)
+                return ToolScope.ColonyBuild | ToolScope.ColonyManage;
+
+            if (metadata.Scope == MechanismScope.Pawn)
+            {
+                string id = metadata.MechanismId ?? string.Empty;
+                if (id.IndexOf("interaction", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    id.IndexOf("relation", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    id.IndexOf("recruit", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return ToolScope.Social | ToolScope.ColonistSelf;
+                }
+
+                return ToolScope.ColonistSelf;
+            }
+
+            return ToolScope.ColonistSelf | ToolScope.ColonyManage;
         }
 
         private static RiskLevel MapRisk(MechanismRisk risk) => ToolManifestRiskResolver.MapMechanismRisk(risk);

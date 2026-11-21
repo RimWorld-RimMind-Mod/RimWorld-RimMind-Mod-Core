@@ -27,6 +27,16 @@ namespace RimMind.Domain.Llm
         public AIRequestPriority Priority { get; init; } = AIRequestPriority.Normal;
         public int? ExpireAtTicks { get; init; }
         public int? MaxRetryCount { get; init; }
+        public string? CoalesceKey { get; init; }
+        public int? MaxQueueWaitTicks { get; init; }
+        public DateTime? ExpiresAtUtc { get; init; }
+        public bool? RequireAliveColonist { get; init; }
+        public LlmRequestOptions? Options { get; init; }
+
+        public string? EffectiveCoalesceKey => !string.IsNullOrWhiteSpace(CoalesceKey) ? CoalesceKey : Options?.CoalesceKey;
+        public int? EffectiveMaxQueueWaitTicks => MaxQueueWaitTicks ?? Options?.MaxQueueWaitTicks;
+        public DateTime? EffectiveExpiresAtUtc => ExpiresAtUtc ?? Options?.ExpiresAtUtc;
+        public bool? EffectiveRequireAliveColonist => RequireAliveColonist ?? Options?.RequireAliveColonist;
 
         // === Streaming ===
         public bool IsStreaming { get; init; }
@@ -83,6 +93,11 @@ namespace RimMind.Domain.Llm
                 Priority = Priority,
                 ExpireAtTicks = ExpireAtTicks,
                 MaxRetryCount = MaxRetryCount,
+                CoalesceKey = CoalesceKey,
+                MaxQueueWaitTicks = MaxQueueWaitTicks,
+                ExpiresAtUtc = ExpiresAtUtc,
+                RequireAliveColonist = RequireAliveColonist,
+                Options = Options,
                 IsStreaming = IsStreaming,
                 OnStreamChunk = OnStreamChunk,
                 Ct = Ct,
@@ -111,6 +126,11 @@ namespace RimMind.Domain.Llm
                 Priority = Priority,
                 ExpireAtTicks = ExpireAtTicks,
                 MaxRetryCount = MaxRetryCount,
+                CoalesceKey = CoalesceKey,
+                MaxQueueWaitTicks = MaxQueueWaitTicks,
+                ExpiresAtUtc = ExpiresAtUtc,
+                RequireAliveColonist = RequireAliveColonist,
+                Options = Options,
                 IsStreaming = IsStreaming,
                 OnStreamChunk = OnStreamChunk,
                 Ct = cancellationToken ?? Ct,

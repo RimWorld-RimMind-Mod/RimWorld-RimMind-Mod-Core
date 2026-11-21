@@ -80,6 +80,20 @@ namespace RimMind.Presentation.UI.Framework
         }
 
         /// <summary>
+        /// Evaluates whether the overlay should hide completely (not even drawing the idle mini-pill)
+        /// when there are no pending requests and auto-hide is enabled.
+        /// </summary>
+        public static bool ShouldHideCompletely(
+            int pendingCount,
+            bool autoHideWhenEmpty,
+            bool isExpanded,
+            bool isDragging,
+            bool isResizing)
+        {
+            return pendingCount <= 0 && autoHideWhenEmpty && !isExpanded && !isDragging && !isResizing;
+        }
+
+        /// <summary>
         /// Returns the bounding rectangle based on collapsed vs expanded state.
         /// </summary>
         public static Rect GetCurrentRect(Vector2 pos, Vector2 expandedSize, bool isCollapsed)

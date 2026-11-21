@@ -1,4 +1,5 @@
 using RimMind.Application.Common.Models.Client;
+using RimMind.Domain.Common;
 using Verse;
 
 namespace RimMind.Presentation.Settings
@@ -9,19 +10,19 @@ namespace RimMind.Presentation.Settings
     /// </summary>
     public class BackupEndpointEntry : IExposable
     {
-        public string name = "OpenCode Go (Backup)";
-        public string provider = "opencode";
-        public string apiEndpoint = "https://opencode.ai/zen/go/v1";
-        public string modelName = "deepseek-v4.1-flash";
+        public string name = "Backup Node";
+        public string provider = AIProviders.OpenAI;
+        public string apiEndpoint = string.Empty;
+        public string modelName = string.Empty;
         public string apiKey = string.Empty;
         public bool enabled = true;
 
         public void ExposeData()
         {
-            Scribe_Values.Look(ref name, "name", "OpenCode Go (Backup)");
-            Scribe_Values.Look(ref provider, "provider", "opencode");
-            Scribe_Values.Look(ref apiEndpoint, "apiEndpoint", "https://opencode.ai/zen/go/v1");
-            Scribe_Values.Look(ref modelName, "modelName", "deepseek-v4.1-flash");
+            Scribe_Values.Look(ref name, "name", "Backup Node");
+            Scribe_Values.Look(ref provider, "provider", AIProviders.OpenAI);
+            Scribe_Values.Look(ref apiEndpoint, "apiEndpoint", string.Empty);
+            Scribe_Values.Look(ref modelName, "modelName", string.Empty);
             string storedKey = ApiKeyObfuscator.Obfuscate(apiKey);
             Scribe_Values.Look(ref storedKey, "apiKey", string.Empty);
             apiKey = ApiKeyObfuscator.Deobfuscate(storedKey);
@@ -31,7 +32,7 @@ namespace RimMind.Presentation.Settings
         public BackupEndpointNode ToNode() => new BackupEndpointNode
         {
             Name = name ?? string.Empty,
-            Provider = provider ?? "openai",
+            Provider = string.IsNullOrWhiteSpace(provider) ? AIProviders.OpenAI : provider,
             ApiEndpoint = apiEndpoint ?? string.Empty,
             ModelName = modelName ?? string.Empty,
             ApiKey = apiKey ?? string.Empty,

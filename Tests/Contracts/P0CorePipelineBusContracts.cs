@@ -246,6 +246,17 @@ namespace RimMind.Tests.Contracts
                         Priority = AIRequestPriority.High,
                         ExpireAtTicks = 9999,
                         MaxRetryCount = 4,
+                        CoalesceKey = "coalesce:npc-42",
+                        MaxQueueWaitTicks = 600,
+                        ExpiresAtUtc = new DateTime(2026, 11, 21, 12, 0, 0, DateTimeKind.Utc),
+                        RequireAliveColonist = true,
+                        Options = new LlmRequestOptions
+                        {
+                            CoalesceKey = "coalesce:opt",
+                            MaxQueueWaitTicks = 300,
+                            ExpiresAtUtc = new DateTime(2026, 11, 21, 13, 0, 0, DateTimeKind.Utc),
+                            RequireAliveColonist = true
+                        },
                         IsStreaming = true,
                         OnStreamChunk = streamCallback,
                         Ct = cts1.Token,

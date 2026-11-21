@@ -1,4 +1,5 @@
 using RimMind.Application.Common.Constants;
+using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Internal;
@@ -10,6 +11,40 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
     {
         private readonly IOpenAISettings? _openAISettings;
         private readonly ILogSink? _logSink;
+
+        static OpenAIClientFactory()
+        {
+            HttpTransport.RegisterDecorator(OpenCodeHeaderDecorator.Instance);
+            RegisterDefaultPresets();
+        }
+
+        public static void RegisterDefaultPresets()
+        {
+            AIProviderRegistry.RegisterPreset(new AIProviderPreset(
+                Id: "openai_official",
+                ProviderId: AIProviders.OpenAI,
+                Endpoint: "https://api.openai.com/v1",
+                ModelName: "gpt-4o-mini",
+                DisplayLabelKey: "RimMind.Settings.Provider.OpenAIOfficial",
+                FallbackLabel: "OpenAI",
+                HostMatchSubstring: "api.openai.com"));
+            AIProviderRegistry.RegisterPreset(new AIProviderPreset(
+                Id: "openai_deepseek",
+                ProviderId: AIProviders.OpenAI,
+                Endpoint: "https://api.deepseek.com/v1",
+                ModelName: "deepseek-flash",
+                DisplayLabelKey: "RimMind.Settings.Provider.DeepSeek",
+                FallbackLabel: "DeepSeek",
+                HostMatchSubstring: "deepseek.com"));
+            AIProviderRegistry.RegisterPreset(new AIProviderPreset(
+                Id: "openai_ollama",
+                ProviderId: AIProviders.OpenAI,
+                Endpoint: "http://localhost:11434/v1",
+                ModelName: "llama3.1",
+                DisplayLabelKey: null,
+                FallbackLabel: "Ollama",
+                HostMatchSubstring: ":11434"));
+        }
 
         public OpenAIClientFactory(IOpenAISettings? openAISettings = null, ILogSink? logSink = null)
         {

@@ -90,14 +90,16 @@ public sealed class ProactiveAgentMode : IAgentMode, IProactiveExtensions
     public IThinkStrategy GetThinkStrategy() => SharedStrategy;
 
     public IReadOnlyList<string> AllowedToolIds(IToolRegistry registry)
-        => registry.GetAllDefinitions().Select(d => d.Id).ToList();
+        => registry.GetDefinitionsForScope(RimMind.Application.Features.Tools.ToolScopeProjection.ColonistAgentDefaultScope)
+            .Select(d => d.Id)
+            .ToList();
 }
 
 internal sealed class ProactiveThinkStrategy : IThinkStrategy
 {
     private static readonly List<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
 
-    public string ScenarioId => ScenarioIds.Decision;
+    public string ScenarioId => ScenarioIds.AgentDecision;
 
     public LlmRequestEnvelope BuildEnvelope(IAgentInfo agent,
         IReadOnlyList<PerceptionBufferEntry> perceptions,

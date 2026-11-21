@@ -62,6 +62,10 @@ namespace RimMind.Presentation.Agent
 
         public string BuildMapContextInstance(object map, bool brief = false) => map is Map m ? _mapBuilder.BuildMapContext(m, brief) : "";
 
+        public string BuildStaticMapTopology(Map map) => _mapBuilder.BuildStaticMapTopology(map);
+
+        public string BuildVolatileColonyResources(Map map) => _mapBuilder.BuildVolatileColonyResources(map);
+
         // --- IContextKeyProvider ---
 
         public List<ContextEntry> BuildMapContextEntries(object map)

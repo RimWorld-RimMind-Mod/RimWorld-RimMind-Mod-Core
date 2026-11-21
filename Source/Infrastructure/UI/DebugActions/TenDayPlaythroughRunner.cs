@@ -220,8 +220,6 @@ namespace RimMind.Infrastructure.UI.DebugActions
             private SettingsOverrideScope? _settingsScope;
 
             private readonly HashSet<string> _processedTraceRequestIds = new(StringComparer.Ordinal);
-            private readonly HashSet<string> _seenTraceSources = new(StringComparer.OrdinalIgnoreCase);
-            private readonly Dictionary<string, string> _lastSystemPromptBySource = new(StringComparer.OrdinalIgnoreCase);
             private readonly List<ApprovedOverlayItem> _approvedOverlayItems = new();
             private int _totalLlmCalls;
             private int _successfulLlmCalls;
@@ -962,46 +960,16 @@ namespace RimMind.Infrastructure.UI.DebugActions
                         _report.LlmCallsBySource.TryGetValue(sourceKey, out int totalSrcCount);
                         _report.LlmCallsBySource[sourceKey] = totalSrcCount + 1;
 
-                        if (tokens > 0)
+                        int promptTokens = Math.Max(0, entry.PromptTokens);
+                        int cachedTokens = Math.Max(0, entry.CachedTokens);
+                        if (promptTokens > 0)
                         {
-                            int sysChars = entry.SystemPrompt?.Length ?? 0;
-                            int userChars = (entry.UserPrompt?.Length ?? 0) + (entry.AssistantPrompt?.Length ?? 0);
-                            int respChars = entry.Response?.Length ?? 0;
-                            int totalPromptChars = sysChars + userChars;
-
-                            int promptTokens = (totalPromptChars + respChars) > 0
-                                ? Math.Max(1, (int)Math.Round(tokens * ((double)totalPromptChars / Math.Max(1, totalPromptChars + respChars))))
-                                : Math.Max(1, (int)Math.Round(tokens * 0.78));
-
+                            if (cachedTokens > promptTokens)
+                                cachedTokens = promptTokens;
                             dayPromptTokens += promptTokens;
                             _totalPromptTokens += promptTokens;
-
-                            string curSysPrompt = entry.SystemPrompt ?? string.Empty;
-                            bool isSubsequentInSource = !_seenTraceSources.Add(sourceKey);
-                            if (isSubsequentInSource)
-                            {
-                                double prefixRatio = 0.60;
-                                if (!string.IsNullOrEmpty(curSysPrompt) &&
-                                    _lastSystemPromptBySource.TryGetValue(sourceKey, out string? prevSysPrompt) &&
-                                    !string.IsNullOrEmpty(prevSysPrompt))
-                                {
-                                    int commonLen = ComputeCommonPrefixLength(prevSysPrompt!, curSysPrompt);
-                                    if (commonLen > 0 && totalPromptChars > 0)
-                                    {
-                                        double sysShare = (double)commonLen / totalPromptChars;
-                                        prefixRatio = Math.Clamp(Math.Max(0.60, sysShare), 0.60, 0.85);
-                                    }
-                                }
-
-                                int entryPrefixTokens = (int)Math.Round(promptTokens * prefixRatio);
-                                dayPrefixTokens += entryPrefixTokens;
-                                _totalPrefixTokens += entryPrefixTokens;
-                            }
-
-                            if (!string.IsNullOrEmpty(curSysPrompt))
-                            {
-                                _lastSystemPromptBySource[sourceKey] = curSysPrompt;
-                            }
+                            dayPrefixTokens += cachedTokens;
+                            _totalPrefixTokens += cachedTokens;
                         }
                     }
 
@@ -1016,17 +984,6 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 }
             }
 
-            private static int ComputeCommonPrefixLength(string a, string b)
-            {
-                int minLen = Math.Min(a.Length, b.Length);
-                int i = 0;
-                while (i < minLen && a[i] == b[i])
-                {
-                    i++;
-                }
-                return i;
-            }
-
             private static void CollectRealAgentActions(
                 List<Pawn> colonists,
                 int dayStartTick,
@@ -1036,13 +993,18 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 try
                 {
                     var actionsToday = new List<(string PawnName, BehaviorRecord Record)>();
-                    foreach (var pawn in colonists)
+                    var visitedPawnIds = new HashSet<int>();
+
+                    void CollectFromPawn(Pawn? pawn)
                     {
+                        if (pawn == null || pawn.thingIDNumber <= 0 || !visitedPawnIds.Add(pawn.thingIDNumber))
+                            return;
+
                         var agent = CompPawnAgent.GetComp(pawn)?.Agent;
-                        if (agent == null) continue;
+                        if (agent == null) return;
 
                         var history = agent.GetRecentHistory(50);
-                        if (history == null) continue;
+                        if (history == null) return;
 
                         string pawnName = pawn.Name?.ToStringShort ?? "Colonist";
                         for (int i = 0; i < history.Count; i++)
@@ -1051,6 +1013,30 @@ namespace RimMind.Infrastructure.UI.DebugActions
                             if (rec != null && rec.Timestamp >= dayStartTick && rec.Timestamp <= dayEndTick)
                             {
                                 actionsToday.Add((pawnName, rec));
+                            }
+                        }
+                    }
+
+                    foreach (var pawn in colonists)
+                    {
+                        CollectFromPawn(pawn);
+                    }
+
+                    // Also include colonists who died later during the day (corpses on loaded maps)
+                    // so their executed actions are never dropped from the daily audit.
+                    var maps = Find.Maps;
+                    if (maps != null)
+                    {
+                        for (int m = 0; m < maps.Count; m++)
+                        {
+                            var corpses = maps[m]?.listerThings?.ThingsInGroup(ThingRequestGroup.Corpse);
+                            if (corpses == null) continue;
+                            for (int c = 0; c < corpses.Count; c++)
+                            {
+                                if (corpses[c] is Corpse corpse && corpse.InnerPawn is Pawn inner && inner.IsColonist)
+                                {
+                                    CollectFromPawn(inner);
+                                }
                             }
                         }
                     }
@@ -1463,45 +1449,12 @@ namespace RimMind.Infrastructure.UI.DebugActions
             {
                 try
                 {
-                    int woodCount = map?.resourceCounter?.GetCount(ThingDefOf.WoodLog) ?? 0;
-                    int steelCount = map?.resourceCounter?.GetCount(ThingDefOf.Steel) ?? 0;
-                    int mealsCount = (map?.resourceCounter?.GetCount(ThingDefOf.MealSimple) ?? 0)
-                        + (map?.resourceCounter?.GetCount(ThingDefOf.MealFine) ?? 0)
-                        + (map?.resourceCounter?.GetCount(ThingDefOf.MealSurvivalPack) ?? 0);
-                    float totalNutrition = map?.resourceCounter?.TotalHumanEdibleNutrition ?? 0f;
-                    if (map?.listerThings != null && (mealsCount == 0 || totalNutrition <= 0.01f))
-                    {
-                        var edibles = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree);
-                        if (edibles != null)
-                        {
-                            int mapMeals = 0;
-                            float mapNut = 0f;
-                            for (int i = 0; i < edibles.Count; i++)
-                            {
-                                var item = edibles[i];
-                                if (item == null || item.Destroyed || !item.Spawned || item is Corpse || item is Pawn)
-                                    continue;
-                                if (item.Position.Fogged(map) || item.IsForbidden(Faction.OfPlayer))
-                                    continue;
-                                if (item.def?.ingestible == null || !item.def.IsNutritionGivingIngestible || !item.def.ingestible.HumanEdible)
-                                    continue;
-                                if (item.def.ingestible.drugCategory != DrugCategory.None || item.def.ingestible.preferability < FoodPreferability.RawBad)
-                                    continue;
-
-                                float nutPerUnit = item.GetStatValue(StatDefOf.Nutrition);
-                                if (nutPerUnit > 0f)
-                                {
-                                    mapNut += nutPerUnit * Math.Max(1, item.stackCount);
-                                }
-                                if (item.def == ThingDefOf.MealSimple || item.def == ThingDefOf.MealFine || item.def == ThingDefOf.MealSurvivalPack)
-                                {
-                                    mapMeals += Math.Max(1, item.stackCount);
-                                }
-                            }
-                            if (mapMeals > mealsCount) mealsCount = mapMeals;
-                            if (mapNut > totalNutrition) totalNutrition = mapNut;
-                        }
-                    }
+                    int woodCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+                    int steelCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
+                    int mealsCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.MealSimple)
+                        + MapResourceCounter.GetAvailableCount(map, ThingDefOf.MealFine)
+                        + MapResourceCounter.GetAvailableCount(map, ThingDefOf.MealSurvivalPack);
+                    float totalNutrition = MapResourceCounter.GetAvailableFoodNutrition(map);
                     int blueprintsCount = map?.listerThings?.ThingsInGroup(ThingRequestGroup.Blueprint)?.Count ?? 0;
                     int framesCount = map?.listerThings?.ThingsInGroup(ThingRequestGroup.BuildingFrame)?.Count ?? 0;
                     int buildingsCount = map?.listerBuildings?.allBuildingsColonist?.Count ?? 0;

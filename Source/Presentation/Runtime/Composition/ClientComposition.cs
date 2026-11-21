@@ -38,6 +38,7 @@ namespace RimMind.Presentation.Runtime.Composition
 
             var gameScopedServices = extensions.GetExtensionRegistry<IGameScopedService>();
             gameScopedServices.Register(Player2GameLifecycleService.Instance);
+            gameScopedServices.Register(RimMind.Presentation.Agent.MapContextBuilderCacheLifecycleService.Instance);
             services.Bind(gameScopedServices);
 
             return new ClientCompositionServices

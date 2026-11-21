@@ -12,12 +12,26 @@ namespace RimMind.Application.Common.Models.Tools
         Query = 1
     }
 
+    [Flags]
+    public enum ToolScope
+    {
+        None = 0,
+        ColonistSelf = 1 << 0,
+        ColonyBuild = 1 << 1,
+        ColonyManage = 1 << 2,
+        Social = 1 << 3,
+        WorldAdmin = 1 << 4,
+        MetaQuery = 1 << 5,
+        All = ColonistSelf | ColonyBuild | ColonyManage | Social | WorldAdmin | MetaQuery
+    }
+
     public sealed record ToolManifest
     {
         public string OwnerModId { get; init; } = "RimMind.Core";
         public IReadOnlyList<AgentScopeKind> AllowedScopes { get; init; } =
             Array.AsReadOnly((AgentScopeKind[])Enum.GetValues(typeof(AgentScopeKind)));
         public ToolKind Kind { get; init; } = ToolKind.Mutation;
+        public ToolScope? Scopes { get; init; }
         public AutonomyDomain? DefaultDomain { get; init; }
         public string? AutonomyDomainId { get; init; }
         public RiskLevel RiskLevel { get; init; } = RiskLevel.Medium;

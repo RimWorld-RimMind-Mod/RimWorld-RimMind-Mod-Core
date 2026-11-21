@@ -6,6 +6,7 @@ using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Models.Mechanisms;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
 using Verse;
@@ -14,7 +15,7 @@ using VerseMap = Verse.Map;
 
 namespace RimMind.Infrastructure.Mechanisms
 {
-    public abstract class GameMechanismBaseNoDef : IGameMechanism
+    public abstract class GameMechanismBaseNoDef : IGameMechanism, IMechanismAutonomyMetadata
     {
         private readonly string? _ownerModId;
 
@@ -34,6 +35,7 @@ namespace RimMind.Infrastructure.Mechanisms
         public abstract MechanismDocs Docs { get; }
         public virtual IReadOnlyList<MechanismActionInfo>? GetWriteActions() => null;
         public virtual MechanismRisk GetRiskForOperation(MechanismOperationType operation) => Risk;
+        public virtual AutonomyDomain? GetAutonomyDomainForOperation(MechanismOperationType operation) => null;
 
         public virtual Task<Result<string, RimMindError>> ExecuteQueryAsync(MechanismReadArgs args, CancellationToken ct)
             => Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.MechanismOperationNotSupported(MechanismId, "query")));

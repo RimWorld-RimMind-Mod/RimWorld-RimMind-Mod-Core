@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Abstractions;
+using RimMind.Application.Features.Llm;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
 
@@ -88,34 +89,13 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
         /// 401/402/403 and quota/auth keywords are permanent; 408/429/5xx and rate-limit/queue keywords are transient.
         /// </summary>
         internal static bool IsTransientHttpFailure(HttpTransport.HttpException httpEx)
-        {
-            string msg = httpEx.ClassificationText;
-            bool isRateLimitOrQueue =
-                msg.IndexOf("rate_limit", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                msg.IndexOf("concurrency_limit", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                msg.IndexOf("queue_full", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                msg.IndexOf("Too many pending requests", StringComparison.OrdinalIgnoreCase) >= 0;
-            bool isPermanentQuotaOrAuth =
-                httpEx.StatusCode == 401 ||
-                httpEx.StatusCode == 402 ||
-                httpEx.StatusCode == 403 ||
-                msg.IndexOf("Insufficient account funds", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                msg.IndexOf("insufficient_quota", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                msg.IndexOf("invalid_api_key", StringComparison.OrdinalIgnoreCase) >= 0;
-            return !isPermanentQuotaOrAuth &&
-                (httpEx.StatusCode == 408 || httpEx.StatusCode == 429 || httpEx.StatusCode >= 500 || isRateLimitOrQueue);
-        }
+            => HttpErrorClassifier.IsTransientHttpFailure(httpEx.StatusCode, httpEx.ClassificationText);
 
         internal static bool IsContentModerationResponse(int statusCode, string? responseBody)
-        {
-            return statusCode == 400 &&
-                   !string.IsNullOrEmpty(responseBody) &&
-                   (responseBody!.IndexOf("Content Exists Risk", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    responseBody.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0);
-        }
+            => HttpErrorClassifier.IsContentModerationResponse(statusCode, responseBody);
 
         internal static bool IsContentFilteredHttpFailure(Exception? ex)
             => ex is HttpTransport.HttpException httpEx &&
-               IsContentModerationResponse(httpEx.StatusCode, httpEx.ClassificationText);
+               HttpErrorClassifier.IsContentModerationResponse(httpEx.StatusCode, httpEx.ClassificationText);
     }
 }

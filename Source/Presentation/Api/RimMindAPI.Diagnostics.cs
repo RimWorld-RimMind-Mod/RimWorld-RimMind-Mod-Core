@@ -1,4 +1,4 @@
-using RimMind.Infrastructure.Services.Clients.Shared;
+using RimMind.Application.Features.Llm;
 
 namespace RimMind.Presentation.Api
 {
@@ -10,11 +10,11 @@ namespace RimMind.Presentation.Api
         /// </summary>
         public static class Diagnostics
         {
-            public static string SanitizeForLog(string? text, int maxLength = LogSanitizer.DefaultMaxChars)
-                => LogSanitizer.ForLog(text, maxLength);
+            public static string SanitizeForLog(string? text, int maxLength = LogSecretRedactor.DefaultMaxChars)
+                => LogSecretRedactor.ForLog(text, maxLength);
 
             public static string SanitizeMessage(string? text, string? literalSecret = null, int maxLength = 320)
-                => LogSanitizer.ForMessageWithSecret(text, literalSecret, maxLength);
+                => LogSecretRedactor.ForMessageWithSecret(text, literalSecret, maxLength);
         }
     }
 }

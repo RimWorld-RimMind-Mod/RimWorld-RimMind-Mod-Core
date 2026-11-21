@@ -24,6 +24,7 @@ namespace RimMind.Application.Features.Requests.Queue
             bool isLocalEndpoint = false);
         void EnqueueImmediate(LlmRequestEnvelope envelope, Action<Result<LlmResponse, RimMindError>> callback, IAIClient client);
         bool CancelRequest(string requestId);
+        int CancelByNpcId(string npcId, string? reason = null);
         void CancelAllRequests();
         void PauseQueue();
         void ResumeQueue();

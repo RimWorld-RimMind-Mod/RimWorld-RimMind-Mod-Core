@@ -1,3 +1,5 @@
+using RimMind.Application.Features.Prompt;
+
 namespace RimMind.Presentation.Api
 {
     public static partial class RimMindAPI
@@ -9,6 +11,9 @@ namespace RimMind.Presentation.Api
 
             public static string Tr(string key, params object[] args)
                 => RimMindText.Tr(key, args);
+
+            public static string WrapForMote(string? text, int maxCharsPerLine = MoteTextFormatter.DefaultMaxCharsPerLine)
+                => MoteTextFormatter.WrapForMote(text, maxCharsPerLine);
         }
     }
 }

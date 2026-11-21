@@ -49,6 +49,13 @@ namespace RimMind.Application.Features.Requests.Queue
 
         public int CurrentTick { get; set; }
         public Action<string, bool>? LogHandler { get; set; }
+        /// <summary>
+        /// Optional pre-dispatch colonist liveness predicate injected by the Composition Root.
+        /// When set, requests targeting an <c>NPC-*</c> colonist (or with <c>RequireAliveColonist=true</c>)
+        /// are cancelled before dispatch if this returns <c>false</c>.
+        /// </summary>
+        public Func<string, bool>? PawnLivenessChecker { get; set; }
+        public Func<DateTime>? UtcClock { get; set; }
         public IExtensionRegistry<IModCooldown>? ModCooldowns
         {
             get => _circuitBreaker.ModCooldowns;
@@ -137,6 +144,27 @@ namespace RimMind.Application.Features.Requests.Queue
             {
                 string modId = !string.IsNullOrEmpty(envelope.ModId) ? envelope.ModId : "Unknown";
                 if (!_modQueues.TryGetValue(modId, out var queue)) { queue = new List<TrackedRequest>(); _modQueues[modId] = queue; }
+
+                // Per-key request coalescing: supersede older pending (not-yet-dispatched) entries with the same CoalesceKey
+                string? coalesceKey = envelope.EffectiveCoalesceKey;
+                if (!string.IsNullOrWhiteSpace(coalesceKey))
+                {
+                    var superseded = Result<LlmResponse, RimMindError>.Err(
+                        new RimMindError(RimMindErrorCode.Cancelled, $"Superseded by newer request ({coalesceKey})"));
+                    for (int i = queue.Count - 1; i >= 0; i--)
+                    {
+                        if (string.Equals(queue[i].Envelope.EffectiveCoalesceKey, coalesceKey, StringComparison.Ordinal))
+                        {
+                            var stale = queue[i];
+                            queue.RemoveAt(i);
+                            stale.State = AIRequestState.Cancelled;
+                            Complete(stale, superseded);
+                            if (Settings.DebugLogging)
+                                EnqueueLog($"[RimMind-Core] Coalesced stale pending request {stale.Envelope.RequestId} for key '{coalesceKey}'");
+                        }
+                    }
+                }
+
                 int trackingId = _nextTrackingId++;
                 var tracked = new TrackedRequest
                 {
@@ -156,6 +184,18 @@ namespace RimMind.Application.Features.Requests.Queue
         {
             lock (_queueLock)
             {
+                if (!PassesPreDispatchLivenessGate(envelope, out string livenessReason))
+                {
+                    int droppedTrackingId = _nextTrackingId++;
+                    var dropped = new TrackedRequest
+                    {
+                        TrackingId = droppedTrackingId, Envelope = envelope, Callback = callback,
+                        State = AIRequestState.Cancelled, EnqueuedAtTick = CurrentTick
+                    };
+                    Complete(dropped, Result<LlmResponse, RimMindError>.Err(
+                        new RimMindError(RimMindErrorCode.Cancelled, livenessReason)));
+                    return;
+                }
                 if (client.IsLocalEndpoint && _isProcessingLocalRequest)
                 {
                     if (Settings.DebugLogging) EnqueueLog($"[RimMind-Core] Immediate request {envelope.RequestId} deferred: local model busy");
@@ -168,7 +208,7 @@ namespace RimMind.Application.Features.Requests.Queue
                     TrackingId = trackingId, Envelope = envelope, Callback = callback,
                     Executor = ct => client.SendAsync(CloneWithCancellationToken(envelope, ct)), Client = client,
                     IsLocalEndpointSnapshot = client.IsLocalEndpoint, State = AIRequestState.Processing,
-                    EnqueuedAtTick = CurrentTick, StartedProcessingAtTick = CurrentTick, StartedProcessingAtUtc = DateTime.UtcNow, AttemptCount = 1, MaxAttempts = 1,
+                    EnqueuedAtTick = CurrentTick, StartedProcessingAtTick = CurrentTick, StartedProcessingAtUtc = NowUtc(), AttemptCount = 1, MaxAttempts = 1,
                 };
                 _activeRequests[trackingId] = tracked;
                 _requestIdToActive[envelope.RequestId] = tracked;
@@ -186,26 +226,18 @@ namespace RimMind.Application.Features.Requests.Queue
             {
                 var cooldownSnapshot = _circuitBreaker.GetCooldownSnapshot();
                 var readyRequests = new List<(string modId, TrackedRequest tracked)>();
+                DateTime nowUtc = NowUtc();
                 foreach (var kvp in _modQueues)
                 {
                     string modId = kvp.Key; var queue = kvp.Value;
                     if (queue.Count == 0) continue;
+
+                    // Always prune expired or dead-pawn pending entries even while mod is on cooldown
+                    PruneExpiredAndIneligibleHead(queue, now, nowUtc);
+                    if (queue.Count == 0) continue;
+
                     if (cooldownSnapshot.TryGetValue(modId, out int nextAllowed) && now < nextAllowed) continue;
-                    while (queue.Count > 0)
-                    {
-                        var t = queue[0];
-                        if (t.Envelope.ExpireAtTicks.HasValue && t.Envelope.ExpireAtTicks.Value > 0 && now > t.Envelope.ExpireAtTicks.Value)
-                        {
-                            queue.RemoveAt(0);
-                            Complete(t, Result<LlmResponse, RimMindError>.Err(
-                                RimMindErrors.Timeout($"Request {t.Envelope.RequestId} expired in queue at tick {now}")));
-                            if (Settings.DebugLogging)
-                                EnqueueLog($"[RimMind-Core] Expired request {t.Envelope.RequestId} completed with timeout");
-                            continue;
-                        }
-                        break;
-                    }
-                    if (queue.Count > 0) readyRequests.Add((modId, queue[0]));
+                    readyRequests.Add((modId, queue[0]));
                 }
                 readyRequests.Sort((a, b) => { int p = (int)a.tracked.Envelope.Priority - (int)b.tracked.Envelope.Priority; if (p != 0) return p; return a.tracked.EnqueuedAtTick - b.tracked.EnqueuedAtTick; });
                 int maxConcurrent = Settings.MaxConcurrentRequests;
@@ -217,7 +249,7 @@ namespace RimMind.Application.Features.Requests.Queue
                     queue.RemoveAt(0);
                     int cooldownTicks = _circuitBreaker.GetModCooldownTicks(modId);
                     _circuitBreaker.SetCooldown(modId, now + cooldownTicks);
-                    tracked.State = AIRequestState.Processing; tracked.StartedProcessingAtTick = now; tracked.StartedProcessingAtUtc = DateTime.UtcNow;
+                    tracked.State = AIRequestState.Processing; tracked.StartedProcessingAtTick = now; tracked.StartedProcessingAtUtc = nowUtc;
                     _activeRequests[tracked.TrackingId] = tracked; _requestIdToActive[tracked.Envelope.RequestId] = tracked;
                     if (tracked.IsLocalEndpointSnapshot) _isProcessingLocalRequest = true;
                     if (Settings.DebugLogging)
@@ -226,6 +258,92 @@ namespace RimMind.Application.Features.Requests.Queue
                 }
             }
         }
+
+        private void PruneExpiredAndIneligibleHead(List<TrackedRequest> queue, int now, DateTime nowUtc)
+        {
+            while (queue.Count > 0)
+            {
+                var t = queue[0];
+                if (IsExpired(t, now, nowUtc, out string expireReason))
+                {
+                    queue.RemoveAt(0);
+                    Complete(t, Result<LlmResponse, RimMindError>.Err(RimMindErrors.Timeout(expireReason)));
+                    if (Settings.DebugLogging)
+                        EnqueueLog($"[RimMind-Core] Expired request {t.Envelope.RequestId}: {expireReason}");
+                    continue;
+                }
+
+                if (!PassesPreDispatchLivenessGate(t.Envelope, out string livenessReason))
+                {
+                    queue.RemoveAt(0);
+                    t.State = AIRequestState.Cancelled;
+                    Complete(t, Result<LlmResponse, RimMindError>.Err(
+                        new RimMindError(RimMindErrorCode.Cancelled, livenessReason)));
+                    if (Settings.DebugLogging)
+                        EnqueueLog($"[RimMind-Core] Dropped request {t.Envelope.RequestId} at pre-dispatch liveness gate: {livenessReason}");
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        private bool IsExpired(TrackedRequest tracked, int now, DateTime nowUtc, out string reason)
+        {
+            var env = tracked.Envelope;
+            if (env.ExpireAtTicks.HasValue && env.ExpireAtTicks.Value > 0 && now > env.ExpireAtTicks.Value)
+            {
+                reason = $"Request {env.RequestId} expired in queue at tick {now}";
+                return true;
+            }
+
+            int? maxWait = env.EffectiveMaxQueueWaitTicks;
+            if (maxWait.HasValue && maxWait.Value > 0 && now >= tracked.EnqueuedAtTick && (now - tracked.EnqueuedAtTick) > maxWait.Value)
+            {
+                reason = $"Request {env.RequestId} exceeded MaxQueueWaitTicks ({maxWait.Value}) in queue";
+                return true;
+            }
+
+            DateTime? deadlineUtc = env.EffectiveExpiresAtUtc;
+            if (deadlineUtc.HasValue && nowUtc > deadlineUtc.Value)
+            {
+                reason = $"Request {env.RequestId} exceeded UTC queue deadline";
+                return true;
+            }
+
+            reason = string.Empty;
+            return false;
+        }
+
+        private bool PassesPreDispatchLivenessGate(LlmRequestEnvelope envelope, out string reason)
+        {
+            reason = string.Empty;
+            var checker = PawnLivenessChecker;
+            if (checker == null)
+                return true;
+
+            string? npcId = envelope.NpcId;
+            if (string.IsNullOrWhiteSpace(npcId))
+                return true;
+
+            bool? explicitFlag = envelope.EffectiveRequireAliveColonist;
+            bool shouldCheck = explicitFlag.HasValue
+                ? explicitFlag.Value
+                : npcId!.StartsWith("NPC-", StringComparison.OrdinalIgnoreCase);
+
+            if (!shouldCheck)
+                return true;
+
+            if (!checker(npcId!))
+            {
+                reason = $"Pawn '{npcId}' is no longer an active living colonist";
+                return false;
+            }
+
+            return true;
+        }
+
+        private DateTime NowUtc() => UtcClock?.Invoke() ?? DateTime.UtcNow;
 
         private void TryProcessModQueue(string modId, int now)
         {
@@ -339,6 +457,56 @@ namespace RimMind.Application.Features.Requests.Queue
             }
         }
 
+        public int CancelByNpcId(string npcId, string? reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(npcId))
+                return 0;
+
+            string message = string.IsNullOrWhiteSpace(reason)
+                ? $"Request cancelled for {npcId}"
+                : reason!;
+            var errResult = Result<LlmResponse, RimMindError>.Err(
+                new RimMindError(RimMindErrorCode.Cancelled, message));
+
+            int cancelledCount = 0;
+            lock (_queueLock)
+            {
+                foreach (var active in _activeRequests.Values.ToList())
+                {
+                    if (string.Equals(active.Envelope.NpcId, npcId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        active.State = AIRequestState.Cancelled;
+                        active.CancellationSource?.Cancel();
+                        Complete(active, errResult);
+                        cancelledCount++;
+                    }
+                }
+
+                foreach (var kvp in _modQueues)
+                {
+                    var queue = kvp.Value;
+                    for (int i = queue.Count - 1; i >= 0; i--)
+                    {
+                        if (string.Equals(queue[i].Envelope.NpcId, npcId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var tracked = queue[i];
+                            queue.RemoveAt(i);
+                            tracked.State = AIRequestState.Cancelled;
+                            Complete(tracked, errResult);
+                            cancelledCount++;
+                        }
+                    }
+                }
+            }
+
+            if (cancelledCount > 0 && Settings.DebugLogging)
+            {
+                EnqueueLog($"[RimMind-Core] Cancelled {cancelledCount} request(s) for npcId={npcId} ({message})");
+            }
+
+            return cancelledCount;
+        }
+
         public void PauseQueue() => _isPaused = true;
         public void ResumeQueue() => _isPaused = false;
         public bool IsPaused => _isPaused;
@@ -364,14 +532,5 @@ namespace RimMind.Application.Features.Requests.Queue
             LlmRequestEnvelope envelope,
             CancellationToken cancellationToken)
             => envelope.WithCancellationToken(cancellationToken);
-
-        private sealed class UnboundedCompletionFence : ICompletionFence
-        {
-            public static readonly UnboundedCompletionFence Instance = new UnboundedCompletionFence();
-
-            public CancellationToken CancellationToken => CancellationToken.None;
-
-            public bool TryAcceptCompletion() => true;
-        }
     }
 }

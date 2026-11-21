@@ -45,6 +45,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Work
 
         public override IReadOnlyList<MechanismActionInfo>? GetWriteActions() => _writeActions;
 
+        public override AutonomyDomain? GetAutonomyDomainForOperation(MechanismOperationType operation)
+            => operation == MechanismOperationType.Set ? AutonomyDomain.WorkPriorityModification : null;
+
         public override Task<Result<string, RimMindError>> ExecuteQueryAsync(MechanismReadArgs args, CancellationToken ct)
         {
             var pawn = FindPawn(args.PawnId);

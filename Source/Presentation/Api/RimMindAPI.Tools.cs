@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Features.Tools;
+using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Enums;
 using RimMind.Presentation.Runtime;
 using RimMind.Presentation.Runtime.Services;
 
@@ -21,6 +25,18 @@ namespace RimMind.Presentation.Api
 
             public static IToolRegistry Registry => ToolRegistries.Value;
             public static IGameMechanismRegistry Mechanisms => MechanismRegistries.Value;
+
+            /// <summary>
+            /// Projects registered tool definitions filtered by <paramref name="scope"/>, optionally compacting parameter schemas.
+            /// </summary>
+            public static IReadOnlyList<ToolDefinition> GetDefinitionsForScope(ToolScope scope, bool compactSchema = false)
+                => Registry.GetDefinitionsForScope(scope, compactSchema);
+
+            /// <summary>
+            /// Canonical mapping from <see cref="AutonomyDomain"/> + <see cref="ToolKind"/> to <see cref="RiskLevel"/>.
+            /// </summary>
+            public static RiskLevel MapAutonomyDomainRisk(AutonomyDomain? domain, ToolKind kind = ToolKind.Mutation)
+                => AutonomyDomainRiskMapper.MapToRisk(domain, kind);
 
             public static ToolPolicyDecision? ClassifyPolicy(string? toolId, ToolCallArgs? args = null)
             {

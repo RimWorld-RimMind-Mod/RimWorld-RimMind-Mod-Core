@@ -141,5 +141,161 @@ namespace RimMind.Presentation.UI
                 resetAction?.Invoke();
             }
         }
+
+        /// <summary>
+        /// Draws a scrollable settings page with automatic height measurement, dirty-only persistence
+        /// (avoiding per-frame disk writes), and an optional bottom reset bar.
+        /// </summary>
+        public static void DrawScrollableSettingsPage(
+            Rect inRect,
+            ref Vector2 scrollPos,
+            ref float measuredHeight,
+            Action<Listing_Standard> drawContent,
+            Action? onReset = null,
+            Action? onDirtySave = null)
+        {
+            if (drawContent == null)
+                return;
+
+            Rect contentArea = onReset != null ? SplitContentArea(inRect) : inRect;
+            float viewHeight = Mathf.Max(measuredHeight, contentArea.height + 1f);
+            Rect viewRect = new Rect(0f, 0f, Mathf.Max(0f, contentArea.width - 16f), viewHeight);
+
+            bool prevChanged = GUI.changed;
+            GUI.changed = false;
+
+            Widgets.BeginScrollView(contentArea, ref scrollPos, viewRect);
+            var listing = new Listing_Standard();
+            listing.Begin(viewRect);
+            try
+            {
+                drawContent(listing);
+                measuredHeight = listing.CurHeight + 24f;
+            }
+            finally
+            {
+                listing.End();
+                Widgets.EndScrollView();
+            }
+
+            if (onReset != null)
+            {
+                Rect bottomBar = SplitBottomBar(inRect);
+                DrawBottomBar(bottomBar, () =>
+                {
+                    onReset();
+                    GUI.changed = true;
+                });
+            }
+
+            bool dirty = GUI.changed;
+            GUI.changed = prevChanged || dirty;
+            if (dirty)
+            {
+                onDirtySave?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// Draws a masked secret input field (e.g., API key) with click-to-reveal and Show/Hide toggle.
+        /// </summary>
+        public static void DrawSecretField(
+            Rect row,
+            ref string value,
+            ref bool isRevealed,
+            string emptyPlaceholder,
+            string savedFormat,
+            string showLabel,
+            string hideLabel,
+            string? tooltip = null,
+            float toggleButtonWidth = 52f)
+        {
+            float btnW = Mathf.Max(36f, toggleButtonWidth);
+            Rect field = new Rect(row.x, row.y, Mathf.Max(0f, row.width - btnW - 4f), row.height);
+            Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
+
+            Widgets.DrawBoxSolid(field, new Color(0.04f, 0.05f, 0.08f, 0.6f));
+            GUI.color = new Color(0.28f, 0.35f, 0.45f, 0.7f);
+            Widgets.DrawBox(field, 1);
+            GUI.color = Color.white;
+
+            if (isRevealed)
+            {
+                value = Widgets.TextField(field, value ?? string.Empty);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    GUI.color = new Color(0.6f, 0.65f, 0.7f, 0.65f);
+                    Widgets.Label(
+                        new Rect(field.x + 8f, field.y + 3f, Mathf.Max(0f, field.width - 16f), field.height),
+                        emptyPlaceholder ?? string.Empty);
+                    GUI.color = Color.white;
+                }
+                else
+                {
+                    string hiddenLabel;
+                    try
+                    {
+                        hiddenLabel = string.Format(savedFormat ?? "Saved ({0} chars)", value.Length);
+                    }
+                    catch (FormatException)
+                    {
+                        hiddenLabel = $"{savedFormat} ({value.Length})";
+                    }
+
+                    Widgets.Label(
+                        new Rect(field.x + 8f, field.y + 3f, Mathf.Max(0f, field.width - 16f), field.height),
+                        hiddenLabel);
+                }
+
+                if (Widgets.ButtonInvisible(field))
+                {
+                    isRevealed = true;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                TooltipHandler.TipRegion(field, tooltip);
+            }
+
+            if (Widgets.ButtonText(toggle, isRevealed ? hideLabel : showLabel))
+            {
+                isRevealed = !isRevealed;
+            }
+        }
+
+        /// <summary>
+        /// Convenience Listing_Standard wrapper around <see cref="DrawSecretField(Rect, ref string, ref bool, string, string, string, string, string?, float)"/>.
+        /// </summary>
+        public static void DrawSecretField(
+            Listing_Standard listing,
+            string label,
+            ref string value,
+            ref bool isRevealed,
+            string? tooltip = null,
+            float rowHeight = 26f)
+        {
+            if (!string.IsNullOrEmpty(label))
+            {
+                if (!string.IsNullOrEmpty(tooltip))
+                    listing.LabelWithTooltip(label, tooltip);
+                else
+                    listing.Label(label);
+            }
+
+            Rect row = listing.GetRect(rowHeight);
+            DrawSecretField(
+                row,
+                ref value,
+                ref isRevealed,
+                UiText.Get("RimMind.Settings.ApiKey.EmptyPlaceholder", "Click to enter API key..."),
+                UiText.Get("RimMind.Settings.ApiKey.Saved", "Saved ({0} chars)"),
+                UiText.Get("RimMind.Settings.Show", "Show"),
+                UiText.Get("RimMind.Settings.Hide", "Hide"),
+                tooltip);
+        }
     }
 }

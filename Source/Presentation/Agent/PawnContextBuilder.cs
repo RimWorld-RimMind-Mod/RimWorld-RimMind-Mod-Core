@@ -43,15 +43,7 @@ namespace RimMind.Presentation.Agent
         private IPawnIncludeSettings PawnSettings => _contextSettings ?? DefaultFallbackSettings;
 
         private static string Tr(string key, params object[] args)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(key)) return string.Empty;
-                string template = key.CanTranslate() ? key.TranslateSimple() : key;
-                return (args == null || args.Length == 0) ? template : string.Format(template, args);
-            }
-            catch { return key ?? string.Empty; }
-        }
+            => RimMind.Presentation.Api.RimMindText.Tr(key, args);
 
         public string BuildPawnContext(Pawn pawn)
         {

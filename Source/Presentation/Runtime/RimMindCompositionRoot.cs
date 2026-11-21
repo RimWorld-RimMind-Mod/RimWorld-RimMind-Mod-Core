@@ -149,6 +149,8 @@ namespace RimMind.Presentation.Runtime
                 SettingsComposition.ComposeInfrastructureServices(services, infraBag);
                 Infrastructure.Mechanisms.MechanismToolHandler.PawnExistsPredicate =
                     id => Api.RimMindPawnLookup.FindPawnByNumber(id) != null;
+                Infrastructure.Mechanisms.MechanismToolHandler.IsMainThreadPredicate =
+                    () => global::Verse.UnityData.IsInMainThread;
 
                 var logSink = infraBag.LogSink;
                 var tickProvider = infraBag.TickProvider;
@@ -184,12 +186,18 @@ namespace RimMind.Presentation.Runtime
                         (string.Equals(evt.NewState, "Dead", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(evt.NewState, "Removed", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(evt.NewState, "Despawned", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(evt.NewState, "Kidnapped", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(evt.NewState, "Terminated", StringComparison.OrdinalIgnoreCase)))
                     {
                         contextServices.ContextEngine.InvalidateNpc(evt.NpcId);
+                        appBag.Queue.CancelByNpcId(evt.NpcId, $"Agent lifecycle: {evt.NewState}");
                     }
                 });
                 owned.Add(new ActionLease(() => agentBus.Unsubscribe<Domain.Events.AgentLifecycleEvent>(lifecycleCleanupKey)));
+                if (appBag.Queue is RequestQueue concreteQueue)
+                {
+                    concreteQueue.PawnLivenessChecker = Api.RimMindPawnLookup.IsNpcActiveColonist;
+                }
 
                 var busMiddleware = extensions.GetExtensionRegistry<IMiddleware<BusPublishContext>>();
                 services.Bind(busMiddleware);

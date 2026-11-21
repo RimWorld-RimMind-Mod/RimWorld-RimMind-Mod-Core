@@ -164,24 +164,11 @@ namespace RimMind.Presentation.Runtime
         {
             var resolved = ResolveGameScopedServices(registry);
             if (resolved == null)
-            {
-                try
-                {
-                    Player2GameLifecycleService.Instance.OnGameStopped();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[RimMind-Core] Default Player2 game-scoped service failed in OnGameStopped: {ex}");
-                }
                 return;
-            }
 
-            var notifiedPlayer2 = false;
             foreach (var service in resolved.All)
             {
                 if (service == null) continue;
-                if (service is Player2GameLifecycleService)
-                    notifiedPlayer2 = true;
                 try
                 {
                     service.OnGameStopped();
@@ -189,18 +176,6 @@ namespace RimMind.Presentation.Runtime
                 catch (Exception ex)
                 {
                     Log.Error($"[RimMind-Core] Game-scoped service '{service.Id}' failed in OnGameStopped: {ex}");
-                }
-            }
-
-            if (!notifiedPlayer2 && registry == null)
-            {
-                try
-                {
-                    Player2GameLifecycleService.Instance.OnGameStopped();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[RimMind-Core] Default Player2 game-scoped service failed in OnGameStopped: {ex}");
                 }
             }
         }

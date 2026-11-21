@@ -383,6 +383,6 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             };
 
         private static string SafeTranslate(string key, string fallback)
-            => key.CanTranslate() ? key.Translate().ToString() : fallback;
+            => RimMind.Presentation.Api.RimMindText.TrOr(key, fallback);
     }
 }

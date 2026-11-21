@@ -38,7 +38,7 @@ public sealed class ReactiveAgentMode : IAgentMode
     private static readonly string[] ExcludedToolPrefixes = { "planning.", "dream.", "reflect.", "trait_evolution." };
 
     public IReadOnlyList<string> AllowedToolIds(IToolRegistry registry)
-        => registry.GetAllDefinitions()
+        => registry.GetDefinitionsForScope(RimMind.Application.Features.Tools.ToolScopeProjection.ColonistAgentDefaultScope)
             .Where(d => !ExcludedToolPrefixes.Any(p => d.Id.StartsWith(p)))
             .Select(d => d.Id)
             .ToList();
@@ -48,7 +48,7 @@ internal sealed class ReactiveThinkStrategy : IThinkStrategy
 {
     private static readonly List<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
 
-    public string ScenarioId => ScenarioIds.Decision;
+    public string ScenarioId => ScenarioIds.AgentDecision;
 
     public LlmRequestEnvelope BuildEnvelope(IAgentInfo agent,
         IReadOnlyList<PerceptionBufferEntry> perceptions,
