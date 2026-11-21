@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RimMind.Application.Features.Llm;
 using RimMind.Domain.Common;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
@@ -11,21 +12,18 @@ using RimMind.Infrastructure.Services.Clients.Shared;
 namespace RimMind.Infrastructure.Services.Clients.OpenAI
 {
     /// <summary>
-    /// Pure (Verse-free, stateless) wire serializer and response parser for OpenAI-compatible
-    /// chat-completions endpoints. Shared by Core's built-in client and extension model services.
+    /// Backwards-compatible forwarding wrapper around <see cref="OpenAIWireCodec"/>.
+    /// Extension modules should call <see cref="OpenAIWireCodec"/> in <c>RimMind.Application.Features.Llm</c>.
     /// </summary>
     public static class OpenAIRequestSerializer
     {
-        private static readonly JsonSerializerSettings WireSettings =
-            new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
-
         public static string BuildRequestJson(
             LlmRequestEnvelope envelope,
             string modelName,
             int defaultMaxTokens,
             bool stream = false,
             bool forceJsonMode = false)
-            => BuildRequestJson(envelope, modelName, defaultMaxTokens, stream, forceJsonMode, omitZeroMaxTokens: false);
+            => OpenAIWireCodec.BuildRequestJson(envelope, modelName, defaultMaxTokens, stream, forceJsonMode, omitZeroMaxTokens: false);
 
         public static string BuildRequestJson(
             LlmRequestEnvelope envelope,
@@ -34,211 +32,12 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             bool stream,
             bool forceJsonMode,
             bool omitZeroMaxTokens)
-        {
-            if (envelope == null) throw new ArgumentNullException(nameof(envelope));
+            => OpenAIWireCodec.BuildRequestJson(envelope, modelName, defaultMaxTokens, stream, forceJsonMode, omitZeroMaxTokens);
 
-            int effectiveMaxTokens = envelope.MaxTokens > 0
-                ? (defaultMaxTokens > envelope.MaxTokens && envelope.ScenarioId != "RimMind.Test"
-                    ? defaultMaxTokens
-                    : envelope.MaxTokens)
-                : defaultMaxTokens;
-
-            var messages = BuildMessages(envelope);
-            var responseFormat = BuildResponseFormat(envelope, forceJsonMode, messages);
-            var (tools, toolChoice) = BuildTools(envelope);
-
-            if (omitZeroMaxTokens && effectiveMaxTokens <= 0)
-            {
-                var omitBody = new WireRequestDto
-                {
-                    model = modelName,
-                    messages = messages,
-                    max_tokens = null,
-                    temperature = envelope.Temperature,
-                    stream = stream,
-                    stream_options = stream ? new StreamOptionsDto() : null,
-                    response_format = responseFormat,
-                    tools = tools,
-                    tool_choice = toolChoice,
-                };
-
-                return JsonConvert.SerializeObject(omitBody, Formatting.None, WireSettings);
-            }
-
-            var body = new OpenAIRequestDto
-            {
-                model = modelName,
-                messages = messages,
-                max_tokens = effectiveMaxTokens,
-                temperature = envelope.Temperature,
-                stream = stream,
-                stream_options = stream ? new StreamOptionsDto() : null,
-                response_format = responseFormat,
-                tools = tools,
-                tool_choice = toolChoice,
-            };
-
-            return JsonConvert.SerializeObject(body, Formatting.None, WireSettings);
-        }
-
-        /// <summary>
-        /// Parses an OpenAI chat-completions JSON response into an <see cref="LlmResponse"/>.
-        /// Tool-call names are returned in wire (underscore) form for <c>ToolRegistry</c> to resolve,
-        /// <see cref="LlmResponse.ToolCallsJson"/> is null when there are no tool calls, cached
-        /// prompt tokens are surfaced, and reasoning-only replies fall back to reasoning text
-        /// when the request did not expect tool calls.
-        /// </summary>
         public static Result<LlmResponse, RimMindError> ParseResponse(
             string responseBody,
             LlmRequestEnvelope? envelope = null)
-        {
-            if (string.IsNullOrWhiteSpace(responseBody))
-                return Result<LlmResponse, RimMindError>.Err(
-                    RimMindErrors.ClientTransient("Empty response body from model server."));
-
-            try
-            {
-                var token = JToken.Parse(responseBody);
-
-                if (token["error"] != null && token["error"]!.Type != JTokenType.Null)
-                {
-                    string errMsg = AsString(token["error"]?["message"]) ?? "Unknown API error";
-                    string errType = AsString(token["error"]?["type"]) ?? string.Empty;
-                    string errCode = AsString(token["error"]?["code"]) ?? string.Empty;
-                    string safeErr = LogSanitizer.ForLog(errMsg);
-
-                    if (errMsg.IndexOf("Content Exists Risk", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        errCode.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        errType.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ContentFiltered(safeErr));
-                    }
-
-                    if (string.Equals(errType, "server_error", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(errType, "api_error", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(errCode, "server_error", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientTransient(safeErr));
-                    }
-
-                    return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientPermanent(safeErr));
-                }
-
-                var choices = token["choices"] as JArray;
-                if (choices == null || choices.Count == 0)
-                {
-                    return Result<LlmResponse, RimMindError>.Err(
-                        RimMindErrors.ClientPermanent("Response choices array is missing or empty."));
-                }
-
-                var message = choices[0]["message"];
-                if (message == null || message.Type == JTokenType.Null)
-                {
-                    return Result<LlmResponse, RimMindError>.Err(
-                        RimMindErrors.ClientPermanent("First choice message is null."));
-                }
-
-                string content = AsString(message["content"]) ?? string.Empty;
-                string? reasoningContent = AsString(message["reasoning_content"]);
-                string? finishReason = AsString(choices[0]["finish_reason"]);
-                string? refusal = AsString(message["refusal"]);
-
-                if (string.Equals(finishReason, "content_filter", StringComparison.OrdinalIgnoreCase) ||
-                    !string.IsNullOrWhiteSpace(refusal))
-                {
-                    string refusalDetail = !string.IsNullOrWhiteSpace(refusal)
-                        ? LogSanitizer.ForLog(refusal!)
-                        : "Response blocked by upstream content filter (finish_reason=content_filter).";
-                    return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ContentFiltered(refusalDetail));
-                }
-
-                if (string.Equals(finishReason, "insufficient_system_resource", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(finishReason, "aborted", StringComparison.OrdinalIgnoreCase))
-                {
-                    return Result<LlmResponse, RimMindError>.Err(
-                        RimMindErrors.ClientTransient($"Upstream generation interrupted (finish_reason={finishReason})."));
-                }
-
-                string? toolCallsJson = null;
-                var toolCalls = message["tool_calls"] as JArray;
-                if (toolCalls != null && toolCalls.Count > 0)
-                {
-                    var wireList = new List<object>(toolCalls.Count);
-                    foreach (var tc in toolCalls)
-                    {
-                        string? rawId = AsString(tc["id"]);
-                        string id = !string.IsNullOrEmpty(rawId) ? rawId! : Guid.NewGuid().ToString("N");
-                        string? rawType = AsString(tc["type"]);
-                        string type = !string.IsNullOrEmpty(rawType) ? rawType! : "function";
-                        string name = AsString(tc["function"]?["name"]) ?? "";
-                        var argsToken = tc["function"]?["arguments"];
-                        string arguments = argsToken == null || argsToken.Type == JTokenType.Null
-                            ? "{}"
-                            : argsToken.Type == JTokenType.String
-                                ? argsToken.ToString()
-                                : argsToken.ToString(Formatting.None);
-                        wireList.Add(new
-                        {
-                            id = id,
-                            type = type,
-                            function = new
-                            {
-                                name = name,
-                                arguments = arguments
-                            }
-                        });
-                    }
-                    toolCallsJson = JsonConvert.SerializeObject(wireList);
-                }
-
-                bool expectsTools = envelope?.Tools != null && envelope.Tools.Count > 0;
-                if (!expectsTools &&
-                    !string.Equals(finishReason, "length", StringComparison.OrdinalIgnoreCase) &&
-                    string.IsNullOrWhiteSpace(content) &&
-                    toolCallsJson == null &&
-                    !string.IsNullOrWhiteSpace(reasoningContent))
-                {
-                    content = reasoningContent!;
-                }
-
-                // Some providers (e.g. json_object validation failure) replace non-JSON output with spaces (U+0020)
-                if (toolCallsJson == null &&
-                    content.Length > 0 &&
-                    string.IsNullOrWhiteSpace(content) &&
-                    string.IsNullOrWhiteSpace(reasoningContent))
-                {
-                    return Result<LlmResponse, RimMindError>.Err(
-                        RimMindErrors.ClientTransient("Upstream returned whitespace-only content."));
-                }
-
-                var usage = token["usage"];
-                int promptTokens = AsInt(usage?["prompt_tokens"]) ?? 0;
-                int completionTokens = AsInt(usage?["completion_tokens"]) ?? 0;
-                int totalTokens = AsInt(usage?["total_tokens"]) ?? (promptTokens + completionTokens);
-                int cachedTokens = AsInt(usage?["prompt_tokens_details"]?["cached_tokens"])
-                    ?? AsInt(usage?["prompt_cache_hit_tokens"])
-                    ?? 0;
-
-                var llmResponse = new LlmResponse
-                {
-                    RequestId = AsString(token["id"]) ?? Guid.NewGuid().ToString("N"),
-                    Content = content,
-                    ReasoningContent = reasoningContent,
-                    ToolCallsJson = toolCallsJson,
-                    PromptTokens = promptTokens,
-                    CompletionTokens = completionTokens,
-                    CachedTokens = cachedTokens,
-                    TokensUsed = totalTokens
-                };
-
-                return Result<LlmResponse, RimMindError>.Ok(llmResponse);
-            }
-            catch (Exception ex)
-            {
-                return Result<LlmResponse, RimMindError>.Err(
-                    RimMindErrors.ClientPermanent($"Failed to parse OpenAI response: {LogSanitizer.ForLog(ex.Message)}"));
-            }
-        }
+            => OpenAIWireCodec.ParseResponse(responseBody, envelope);
 
         internal static ResponseFormatDto? BuildResponseFormat(
             LlmRequestEnvelope envelope,
@@ -454,20 +253,5 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 return null;
             }
         }
-
-#pragma warning disable IDE1006
-        private sealed class WireRequestDto
-        {
-            public string model = "";
-            public List<MessageDto>? messages;
-            public int? max_tokens;
-            public float temperature;
-            public bool stream;
-            public StreamOptionsDto? stream_options;
-            public ResponseFormatDto? response_format;
-            public List<ToolDto>? tools;
-            public object? tool_choice;
-        }
-#pragma warning restore IDE1006
     }
 }

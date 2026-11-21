@@ -129,6 +129,89 @@ namespace RimMind.Core.ArchTests.Contracts
                     .ToArray());
         }
 
+        [Fact]
+        public void Downstream_submodules_maintain_generic_vs_specific_separation_boundaries()
+        {
+            string root = RepositoryRoot();
+            string[] allDependentMods =
+            {
+                "RimMind-Actions",
+                "RimMind-Advisor",
+                "RimMind-Dialogue",
+                "RimMind-Memory",
+                "RimMind-Personality",
+                "RimMind-Storyteller",
+                "RimMind-Bridge-RimTalk",
+                "RimMind-Bridge-RimChat",
+                "RimMind-Extension-ModelService"
+            };
+
+            ContractCaseRunner.Run(
+                ("no dependent submodule imports RimMind.Infrastructure", () =>
+                {
+                    var pattern = new Regex(
+                        @"^\s*using\s+RimMind\.Infrastructure(?:\.|;)",
+                        RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+                    var violations = allDependentMods
+                        .Select(mod => Path.Combine(root, mod, "Source"))
+                        .Where(Directory.Exists)
+                        .SelectMany(SourceFiles)
+                        .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+                        .Select(file => Path.GetRelativePath(root, file))
+                        .OrderBy(path => path, StringComparer.Ordinal)
+                        .ToArray();
+
+                    Assert.True(
+                        violations.Length == 0,
+                        $"Dependent submodules must not import RimMind.Infrastructure:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+                }),
+                ("RimMind-Advisor Perception layer contains zero hardcoded actions_ tool literals", () =>
+                {
+                    string perceptionDir = Path.Combine(root, "RimMind-Advisor", "Source", "Perception");
+                    if (!Directory.Exists(perceptionDir))
+                        return;
+
+                    var violations = SourceFiles(perceptionDir)
+                        .Where(file => StripCommentsOnly(File.ReadAllText(file)).IndexOf("actions_", StringComparison.OrdinalIgnoreCase) >= 0)
+                        .Select(file => Path.GetRelativePath(root, file))
+                        .OrderBy(path => path, StringComparer.Ordinal)
+                        .ToArray();
+
+                    Assert.True(
+                        violations.Length == 0,
+                        $"RimMind-Advisor/Source/Perception must not hardcode concrete actions_ tool names:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+                }),
+                ("no dependent submodule bypasses RimMindAPI.Json by importing RimMind.Application.Features.Json", () =>
+                {
+                    var pattern = new Regex(
+                        @"^\s*using\s+RimMind\.Application\.Features\.Json(?:\.|;)",
+                        RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+                    var violations = allDependentMods
+                        .Select(mod => Path.Combine(root, mod, "Source"))
+                        .Where(Directory.Exists)
+                        .SelectMany(SourceFiles)
+                        .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+                        .Select(file => Path.GetRelativePath(root, file))
+                        .OrderBy(path => path, StringComparer.Ordinal)
+                        .ToArray();
+
+                    Assert.True(
+                        violations.Length == 0,
+                        $"Dependent submodules must use RimMindAPI.Json instead of importing RimMind.Application.Features.Json directly:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+                }));
+        }
+
+        private static string StripCommentsOnly(string source)
+        {
+            return Regex.Replace(
+                source,
+                @"//[^\r\n]*|/\*.*?\*/",
+                " ",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        }
+
         private static void AssertDependentSourceAbsent(string forbiddenPattern)
         {
             var pattern = new Regex(forbiddenPattern, RegexOptions.CultureInvariant);

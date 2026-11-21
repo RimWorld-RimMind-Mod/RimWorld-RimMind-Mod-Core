@@ -34,6 +34,14 @@ namespace RimMind.Presentation.Api
             public static int GetModCooldownTicksLeft(string modId)
                 => Queues.ValueOrDefault?.GetCooldownTicksLeft(modId) ?? 0;
 
+            /// <summary>Cancels all queued and in-flight requests associated with <paramref name="npcId"/>.</summary>
+            public static int CancelByNpcId(string npcId, string? reason = null)
+                => Queues.ValueOrDefault?.CancelByNpcId(npcId, reason) ?? 0;
+
+            /// <summary>Cancels a single queued or active request by its request ID.</summary>
+            public static bool CancelRequest(string requestId)
+                => Queues.ValueOrDefault?.CancelRequest(requestId) == true;
+
             /// <summary>Unified async request entry (callback style)</summary>
             public static void Send(LlmRequestEnvelope envelope, Action<Result<LlmResponse, RimMindError>> onComplete)
             {

@@ -20,7 +20,7 @@ namespace RimMind.Presentation.Agent
         public string ScenarioId => _scopeType switch
         {
             "Storyteller" => ScenarioIds.Storyteller,
-            _ => ScenarioIds.Decision
+            _ => ScenarioIds.AgentDecision
         };
 
         public ScopedThinkStrategy(string scopeType)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using RimMind.Application.Common.Models.UI;
 using RimMind.Infrastructure.UI.DebugCenter;
+using RimMind.Presentation.UI;
 
 namespace RimMind.Presentation.Api
 {
@@ -53,6 +54,20 @@ namespace RimMind.Presentation.Api
 
             public static IReadOnlyList<DebugCenterPageDescriptor> GetDebugPages()
                 => DebugCenterPageRegistry.GetAll();
+
+            // ── Bio-tab badge providers (unified CharacterCardUtility.DoTopStack host) ──
+
+            public static void RegisterBioTabBadge(IBioTabBadgeProvider provider)
+                => BioTabBadgeRegistry.Register(provider);
+
+            public static bool UnregisterBioTabBadge(string id)
+                => BioTabBadgeRegistry.Unregister(id);
+
+            public static int UnregisterBioTabBadgesByOwner(string ownerModId)
+                => BioTabBadgeRegistry.UnregisterByOwner(ownerModId);
+
+            public static IReadOnlyList<IBioTabBadgeProvider> GetBioTabBadges()
+                => BioTabBadgeRegistry.GetAll();
         }
     }
 }

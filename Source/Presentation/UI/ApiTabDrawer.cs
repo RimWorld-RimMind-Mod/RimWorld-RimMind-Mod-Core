@@ -230,34 +230,39 @@ namespace RimMind.Presentation.UI
             ISettingsProvider s,
             IExtensionRegistry<IAIClientFactory>? providerRegistry = null)
         {
-            if (s.Provider == "player2")
+            if (string.Equals(s.Provider, Domain.Common.AIProviders.Player2, StringComparison.OrdinalIgnoreCase))
                 return UiText.Get("RimMind.Settings.Provider.Player2");
 
             if (providerRegistry != null)
             {
-                var factory = providerRegistry.All.FirstOrDefault(f => f.ProviderId == s.Provider);
+                var factory = providerRegistry.All.FirstOrDefault(f =>
+                    string.Equals(f.ProviderId, s.Provider, StringComparison.OrdinalIgnoreCase));
                 if (factory != null && !string.IsNullOrEmpty(factory.DisplayLabel))
                     return factory.DisplayLabel;
             }
 
-            if (s.Provider == "openai")
+            if (string.Equals(s.Provider, Domain.Common.AIProviders.OpenAI, StringComparison.OrdinalIgnoreCase))
             {
-                string ep = (s.ApiEndpoint ?? string.Empty).ToLowerInvariant();
                 string openAiLabel = UiText.Get("RimMind.Settings.Provider.OpenAI");
-                if (ep.Contains("deepseek.com"))
-                    return "DeepSeek (" + openAiLabel + ")";
-                if (ep.Contains("siliconflow.cn"))
-                    return "SiliconFlow (" + openAiLabel + ")";
-                if (ep.Contains("moonshot.cn"))
-                    return "Moonshot (" + openAiLabel + ")";
-                if (ep.Contains("localhost:11434") || ep.Contains("127.0.0.1:11434"))
-                    return "Ollama (" + openAiLabel + ")";
-                if (ep.Contains("api.openai.com"))
-                    return UiText.Get("RimMind.Settings.Provider.OpenAIOfficial");
+                var matchedPreset = AIProviderRegistry.MatchPresetByEndpoint(s.ApiEndpoint);
+                if (matchedPreset != null)
+                {
+                    string presetLabel = ResolvePresetLabel(matchedPreset);
+                    if (!string.IsNullOrWhiteSpace(presetLabel))
+                        return presetLabel;
+                }
+
                 return openAiLabel + " (" + UiText.Get("RimMind.Settings.Provider.Custom") + ")";
             }
 
             return GetProviderLabel(s.Provider);
+        }
+
+        private static string ResolvePresetLabel(AIProviderPreset preset)
+        {
+            if (!string.IsNullOrEmpty(preset.DisplayLabelKey))
+                return UiText.Get(preset.DisplayLabelKey!, preset.FallbackLabel ?? preset.Id);
+            return preset.FallbackLabel ?? preset.Id;
         }
 
         private static void OpenProviderSelectionMenu(
@@ -267,34 +272,57 @@ namespace RimMind.Presentation.UI
         {
             var options = new List<FloatMenuOption>();
 
-            // 1. OpenAI Compatible (OpenAI / 兼容)
-            string openAiLabel = UiText.Get("RimMind.Settings.Provider.OpenAI");
-            options.Add(new FloatMenuOption(openAiLabel, () =>
+            // 1. OpenAI-compatible presets registered via AIProviderRegistry
+            var openAiPresets = AIProviderRegistry.GetPresets(Domain.Common.AIProviders.OpenAI);
+            if (openAiPresets.Count > 0)
             {
-                ApplyProviderPreset(s, "openai", "https://api.openai.com/v1", "gpt-4o-mini", UiText.Get("RimMind.Settings.Provider.OpenAI"));
-            }));
-
-            // 2. DeepSeek (标准 OpenAI 兼容端点)
-            options.Add(new FloatMenuOption(UiText.Get("RimMind.Settings.Provider.DeepSeek"), () =>
+                foreach (var preset in openAiPresets)
+                {
+                    var capturedPreset = preset;
+                    string label = ResolvePresetLabel(capturedPreset);
+                    options.Add(new FloatMenuOption(label, () =>
+                    {
+                        ApplyProviderPreset(
+                            s,
+                            capturedPreset.ProviderId,
+                            capturedPreset.Endpoint,
+                            capturedPreset.ModelName,
+                            label);
+                    }));
+                }
+            }
+            else
             {
-                ApplyProviderPreset(s, "openai", "https://api.deepseek.com/v1", "deepseek-flash", "DeepSeek");
-            }));
+                var openAiDescriptor = AIProviderRegistry.GetDescriptor(Domain.Common.AIProviders.OpenAI);
+                string openAiLabel = UiText.Get("RimMind.Settings.Provider.OpenAI");
+                options.Add(new FloatMenuOption(openAiLabel, () =>
+                {
+                    ApplyProviderPreset(
+                        s,
+                        Domain.Common.AIProviders.OpenAI,
+                        openAiDescriptor?.DefaultEndpoint ?? RimMindCoreSettings.DefaultApiEndpoint,
+                        openAiDescriptor?.DefaultModelName ?? RimMindCoreSettings.DefaultModelName,
+                        openAiLabel);
+                }));
+            }
 
-            // 3. Player2 (本地/云端)
+            // 2. Player2 (local/cloud)
             options.Add(new FloatMenuOption(UiText.Get("RimMind.Settings.Provider.Player2"), () =>
             {
-                s.Provider = "player2";
+                s.Provider = Domain.Common.AIProviders.Player2;
                 s.Persist();
                 RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
                 var currentClientManager = ClientManager.ResolveOptional(operationScope);
                 currentClientManager?.InvalidateCache();
             }));
 
-            // 4+. 外部动态注入的服务商工厂 (由 providerRegistry 提供，如 ModelService 注入的 OpenCode Go, Extended Service 等)
+            // 3+. Dynamically registered provider factories (extensions such as ModelService)
             if (providerRegistry != null)
             {
                 var externalFactories = providerRegistry.All
-                    .Where(f => f.VisibleInMenu && f.ProviderId != "openai" && f.ProviderId != "player2")
+                    .Where(f => f.VisibleInMenu
+                        && !string.Equals(f.ProviderId, Domain.Common.AIProviders.OpenAI, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(f.ProviderId, Domain.Common.AIProviders.Player2, StringComparison.OrdinalIgnoreCase))
                     .OrderBy(f => f.OrderWeight);
 
                 foreach (var factory in externalFactories)
@@ -319,7 +347,9 @@ namespace RimMind.Presentation.UI
             var allProviders = AIProviderRegistry.GetAllProviderIds(providerRegistry);
             foreach (var p in allProviders)
             {
-                if (p == "openai" || p == "player2" || (providerRegistry != null && providerRegistry.All.Any(f => f.ProviderId == p)))
+                if (string.Equals(p, Domain.Common.AIProviders.OpenAI, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(p, Domain.Common.AIProviders.Player2, StringComparison.OrdinalIgnoreCase)
+                    || (providerRegistry != null && providerRegistry.All.Any(f => string.Equals(f.ProviderId, p, StringComparison.OrdinalIgnoreCase))))
                     continue;
                 var label = GetProviderLabel(p);
                 options.Add(new FloatMenuOption(label, () =>
@@ -540,45 +570,14 @@ namespace RimMind.Presentation.UI
         private static void DrawApiKeySection(Listing_Standard listing, ISettingsProvider s, RimMindLayoutScope? scope = null)
         {
             string apiKeyDesc = UiText.Get("RimMind.Settings.ApiKey.Desc");
-            listing.LabelWithTooltip(UiText.Get("RimMind.Settings.ApiKey"), apiKeyDesc);
-            {
-                Rect row = listing.GetRect(26f);
-                float btnW = 52f;
-                Rect field = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
-                Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
-
-                Widgets.DrawBoxSolid(field, new Color(0.04f, 0.05f, 0.08f, 0.6f));
-                GUI.color = new Color(0.28f, 0.35f, 0.45f, 0.7f);
-                Widgets.DrawBox(field, 1);
-                GUI.color = Color.white;
-
-                if (_showApiKey)
-                {
-                    s.ApiKey = Widgets.TextField(field, s.ApiKey ?? string.Empty);
-                }
-                else
-                {
-                    if (string.IsNullOrEmpty(s.ApiKey))
-                    {
-                        GUI.color = new Color(0.6f, 0.65f, 0.7f, 0.65f);
-                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), UiText.Get("RimMind.Settings.ApiKey.EmptyPlaceholder"));
-                        GUI.color = Color.white;
-                    }
-                    else
-                    {
-                        string hiddenLabel = UiText.Format("RimMind.Settings.ApiKey.Saved", s.ApiKey.Length);
-                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), hiddenLabel);
-                    }
-
-                    if (Widgets.ButtonInvisible(field))
-                    {
-                        _showApiKey = true;
-                    }
-                }
-                TooltipHandler.TipRegion(field, apiKeyDesc);
-                if (Widgets.ButtonText(toggle, _showApiKey ? UiText.Get("RimMind.Settings.Hide") : UiText.Get("RimMind.Settings.Show")))
-                    _showApiKey = !_showApiKey;
-            }
+            string apiKey = s.ApiKey ?? string.Empty;
+            SettingsUIDrawer.DrawSecretField(
+                listing,
+                UiText.Get("RimMind.Settings.ApiKey"),
+                ref apiKey,
+                ref _showApiKey,
+                apiKeyDesc);
+            s.ApiKey = apiKey;
 
             listing.Gap(4f);
             string endpointDesc = UiText.Get("RimMind.Settings.ApiEndpoint.Desc");
@@ -609,36 +608,20 @@ namespace RimMind.Presentation.UI
 
             Rect headerRow = listing.GetRect(26f);
             float btnW = 148f;
-            Rect titleRect = new Rect(headerRow.x, headerRow.y + 2f, headerRow.width - (btnW * 2f + 12f), headerRow.height);
-            Rect addOpenCodeRect = new Rect(headerRow.xMax - (btnW * 2f + 6f), headerRow.y, btnW, 24f);
+            Rect titleRect = new Rect(headerRow.x, headerRow.y + 2f, Mathf.Max(0f, headerRow.width - btnW - 8f), headerRow.height);
             Rect addCustomRect = new Rect(headerRow.xMax - btnW, headerRow.y, btnW, 24f);
 
             Widgets.Label(titleRect, headerLabel + $" ({list.Count})");
             TooltipHandler.TipRegion(titleRect, headerDesc);
-
-            if (Widgets.ButtonText(addOpenCodeRect, UiText.Get("RimMind.Settings.BackupEndpoints.AddOpenCode", "+ OpenCode Go Backup")))
-            {
-                list.Add(new BackupEndpointEntry
-                {
-                    name = $"OpenCode Go #{list.Count + 1}",
-                    provider = "opencode",
-                    apiEndpoint = "https://opencode.ai/zen/go/v1",
-                    modelName = "deepseek-v4.1-flash",
-                    apiKey = string.Empty,
-                    enabled = true
-                });
-                s.Persist();
-            }
-            TooltipHandler.TipRegion(addOpenCodeRect, headerDesc);
 
             if (Widgets.ButtonText(addCustomRect, UiText.Get("RimMind.Settings.BackupEndpoints.AddCustom", "+ Custom Backup")))
             {
                 list.Add(new BackupEndpointEntry
                 {
                     name = $"Backup #{list.Count + 1}",
-                    provider = "openai",
-                    apiEndpoint = "https://api.deepseek.com/v1",
-                    modelName = "deepseek-flash",
+                    provider = Domain.Common.AIProviders.OpenAI,
+                    apiEndpoint = string.Empty,
+                    modelName = string.Empty,
                     apiKey = string.Empty,
                     enabled = true
                 });
@@ -663,6 +646,8 @@ namespace RimMind.Presentation.UI
             string endpointDesc = UiText.Get("RimMind.Settings.ApiEndpoint.Desc");
             string modelDesc = UiText.Get("RimMind.Settings.ModelName.Desc");
             string apiKeyDesc = UiText.Get("RimMind.Settings.ApiKey.Desc");
+            string emptyPlaceholder = UiText.Get("RimMind.Settings.ApiKey.EmptyPlaceholder");
+            string savedFormat = UiText.Get("RimMind.Settings.ApiKey.Saved", "Saved ({0} chars)");
             string hideLabel = UiText.Get("RimMind.Settings.Hide");
             string showLabel = UiText.Get("RimMind.Settings.Show");
 
@@ -690,8 +675,6 @@ namespace RimMind.Presentation.UI
                 Rect epRect = new Rect(badgeRect.xMax + 4f, cardRow1.y + 1f, endpointW, 22f);
                 entry.apiEndpoint = Widgets.TextField(epRect, entry.apiEndpoint ?? string.Empty);
                 TooltipHandler.TipRegion(epRect, endpointDesc);
-                if (entry.apiEndpoint.IndexOf("opencode.ai", StringComparison.OrdinalIgnoreCase) >= 0)
-                    entry.provider = "opencode";
 
                 Rect modelRect = new Rect(epRect.xMax + fieldGap, cardRow1.y + 1f, modelW, 22f);
                 entry.modelName = Widgets.TextField(modelRect, entry.modelName ?? string.Empty);
@@ -706,30 +689,23 @@ namespace RimMind.Presentation.UI
                 if (Widgets.ButtonText(delBtn, "×")) removeIdx = i;
 
                 Rect cardRow2 = listing.GetRect(24f);
-                float showBtnW = 52f;
-                Rect keyField = new Rect(cardRow2.x + 32f, cardRow2.y + 1f, cardRow2.width - 32f - showBtnW - 4f, 22f);
-                Rect showToggle = new Rect(keyField.xMax + 4f, cardRow2.y + 1f, showBtnW, 22f);
-
+                Rect keyRow = new Rect(cardRow2.x + 32f, cardRow2.y + 1f, Mathf.Max(0f, cardRow2.width - 32f), 22f);
                 bool showingThisKey = _editingBackupKeyIndex == i;
+                string entryKey = entry.apiKey ?? string.Empty;
+                SettingsUIDrawer.DrawSecretField(
+                    keyRow,
+                    ref entryKey,
+                    ref showingThisKey,
+                    emptyPlaceholder,
+                    savedFormat,
+                    showLabel,
+                    hideLabel,
+                    apiKeyDesc);
+                entry.apiKey = entryKey;
                 if (showingThisKey)
-                {
-                    entry.apiKey = Widgets.TextField(keyField, entry.apiKey ?? string.Empty);
-                }
-                else
-                {
-                    Widgets.DrawBoxSolid(keyField, new Color(0.04f, 0.05f, 0.08f, 0.6f));
-                    string keyPreview = string.IsNullOrEmpty(entry.apiKey)
-                        ? UiText.Get("RimMind.Settings.ApiKey.EmptyPlaceholder")
-                        : UiText.Format("RimMind.Settings.ApiKey.Saved", entry.apiKey.Length);
-                    Widgets.Label(new Rect(keyField.x + 6f, keyField.y + 2f, keyField.width - 12f, keyField.height), keyPreview);
-                    if (Widgets.ButtonInvisible(keyField))
-                        _editingBackupKeyIndex = i;
-                }
-                TooltipHandler.TipRegion(keyField, apiKeyDesc);
-                if (Widgets.ButtonText(showToggle, showingThisKey ? hideLabel : showLabel))
-                {
-                    _editingBackupKeyIndex = showingThisKey ? -1 : i;
-                }
+                    _editingBackupKeyIndex = i;
+                else if (_editingBackupKeyIndex == i)
+                    _editingBackupKeyIndex = -1;
             }
 
             if (removeIdx >= 0 && removeIdx < list.Count)
@@ -764,45 +740,14 @@ namespace RimMind.Presentation.UI
             listing.Gap(4f);
 
             string player2ApiKeyDesc = UiText.Get("RimMind.Settings.Player2.ApiKeyDesc");
-            listing.LabelWithTooltip(UiText.Get("RimMind.Settings.ApiKey") + " (" + UiText.Get("RimMind.Settings.Player2.ApiKeyOptional") + ")", player2ApiKeyDesc);
-            {
-                Rect row = listing.GetRect(26f);
-                float btnW = 52f;
-                Rect field = new Rect(row.x, row.y, row.width - btnW - 4f, row.height);
-                Rect toggle = new Rect(field.xMax + 4f, row.y, btnW, row.height);
-
-                Widgets.DrawBoxSolid(field, new Color(0.04f, 0.05f, 0.08f, 0.6f));
-                GUI.color = new Color(0.28f, 0.35f, 0.45f, 0.7f);
-                Widgets.DrawBox(field, 1);
-                GUI.color = Color.white;
-
-                if (_showApiKey)
-                {
-                    s.ApiKey = Widgets.TextField(field, s.ApiKey ?? string.Empty);
-                }
-                else
-                {
-                    if (string.IsNullOrEmpty(s.ApiKey))
-                    {
-                        GUI.color = new Color(0.6f, 0.65f, 0.7f, 0.65f);
-                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), UiText.Get("RimMind.Settings.ApiKey.EmptyPlaceholder"));
-                        GUI.color = Color.white;
-                    }
-                    else
-                    {
-                        string hiddenLabel = UiText.Format("RimMind.Settings.ApiKey.Saved", s.ApiKey.Length);
-                        Widgets.Label(new Rect(field.x + 8f, field.y + 3f, field.width - 16f, field.height), hiddenLabel);
-                    }
-
-                    if (Widgets.ButtonInvisible(field))
-                    {
-                        _showApiKey = true;
-                    }
-                }
-                TooltipHandler.TipRegion(field, player2ApiKeyDesc);
-                if (Widgets.ButtonText(toggle, _showApiKey ? UiText.Get("RimMind.Settings.Hide") : UiText.Get("RimMind.Settings.Show")))
-                    _showApiKey = !_showApiKey;
-            }
+            string player2Key = s.ApiKey ?? string.Empty;
+            SettingsUIDrawer.DrawSecretField(
+                listing,
+                UiText.Get("RimMind.Settings.ApiKey") + " (" + UiText.Get("RimMind.Settings.Player2.ApiKeyOptional") + ")",
+                ref player2Key,
+                ref _showApiKey,
+                player2ApiKeyDesc);
+            s.ApiKey = player2Key;
 
             listing.Gap(4f);
             {

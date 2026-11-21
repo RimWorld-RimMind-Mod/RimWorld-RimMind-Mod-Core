@@ -55,7 +55,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             var toolCalls = ParseToolCalls(response.ToolCallsJson);
             if (toolCalls == null || toolCalls.Count == 0) return;
 
-            if (string.Equals(context.Envelope?.ScenarioId, RimMind.Application.Common.Models.Context.ScenarioIds.Decision, System.StringComparison.OrdinalIgnoreCase))
+            if (RimMind.Application.Common.Models.Context.ScenarioIds.IsDecisionScenario(context.Envelope?.ScenarioId))
             {
                 toolCalls = toolCalls
                     .Where(tc => RimMind.Application.Features.Agent.Modes.ThinkStrategyHelper.IsQueryToolName(tc.FunctionName, _toolRegistry))

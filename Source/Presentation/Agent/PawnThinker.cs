@@ -11,6 +11,7 @@ using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Agent.Psychology;
 using RimMind.Application.Common.Interfaces.Agent.Social;
 using RimMind.Application.Common.Interfaces.Internal;
+using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
@@ -178,7 +179,7 @@ namespace RimMind.Presentation.Agent
                 _proactiveExecutor.ExecuteProactiveExtensions(_agent, mode, pawnId);
                 var strategy = mode.GetThinkStrategy();
                 var allowedToolIds = mode.AllowedToolIds(RimMindAPI.Tools);
-                var availableTools = RimMindAPI.Tools.GetAllDefinitions()
+                var availableTools = RimMindAPI.Tools.GetDefinitionsForScope(ToolScope.All, compactSchema: true)
                     .Where(d => allowedToolIds.Contains(d.Id))
                     .Where(d => !IsToolDisabledForPawn(pawn, d))
                     .ToList();

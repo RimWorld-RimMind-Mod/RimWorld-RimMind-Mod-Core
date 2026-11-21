@@ -3,6 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using RimMind.Application.Common.Helpers;
+using RimMind.Application.Common.Interfaces.Tools;
+using RimMind.Application.Features.Tools;
+using RimMind.Presentation.Runtime.Services;
 using RimWorld;
 using Verse;
 
@@ -10,10 +13,9 @@ namespace RimMind.Presentation.Api
 {
     /// <summary>
     /// Centralized lookup and eligibility policy for Pawns across Core and submodules.
-    /// Unifies pawn resolution logic and colonist validity checks.
     /// Unifies pawn resolution logic, thread-safe caching, and colonist validity checks.
     /// </summary>
-    public static class RimMindPawnLookup
+    public static partial class RimMindPawnLookup
     {
         private static readonly ConcurrentDictionary<int, Pawn> PawnByNumberCache = new();
         private static readonly ConcurrentDictionary<string, Pawn> PawnByIdCache = new();
@@ -274,15 +276,18 @@ namespace RimMind.Presentation.Api
             if (mp == null) return null;
 
             var allPawns = mp.AllPawns;
-            if (allPawns != null)
+            if (allPawns != null && allPawns.Count > 0)
             {
                 for (int j = 0; j < allPawns.Count; j++)
                 {
                     var p = allPawns[j];
                     if (p != null && !p.Dead && !p.DestroyedOrNull() && match(p)) return p;
                 }
+                // In RimWorld, AllPawns is a strict superset of FreeColonists / AllPawnsSpawned / SpawnedColonyAnimals.
+                return null;
             }
 
+            // Fallback when running under unit-test stubs that populate only subset lists directly.
             var freeColonists = mp.FreeColonists;
             if (freeColonists != null)
             {
@@ -471,8 +476,23 @@ namespace RimMind.Presentation.Api
         }
 
         /// <summary>
-        /// Formats a raw tool/action identifier (e.g. "actions_place_blueprint", "pawn.job.take_job")
-        /// into a clean human-readable title ("Place Blueprint", "Take Job") for UI overlays, motes, and approval cards.
+        /// Checks whether an NPC identifier (e.g. "NPC-123" or "Pawn_123") resolves to an active spawned player colonist.
+        /// Used by RequestQueue's pre-dispatch pawn liveness gate.
+        /// </summary>
+        public static bool IsNpcActiveColonist(string? npcId)
+        {
+            if (string.IsNullOrWhiteSpace(npcId)) return false;
+            if (!PawnIdParser.TryParse(npcId, out int thingId) || thingId <= 0)
+                return false;
+
+            var pawn = FindPawnByNumber(thingId);
+            return IsActiveSpawnedColonist(pawn);
+        }
+
+        /// <summary>
+        /// Formats a raw tool/action identifier (e.g. "pawn.job.take_job") into a clean human-readable title
+        /// for UI overlays, motes, and approval cards. Prefers <see cref="Application.Common.Models.Tools.ToolManifest.DisplayName"/>
+        /// when the tool is registered.
         /// </summary>
         public static string FormatHumanReadableActionName(string? rawName)
         {
@@ -480,7 +500,19 @@ namespace RimMind.Presentation.Api
                 return "Action";
 
             var trimmed = rawName!.Trim();
-            string[] prefixes = { "actions_", "pawn_", "rimmind_", "pawn.job.", "pawn.", "map." };
+            try
+            {
+                var registry = RuntimeServiceHub.Shared.Capture().GetOptional<IToolRegistry>();
+                var displayName = registry?.FindById(trimmed)?.Definition?.Manifest?.DisplayName;
+                if (!string.IsNullOrWhiteSpace(displayName))
+                    return displayName!;
+            }
+            catch
+            {
+                // Safe fallback when runtime is not booted (e.g. unit tests).
+            }
+
+            string[] prefixes = { "pawn.job.", "pawn.", "map.", "world.", "pawn_", "rimmind_" };
             foreach (var prefix in prefixes)
             {
                 if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&

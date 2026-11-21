@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Features.Json;
 using RimMind.Application.Features.Prompt;
@@ -89,6 +90,26 @@ namespace RimMind.Presentation.Api
 
             public static List<string> ExtractAllTagRaw(string text, string tagName)
                 => JsonTagExtractor.ExtractAllRaw(text, tagName);
+
+            // ── LlmPayloadParser (Unified LLM output cleaning, JSON extraction/repair, pseudo-tool parsing) ──
+
+            public static string StripThinkingAndCodeFences(string? raw)
+                => LlmPayloadParser.StripThinkingAndCodeFences(raw);
+
+            public static string? ExtractJsonPayload(string? raw)
+                => LlmPayloadParser.ExtractJsonPayload(raw);
+
+            public static bool TryParseJObjectWithRepair(string? raw, out JObject? obj)
+                => LlmPayloadParser.TryParseJObjectWithRepair(raw, out obj);
+
+            public static bool TryDeserializeWithRepair<T>(string? raw, out T? value) where T : class
+                => LlmPayloadParser.TryDeserializeWithRepair<T>(raw, out value);
+
+            public static IReadOnlyList<ParsedPseudoFunctionCall> ParsePseudoFunctionCalls(string? raw)
+                => LlmPayloadParser.ParsePseudoFunctionCalls(raw);
+
+            public static string? ExtractReasonFromArgumentsJson(string? argumentsJson)
+                => LlmPayloadParser.ExtractReasonFromArgumentsJson(argumentsJson);
         }
     }
 }

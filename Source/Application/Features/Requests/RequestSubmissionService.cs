@@ -152,7 +152,7 @@ namespace RimMind.Application.Features.Requests
             }
 
             bool isAgentRollout = !string.IsNullOrWhiteSpace(rolloutId)
-                || string.Equals(envelope.ScenarioId, ScenarioIds.Decision, StringComparison.OrdinalIgnoreCase)
+                || ScenarioIds.IsDecisionScenario(envelope.ScenarioId)
                 || string.Equals(envelope.ModId, "RimMind.Agent", StringComparison.OrdinalIgnoreCase);
 
             if (isAgentRollout && string.IsNullOrWhiteSpace(rolloutId))

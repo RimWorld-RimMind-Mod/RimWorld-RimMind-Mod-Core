@@ -73,6 +73,7 @@ namespace UnityEngine
     {
         public static Color color { get; set; } = Color.white;
         public static bool enabled { get; set; } = true;
+        public static bool changed { get; set; }
         public static void BeginGroup(Rect rect) { }
         public static void EndGroup() { }
     }
@@ -496,6 +497,7 @@ namespace Verse
     public class Listing_Standard
     {
         public float ColumnWidth => 400f;
+        public float CurHeight { get; set; }
         public void Begin(UnityEngine.Rect rect) { }
         public void End() { }
         public void Gap(float gap = 12f) { }
@@ -594,6 +596,7 @@ namespace Verse
     public static class Translator
     {
         public static bool CanTranslate(this string key) => true;
+        public static string TranslateSimple(this string key) => key;
         public static string Translate(this string key) => key;
         public static string Resolve(this string s) => s;
         public static string Translate(this string key, string arg1) => $"{key}:{arg1}";

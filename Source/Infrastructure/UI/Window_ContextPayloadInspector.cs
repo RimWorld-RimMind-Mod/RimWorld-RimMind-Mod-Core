@@ -12,6 +12,7 @@ using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Features.Agent.Modes;
+using RimMind.Application.Features.Context;
 using RimMind.Domain.Common;
 using RimMind.Domain.Enums;
 using RimMind.Domain.Llm;
@@ -40,23 +41,54 @@ namespace RimMind.Infrastructure.UI
         private Vector2 _pawnListScroll = Vector2.zero;
         private Vector2 _contentScroll = Vector2.zero;
 
-        private static readonly string[] Scenarios = new[]
-        {
-            ScenarioIds.Decision,
-            ScenarioIds.Dialogue,
-            ScenarioIds.CrisisDialogue,
-            ScenarioIds.Personality,
-            ScenarioIds.Memory
-        };
+        private List<(string Id, string Label)> _scenarios = new();
 
-        private static readonly string[] ScenarioLabels = new[]
+        private IReadOnlyList<(string Id, string Label)> GetScenarios()
         {
-            "Decision",
-            "Dialogue",
-            "CrisisDialogue",
-            "Personality",
-            "DarkMemory"
-        };
+            if (_scenarios.Count == 0)
+            {
+                RefreshScenarios();
+            }
+            return _scenarios;
+        }
+
+        private void RefreshScenarios()
+        {
+            _scenarios.Clear();
+            var registered = ScenarioRegistry.GetAll();
+            if (registered != null && registered.Count > 0)
+            {
+                foreach (var entry in registered.OrderBy(e => e.Id, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.Id)) continue;
+                    string label = string.IsNullOrWhiteSpace(entry.Description)
+                        ? entry.Id
+                        : $"{entry.Id} ({entry.Description})";
+                    _scenarios.Add((entry.Id, label));
+                }
+            }
+
+            if (_scenarios.Count == 0)
+            {
+                _scenarios.Add((ScenarioIds.AgentDecision, "Agent Decision"));
+                _scenarios.Add((ScenarioIds.Decision, "Decision"));
+            }
+
+            if (_selectedScenarioIndex < 0 || _selectedScenarioIndex >= _scenarios.Count)
+            {
+                _selectedScenarioIndex = 0;
+            }
+        }
+
+        private (string Id, string Label) CurrentScenario
+        {
+            get
+            {
+                var list = GetScenarios();
+                int idx = Math.Clamp(_selectedScenarioIndex, 0, list.Count - 1);
+                return list[idx];
+            }
+        }
 
         private static readonly string[] Tabs = new[]
         {
@@ -167,13 +199,16 @@ namespace RimMind.Infrastructure.UI
             Widgets.Label(scenLabelRect, "RimMind.Inspector.ScenarioLabel".Translate());
 
             Rect scenBtnRect = new Rect(selX + 80f, rect.y + 6f, 250f, 26f);
-            if (Widgets.ButtonText(scenBtnRect, ScenarioLabels[_selectedScenarioIndex]))
+            var scenarios = GetScenarios();
+            if (Widgets.ButtonText(scenBtnRect, CurrentScenario.Label))
             {
+                RefreshScenarios();
+                scenarios = GetScenarios();
                 var options = new List<FloatMenuOption>();
-                for (int i = 0; i < ScenarioLabels.Length; i++)
+                for (int i = 0; i < scenarios.Count; i++)
                 {
                     int index = i;
-                    options.Add(new FloatMenuOption(ScenarioLabels[index], () =>
+                    options.Add(new FloatMenuOption(scenarios[index].Label, () =>
                     {
                         _selectedScenarioIndex = index;
                         RebuildEnvelope();
@@ -409,7 +444,7 @@ namespace RimMind.Infrastructure.UI
         private void CopyFullPayloadToClipboard()
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine($"# RimMind LLM Request Envelope (Pawn: {_selectedPawn?.LabelCap}, Scenario: {ScenarioLabels[_selectedScenarioIndex]})");
+            sb.AppendLine($"# RimMind LLM Request Envelope (Pawn: {_selectedPawn?.LabelCap}, Scenario: {CurrentScenario.Label})");
             sb.AppendLine();
             sb.AppendLine("## 1. System Prompt");
             sb.AppendLine("```");
@@ -467,7 +502,7 @@ namespace RimMind.Infrastructure.UI
             _cachedScenarioIndex = _selectedScenarioIndex;
             if (_selectedPawn == null) return;
 
-            string scenario = Scenarios[_selectedScenarioIndex];
+            string scenario = CurrentScenario.Id;
             var tools = RimMindAPI.Tools.GetAllDefinitions().ToList();
 
             // 1. Build System Prompt & Rules

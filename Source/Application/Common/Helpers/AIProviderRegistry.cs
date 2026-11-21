@@ -8,12 +8,24 @@ using RimMind.Domain.Common;
 
 namespace RimMind.Application.Common.Helpers
 {
+    public sealed record AIProviderPreset(
+        string Id,
+        string ProviderId,
+        string Endpoint,
+        string ModelName,
+        string? DisplayLabelKey = null,
+        string? FallbackLabel = null,
+        string? HostMatchSubstring = null,
+        string OwnerModId = RimMindOwnerConsts.CoreModId);
+
     public sealed record AIProviderDescriptor(
         string ProviderId,
         bool RequiresApiKey = true,
         string? SettingsTabId = null,
         string? DisplayLabelKey = null,
-        string OwnerModId = RimMindOwnerConsts.CoreModId);
+        string OwnerModId = RimMindOwnerConsts.CoreModId,
+        string? DefaultEndpoint = null,
+        string? DefaultModelName = null);
 
     public static class AIProviderRegistry
     {
@@ -21,6 +33,7 @@ namespace RimMind.Application.Common.Helpers
         private static readonly object SyncRoot = new();
         private static readonly Dictionary<string, AIProviderDescriptor> Descriptors =
             new(StringComparer.OrdinalIgnoreCase);
+        private static readonly List<AIProviderPreset> Presets = new();
 
         static AIProviderRegistry()
         {
@@ -32,18 +45,78 @@ namespace RimMind.Application.Common.Helpers
             lock (SyncRoot)
             {
                 Descriptors.Clear();
+                Presets.Clear();
                 RegisterCoreUnlocked(new AIProviderDescriptor(
                     AIProviders.OpenAI,
                     RequiresApiKey: true,
                     SettingsTabId: null,
                     DisplayLabelKey: "RimMind.Settings.Provider.OpenAI",
-                    OwnerModId: RimMindOwnerConsts.CoreModId));
+                    OwnerModId: RimMindOwnerConsts.CoreModId,
+                    DefaultEndpoint: "https://api.openai.com/v1",
+                    DefaultModelName: "gpt-4o-mini"));
                 RegisterCoreUnlocked(new AIProviderDescriptor(
                     AIProviders.Player2,
                     RequiresApiKey: false,
                     SettingsTabId: null,
                     DisplayLabelKey: "RimMind.Settings.Provider.Player2",
                     OwnerModId: RimMindOwnerConsts.CoreModId));
+            }
+        }
+
+        public static void RegisterPreset(AIProviderPreset preset)
+        {
+            if (preset == null) throw new ArgumentNullException(nameof(preset));
+            if (string.IsNullOrWhiteSpace(preset.Id))
+                throw new ArgumentException("Preset Id cannot be null or whitespace.", nameof(preset));
+
+            var normalized = string.IsNullOrWhiteSpace(preset.OwnerModId)
+                ? preset with { OwnerModId = RimMindOwnerConsts.CoreModId }
+                : preset;
+
+            lock (SyncRoot)
+            {
+                int idx = Presets.FindIndex(p => string.Equals(p.Id, normalized.Id, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0) Presets[idx] = normalized;
+                else Presets.Add(normalized);
+            }
+        }
+
+        public static IReadOnlyList<AIProviderPreset> GetPresets(string? providerId = null)
+        {
+            lock (SyncRoot)
+            {
+                if (string.IsNullOrWhiteSpace(providerId))
+                    return Presets.ToList();
+                return Presets
+                    .Where(p => string.Equals(p.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        public static AIProviderPreset? MatchPresetByEndpoint(string? endpoint)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint)) return null;
+            lock (SyncRoot)
+            {
+                for (int i = 0; i < Presets.Count; i++)
+                {
+                    var p = Presets[i];
+                    if (!string.IsNullOrWhiteSpace(p.HostMatchSubstring) &&
+                        endpoint!.IndexOf(p.HostMatchSubstring!, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return p;
+                    }
+                }
+                return null;
+            }
+        }
+
+        public static AIProviderDescriptor? GetDescriptor(string? providerId)
+        {
+            if (string.IsNullOrWhiteSpace(providerId)) return null;
+            lock (SyncRoot)
+            {
+                return Descriptors.TryGetValue(providerId!.Trim(), out var descriptor) ? descriptor : null;
             }
         }
 
@@ -98,6 +171,7 @@ namespace RimMind.Application.Common.Helpers
                     .ToList();
                 foreach (var key in keys)
                     Descriptors.Remove(key);
+                Presets.RemoveAll(p => string.Equals(p.OwnerModId, ownerModId, StringComparison.Ordinal));
                 return keys.Count;
             }
         }

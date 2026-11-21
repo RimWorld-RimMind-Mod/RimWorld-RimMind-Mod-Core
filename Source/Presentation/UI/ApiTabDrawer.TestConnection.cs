@@ -64,7 +64,7 @@ namespace RimMind.Presentation.UI
                 if (!s.IsOpenAIConfigured())
                 {
                     Log.Message(BuildConnectionDebugLine("openai-settings-not-configured", s, providerRegistry, null, null));
-                    _testStatus = "RimMind.Settings.Status.NotConfigured".Translate();
+                    _testStatus = UiText.Get("RimMind.Settings.Status.NotConfigured", "Not configured");
                     _testStatusColor = Color.yellow;
                     return;
                 }
@@ -90,14 +90,14 @@ namespace RimMind.Presentation.UI
             ConnectionTestOperation operation = BeginConnectionTest(token);
 
             // Translate on the main thread: Verse's LanguageDatabase is not thread-safe.
-            string testMessage = "RimMind.Settings.TestMessage".Translate();
-            string notConfiguredText = notConfiguredKey.Translate();
+            string testMessage = UiText.Get("RimMind.Settings.TestMessage", "Say hi in 3 words.");
+            string notConfiguredText = UiText.Get(notConfiguredKey, "Not configured");
             Color notConfiguredColor = requireConfiguredClient || notConfiguredKey == "RimMind.Settings.Status.NotConfigured"
                 ? Color.yellow
                 : new Color(0.9f, 0.4f, 0.4f);
-            string okFormat = TranslateOrFallback("RimMind.Settings.TestResult.Ok", "OK ({0}ms) {1} ({2} tok)");
-            string failFormat = TranslateOrFallback("RimMind.Settings.TestResult.Fail", "FAIL ({0}ms) {1}");
-            string exceptionFormat = TranslateOrFallback("RimMind.Settings.TestResult.Exception", "FAIL {0}");
+            string okFormat = UiText.Get("RimMind.Settings.TestResult.Ok", "OK ({0}ms) {1} ({2} tok)");
+            string failFormat = UiText.Get("RimMind.Settings.TestResult.Fail", "FAIL ({0}ms) {1}");
+            string exceptionFormat = UiText.Get("RimMind.Settings.TestResult.Exception", "FAIL {0}");
             var okColor = new Color(0.4f, 0.9f, 0.4f);
             var failColor = new Color(0.9f, 0.4f, 0.4f);
 
@@ -145,11 +145,6 @@ namespace RimMind.Presentation.UI
             });
         }
 
-        private static string TranslateOrFallback(string key, string fallback)
-        {
-            return key.CanTranslate() ? (string)key.Translate() : fallback;
-        }
-
         private static string SafeFormat(string format, params object[] args)
         {
             try
@@ -167,7 +162,7 @@ namespace RimMind.Presentation.UI
             var operation = new ConnectionTestOperation(token);
             _activeConnectionTest = operation;
             _testPending = true;
-            _testStatus = "RimMind.Settings.Status.Testing".Translate();
+            _testStatus = UiText.Get("RimMind.Settings.Status.Testing", "Testing...");
             _testStatusColor = Color.yellow;
             return operation;
         }
@@ -254,11 +249,11 @@ namespace RimMind.Presentation.UI
         internal static string GetProviderLabel(string p)
         {
             string? descriptorKey = AIProviderRegistry.GetDisplayLabelKey(p);
-            if (!string.IsNullOrEmpty(descriptorKey) && descriptorKey!.CanTranslate())
-                return (string)descriptorKey.Translate();
+            if (!string.IsNullOrEmpty(descriptorKey))
+                return UiText.Get(descriptorKey!, p);
 
             string key = $"RimMind.Settings.Provider.{NormalizeProviderTranslationSuffix(p)}";
-            return key.CanTranslate() ? (string)key.Translate() : p;
+            return UiText.Get(key, p);
         }
 
         private static string NormalizeProviderTranslationSuffix(string providerId)
@@ -275,9 +270,9 @@ namespace RimMind.Presentation.UI
         {
             return mode switch
             {
-                FlywheelAutoApplyMode.Off => "RimMind.UI.FlywheelAutoApply.Off".Translate(),
-                FlywheelAutoApplyMode.LogOnly => "RimMind.UI.FlywheelAutoApply.LogOnly".Translate(),
-                FlywheelAutoApplyMode.ApplyWithLog => "RimMind.UI.FlywheelAutoApply.Apply".Translate(),
+                FlywheelAutoApplyMode.Off => UiText.Get("RimMind.UI.FlywheelAutoApply.Off", "Off"),
+                FlywheelAutoApplyMode.LogOnly => UiText.Get("RimMind.UI.FlywheelAutoApply.LogOnly", "Log Only"),
+                FlywheelAutoApplyMode.ApplyWithLog => UiText.Get("RimMind.UI.FlywheelAutoApply.Apply", "Apply"),
                 _ => mode.ToString()
             };
         }

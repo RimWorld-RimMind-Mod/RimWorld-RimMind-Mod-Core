@@ -433,20 +433,12 @@ public static class ThinkStrategyHelper
                 if (argsToken.Type == Newtonsoft.Json.Linq.JTokenType.String)
                 {
                     argsJson = argsToken.ToString();
-                    if (!string.IsNullOrWhiteSpace(argsJson))
-                    {
-                        try
-                        {
-                            if (Newtonsoft.Json.Linq.JToken.Parse(argsJson!) is Newtonsoft.Json.Linq.JObject parsedArgs)
-                                reason = parsedArgs.Value<string>("reason");
-                        }
-                        catch { }
-                    }
+                    reason = LlmPayloadParser.ExtractReasonFromArgumentsJson(argsJson);
                 }
                 else if (argsToken is Newtonsoft.Json.Linq.JObject argsObj)
                 {
                     argsJson = argsObj.ToString(Newtonsoft.Json.Formatting.None);
-                    reason = argsObj.Value<string>("reason");
+                    reason = LlmPayloadParser.ExtractReasonFromObject(argsObj);
                 }
             }
 

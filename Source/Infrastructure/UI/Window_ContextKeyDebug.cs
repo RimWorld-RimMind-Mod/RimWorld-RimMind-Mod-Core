@@ -331,13 +331,15 @@ namespace RimMind.Infrastructure.UI
             {
                 string[] scenarios = {
                     RimMindAPI.Context.ScenarioDecision,
+                    RimMind.Application.Common.Models.Context.ScenarioIds.AgentDecision,
+                    RimMind.Application.Common.Models.Context.ScenarioIds.AdvisorDecision,
                     RimMindAPI.Context.ScenarioDialogue,
                     RimMindAPI.Context.ScenarioPersonality,
                     RimMindAPI.Context.ScenarioStoryteller,
                     RimMindAPI.Context.ScenarioMemory
                 };
                 string[] scenarioLabels = {
-                    "Decision", "Dialogue", "Personality", "Storyteller", "Memory"
+                    "Decision", "AgentDecision", "AdvisorDecision", "Dialogue", "Personality", "Storyteller", "Memory"
                 };
 
                 var relevanceParts = new List<string>();

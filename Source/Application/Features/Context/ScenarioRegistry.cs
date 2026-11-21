@@ -240,6 +240,12 @@ namespace RimMind.Application.Features.Context
             RegisterCoreFallback(ScenarioIds.Decision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
                 defaultBudget: 0.5f, l4Mode: L4Mode.None,
                 defaultExcludeKeys: new string[0], logSink: logSink);
+            RegisterCoreFallback(ScenarioIds.AgentDecision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
+                defaultBudget: 0.55f, l4Mode: L4Mode.None,
+                defaultExcludeKeys: new string[0], logSink: logSink);
+            RegisterCoreFallback(ScenarioIds.AdvisorDecision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
+                defaultBudget: 0.6f, l4Mode: L4Mode.None,
+                defaultExcludeKeys: new string[0], logSink: logSink);
             RegisterCoreFallback(ScenarioIds.Personality, 3, Translate(translationService, "RimMind.Application.Scenario.Personality"),
                 defaultBudget: 0.4f, l4Mode: L4Mode.MemoryOnly,
                 defaultExcludeKeys: new[] { "combat_status" }, logSink: logSink);

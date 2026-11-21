@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Async;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
@@ -230,15 +231,6 @@ namespace RimMind.Application.Features.Agent
             ExecuteDream(agent);
             ExecuteTraitEvolution(agent);
             ExecuteRegisteredBehaviors(agent, currentTick);
-        }
-
-        private sealed class UnboundedCompletionFence : ICompletionFence
-        {
-            public static readonly UnboundedCompletionFence Instance = new UnboundedCompletionFence();
-
-            public CancellationToken CancellationToken => CancellationToken.None;
-
-            public bool TryAcceptCompletion() => true;
         }
     }
 }

@@ -10,6 +10,7 @@ using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Models.Client;
 using RimMind.Application.Common.Models.Npc;
+using RimMind.Application.Features.Llm;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimMind.Infrastructure.Services.Clients.Shared;
@@ -20,6 +21,11 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 {
     public partial class OpenAIClient : IAIClient
     {
+        static OpenAIClient()
+        {
+            HttpTransport.RegisterDecorator(OpenCodeHeaderDecorator.Instance);
+        }
+
         public delegate Task<(string body, long statusCode)> HttpPostDelegate(
             string url,
             string jsonBody,
@@ -29,19 +35,17 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             float connectTimeout = 60f,
             CancellationToken cancellationToken = default);
 
-        private const long DefaultNodeIsolationMs = 180_000L;
-        private const long TransientRateLimitIsolationMs = 2_000L;
-        private const long PermanentNodeIsolationMs = 1_800_000L;
+        private const long DefaultNodeIsolationMs = EndpointFailoverPolicy.DefaultIsolationMs;
+        private const long TransientRateLimitIsolationMs = EndpointFailoverPolicy.DefaultTransientRateLimitIsolationMs;
+        private const long PermanentNodeIsolationMs = EndpointFailoverPolicy.DefaultPermanentIsolationMs;
 
         private static readonly ConcurrentDictionary<string, string> _formatCapabilityCache = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly ConcurrentDictionary<string, long> _endpointIsolatedUntilMs = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly ConcurrentDictionary<string, long> _endpointExhaustedUntilMs = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly EndpointFailoverPolicy FailoverPolicy = new EndpointFailoverPolicy();
 
         internal static void InvalidateFormatCache()
         {
             _formatCapabilityCache.Clear();
-            _endpointIsolatedUntilMs.Clear();
-            _endpointExhaustedUntilMs.Clear();
+            FailoverPolicy.Reset();
         }
 
         internal static string? GetCachedFormatCapability(string? endpoint, string? model)
@@ -57,33 +61,16 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             $"{(node.ApiEndpoint ?? string.Empty).Trim().TrimEnd('/')}|{(node.ModelName ?? string.Empty).Trim()}|{(string.IsNullOrEmpty(node.ApiKey) ? string.Empty : (node.ApiKey.Length > 8 ? node.ApiKey.Substring(node.ApiKey.Length - 8) : node.ApiKey))}";
 
         internal static bool IsNodeIsolated(BackupEndpointNode node, long nowMs)
-        {
-            string key = BuildNodeKey(node);
-            return _endpointIsolatedUntilMs.TryGetValue(key, out long untilMs) && nowMs < untilMs;
-        }
+            => FailoverPolicy.IsIsolated(BuildNodeKey(node), nowMs);
 
         internal static bool IsNodePermanentlyExhausted(BackupEndpointNode node, long nowMs)
-        {
-            string key = BuildNodeKey(node);
-            return _endpointExhaustedUntilMs.TryGetValue(key, out long untilMs) && nowMs < untilMs;
-        }
+            => FailoverPolicy.IsPermanentlyExhausted(BuildNodeKey(node), nowMs);
 
         internal static void RecordNodeSuccess(BackupEndpointNode node)
-        {
-            string key = BuildNodeKey(node);
-            _endpointIsolatedUntilMs.TryRemove(key, out _);
-            _endpointExhaustedUntilMs.TryRemove(key, out _);
-        }
+            => FailoverPolicy.RecordSuccess(BuildNodeKey(node));
 
         internal static void RecordNodeFailure(BackupEndpointNode node, long nowMs, long cooldownMs = DefaultNodeIsolationMs, bool isPermanentQuotaOrAuth = false)
-        {
-            string key = BuildNodeKey(node);
-            _endpointIsolatedUntilMs[key] = nowMs + cooldownMs;
-            if (isPermanentQuotaOrAuth)
-            {
-                _endpointExhaustedUntilMs[key] = nowMs + cooldownMs;
-            }
-        }
+            => FailoverPolicy.RecordFailure(BuildNodeKey(node), cooldownMs, isPermanentQuotaOrAuth, nowMs);
 
         private static string ClassificationText(Exception ex) =>
             ex is HttpTransport.HttpException httpEx ? httpEx.ClassificationText : (ex.Message ?? string.Empty);
@@ -91,37 +78,15 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         internal static bool IsPermanentNodeQuotaOrAuthError(Exception? ex)
         {
             if (ex == null) return false;
-            if (ex is HttpTransport.HttpException httpEx &&
-                (httpEx.StatusCode == 401 || httpEx.StatusCode == 402 || httpEx.StatusCode == 403 || httpEx.StatusCode == 410))
-            {
-                return true;
-            }
-
-            string msg = ClassificationText(ex);
-            return msg.IndexOf("Insufficient account funds", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("insufficient_quota", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("account_deactivated", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("invalid_api_key", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("billing_not_active", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("model_not_found", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("ModelDeprecated", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("has been deprecated", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("Model is unavailable", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("is not supported by any configured account", StringComparison.OrdinalIgnoreCase) >= 0;
+            int statusCode = ex is HttpTransport.HttpException httpEx ? httpEx.StatusCode : 0;
+            return HttpErrorClassifier.IsQuotaOrAuthError(statusCode, ClassificationText(ex));
         }
 
         internal static bool IsTransientConcurrencyOrRateLimitError(Exception? ex)
         {
-            if (ex == null || IsPermanentNodeQuotaOrAuthError(ex)) return false;
-            if (ex is HttpTransport.HttpException httpEx && httpEx.StatusCode == 429)
-                return true;
-
-            string msg = ClassificationText(ex);
-            return msg.IndexOf("gateway_concurrency_limit", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("gateway_queue_full", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("Concurrency limit exceeded", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("Too many pending requests", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   msg.IndexOf("rate_limit_error", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (ex == null) return false;
+            int statusCode = ex is HttpTransport.HttpException httpEx ? httpEx.StatusCode : 0;
+            return HttpErrorClassifier.IsTransientRateLimitOrQueueError(statusCode, ClassificationText(ex));
         }
 
         private static long ResolveNodeIsolationCooldownMs(Exception ex, out bool isPermanentQuotaOrAuth)
@@ -160,15 +125,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         }
 
         private static bool IsLoopbackEndpoint(string endpoint)
-        {
-            if (string.IsNullOrEmpty(endpoint)) return false;
-            if (!Uri.TryCreate(endpoint.Trim(), UriKind.Absolute, out var uri)) return false;
-            if (uri.IsLoopback) return true;
-            string host = uri.Host;
-            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
-            if (string.Equals(host, "host.docker.internal", StringComparison.OrdinalIgnoreCase)) return true;
-            return false;
-        }
+            => RimMindHttpClientPool.IsLoopbackEndpoint(endpoint);
 
         public bool SupportsStreaming => true;
 
@@ -219,35 +176,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 }
             }
 
-            if (allConfigured.Count <= 1)
-                return allConfigured;
-
-            var nonExhausted = allConfigured.Where(n => !IsNodePermanentlyExhausted(n, nowMs)).ToList();
-            var pool = nonExhausted.Count > 0 ? nonExhausted : allConfigured;
-
-            var healthy = new List<BackupEndpointNode>();
-            var isolated = new List<(BackupEndpointNode node, long untilMs)>();
-
-            for (int i = 0; i < pool.Count; i++)
-            {
-                var node = pool[i];
-                string key = BuildNodeKey(node);
-                if (_endpointIsolatedUntilMs.TryGetValue(key, out long untilMs) && nowMs < untilMs)
-                {
-                    isolated.Add((node, untilMs));
-                }
-                else
-                {
-                    healthy.Add(node);
-                }
-            }
-
-            foreach (var item in isolated.OrderBy(x => x.untilMs))
-            {
-                healthy.Add(item.node);
-            }
-
-            return healthy;
+            return FailoverPolicy.OrderCandidates(allConfigured, BuildNodeKey, nowMs);
         }
 
         private async Task<(string responseText, long httpStatusCode)> PostWithFormatFallbackAsync(
@@ -353,14 +282,17 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 
             if (logSuccessDetails)
             {
+                string cacheSuffix = val.PromptTokens > 0
+                    ? $", cached={val.CachedTokens}/{val.PromptTokens}"
+                    : string.Empty;
                 if (attempt > 0 || !string.Equals(node.Name, "Primary", StringComparison.OrdinalIgnoreCase))
                 {
                     _logSink?.LogFromBackground(
-                        $"[RimMind-Core] Request {envelope.RequestId} served by node '{node.Name}' ({node.ApiEndpoint}, model={effectiveModel}, {val.TokensUsed} tok, {sw.ElapsedMilliseconds}ms).");
+                        $"[RimMind-Core] Request {envelope.RequestId} served by node '{node.Name}' ({node.ApiEndpoint}, model={effectiveModel}, {val.TokensUsed} tok{cacheSuffix}, {sw.ElapsedMilliseconds}ms).");
                 }
                 else if (_settings.DebugLogging)
                 {
-                    _logSink?.LogFromBackground($"[RimMind-Core] << {envelope.RequestId} ({val.TokensUsed} tok)\n{LogSanitizer.ForLog(val.Content, LogSanitizer.DebugPayloadMaxChars)}");
+                    _logSink?.LogFromBackground($"[RimMind-Core] << {envelope.RequestId} ({val.TokensUsed} tok{cacheSuffix})\n{LogSanitizer.ForLog(val.Content, LogSanitizer.DebugPayloadMaxChars)}");
                 }
             }
 
@@ -593,7 +525,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, endpoint);
                     request.Content = new System.Net.Http.StringContent(json, Encoding.UTF8, "application/json");
                     request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {node.ApiKey}");
-                    HttpTransport.EnsureOpenCodeSessionHeader(request, endpoint, $"Bearer {node.ApiKey}", ResolveSessionId(envelope));
+                    HttpTransport.ApplyDecorators(request, endpoint, $"Bearer {node.ApiKey}", ResolveSessionId(envelope));
 
                     using var session = StreamSendOverride != null
                         ? await HttpTransport.OpenStreamAsync(request, connectTimeout, effectiveCt, StreamSendOverride).ConfigureAwait(false)

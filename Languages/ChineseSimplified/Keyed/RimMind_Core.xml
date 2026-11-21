@@ -39,7 +39,7 @@
   <RimMind.Settings.BackupEndpoints.Desc>按顺序排列的备用 API 节点列表。当主 API 节点请求失败（如 HTTP 503/502/429、超时或空响应）时，RimMind 会在单次请求内自动平滑切换至列表中的下一个可用备用节点，并对故障节点执行 60 秒临时隔离。</RimMind.Settings.BackupEndpoints.Desc>
   <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go 备用</RimMind.Settings.BackupEndpoints.AddOpenCode>
   <RimMind.Settings.BackupEndpoints.AddCustom>+ 自定义备用</RimMind.Settings.BackupEndpoints.AddCustom>
-  <RimMind.Settings.BackupEndpoints.Empty>暂未配置备用节点。点击「+ OpenCode Go 备用」或「+ 自定义备用」添加自动容灾保护。</RimMind.Settings.BackupEndpoints.Empty>
+  <RimMind.Settings.BackupEndpoints.Empty>暂未配置备用节点。点击「+ 自定义备用」添加自动容灾保护。</RimMind.Settings.BackupEndpoints.Empty>
   <RimMind.Settings.ForceJsonMode>强制 JSON 模式（response_format）</RimMind.Settings.ForceJsonMode>
   <RimMind.Settings.ForceJsonModeDesc>向 API 追加 response_format=json_object，强制模型返回 JSON。不支持该参数的本地模型请关闭。</RimMind.Settings.ForceJsonModeDesc>
   <RimMind.Settings.MaxTokens>最大 Token 数</RimMind.Settings.MaxTokens>

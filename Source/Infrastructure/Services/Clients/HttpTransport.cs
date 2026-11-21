@@ -5,17 +5,15 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RimMind.Application.Features.Llm;
 using RimMind.Infrastructure.Services.Clients.Shared;
 
 namespace RimMind.Infrastructure.Services.Clients
 {
     internal static class HttpTransport
     {
-        // One process-wide client for every Core LLM call (buffered and streaming).
-        // HttpClient.Timeout is disabled: each request carries its own linked CancellationTokenSource
-        // so the configured per-request timeout (e.g. 300s for local endpoints) is honoured instead of
-        // the 100s HttpClient default, and timeouts stay distinguishable from caller cancellation.
-        private static readonly HttpClient _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        // Shared process-wide client from RimMindHttpClientPool (infinite timeout; per-request CTS bounds wait).
+        private static HttpClient _http => RimMindHttpClientPool.Shared;
 
         /// <summary>Upper bound for the redacted body kept on <see cref="HttpException.ResponseBody"/> for classification.</summary>
         private const int ClassificationBodyMaxChars = 4096;
@@ -55,19 +53,11 @@ namespace RimMind.Infrastructure.Services.Clients
             public string ClassificationText => ResponseBody ?? Message ?? string.Empty;
         }
 
-        public static void EnsureOpenCodeSessionHeader(HttpRequestMessage request, string? url, string? authHeader, string? customSessionId = null)
-        {
-            if (!string.IsNullOrEmpty(url) && (url.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0 || (authHeader != null && authHeader.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)))
-            {
-                if (!request.Headers.Contains("x-opencode-session"))
-                {
-                    string sessionId = !string.IsNullOrEmpty(customSessionId)
-                        ? customSessionId!
-                        : "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12);
-                    request.Headers.TryAddWithoutValidation("x-opencode-session", sessionId);
-                }
-            }
-        }
+        public static void RegisterDecorator(IHttpRequestDecorator decorator)
+            => HttpRequestDecorators.Register(decorator);
+
+        public static void ApplyDecorators(HttpRequestMessage request, string? url, string? authHeader, string? customSessionId = null)
+            => HttpRequestDecorators.ApplyAll(request, url, authHeader, customSessionId);
 
         public static async Task<(string body, long statusCode)> PostAsync(
             string url, string jsonBody, string? authHeader = null,
@@ -88,7 +78,7 @@ namespace RimMind.Infrastructure.Services.Clients
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
 
-            EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
+            ApplyDecorators(request, url, authHeader, headerValue);
 
             using var response = await _http.SendAsync(request, effectiveToken).ConfigureAwait(false);
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -118,7 +108,7 @@ namespace RimMind.Infrastructure.Services.Clients
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
 
-            EnsureOpenCodeSessionHeader(request, url, authHeader, headerName == "x-opencode-session" ? headerValue : null);
+            ApplyDecorators(request, url, authHeader, headerValue);
 
             using var response = await _http.SendAsync(request, effectiveToken).ConfigureAwait(false);
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

@@ -64,16 +64,21 @@ namespace RimMind.Application.Features.Context
                 if (_coreRegistered) return;
                 _coreRegistered = true;
 
-                RegisterCoreDefaultBatch(ScenarioIds.Decision, new Dictionary<string, float>
+                var decisionWeights = new Dictionary<string, float>
                 {
-                    {"health", 0.9f}, {"mood", 0.8f}, {"current_job", 0.9f},
+                    {"health", 0.9f}, {"mood", 0.8f}, {"mood_thoughts", 0.7f}, {"current_job", 0.9f},
                     {"combat_status", 0.95f}, {"target_info", 0.9f}, {"task_progress", 0.85f},
-                    {"nearby_pawns", 0.7f}, {"colony_status", 0.6f}, {"current_area", 0.5f},
-                    {"weather", 0.2f}, {"time_of_day", 0.3f}, {"season", 0.1f},
-                    {"map_structure", 0.3f}, {"pawn_base_info", 0.4f}, {"fixed_relations", 0.5f},
+                    {"nearby_pawns", 0.7f}, {"colony_status", 0.7f}, {"colony_resources", 0.75f}, {"current_area", 0.5f},
+                    {"weather", 0.25f}, {"time_of_day", 0.3f}, {"season", 0.15f},
+                    {"map_structure", 0.45f}, {"pawn_base_info", 0.4f}, {"fixed_relations", 0.5f},
                     {"ideology", 0.3f}, {"skills_summary", 0.7f}, {"memory_pawn", 0.6f},
-                    {"working_memory", 0.8f}, {"memory_narrator", 0.2f}
-                });
+                    {"working_memory", 0.8f}, {"memory_narrator", 0.2f},
+                    {"personality_profile", 0.65f}, {"personality_state", 0.65f}, {"personality_shaping", 0.55f},
+                    {"dialogue_state", 0.55f}, {"dialogue_relation", 0.55f}
+                };
+                RegisterCoreDefaultBatch(ScenarioIds.Decision, decisionWeights);
+                RegisterCoreDefaultBatch(ScenarioIds.AgentDecision, decisionWeights);
+                RegisterCoreDefaultBatch(ScenarioIds.AdvisorDecision, decisionWeights);
 
                 RegisterCoreDefaultBatch(ScenarioIds.Dialogue, new Dictionary<string, float>
                 {
@@ -112,7 +117,7 @@ namespace RimMind.Application.Features.Context
                 {
                     {"health", 0.3f}, {"mood", 0.4f}, {"current_job", 0.2f},
                     {"combat_status", 0.8f}, {"target_info", 0.7f}, {"task_progress", 0.3f},
-                    {"nearby_pawns", 0.5f}, {"colony_status", 0.9f}, {"current_area", 0.4f},
+                    {"nearby_pawns", 0.5f}, {"colony_status", 0.9f}, {"colony_resources", 0.85f}, {"current_area", 0.4f},
                     {"weather", 0.6f}, {"time_of_day", 0.5f}, {"season", 0.7f},
                     {"map_structure", 0.8f}, {"pawn_base_info", 0.3f}, {"fixed_relations", 0.3f},
                     {"ideology", 0.4f}, {"skills_summary", 0.2f}, {"memory_pawn", 0.3f},

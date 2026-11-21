@@ -27,6 +27,11 @@ namespace RimMind.Application.Features.Llm
         private ReasoningEffort _reasoningEffort = ReasoningEffort.Auto;
         private int? _expireAtTicks;
         private int? _maxRetryCount;
+        private string? _coalesceKey;
+        private int? _maxQueueWaitTicks;
+        private DateTime? _expiresAtUtc;
+        private bool? _requireAliveColonist;
+        private LlmRequestOptions? _options;
         private Dictionary<string, string>? _hints;
 
         public static LlmRequestEnvelopeBuilder ForScenario(string scenarioId)
@@ -165,6 +170,36 @@ namespace RimMind.Application.Features.Llm
             return this;
         }
 
+        public LlmRequestEnvelopeBuilder WithCoalesceKey(string? coalesceKey)
+        {
+            _coalesceKey = string.IsNullOrWhiteSpace(coalesceKey) ? null : coalesceKey!.Trim();
+            return this;
+        }
+
+        public LlmRequestEnvelopeBuilder WithMaxQueueWaitTicks(int? maxQueueWaitTicks)
+        {
+            _maxQueueWaitTicks = maxQueueWaitTicks;
+            return this;
+        }
+
+        public LlmRequestEnvelopeBuilder WithExpiresAtUtc(DateTime? expiresAtUtc)
+        {
+            _expiresAtUtc = expiresAtUtc;
+            return this;
+        }
+
+        public LlmRequestEnvelopeBuilder WithRequireAliveColonist(bool? requireAliveColonist)
+        {
+            _requireAliveColonist = requireAliveColonist;
+            return this;
+        }
+
+        public LlmRequestEnvelopeBuilder WithOptions(LlmRequestOptions? options)
+        {
+            _options = options;
+            return this;
+        }
+
         public LlmRequestEnvelopeBuilder WithHint(string key, string? value)
         {
             if (string.IsNullOrEmpty(key)) return this;
@@ -219,6 +254,11 @@ namespace RimMind.Application.Features.Llm
                 Priority = _priority,
                 ExpireAtTicks = _expireAtTicks,
                 MaxRetryCount = _maxRetryCount,
+                CoalesceKey = _coalesceKey,
+                MaxQueueWaitTicks = _maxQueueWaitTicks,
+                ExpiresAtUtc = _expiresAtUtc,
+                RequireAliveColonist = _requireAliveColonist,
+                Options = _options,
                 IsStreaming = _isStreaming,
                 OnStreamChunk = _onStreamChunk,
                 Ct = _ct,

@@ -170,5 +170,19 @@ namespace RimMind.Application.Features.Tools
                 .Select(h => h.Definition)
                 .ToList();
         }
+
+        public IReadOnlyList<ToolDefinition> GetDefinitionsForScope(ToolScope scope, bool compactSchema = false)
+        {
+            if (scope == ToolScope.None)
+                return Array.Empty<ToolDefinition>();
+
+            var matched = _handlers.Values
+                .Select(h => h.Definition)
+                .Where(d => ToolScopeProjection.MatchesScope(d, scope));
+
+            return compactSchema
+                ? matched.Select(ToolScopeProjection.CompactDefinition).ToList()
+                : matched.ToList();
+        }
     }
 }

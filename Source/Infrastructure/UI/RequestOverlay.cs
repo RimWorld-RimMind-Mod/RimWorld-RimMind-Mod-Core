@@ -42,7 +42,7 @@ namespace RimMind.Infrastructure.UI
         private static readonly List<float> CachedHeights = new List<float>();
 
         private static string Tr(string key, string fallback)
-            => key.CanTranslate() ? key.Translate().ToString() : fallback;
+            => RimMind.Presentation.Api.RimMindText.TrOr(key, fallback);
 
         private static string PendingCount0Label => _cachedPendingCount0 ??=
             "RimMind.UI.RequestOverlay.PendingCount".CanTranslate()
@@ -176,6 +176,16 @@ namespace RimMind.Infrastructure.UI
             _isExpanded = !shouldCollapse;
 
             bool isCollapsed = !_isExpanded;
+
+            if (RequestOverlayLayoutEvaluator.ShouldHideCompletely(
+                pending.Count,
+                autoHide,
+                _isExpanded,
+                _isDragging,
+                _isResizing))
+            {
+                return;
+            }
 
             if (!isCollapsed)
             {

@@ -5,7 +5,10 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using RimMind.Application.Common.Constants;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
+using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Common.Models.Prompt;
 using RimMind.Application.Features.Context;
@@ -29,9 +32,6 @@ namespace RimMind.Presentation.Agent
         private const long TicksPerDay = 60000L;
         private const int CacheStalenessTicks = 60;
         private const long WarningCooldownSeconds = 30L;
-        private const float ThreatThresholdHigh = 200000f;
-        private const float ThreatThresholdMedium = 100000f;
-        private const float ThreatThresholdLow = 50000f;
 
         private static readonly ConcurrentDictionary<(int settingsHash, int mapId, bool brief), (int tick, List<ContextEntry> entries)> _snapshotCache =
             new ConcurrentDictionary<(int settingsHash, int mapId, bool brief), (int tick, List<ContextEntry> entries)>();
@@ -47,6 +47,16 @@ namespace RimMind.Presentation.Agent
         public MapContextBuilder(IContextSettings? contextSettings = null)
         {
             _contextSettings = contextSettings ?? new ContextSettings();
+        }
+
+        /// <summary>
+        /// Clears all static map snapshot caches (invoked on game start/stop via <see cref="IGameScopedService"/>).
+        /// </summary>
+        public static void ClearCaches()
+        {
+            _snapshotCache.Clear();
+            _lastMainThreadSnapshot.Clear();
+            _lastWarningTimestamp.Clear();
         }
 
         private IMapIncludeSettings MapSettings => _contextSettings;
@@ -72,15 +82,112 @@ namespace RimMind.Presentation.Agent
             }
         }
 
-        private static string Tr(string key, params object[] args)
+        /// <summary>
+        /// Builds strictly static / semi-static map topology suitable for L1_Baseline (KV-Cache prefix-stable).
+        /// Contains ONLY biome/size, colony room layout, and static worktable roster — NO time, season, weather,
+        /// wealth, food storage, or volatile resource counts.
+        /// </summary>
+        public string BuildStaticMapTopology(Map? map)
         {
+            if (map == null || !UnityData.IsInMainThread)
+                return string.Empty;
+
+            var sb = new StringBuilder();
             try
             {
-                if (string.IsNullOrEmpty(key)) return string.Empty;
-                string template = key.CanTranslate() ? key.TranslateSimple() : key;
-                return (args == null || args.Length == 0) ? template : string.Format(template, args);
+                string biomeLabel = map.Biome?.label ?? map.Biome?.defName ?? "Unknown";
+                sb.AppendLine($"Map Topology: Biome={biomeLabel}, Size={map.Size.x}x{map.Size.z}");
             }
-            catch { return key ?? string.Empty; }
+            catch (Exception ex) { WarnRateLimited("StaticTopologyHeader", ex); }
+
+            if (map.listerBuildings != null)
+            {
+                AppendColonyRoomsSummary(map, sb);
+                try
+                {
+                    var buildings = map.listerBuildings.allBuildingsColonist;
+                    if (buildings != null && buildings.Count > 0)
+                    {
+                        var worktables = new List<string>();
+                        for (int i = 0; i < buildings.Count; i++)
+                        {
+                            var b = buildings[i];
+                            if (b is Building_WorkTable wt && wt.def != null && !wt.Destroyed)
+                            {
+                                var recipes = wt.def.AllRecipes?
+                                    .Take(3)
+                                    .Select(r => r.defName)
+                                    .ToList();
+                                string recipeStr = (recipes != null && recipes.Count > 0) ? string.Join("/", recipes) : "None";
+                                string tableName = wt.def.label ?? wt.def.defName;
+                                worktables.Add($"{tableName}(id={wt.thingIDNumber}, recipes=[{recipeStr}])");
+                                if (worktables.Count >= 4) break;
+                            }
+                        }
+
+                        if (worktables.Count > 0)
+                        {
+                            sb.AppendLine($"WorktableRoster: [{string.Join("; ", worktables)}]");
+                        }
+                    }
+                }
+                catch (Exception ex) { WarnRateLimited("StaticWorktableRoster", ex); }
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>
+        /// Builds volatile colony resource and operational status suitable for L2_Environment.
+        /// Keeps dynamic wealth, food, key resources, pending construction, worktable bill/fuel status,
+        /// and stored apparel out of L1_Baseline so KV-Cache prefixes remain stable.
+        /// </summary>
+        public string BuildVolatileColonyResources(Map? map)
+        {
+            if (map == null || !UnityData.IsInMainThread)
+                return string.Empty;
+
+            var colony = ColonySettings;
+            var sb = new StringBuilder();
+
+            if (colony.IncludeWealth)
+            {
+                try
+                {
+                    float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
+                    string threat = ThreatLabel(wealth);
+                    sb.AppendLine(RimMindText.Tr("RimMind.Prompt.WealthWithThreat", $"{wealth:F0}", threat));
+                }
+                catch (Exception ex) { WarnRateLimited("VolatileWealth", ex); }
+            }
+
+            if (colony.IncludeFood)
+            {
+                float foodNutrition = MapResourceCounter.GetAvailableFoodNutrition(map);
+                sb.AppendLine(RimMindText.Tr("RimMind.Prompt.FoodStorage", $"{foodNutrition:F0}"));
+
+                int wood = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+                int steel = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
+                int med = CountAvailableMedicine(map);
+                sb.AppendLine(RimMindText.TrOr(
+                    "RimMind.Prompt.KeyResources",
+                    "Key Resources: Wood {0}, Steel {1}, Medicine {2}",
+                    wood, steel, med));
+
+                int totalPending = CountPendingConstruction(map);
+                if (totalPending > 0)
+                {
+                    sb.AppendLine(RimMindText.TrOr(
+                        "RimMind.Prompt.PendingConstruction",
+                        "Pending Construction: {0} blueprints/frames",
+                        totalPending));
+                }
+
+                AppendWorktableStatus(map, sb);
+                AppendStoredApparelSummary(map, sb);
+            }
+
+            return sb.ToString().TrimEnd();
         }
 
         public string BuildMapContext(Map map, bool brief = false)
@@ -128,7 +235,7 @@ namespace RimMind.Presentation.Agent
             var ctx = MapSettings;
             var colony = ColonySettings;
 
-            entries.Add(new ContextEntry(Tr("RimMind.Prompt.MapStatusHeader")));
+            entries.Add(new ContextEntry(RimMindText.Tr("RimMind.Prompt.MapStatusHeader")));
 
             if (ctx.IncludeGameTime)
             {
@@ -138,7 +245,7 @@ namespace RimMind.Presentation.Agent
                 string dateStr = GenDate.DateFullStringAt(ticks, longLat);
                 int day = (int)(ticks / TicksPerDay);
                 entries.Add(new ContextEntry(
-                    Tr("RimMind.Prompt.TimeFormat", dateStr, $"{hour:D2}"))
+                    RimMindText.Tr("RimMind.Prompt.TimeFormat", dateStr, $"{hour:D2}"))
                 {
                     Metadata = new Dictionary<string, string>
                     {
@@ -158,11 +265,11 @@ namespace RimMind.Presentation.Agent
                 {
                     var names = colonists.Select(p => p.Name.ToStringShort);
                     string nameList = string.Join(", ", names);
-                    content = Tr("RimMind.Prompt.ColonistCount", count, nameList);
+                    content = RimMindText.Tr("RimMind.Prompt.ColonistCount", count, nameList);
                 }
                 else
                 {
-                    content = Tr("RimMind.Prompt.ColonistCountBrief", count);
+                    content = RimMindText.Tr("RimMind.Prompt.ColonistCountBrief", count);
                 }
                 entries.Add(new ContextEntry(content)
                 {
@@ -183,7 +290,7 @@ namespace RimMind.Presentation.Agent
                 {
                     var names = prisoners.Select(p => p.Name.ToStringShort);
                     string nameList = string.Join(", ", names);
-                    otherSb.AppendLine(Tr("RimMind.Prompt.PrisonerCount", prisoners.Count, nameList));
+                    otherSb.AppendLine(RimMindText.Tr("RimMind.Prompt.PrisonerCount", prisoners.Count, nameList));
                 }
             }
 
@@ -193,7 +300,7 @@ namespace RimMind.Presentation.Agent
                 {
                     float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
                     string threat = ThreatLabel(wealth);
-                    otherSb.AppendLine(Tr("RimMind.Prompt.WealthWithThreat", $"{wealth:F0}", threat));
+                    otherSb.AppendLine(RimMindText.Tr("RimMind.Prompt.WealthWithThreat", $"{wealth:F0}", threat));
                 }
                 catch (Exception ex) { WarnRateLimited("Wealth", ex); }
             }
@@ -204,190 +311,54 @@ namespace RimMind.Presentation.Agent
                 {
                     float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
                     string threat = ThreatLabel(wealth);
-                    otherSb.AppendLine(Tr("RimMind.Prompt.ThreatLevel", threat));
+                    otherSb.AppendLine(RimMindText.Tr("RimMind.Prompt.ThreatLevel", threat));
                 }
                 catch (Exception ex) { WarnRateLimited("Threats", ex); }
             }
 
             if (colony.IncludeFood)
             {
-                float foodNutrition = 0f;
-                try
-                {
-                    foodNutrition = CountAvailableMapFoodNutrition(map);
-                }
-                catch (Exception ex) { WarnRateLimited("FoodNutrition", ex); }
-                otherSb.AppendLine(Tr("RimMind.Prompt.FoodStorage", $"{foodNutrition:F0}"));
+                float foodNutrition = MapResourceCounter.GetAvailableFoodNutrition(map);
+                otherSb.AppendLine(RimMindText.Tr("RimMind.Prompt.FoodStorage", $"{foodNutrition:F0}"));
 
-                int wood = CountAvailableMapResource(map, ThingDefOf.WoodLog);
-                int steel = CountAvailableMapResource(map, ThingDefOf.Steel);
-                int med = 0;
-                try
-                {
-                    var medThings = map.listerThings?.ThingsInGroup(ThingRequestGroup.Medicine);
-                    if (medThings != null)
-                    {
-                        for (int i = 0; i < medThings.Count; i++)
-                        {
-                            var t = medThings[i];
-                            if (t != null && t.Spawned && !t.IsForbidden(Faction.OfPlayer))
-                                med += t.stackCount;
-                        }
-                    }
-                }
-                catch (Exception ex) { WarnRateLimited("Medicine", ex); }
-                string resKey = "RimMind.Prompt.KeyResources";
-                otherSb.AppendLine(resKey.CanTranslate()
-                    ? Tr(resKey, wood, steel, med)
-                    : $"Key Resources: Wood {wood}, Steel {steel}, Medicine {med}");
+                int wood = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+                int steel = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
+                int med = CountAvailableMedicine(map);
+                otherSb.AppendLine(RimMindText.TrOr(
+                    "RimMind.Prompt.KeyResources",
+                    "Key Resources: Wood {0}, Steel {1}, Medicine {2}",
+                    wood, steel, med));
 
-                int totalPending = 0;
-                try
-                {
-                    int pendingBlueprints = map.listerThings?.ThingsInGroup(ThingRequestGroup.Blueprint)?.Count ?? 0;
-                    int pendingFrames = map.listerThings?.ThingsInGroup(ThingRequestGroup.BuildingFrame)?.Count ?? 0;
-                    totalPending = pendingBlueprints + pendingFrames;
-                }
-                catch (Exception ex) { WarnRateLimited("PendingConstruction", ex); }
+                int totalPending = CountPendingConstruction(map);
                 if (totalPending > 0)
                 {
-                    string pendingKey = "RimMind.Prompt.PendingConstruction";
-                    otherSb.AppendLine(pendingKey.CanTranslate()
-                        ? Tr(pendingKey, totalPending)
-                        : $"Pending Construction: {totalPending} blueprints/frames (Shortage Notice: gather wood/minerals if materials are low)");
+                    otherSb.AppendLine(RimMindText.TrOr(
+                        "RimMind.Prompt.PendingConstruction",
+                        "Pending Construction: {0} blueprints/frames",
+                        totalPending));
                 }
 
                 if (!brief && map.listerBuildings != null)
                 {
                     AppendColonyRoomsSummary(map, otherSb);
-                    var worktables = new List<string>();
-                    try
-                    {
-                        var buildings = map.listerBuildings.allBuildingsColonist;
-                        if (buildings != null)
-                        {
-                            for (int i = 0; i < buildings.Count; i++)
-                            {
-                                var b = buildings[i];
-                                if (b is Building_WorkTable wt && wt.def != null && !wt.Destroyed)
-                                {
-                                    int billCount = wt.billStack?.Count ?? 0;
-                                    string activeBillsStr = "";
-                                    if (billCount > 0 && wt.billStack?.Bills != null)
-                                    {
-                                        var activeBillNames = wt.billStack.Bills
-                                            .Where(bill => bill?.recipe != null && !bill.suspended)
-                                            .Select(bill => bill.recipe.defName)
-                                            .Distinct()
-                                            .ToList();
-                                        if (activeBillNames.Count > 0)
-                                            activeBillsStr = $"[{string.Join("/", activeBillNames)}]";
-                                    }
-                                    var recipes = wt.def.AllRecipes?
-                                        .Take(3)
-                                        .Select(r => r.defName)
-                                        .ToList();
-                                    string recipeStr = (recipes != null && recipes.Count > 0) ? string.Join("/", recipes) : "None";
-                                    string tableName = wt.def.label ?? wt.def.defName;
-                                    var blockReasons = new List<string>();
-                                    var refuelable = wt.GetComp<CompRefuelable>();
-                                    if (refuelable != null && !refuelable.HasFuel)
-                                    {
-                                        blockReasons.Add("0 WoodLog fuel — harvest trees/haul wood instead of adding bills");
-                                    }
-                                    var powerComp = wt.GetComp<CompPowerTrader>();
-                                    if (powerComp != null && !powerComp.PowerOn)
-                                    {
-                                        blockReasons.Add("unpowered");
-                                    }
-                                    if (billCount > 0 && (wt.def.defName.Contains("Stove") || wt.def.defName.Contains("Campfire")))
-                                    {
-                                        var rawCat = DefDatabase<ThingCategoryDef>.GetNamedSilentFail("FoodRaw");
-                                        var rawNutrition = (rawCat != null && map.resourceCounter != null) ? map.resourceCounter.GetCountIn(rawCat) : 0;
-                                        if (rawNutrition <= 0 && map.listerThings != null)
-                                        {
-                                            var foods = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree);
-                                            if (foods != null)
-                                            {
-                                                for (int f = 0; f < foods.Count; f++)
-                                                {
-                                                    var ft = foods[f];
-                                                    if (ft != null && ft.Spawned && !ft.IsForbidden(Faction.OfPlayer)
-                                                        && ft.def?.thingCategories != null && rawCat != null
-                                                        && ft.def.thingCategories.Any(c => c == rawCat || (c.Parents != null && c.Parents.Contains(rawCat))))
-                                                    {
-                                                        rawNutrition += ft.stackCount;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        if (rawNutrition <= 0)
-                                        {
-                                            blockReasons.Add("0 raw food available, harvest/hunt needed");
-                                        }
-                                    }
-                                    string blockNotice = blockReasons.Count > 0
-                                        ? $" [BLOCKED: {string.Join("; ", blockReasons)}]"
-                                        : "";
-                                    worktables.Add($"{tableName}(id={wt.thingIDNumber}, bills={billCount}{activeBillsStr}{blockNotice}, recipes=[{recipeStr}])");
-                                    if (worktables.Count >= 4) break;
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex) { WarnRateLimited("Worktables", ex); }
-                    if (worktables.Count > 0)
-                    {
-                        string wtKey = "RimMind.Prompt.ColonyWorktables";
-                        string tableList = string.Join("; ", worktables);
-                        otherSb.AppendLine(wtKey.CanTranslate()
-                            ? Tr(wtKey, tableList)
-                            : $"Worktables: [{tableList}] (Queue bills via actions_add_worktable_bill)");
-                    }
+                    AppendWorktableStatus(map, otherSb);
                 }
 
                 if (!brief)
                 {
-                    try
-                    {
-                        var storageApparel = map.listerThings?.ThingsInGroup(ThingRequestGroup.Apparel);
-                        if (storageApparel != null && storageApparel.Count > 0)
-                        {
-                            var apparelEntries = new List<string>();
-                            for (int i = 0; i < storageApparel.Count; i++)
-                            {
-                                var a = storageApparel[i];
-                                if (a != null && a.Spawned && !a.IsForbidden(Faction.OfPlayer) && a.IsInAnyStorage() && a.def != null)
-                                {
-                                    string itemLabel = a.def.label ?? a.def.defName;
-                                    int hpPct = a.MaxHitPoints > 0 ? Mathf.RoundToInt((float)a.HitPoints / a.MaxHitPoints * 100f) : 100;
-                                    apparelEntries.Add($"{itemLabel}(id={a.thingIDNumber}, hp={hpPct}%)");
-                                    if (apparelEntries.Count >= 5) break;
-                                }
-                            }
-                            if (apparelEntries.Count > 0)
-                            {
-                                string apKey = "RimMind.Prompt.StoredApparel";
-                                string apList = string.Join(", ", apparelEntries);
-                                otherSb.AppendLine(apKey.CanTranslate()
-                                    ? Tr(apKey, apList)
-                                    : $"AvailableApparel: [{apList}] (Equip protective/thermal gear via actions_manage_equipment)");
-                            }
-                        }
-                    }
-                    catch (Exception ex) { WarnRateLimited("StoredApparel", ex); }
+                    AppendStoredApparelSummary(map, otherSb);
                 }
             }
 
             if (ctx.IncludeSeason)
             {
                 string seasonStr = GenLocalDate.Season(map).Label();
-                otherSb.Append(Tr("RimMind.Prompt.Season", seasonStr));
+                otherSb.AppendLine(RimMindText.Tr("RimMind.Prompt.Season", seasonStr));
             }
             if (ctx.IncludeWeather)
-                otherSb.AppendLine(Tr("RimMind.Prompt.Weather", map.weatherManager.curWeather.label));
-            else if (ctx.IncludeSeason)
-                otherSb.AppendLine();
+            {
+                otherSb.AppendLine(RimMindText.Tr("RimMind.Prompt.Weather", map.weatherManager.curWeather.label));
+            }
 
             string otherContent = otherSb.ToString().TrimEnd();
             if (!string.IsNullOrEmpty(otherContent))
@@ -433,9 +404,9 @@ namespace RimMind.Presentation.Agent
 
         private string ThreatLabel(float wealth)
         {
-            float high = EnvSettings?.ThreatThresholdHigh ?? ThreatThresholdHigh;
-            float medium = EnvSettings?.ThreatThresholdMedium ?? ThreatThresholdMedium;
-            float low = EnvSettings?.ThreatThresholdLow ?? ThreatThresholdLow;
+            float high = EnvSettings?.ThreatThresholdHigh ?? RimMindDefaults.DefaultThreatThresholdHigh;
+            float medium = EnvSettings?.ThreatThresholdMedium ?? RimMindDefaults.DefaultThreatThresholdMedium;
+            float low = EnvSettings?.ThreatThresholdLow ?? RimMindDefaults.DefaultThreatThresholdLow;
 
             float threatScale = 1f;
             try { threatScale = Find.Storyteller?.difficulty?.threatScale ?? 1f; } catch (System.Exception) { /* Storyteller may be null during early init */ }
@@ -444,49 +415,170 @@ namespace RimMind.Presentation.Agent
             string tier = ThreatClassifier.ClassifyThreatTier(wealth, high, medium, low, threatScale);
             return tier switch
             {
-                "Extreme" => Tr("RimMind.Prompt.Threat.Extreme"),
-                "High"    => Tr("RimMind.Prompt.Threat.High"),
-                "Medium"  => Tr("RimMind.Prompt.Threat.Medium"),
-                _         => Tr("RimMind.Prompt.Threat.Low")
+                "Extreme" => RimMindText.Tr("RimMind.Prompt.Threat.Extreme"),
+                "High"    => RimMindText.Tr("RimMind.Prompt.Threat.High"),
+                "Medium"  => RimMindText.Tr("RimMind.Prompt.Threat.Medium"),
+                _         => RimMindText.Tr("RimMind.Prompt.Threat.Low")
             };
         }
 
-        private static float CountAvailableMapFoodNutrition(Map? map)
+        private static int CountAvailableMedicine(Map map)
         {
-            if (map == null) return 0f;
-            float counted = 0f;
+            int med = 0;
             try
             {
-                counted = map.resourceCounter?.TotalHumanEdibleNutrition ?? 0f;
-                var foodThings = map.listerThings?.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree);
-                if (foodThings != null && foodThings.Count > 0)
+                var medThings = map.listerThings?.ThingsInGroup(ThingRequestGroup.Medicine);
+                if (medThings != null)
                 {
-                    float unforbiddenTotal = 0f;
-                    for (int i = 0; i < foodThings.Count; i++)
+                    for (int i = 0; i < medThings.Count; i++)
                     {
-                        var t = foodThings[i];
-                        if (t == null || !t.Spawned || t.Destroyed || t is Corpse || t is Pawn)
-                            continue;
-                        if (t.Position.Fogged(map) || t.IsForbidden(Faction.OfPlayer))
-                            continue;
-                        var ingestible = t.def?.ingestible;
-                        if (ingestible == null || !t.def!.IsNutritionGivingIngestible || !ingestible.HumanEdible)
-                            continue;
-                        if (ingestible.drugCategory != DrugCategory.None || ingestible.preferability < FoodPreferability.RawBad)
-                            continue;
-
-                        float nut = t.GetStatValue(StatDefOf.Nutrition);
-                        if (nut > 0f)
-                        {
-                            unforbiddenTotal += nut * Math.Max(1, t.stackCount);
-                        }
+                        var t = medThings[i];
+                        if (t != null && t.Spawned && !t.IsForbidden(Faction.OfPlayer))
+                            med += t.stackCount;
                     }
-                    if (unforbiddenTotal > counted)
-                        counted = unforbiddenTotal;
                 }
             }
-            catch (Exception ex) { WarnRateLimited("CountAvailableMapFoodNutrition", ex); }
-            return counted;
+            catch (Exception ex) { WarnRateLimited("Medicine", ex); }
+            return med;
+        }
+
+        private static int CountPendingConstruction(Map map)
+        {
+            try
+            {
+                int pendingBlueprints = map.listerThings?.ThingsInGroup(ThingRequestGroup.Blueprint)?.Count ?? 0;
+                int pendingFrames = map.listerThings?.ThingsInGroup(ThingRequestGroup.BuildingFrame)?.Count ?? 0;
+                return pendingBlueprints + pendingFrames;
+            }
+            catch (Exception ex)
+            {
+                WarnRateLimited("PendingConstruction", ex);
+                return 0;
+            }
+        }
+
+        private static void AppendWorktableStatus(Map map, StringBuilder sb)
+        {
+            if (map.listerBuildings == null) return;
+
+            var worktables = new List<string>();
+            try
+            {
+                var buildings = map.listerBuildings.allBuildingsColonist;
+                if (buildings != null)
+                {
+                    for (int i = 0; i < buildings.Count; i++)
+                    {
+                        var b = buildings[i];
+                        if (b is Building_WorkTable wt && wt.def != null && !wt.Destroyed)
+                        {
+                            int billCount = wt.billStack?.Count ?? 0;
+                            string activeBillsStr = "";
+                            if (billCount > 0 && wt.billStack?.Bills != null)
+                            {
+                                var activeBillNames = wt.billStack.Bills
+                                    .Where(bill => bill?.recipe != null && !bill.suspended)
+                                    .Select(bill => bill.recipe.defName)
+                                    .Distinct()
+                                    .ToList();
+                                if (activeBillNames.Count > 0)
+                                    activeBillsStr = $"[{string.Join("/", activeBillNames)}]";
+                            }
+                            var recipes = wt.def.AllRecipes?
+                                .Take(3)
+                                .Select(r => r.defName)
+                                .ToList();
+                            string recipeStr = (recipes != null && recipes.Count > 0) ? string.Join("/", recipes) : "None";
+                            string tableName = wt.def.label ?? wt.def.defName;
+                            var blockReasons = new List<string>();
+                            var refuelable = wt.GetComp<CompRefuelable>();
+                            if (refuelable != null && !refuelable.HasFuel)
+                            {
+                                blockReasons.Add("0 WoodLog fuel — harvest trees/haul wood instead of adding bills");
+                            }
+                            var powerComp = wt.GetComp<CompPowerTrader>();
+                            if (powerComp != null && !powerComp.PowerOn)
+                            {
+                                blockReasons.Add("unpowered");
+                            }
+                            if (billCount > 0 && (wt.def.defName.Contains("Stove") || wt.def.defName.Contains("Campfire")))
+                            {
+                                var rawCat = DefDatabase<ThingCategoryDef>.GetNamedSilentFail("FoodRaw");
+                                var rawNutrition = (rawCat != null && map.resourceCounter != null) ? map.resourceCounter.GetCountIn(rawCat) : 0;
+                                if (rawNutrition <= 0 && map.listerThings != null)
+                                {
+                                    var foods = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree);
+                                    if (foods != null)
+                                    {
+                                        for (int f = 0; f < foods.Count; f++)
+                                        {
+                                            var ft = foods[f];
+                                            if (ft != null && ft.Spawned && !ft.IsForbidden(Faction.OfPlayer)
+                                                && ft.def?.thingCategories != null && rawCat != null
+                                                && ft.def.thingCategories.Any(c => c == rawCat || (c.Parents != null && c.Parents.Contains(rawCat))))
+                                            {
+                                                rawNutrition += ft.stackCount;
+                                            }
+                                        }
+                                    }
+                                }
+                                if (rawNutrition <= 0)
+                                {
+                                    blockReasons.Add("0 raw food available, harvest/hunt needed");
+                                }
+                            }
+                            string blockNotice = blockReasons.Count > 0
+                                ? $" [BLOCKED: {string.Join("; ", blockReasons)}]"
+                                : "";
+                            worktables.Add($"{tableName}(id={wt.thingIDNumber}, bills={billCount}{activeBillsStr}{blockNotice}, recipes=[{recipeStr}])");
+                            if (worktables.Count >= 4) break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { WarnRateLimited("Worktables", ex); }
+
+            if (worktables.Count > 0)
+            {
+                string tableList = string.Join("; ", worktables);
+                sb.AppendLine(RimMindText.TrOr(
+                    "RimMind.Prompt.ColonyWorktables",
+                    "Worktables: [{0}]",
+                    tableList));
+            }
+        }
+
+        private static void AppendStoredApparelSummary(Map map, StringBuilder sb)
+        {
+            try
+            {
+                var storageApparel = map.listerThings?.ThingsInGroup(ThingRequestGroup.Apparel);
+                if (storageApparel == null || storageApparel.Count == 0)
+                    return;
+
+                var apparelEntries = new List<string>();
+                for (int i = 0; i < storageApparel.Count; i++)
+                {
+                    var a = storageApparel[i];
+                    if (a != null && a.Spawned && !a.IsForbidden(Faction.OfPlayer) && a.IsInAnyStorage() && a.def != null)
+                    {
+                        string itemLabel = a.def.label ?? a.def.defName;
+                        int hpPct = a.MaxHitPoints > 0 ? Mathf.RoundToInt((float)a.HitPoints / a.MaxHitPoints * 100f) : 100;
+                        apparelEntries.Add($"{itemLabel}(id={a.thingIDNumber}, hp={hpPct}%)");
+                        if (apparelEntries.Count >= 5) break;
+                    }
+                }
+
+                if (apparelEntries.Count > 0)
+                {
+                    string apList = string.Join(", ", apparelEntries);
+                    sb.AppendLine(RimMindText.TrOr(
+                        "RimMind.Prompt.StoredApparel",
+                        "AvailableApparel: [{0}]",
+                        apList));
+                }
+            }
+            catch (Exception ex) { WarnRateLimited("StoredApparel", ex); }
         }
 
         private static void AppendColonyRoomsSummary(Map map, StringBuilder sb)
@@ -565,39 +657,25 @@ namespace RimMind.Presentation.Agent
                     .ToList();
 
                 string summaryList = string.Join("; ", ordered);
-                string key = "RimMind.Prompt.ColonyRooms";
-                sb.AppendLine(key.CanTranslate()
-                    ? Tr(key, summaryList)
-                    : $"ColonyRooms: [{summaryList}]");
+                sb.AppendLine(RimMindText.TrOr(
+                    "RimMind.Prompt.ColonyRooms",
+                    "ColonyRooms: [{0}]",
+                    summaryList));
             }
             catch (Exception ex) { WarnRateLimited("AppendColonyRoomsSummary", ex); }
         }
+    }
 
-        private static int CountAvailableMapResource(Map? map, ThingDef? def)
-        {
-            if (map == null || def == null) return 0;
-            int counted = 0;
-            try
-            {
-                counted = map.resourceCounter?.GetCount(def) ?? 0;
-                var spawnedList = map.listerThings?.ThingsOfDef(def);
-                if (spawnedList != null && spawnedList.Count > 0)
-                {
-                    int unforbiddenTotal = 0;
-                    for (int i = 0; i < spawnedList.Count; i++)
-                    {
-                        var t = spawnedList[i];
-                        if (t != null && t.Spawned && !t.Destroyed && !t.Position.Fogged(map) && !t.IsForbidden(Faction.OfPlayer))
-                        {
-                            unforbiddenTotal += t.stackCount;
-                        }
-                    }
-                    if (unforbiddenTotal > counted)
-                        counted = unforbiddenTotal;
-                }
-            }
-            catch (Exception ex) { WarnRateLimited("CountAvailableMapResource", ex); }
-            return counted;
-        }
+    internal sealed class MapContextBuilderCacheLifecycleService : IGameScopedService
+    {
+        public static readonly MapContextBuilderCacheLifecycleService Instance = new MapContextBuilderCacheLifecycleService();
+
+        public string Id => "core.map_context_builder.cache_lifecycle";
+
+        public string OwnerModId => RimMindOwnerConsts.CoreModId;
+
+        public void OnGameStarted() => MapContextBuilder.ClearCaches();
+
+        public void OnGameStopped() => MapContextBuilder.ClearCaches();
     }
 }

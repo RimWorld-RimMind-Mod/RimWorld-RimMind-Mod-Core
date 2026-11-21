@@ -3,12 +3,14 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
 using RimMind.Application.Common.Models.Context;
 using RimMind.Domain.ValueObjects;
+using RimMind.Presentation.Agent;
 using RimMind.Presentation.Api;
 using Verse;
 
@@ -43,6 +45,14 @@ namespace RimMind.Presentation.Context
             }, null, ct: ct);
         }
 
+        private static bool IsAdvisorOwnedScenario(string? scenario)
+            => string.Equals(scenario, ScenarioIds.Decision, StringComparison.Ordinal)
+                || string.Equals(scenario, ScenarioIds.AdvisorDecision, StringComparison.Ordinal);
+
+        private static bool IsDialogueOwnedScenario(string? scenario)
+            => string.Equals(scenario, ScenarioIds.Dialogue, StringComparison.Ordinal)
+                || string.Equals(scenario, ScenarioIds.CrisisDialogue, StringComparison.Ordinal);
+
         public static void RegisterAll(IContextKeyRegistry registry,
             ITranslationService? translationService = null,
             IContextKeyProvider? contextKeyProvider = null,
@@ -66,14 +76,31 @@ namespace RimMind.Presentation.Context
                 priority: 1.0f,
                 provider: async (pctx, ct) =>
                 {
+                    // Submodule-owned scenarios supply their own system instructions.
+                    if (IsAdvisorOwnedScenario(pctx.Scenario) || IsDialogueOwnedScenario(pctx.Scenario))
+                        return null;
                     if (pctx.Scenario == ScenarioIds.Storyteller)
-                        return "You are the RimWorld storyteller AI. Based on the colony's current situation, select the most appropriate incident event. " +
-                            "Consider colony wealth, threat level, food supply, colonist count, and recent events. " +
-                            "Output must be valid JSON matching the IncidentOutput schema.";
-                    if (pctx.Scenario == ScenarioIds.Decision)
                         return null;
-                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
-                        return null;
+                    if (pctx.Scenario == ScenarioIds.AgentDecision)
+                    {
+                        string? pawnPrompt = null;
+                        if (pctx.PawnId > 0)
+                        {
+                            pawnPrompt = await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
+                            {
+                                var pawn = ResolvePawn(pctx.PawnId);
+                                if (pawn == null) return null;
+                                var profile = npcManagers?.Current?.GetNpc($"NPC-{pawn.thingIDNumber}");
+                                return NullIfEmpty(profile?.SystemPrompt);
+                            }, null, ct: ct).ConfigureAwait(false);
+                        }
+
+                        const string agentRole =
+                            "You are the autonomous mind of this RimWorld colonist. " +
+                            "Evaluate your immediate survival needs, colony priorities, and current environment, " +
+                            "then choose the best concrete tool call to execute (or wait if no action is needed).";
+                        return string.IsNullOrWhiteSpace(pawnPrompt) ? agentRole : $"{agentRole}\n{pawnPrompt}";
+                    }
                     if (pctx.PawnId <= 0) return null;
                     return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
                     {
@@ -83,7 +110,7 @@ namespace RimMind.Presentation.Context
                         return NullIfEmpty(profile?.SystemPrompt);
                     }, null, ct: ct).ConfigureAwait(false);
                 },
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 0,
                 cacheScope: CacheScope.Static));
 
@@ -93,9 +120,7 @@ namespace RimMind.Presentation.Context
                 priority: 1.0f,
                 provider: async (pctx, ct) =>
                 {
-                    if (pctx.Scenario == ScenarioIds.Decision)
-                        return null;
-                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
+                    if (IsAdvisorOwnedScenario(pctx.Scenario) || IsDialogueOwnedScenario(pctx.Scenario))
                         return null;
                     if (pctx.PawnId <= 0) return null;
                     return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
@@ -113,7 +138,7 @@ namespace RimMind.Presentation.Context
                         return NullIfEmpty(sb.ToString().TrimEnd());
                     }, null, ct: ct).ConfigureAwait(false);
                 },
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 0,
                 cacheScope: CacheScope.Pawn));
 
@@ -123,8 +148,8 @@ namespace RimMind.Presentation.Context
                 priority: 1.0f,
                 provider: async (pctx, ct) =>
                 {
-                    if (pctx.Scenario == ScenarioIds.Decision) return null;
-                    if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue) return null;
+                    if (IsAdvisorOwnedScenario(pctx.Scenario) || IsDialogueOwnedScenario(pctx.Scenario))
+                        return null;
                     if (pctx.PawnId <= 0) return null;
                     return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
                     {
@@ -139,7 +164,7 @@ namespace RimMind.Presentation.Context
                         return NullIfEmpty(sb.ToString().TrimEnd());
                     }, null, ct: ct).ConfigureAwait(false);
                 },
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 0,
                 cacheScope: CacheScope.Pawn));
 
@@ -150,16 +175,7 @@ namespace RimMind.Presentation.Context
                 provider: async (pctx, ct) =>
                 {
                     if (pctx.Scenario == ScenarioIds.Storyteller)
-                    {
-                        var sb = new StringBuilder();
-                        sb.AppendLine("Storyteller rules:");
-                        sb.AppendLine("- Only select from available RimWorld incident definitions");
-                        sb.AppendLine("- Consider threat level relative to colony wealth");
-                        sb.AppendLine("- Balance positive and negative events");
-                        sb.AppendLine("- Food shortages should trigger related events");
-                        sb.AppendLine("- Low mood colonists may need positive events");
-                        return sb.ToString().TrimEnd();
-                    }
+                        return null;
                     return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
                     {
                         var sb2 = new StringBuilder();
@@ -172,7 +188,7 @@ namespace RimMind.Presentation.Context
                         return NullIfEmpty(sb2.ToString().TrimEnd());
                     }, null, ct: ct).ConfigureAwait(false);
                 },
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 0,
                 cacheScope: CacheScope.Static));
 
@@ -183,21 +199,19 @@ namespace RimMind.Presentation.Context
                 provider: async (pctx, ct) =>
                 {
                     if (pctx.Scenario == ScenarioIds.Storyteller)
-                        return "Select the most fitting incident for the colony's current state. Return structured JSON with defName, reason, and optional params.";
+                        return null;
                     return await RimMindAPI.MainThreadSnapshot.GetAsync<string?>(() =>
                     {
-                        if (pctx.Scenario == ScenarioIds.Decision)
-                            return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
-                        if (pctx.Scenario == ScenarioIds.Dialogue || pctx.Scenario == ScenarioIds.CrisisDialogue)
+                        if (IsAdvisorOwnedScenario(pctx.Scenario) || IsDialogueOwnedScenario(pctx.Scenario))
                             return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.WorldOnly"));
                         return NullIfEmpty(Translate("RimMind.Prompt.TaskInstruction.Base"));
                     }, null, ct: ct).ConfigureAwait(false);
                 },
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 0,
                 cacheScope: CacheScope.Static));
 
-            // ── L1_Baseline (stalenessTicks: 3000 ~50s) ──
+            // ── L1_Baseline (stalenessTicks: 3000 ~50s — strictly KV-Cache prefix-stable) ──
 
             if (ctx == null) return;
 
@@ -208,11 +222,15 @@ namespace RimMind.Presentation.Context
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, pawn =>
                 {
                     if (pawn.Map == null) return null;
+                    if (ctx is GameContextBuilder gcb)
+                    {
+                        return NullIfEmpty(gcb.BuildStaticMapTopology(pawn.Map));
+                    }
                     var entries = ctx.BuildMapContextEntries(pawn.Map);
                     if (entries == null || entries.Count == 0) return null;
                     return string.Join("\n", entries.Select(e => e.Content));
                 }, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Map));
 
@@ -221,7 +239,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.95f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractPawnBaseInfo, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
 
@@ -230,7 +248,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.9f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractFixedRelations, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
 
@@ -239,7 +257,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.9f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractIdeology, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
 
@@ -248,18 +266,35 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L1_Baseline,
                 priority: 0.85f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractSkillsSummary, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Pawn));
 
-            // ── L2_Environment (stalenessTicks: 1500 ~25s) ──
+            // ── L2_Environment (stalenessTicks: 1500 ~25s — volatile map/environment context) ──
+
+            registry.Register(new ContextProviderDef(
+                key: "colony_resources",
+                layer: ContextLayer.L2_Environment,
+                priority: 0.72f,
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, pawn =>
+                {
+                    if (pawn.Map == null) return null;
+                    if (ctx is GameContextBuilder gcb)
+                    {
+                        return NullIfEmpty(gcb.BuildVolatileColonyResources(pawn.Map));
+                    }
+                    return null;
+                }, ct),
+                ownerMod: RimMindOwnerConsts.CoreModId,
+                stalenessTicks: 1500,
+                cacheScope: CacheScope.Map));
 
             registry.Register(new ContextProviderDef(
                 key: "current_area",
                 layer: ContextLayer.L2_Environment,
                 priority: 0.7f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractCurrentArea, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Pawn));
 
@@ -268,7 +303,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L2_Environment,
                 priority: 0.6f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractWeather, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
 
@@ -277,7 +312,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L2_Environment,
                 priority: 0.65f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractTimeOfDay, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
 
@@ -286,7 +321,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L2_Environment,
                 priority: 0.7f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractNearbyPawns, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Pawn));
 
@@ -295,7 +330,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L2_Environment,
                 priority: 0.5f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractSeason, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
 
@@ -304,7 +339,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L2_Environment,
                 priority: 0.6f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractColonyStatus, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 1500,
                 cacheScope: CacheScope.Map));
 
@@ -315,7 +350,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.3f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractHealth, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
 
@@ -324,7 +359,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.3f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractMood, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
 
@@ -333,7 +368,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.28f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractMoodThoughts, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
 
@@ -342,7 +377,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.25f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractCurrentJob, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
 
@@ -351,7 +386,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.2f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractCombatStatus, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
 
@@ -360,7 +395,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.15f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractTargetInfo, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
 
@@ -369,7 +404,7 @@ namespace RimMind.Presentation.Context
                 layer: ContextLayer.L3_State,
                 priority: 0.2f,
                 provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId, ctx.ExtractTaskProgress, ct),
-                ownerMod: "Core",
+                ownerMod: RimMindOwnerConsts.CoreModId,
                 stalenessTicks: 750,
                 cacheScope: CacheScope.Pawn));
         }

@@ -1,75 +1,21 @@
-using System;
-using System.Text.RegularExpressions;
+using RimMind.Application.Features.Llm;
 
 namespace RimMind.Infrastructure.Services.Clients.Shared
 {
     /// <summary>
-    /// Log hygiene for transport diagnostics: truncates provider payloads and
-    /// redacts anything that looks like a credential before it reaches a log sink
-    /// or an exception message.
+    /// Backwards-compatible forwarding facade delegating to <see cref="LogSecretRedactor"/>.
+    /// Extension modules should call <see cref="LogSecretRedactor"/> or <c>RimMindAPI.Diagnostics</c>.
     /// </summary>
     public static class LogSanitizer
     {
-        /// <summary>Default cap for provider error bodies embedded in messages and logs.</summary>
-        public const int DefaultMaxChars = 500;
+        public const int DefaultMaxChars = LogSecretRedactor.DefaultMaxChars;
+        public const int DebugPayloadMaxChars = LogSecretRedactor.DebugPayloadMaxChars;
 
-        /// <summary>Cap for request/response JSON echoed when DebugLogging is enabled.</summary>
-        public const int DebugPayloadMaxChars = 2000;
-
-        private const string Mask = "***";
-
-        private static readonly Regex BearerPattern = new Regex(
-            @"(?i)\b(Bearer|Basic)\s+[A-Za-z0-9\-\._~\+\/=:]{4,}",
-            RegexOptions.Compiled);
-
-        private static readonly Regex KeyValuePattern = new Regex(
-            @"(?i)(""?(?<![A-Za-z0-9_\-])(?:api[_\-]?key|x-api-key|authorization|access[_\-]?token|refresh[_\-]?token|p2_key|secret|password|token)""?\s*[:=]\s*""?)([^""\s,;}&]+)",
-            RegexOptions.Compiled);
-
-        private static readonly Regex KeyPrefixPattern = new Regex(
-            @"\b(?:sk|oc_sk|sk-ant|sk-proj|pk|rk|xai|gsk|AIza)[\-_][A-Za-z0-9\-_]{8,}",
-            RegexOptions.Compiled);
-
-        /// <summary>Redacts bearer tokens, key/value secrets and well-known API-key shapes.</summary>
-        public static string Redact(string? text)
-        {
-            if (string.IsNullOrEmpty(text)) return text ?? string.Empty;
-            string result = BearerPattern.Replace(text, m => m.Groups[1].Value + " " + Mask);
-            result = KeyValuePattern.Replace(result, m => m.Groups[1].Value + Mask);
-            result = KeyPrefixPattern.Replace(result, Mask);
-            return result;
-        }
-
-        /// <summary>Truncates to <paramref name="maxChars"/> characters, appending a marker with the original length.</summary>
-        public static string Truncate(string? text, int maxChars = DefaultMaxChars)
-        {
-            if (string.IsNullOrEmpty(text)) return text ?? string.Empty;
-            if (maxChars <= 0 || text!.Length <= maxChars) return text!;
-            return text.Substring(0, maxChars) + $"…[truncated {text.Length - maxChars} chars]";
-        }
-
-        /// <summary>Redacts then truncates; the standard treatment for anything that may be logged.</summary>
-        public static string ForLog(string? text, int maxChars = DefaultMaxChars)
-        {
-            return Truncate(Redact(text), maxChars);
-        }
-
-        /// <summary>Redacts then truncates; alias for <see cref="ForLog"/> used for diagnostic/error messages.</summary>
-        public static string ForMessage(string? text, int maxChars = DefaultMaxChars)
-        {
-            return ForLog(text, maxChars);
-        }
-
-        /// <summary>
-        /// Redacts <paramref name="text"/> and additionally masks a literal configured secret
-        /// (when at least 4 characters long) that may not match any generic key shape.
-        /// </summary>
+        public static string Redact(string? text) => LogSecretRedactor.Redact(text);
+        public static string Truncate(string? text, int maxChars = DefaultMaxChars) => LogSecretRedactor.Truncate(text, maxChars);
+        public static string ForLog(string? text, int maxChars = DefaultMaxChars) => LogSecretRedactor.ForLog(text, maxChars);
+        public static string ForMessage(string? text, int maxChars = DefaultMaxChars) => LogSecretRedactor.ForMessage(text, maxChars);
         public static string ForMessageWithSecret(string? text, string? literalSecret, int maxLength = 320)
-        {
-            string value = text ?? string.Empty;
-            if (!string.IsNullOrEmpty(literalSecret) && literalSecret!.Length >= 4)
-                value = value.Replace(literalSecret, Mask);
-            return ForLog(value, maxLength);
-        }
+            => LogSecretRedactor.ForMessageWithSecret(text, literalSecret, maxLength);
     }
 }
