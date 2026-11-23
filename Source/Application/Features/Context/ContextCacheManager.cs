@@ -25,13 +25,11 @@ namespace RimMind.Application.Features.Context
             = new ConcurrentDictionary<string, Dictionary<string, int>>();
         private readonly ConcurrentDictionary<string, bool> _pendingCacheEvents
             = new ConcurrentDictionary<string, bool>();
-        private readonly IEmbedCache _embedCache;
-        private readonly ILogSink? _log;
+        private readonly IEmbedCache? _embedCache;
 
         public ContextCacheManager(ILogSink? log = null, IEmbedCache? embedCache = null)
         {
-            _log = log;
-            _embedCache = embedCache!;
+            _embedCache = embedCache;
         }
 
         public IReadOnlyDictionary<string, ChatMessage> L0Cache => _l0Cache;
@@ -39,7 +37,7 @@ namespace RimMind.Application.Features.Context
         public IReadOnlyDictionary<string, int> L1Version => _l1Version;
         public IReadOnlyDictionary<string, Dictionary<string, int>> L1KeyVersions => _l1KeyVersions;
         public IReadOnlyDictionary<string, bool> PendingCacheEvents => _pendingCacheEvents;
-        public IEmbedCache EmbedCache => _embedCache;
+        public IEmbedCache EmbedCache => _embedCache!;
 
         public void TouchCache(string cacheKey) { /* Intentionally empty: reserved for future LRU cache eviction */ }
         public void RemoveL0CacheForNpc(string npcId)
@@ -51,8 +49,19 @@ namespace RimMind.Application.Features.Context
         }
         public void InvalidateLayer(string npcId, ContextLayer layer)
         {
-            _l1BlockCache.TryRemove(npcId, out _);
-            _l1Version.AddOrUpdate(npcId, 0, (_, __) => 0);
+            if (layer == ContextLayer.L0_Static)
+            {
+                RemoveL0CacheForNpc(npcId);
+                return;
+            }
+            if (layer == ContextLayer.L1_Baseline)
+            {
+                lock (_l1BlockCacheLock)
+                {
+                    _l1BlockCache.TryRemove(npcId, out _);
+                }
+                _l1Version.AddOrUpdate(npcId, 0, (_, __) => 0);
+            }
         }
         public void InvalidateKey(string npcId, string key)
         {
@@ -65,18 +74,28 @@ namespace RimMind.Application.Features.Context
         public void InvalidateNpc(string npcId)
         {
             RemoveL0CacheForNpc(npcId);
-            _l1BlockCache.TryRemove(npcId, out _);
+            lock (_l1BlockCacheLock)
+            {
+                _l1BlockCache.TryRemove(npcId, out _);
+            }
             _l1Version.TryRemove(npcId, out _);
             _l1KeyVersions.TryRemove(npcId, out _);
         }
         public void Reset()
         {
-            _l0Cache.Clear(); _l1BlockCache.Clear(); _l1Version.Clear();
-            _l1KeyVersions.Clear(); _pendingCacheEvents.Clear(); _embedCache.Clear();
+            _l0Cache.Clear();
+            lock (_l1BlockCacheLock)
+            {
+                _l1BlockCache.Clear();
+            }
+            _l1Version.Clear();
+            _l1KeyVersions.Clear();
+            _pendingCacheEvents.Clear();
+            _embedCache?.Clear();
         }
         public int GetL0CacheCount() => _l0Cache.Count;
         public int GetL1BlockCacheCount() => _l1BlockCache.Count;
-        public int GetEmbedCacheCount() => _embedCache.Count;
+        public int GetEmbedCacheCount() => _embedCache?.Count ?? 0;
         public void ClearPendingCacheEvents() => _pendingCacheEvents.Clear();
 
         public bool TryGetL0CacheItem(string key, out ChatMessage msg) => _l0Cache.TryGetValue(key, out msg!);

@@ -33,7 +33,7 @@ namespace RimMind.Infrastructure.Mechanisms
         public string Id => Definition.Id;
         public string OwnerModId => string.IsNullOrWhiteSpace(_metadata?.OwnerModId)
             ? RimMindOwnerConsts.CoreModId
-            : _metadata.OwnerModId;
+            : _metadata!.OwnerModId;
         public ToolDefinition Definition { get; }
 
         public async Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
@@ -66,7 +66,7 @@ namespace RimMind.Infrastructure.Mechanisms
             var items = result.Value;
             if (!string.IsNullOrEmpty(category) && items != null)
             {
-                items = FilterByCategory(items, category);
+                items = FilterByCategory(items, category!);
             }
 
             return Result<ToolResult, RimMindError>.Ok(new ToolResult

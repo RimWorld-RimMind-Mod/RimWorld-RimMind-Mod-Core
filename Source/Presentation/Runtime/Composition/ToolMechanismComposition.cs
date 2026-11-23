@@ -1,12 +1,20 @@
 using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Mechanisms;
+using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Presentation.Runtime.Services;
 
 namespace RimMind.Presentation.Runtime.Composition
 {
     internal static class ToolMechanismComposition
     {
+        public static void RegisterBuiltinArgumentAdapters(IExtensionRegistry<IToolArgumentAdapter> registry)
+        {
+            registry.Register(new RimMind.Infrastructure.Mechanisms.Pawn.Job.JobMechanismArgumentAdapter());
+            registry.Register(new RimMind.Infrastructure.Mechanisms.Pawn.Work.WorkMechanismArgumentAdapter());
+        }
+
         public static void RegisterAllMechanisms(IGameMechanismRegistry registry)
         {
             registry.Register(new RimMind.Infrastructure.Mechanisms.Pawn.Job.JobMechanism());

@@ -118,6 +118,7 @@ namespace RimMind.Application.Common.Threading
             if (!abandoned && completion.Task.IsCompleted)
                 return await completion.Task.ConfigureAwait(false);
 
+            SynchronousTaskGate.ObserveFault(completion.Task);
             ct.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _timeoutCount);
             return fallback;

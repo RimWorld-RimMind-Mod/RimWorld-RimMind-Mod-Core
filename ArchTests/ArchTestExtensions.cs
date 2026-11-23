@@ -2,38 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using NetArchTest.Rules;
+using Xunit;
 
 namespace RimMind.Core.ArchTests
 {
     public static class ArchTestExtensions
     {
-        public static string FormatFailingTypes(this TestResult result)
-        {
-            if (result.IsSuccessful)
-                return string.Empty;
-
-            var names = result.FailingTypes?
-                .Select(t => t.FullName ?? t.Name)
-                .OrderBy(n => n)
-                ?? Enumerable.Empty<string>();
-
-            return string.Join("\n  ", names);
-        }
-
-        public static string FormatFailingTypes(this IEnumerable<Type> types)
-        {
-            var names = types
-                .Select(t => t.FullName ?? t.Name)
-                .OrderBy(n => n);
-
-            return string.Join("\n  ", names);
-        }
-
         public static string FindSourceDirectory()
         {
             var dir = Path.GetDirectoryName(typeof(ArchTestExtensions).Assembly.Location);
@@ -50,63 +26,74 @@ namespace RimMind.Core.ArchTests
             return "";
         }
 
-        public static string LocateAssembly(string fileName)
+        public static string RequireSourceDirectory()
         {
-            var sourceDir = FindSourceDirectory();
-            var gameVersion = "1.6";
-
-            var candidates = new List<string>();
-
-            if (!string.IsNullOrEmpty(sourceDir))
-            {
-                candidates.Add(Path.Combine(sourceDir, "..", gameVersion, "Assemblies", fileName));
-                candidates.Add(Path.Combine(sourceDir, "..", "Assemblies", fileName));
-            }
-
-            candidates.Add(Path.Combine(AppContext.BaseDirectory, fileName));
-
-            foreach (var candidate in candidates)
-            {
-                var full = Path.GetFullPath(candidate);
-                if (File.Exists(full))
-                    return full;
-            }
-
-            throw new FileNotFoundException(
-                $"R-D: 找不到 {fileName}。搜索路径:\n  {string.Join("\n  ", candidates.Select(Path.GetFullPath))}\n" +
-                "请先构建三个源码项目: dotnet build RimMind-Core/Source/Domain/RimMindCore.Domain.csproj 等");
+            string source = FindSourceDirectory();
+            Assert.True(Directory.Exists(source), "RimMind-Core/Source must be discoverable.");
+            return source;
         }
 
-        public static bool TryLocateAssembly(string fileName, out string? path)
+        public static string RepositoryRoot()
         {
-            path = null;
-            try
-            {
-                path = LocateAssembly(fileName);
-                return true;
-            }
-            catch (FileNotFoundException)
-            {
-                return false;
-            }
+            string source = RequireSourceDirectory();
+            DirectoryInfo? core = Directory.GetParent(source);
+            Assert.NotNull(core);
+            DirectoryInfo? root = core!.Parent;
+            Assert.NotNull(root);
+            return root!.FullName;
         }
 
-        public static HashSet<string> GetAssemblyReferences(string assemblyPath)
+        public static IEnumerable<string> SourceFiles(string directory)
         {
-            var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Assert.True(Directory.Exists(directory), $"Source directory must exist: {directory}");
+            return Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
+                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part =>
+                    part.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
+                    part.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+                    part.Equals("backup", StringComparison.OrdinalIgnoreCase)));
+        }
 
-            using var stream = File.OpenRead(assemblyPath);
-            using var peReader = new PEReader(stream);
-            var metadataReader = peReader.GetMetadataReader();
+        public static string StripComments(string source)
+        {
+            return Regex.Replace(
+                source,
+                @"//[^\r\n]*|/\*.*?\*/",
+                " ",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        }
 
-            foreach (var handle in metadataReader.AssemblyReferences)
+        public static string StripCommentsAndStrings(string source)
+        {
+            return Regex.Replace(
+                source,
+                @"@""(?:""""|[^""])*""|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])'|//[^\r\n]*|/\*.*?\*/",
+                " ",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        }
+
+        public static string ExtractBraceBalancedBlock(string code, int startIndex)
+        {
+            int openBrace = code.IndexOf('{', startIndex);
+            Assert.True(openBrace >= startIndex, "Method opening brace must be discoverable.");
+            int depth = 0;
+            for (int i = openBrace; i < code.Length; i++)
             {
-                var asmRef = metadataReader.GetAssemblyReference(handle);
-                var name = metadataReader.GetString(asmRef.Name);
-                refs.Add(name);
+                if (code[i] == '{')
+                {
+                    depth++;
+                }
+                else if (code[i] == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return code.Substring(startIndex, i - startIndex + 1);
+                    }
+                }
             }
 
-            return refs;
+            Assert.Fail("Unbalanced braces when extracting method block.");
+            return string.Empty;
         }
 
         public static CsprojAnalysis AnalyzeCsproj(string csprojPath)
@@ -134,6 +121,7 @@ namespace RimMind.Core.ArchTests
                 .FirstOrDefault() ?? Path.GetFileNameWithoutExtension(csprojPath);
 
             var targetFramework = doc.Descendants(ns + "TargetFramework")
+                .Concat(doc.Descendants(ns + "TargetFrameworks"))
                 .Select(el => el.Value)
                 .FirstOrDefault() ?? "";
 

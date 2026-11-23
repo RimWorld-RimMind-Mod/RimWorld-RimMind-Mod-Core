@@ -33,8 +33,11 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             {
                 return Player2Client.Create(settings, _logSink);
             }
-            catch (System.Exception)
+            catch (System.Exception ex)
             {
+                _logSink?.LogFromBackground(
+                    $"[RimMind-Core] Failed to create Player2 client: {Shared.LogSanitizer.ForLog(ex.Message)}",
+                    isWarning: true);
                 return null!;
             }
         }

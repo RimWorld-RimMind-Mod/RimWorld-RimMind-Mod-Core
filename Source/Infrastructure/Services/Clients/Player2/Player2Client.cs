@@ -37,9 +37,18 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         internal Func<System.Net.Http.HttpRequestMessage, System.Net.Http.HttpCompletionOption, CancellationToken, Task<System.Net.Http.HttpResponseMessage>>? StreamSendOverride { get; set; }
 
-        private string RemoteUrl => string.IsNullOrWhiteSpace(_settings.Player2RemoteUrl)
-            ? "https://api.player2.game"
-            : _settings.Player2RemoteUrl.Trim().TrimEnd('/');
+        private const string RemoteUrlOptionKey = "player2.remote_url";
+
+        private string RemoteUrl
+        {
+            get
+            {
+                string raw = _settings.GetProviderOption(RemoteUrlOptionKey);
+                return string.IsNullOrWhiteSpace(raw)
+                    ? "https://api.player2.game"
+                    : raw.Trim().TrimEnd('/');
+            }
+        }
 
         private string CurrentApiUrl => _isLocalConnection ? LocalUrl : RemoteUrl;
 
@@ -402,23 +411,6 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                 string json = JsonConvert.SerializeObject(body, Formatting.None,
                     new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
                 return (endpoint, json);
-            }
-        }
-
-        private static bool TryParseJsonSchema(string? value, out object? parsed)
-        {
-            parsed = null;
-            if (string.IsNullOrWhiteSpace(value)) return false;
-            string trimmed = value!.TrimStart();
-            if (trimmed.Length == 0 || (trimmed[0] != '{' && trimmed[0] != '[')) return false;
-            try
-            {
-                parsed = JsonConvert.DeserializeObject(value);
-                return parsed != null;
-            }
-            catch (JsonException)
-            {
-                return false;
             }
         }
 

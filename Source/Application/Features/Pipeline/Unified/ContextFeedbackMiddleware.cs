@@ -20,22 +20,23 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
         private readonly IRelevanceLearner _learner;
         private readonly AIResponseAnalyzer _analyzer;
-        private readonly ILogSink? _log;
 
         public ContextFeedbackMiddleware(IRelevanceLearner learner, AIResponseAnalyzer analyzer, ILogSink? log = null)
         {
             _learner = learner;
             _analyzer = analyzer;
-            _log = log;
         }
 
         public async Task InvokeAsync(LlmRequestContext ctx, MiddlewareDelegate<LlmRequestContext> next)
         {
+            var envelope = ctx.Envelope;
+            string? traceId = envelope?.TraceId;
+
             // Before downstream: record which keys were included in the prompt
-            if (ctx.Snapshot != null && ctx.Snapshot.IncludedKeys != null && ctx.Snapshot.IncludedKeys.Length > 0)
+            if (ctx.Snapshot != null && ctx.Snapshot.IncludedKeys != null && ctx.Snapshot.IncludedKeys.Length > 0 && !string.IsNullOrEmpty(traceId))
             {
                 var keys = ctx.Snapshot.IncludedKeys.ToList();
-                _learner.RecordInclusion(ctx.Envelope.TraceId, ctx.Envelope.ScenarioId, keys);
+                _learner.RecordInclusion(traceId!, envelope?.ScenarioId ?? string.Empty, keys);
             }
 
             try
@@ -43,21 +44,25 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 await next(ctx).ConfigureAwait(false);
 
                 // After downstream: analyze response and record which keys were actually used
-                if (ctx.Result != null && ctx.Result.Value.IsOk && ctx.Snapshot != null)
+                if (!string.IsNullOrEmpty(traceId))
                 {
-                    var used = _analyzer.ExtractUsedKeys(ctx.Snapshot, ctx.Result.Value.Value);
-                    _learner.RecordUsage(ctx.Envelope.TraceId, used);
-                }
-                else if (ctx.Result != null && ctx.Result.Value.IsErr)
-                {
-                    // Request failed: clean up pending trace with empty usage
-                    _learner.RecordUsage(ctx.Envelope.TraceId, Array.Empty<string>());
+                    if (ctx.Result != null && ctx.Result.Value.IsOk && ctx.Snapshot != null)
+                    {
+                        var used = _analyzer.ExtractUsedKeys(ctx.Snapshot, ctx.Result.Value.Value);
+                        _learner.RecordUsage(traceId!, used);
+                    }
+                    else if (ctx.Result != null && ctx.Result.Value.IsErr)
+                    {
+                        // Request failed: clean up pending trace with empty usage
+                        _learner.RecordUsage(traceId!, Array.Empty<string>());
+                    }
                 }
             }
             catch
             {
                 // Exception: clean up pending trace with empty usage
-                _learner.RecordUsage(ctx.Envelope.TraceId, Array.Empty<string>());
+                if (!string.IsNullOrEmpty(traceId))
+                    _learner.RecordUsage(traceId!, Array.Empty<string>());
                 throw;
             }
         }

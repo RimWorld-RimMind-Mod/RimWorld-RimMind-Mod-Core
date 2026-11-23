@@ -12,27 +12,75 @@ namespace RimMind.Application.Features.Tools
 {
     public sealed class ToolRegistry : IToolRegistry, IOwnedRegistry
     {
+        private readonly object _indexSync = new object();
         private readonly ConcurrentDictionary<string, IToolHandler> _handlers
             = new ConcurrentDictionary<string, IToolHandler>(StringComparer.OrdinalIgnoreCase);
-        private readonly ConcurrentDictionary<string, IToolHandler> _aliases
+        private readonly ConcurrentDictionary<string, IToolHandler> _normalizedAliases
             = new ConcurrentDictionary<string, IToolHandler>(StringComparer.OrdinalIgnoreCase);
-        private readonly ILogSink? _log;
+        private readonly ConcurrentDictionary<string, IToolHandler> _suffixIndex
+            = new ConcurrentDictionary<string, IToolHandler>(StringComparer.OrdinalIgnoreCase);
 
-        internal static IToolRegistry? Current { get; private set; }
-
-        public ToolRegistry(ILogSink? log = null)
-        {
-            _log = log;
-            Current = this;
-        }
+        public ToolRegistry(ILogSink? log = null) { }
 
         public void Register(IToolHandler handler)
         {
             if (handler == null) return;
-            Current = this;
 
+            lock (_indexSync)
+            {
+                var canonicalId = handler.Definition.Id;
+                _handlers[canonicalId] = handler;
+                IndexHandlerLocked(handler);
+            }
+        }
+
+        public bool Unregister(string toolId)
+        {
+            if (string.IsNullOrEmpty(toolId)) return false;
+            lock (_indexSync)
+            {
+                bool removed = _handlers.TryRemove(toolId, out _);
+                if (removed)
+                {
+                    RebuildSecondaryIndexesLocked();
+                }
+                return removed;
+            }
+        }
+
+        /// <inheritdoc/>
+        public int UnregisterByOwner(string ownerModId)
+        {
+            if (ownerModId == null) throw new ArgumentNullException(nameof(ownerModId));
+            lock (_indexSync)
+            {
+                var toRemove = _handlers.Values
+                    .Where(h => h.OwnerModId == ownerModId)
+                    .ToList();
+                foreach (var handler in toRemove)
+                {
+                    _handlers.TryRemove(handler.Definition.Id, out _);
+                }
+                if (toRemove.Count > 0)
+                {
+                    RebuildSecondaryIndexesLocked();
+                }
+                return toRemove.Count;
+            }
+        }
+
+        private void IndexHandlerLocked(IToolHandler handler)
+        {
             var canonicalId = handler.Definition.Id;
-            _handlers[canonicalId] = handler;
+            var normalizedCanonical = canonicalId.Replace('.', '_');
+            _normalizedAliases[normalizedCanonical] = handler;
+
+            int sepIndex = normalizedCanonical.IndexOf('_');
+            if (sepIndex > 0 && sepIndex + 1 < normalizedCanonical.Length)
+            {
+                var suffix = normalizedCanonical.Substring(sepIndex + 1);
+                _suffixIndex[suffix] = handler;
+            }
 
             var aliases = handler.Definition.Manifest?.Aliases;
             if (aliases != null)
@@ -42,49 +90,19 @@ namespace RimMind.Application.Features.Tools
                     var alias = aliases[i];
                     if (string.IsNullOrWhiteSpace(alias)) continue;
                     var trimmed = alias.Trim();
-                    _aliases[trimmed] = handler;
-                    _aliases[trimmed.Replace('.', '_')] = handler;
-                    _aliases[trimmed.Replace('_', '.')] = handler;
+                    _normalizedAliases[trimmed] = handler;
+                    _normalizedAliases[trimmed.Replace('.', '_')] = handler;
                 }
             }
         }
 
-        public bool Unregister(string toolId)
+        private void RebuildSecondaryIndexesLocked()
         {
-            if (string.IsNullOrEmpty(toolId)) return false;
-            bool removed = _handlers.TryRemove(toolId, out var handler);
-            if (removed && handler != null)
+            _normalizedAliases.Clear();
+            _suffixIndex.Clear();
+            foreach (var handler in _handlers.Values)
             {
-                RemoveAliasesFor(handler);
-            }
-            return removed;
-        }
-
-        /// <inheritdoc/>
-        public int UnregisterByOwner(string ownerModId)
-        {
-            if (ownerModId == null) throw new ArgumentNullException(nameof(ownerModId));
-            var toRemove = _handlers.Values
-                .Where(h => h.OwnerModId == ownerModId)
-                .ToList();
-            foreach (var handler in toRemove)
-            {
-                _handlers.TryRemove(handler.Definition.Id, out _);
-                RemoveAliasesFor(handler);
-            }
-            return toRemove.Count;
-        }
-
-        private void RemoveAliasesFor(IToolHandler handler)
-        {
-            var aliasKeys = _aliases
-                .Where(kvp => ReferenceEquals(kvp.Value, handler) ||
-                              string.Equals(kvp.Value.Definition.Id, handler.Definition.Id, StringComparison.OrdinalIgnoreCase))
-                .Select(kvp => kvp.Key)
-                .ToList();
-            for (int i = 0; i < aliasKeys.Count; i++)
-            {
-                _aliases.TryRemove(aliasKeys[i], out _);
+                IndexHandlerLocked(handler);
             }
         }
 
@@ -94,58 +112,11 @@ namespace RimMind.Application.Features.Tools
             var trimmed = toolId.Trim();
 
             if (_handlers.TryGetValue(trimmed, out var h)) return h;
-            if (_aliases.TryGetValue(trimmed, out h)) return h;
-
-            if (trimmed.Contains("."))
-            {
-                var underscored = trimmed.Replace('.', '_');
-                if (_handlers.TryGetValue(underscored, out h)) return h;
-                if (_aliases.TryGetValue(underscored, out h)) return h;
-            }
-            if (trimmed.Contains("_"))
-            {
-                var dotted = trimmed.Replace('_', '.');
-                if (_handlers.TryGetValue(dotted, out h)) return h;
-                if (_aliases.TryGetValue(dotted, out h)) return h;
-            }
 
             var targetNormalized = trimmed.Replace('.', '_');
-            foreach (var kvp in _handlers)
-            {
-                if (string.Equals(kvp.Key.Replace('.', '_'), targetNormalized, StringComparison.OrdinalIgnoreCase))
-                {
-                    return kvp.Value;
-                }
-
-                var manifestAliases = kvp.Value.Definition?.Manifest?.Aliases;
-                if (manifestAliases != null)
-                {
-                    for (int i = 0; i < manifestAliases.Count; i++)
-                    {
-                        var alias = manifestAliases[i];
-                        if (!string.IsNullOrWhiteSpace(alias) &&
-                            string.Equals(alias.Trim().Replace('.', '_'), targetNormalized, StringComparison.OrdinalIgnoreCase))
-                        {
-                            return kvp.Value;
-                        }
-                    }
-                }
-            }
-
-            // Generic unqualified suffix match when a tool is registered under a module namespace prefix (e.g. "<module>_<name>" or "<module>.<name>")
-            foreach (var kvp in _handlers)
-            {
-                var normalizedKey = kvp.Key.Replace('.', '_');
-                int sepIndex = normalizedKey.IndexOf('_');
-                if (sepIndex > 0 && sepIndex + 1 < normalizedKey.Length)
-                {
-                    var withoutPrefix = normalizedKey.Substring(sepIndex + 1);
-                    if (string.Equals(withoutPrefix, targetNormalized, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return kvp.Value;
-                    }
-                }
-            }
+            if (_normalizedAliases.TryGetValue(trimmed, out h)) return h;
+            if (_normalizedAliases.TryGetValue(targetNormalized, out h)) return h;
+            if (_suffixIndex.TryGetValue(targetNormalized, out h)) return h;
 
             return null;
         }

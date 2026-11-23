@@ -4,8 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
+using RimMind.Application.Common.Interfaces.Diagnostics;
 using RimMind.Application.Common.Models.Debug;
-using Verse;
+using RimMind.Presentation.Api;
 
 namespace RimMind.Infrastructure.UI.AgentsPage
 {
@@ -18,6 +19,22 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         {
             "reply", "narration", "dialogue", "speech", "text", "content", "message"
         };
+
+        private static readonly Regex ReplyFieldRegex = new Regex(
+            "\"(?:reply|narration|dialogue|speech|text|content|message)\"\\s*:\\s*\"((?:\\\\\"|[^\"])+)\"",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex LayerTagRegex = new Regex(
+            @"\[L\d+\]\s*",
+            RegexOptions.Compiled);
+
+        private static readonly Regex XmlTagRegex = new Regex(
+            @"<[^>]+>",
+            RegexOptions.Compiled);
+
+        private static readonly Regex WhitespaceRegex = new Regex(
+            @"\s+",
+            RegexOptions.Compiled);
 
         public static IReadOnlyList<AgentRequestTraceRow> BuildRecent(
             IEnumerable<AIRequestTraceEntry>? entries,
@@ -39,8 +56,14 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         private static AgentRequestTraceRow BuildRow(AIRequestTraceEntry entry)
         {
             var status = MapStatus(entry.State);
-            string toolCallSummary = BuildToolCallSummary(entry);
-            string contentSummary = BuildContentSummary(entry, status);
+            RequestTraceSummary? customSummary = null;
+            if (status == AgentRequestTraceStatus.Success)
+            {
+                RequestTraceSummarizerRegistry.TrySummarizeResponse(entry, out customSummary);
+            }
+
+            string toolCallSummary = BuildToolCallSummary(entry, customSummary?.SuppressToolNames);
+            string contentSummary = BuildContentSummary(entry, status, customSummary, toolCallSummary);
             string? error = ResolveError(entry);
             string tooltip = BuildTooltipDetail(entry, status, contentSummary, error);
 
@@ -66,33 +89,27 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             }
         }
 
-        private static string BuildContentSummary(AIRequestTraceEntry entry, AgentRequestTraceStatus status)
+        private static string BuildContentSummary(
+            AIRequestTraceEntry entry,
+            AgentRequestTraceStatus status,
+            RequestTraceSummary? customSummary,
+            string toolCallSummary)
         {
             if (status == AgentRequestTraceStatus.Success)
             {
-                if (entry.ToolCalls.Count > 0)
+                if (customSummary != null && !string.IsNullOrWhiteSpace(customSummary.ContentSummary))
                 {
-                    if (entry.ToolCalls.Any(t => t.ToolName == "express_dialogue") && !string.IsNullOrWhiteSpace(entry.Response))
-                    {
-                        if (TryExtractDialogueToolCall(entry.Response, out string dialogueSpeech, out string? dialogueThought)
-                            || TryExtractSpeechOrNarration(entry.Response, out dialogueSpeech, out dialogueThought))
-                        {
-                            string speech = "\"" + ToSingleLine(dialogueSpeech) + "\"";
-                            if (!string.IsNullOrWhiteSpace(dialogueThought))
-                            {
-                                speech += " (" + ToSingleLine(dialogueThought) + ")";
-                            }
-                            return speech;
-                        }
-                    }
-                    string toolSummary = BuildToolCallSummary(entry);
-                    if (!string.IsNullOrWhiteSpace(toolSummary))
-                        return toolSummary;
+                    return ToSingleLine(customSummary.ContentSummary);
+                }
+
+                if (!string.IsNullOrWhiteSpace(toolCallSummary))
+                {
+                    return toolCallSummary;
                 }
 
                 if (!string.IsNullOrWhiteSpace(entry.Response))
                 {
-                    if (TryExtractSpeechOrNarration(entry.Response, out string text, out string? thoughtDesc))
+                    if (TryExtractStructuredReply(entry.Response, out string text, out string? thoughtDesc))
                     {
                         string speech = "\"" + ToSingleLine(text) + "\"";
                         if (!string.IsNullOrWhiteSpace(thoughtDesc))
@@ -112,18 +129,18 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 {
                     return CleanPromptForSummary(entry.UserPrompt);
                 }
-                return "RimMind.UI.AgentsPage.Trace.WaitingModel".Translate();
+                return RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.WaitingModel", "Waiting for model...");
             }
             else if (status == AgentRequestTraceStatus.Error)
             {
-                string err = ResolveError(entry) ?? "RimMind.UI.AgentsPage.Trace.RequestError".Translate();
+                string err = ResolveError(entry) ?? RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.RequestError", "Request error");
                 return ToSingleLine(err);
             }
 
             return FirstNonEmpty(entry.Response, entry.UserPrompt, entry.Source, entry.RequestId);
         }
 
-        private static bool TryExtractSpeechOrNarration(
+        private static bool TryExtractStructuredReply(
             string rawResponse,
             out string extractedText,
             out string? thoughtDescription)
@@ -135,12 +152,12 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 return false;
 
             string cleaned = rawResponse.Trim();
-            if (cleaned.StartsWith("```"))
+            if (cleaned.StartsWith("```", StringComparison.Ordinal))
             {
                 int firstNewline = cleaned.IndexOf('\n');
                 if (firstNewline >= 0)
                     cleaned = cleaned.Substring(firstNewline + 1);
-                if (cleaned.EndsWith("```"))
+                if (cleaned.EndsWith("```", StringComparison.Ordinal))
                     cleaned = cleaned.Substring(0, cleaned.Length - 3);
                 cleaned = cleaned.Trim();
             }
@@ -189,14 +206,10 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             }
             catch
             {
-                // Fall through to regex
+                // Fall through to regex extraction for truncated JSON payloads.
             }
 
-            // Regex fallback for reply/narration
-            var match = Regex.Match(
-                cleaned,
-                "\"(?:reply|narration|dialogue|speech|text|content|message)\"\\s*:\\s*\"((?:\\\\\"|[^\"])+)\"",
-                RegexOptions.IgnoreCase);
+            var match = ReplyFieldRegex.Match(cleaned);
             if (match.Success)
             {
                 extractedText = Regex.Unescape(match.Groups[1].Value);
@@ -206,104 +219,23 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             return false;
         }
 
-        private static bool TryExtractDialogueToolCall(string raw, out string speechText, out string? thoughtText)
-        {
-            speechText = string.Empty;
-            thoughtText = null;
-
-            if (string.IsNullOrWhiteSpace(raw)) return false;
-
-            try
-            {
-                var token = Newtonsoft.Json.Linq.JToken.Parse(raw.Trim());
-                Newtonsoft.Json.Linq.JObject? argsObj = null;
-
-                if (token is Newtonsoft.Json.Linq.JArray arr)
-                {
-                    foreach (var item in arr)
-                    {
-                        if (item is Newtonsoft.Json.Linq.JObject obj)
-                        {
-                            string? toolName = (obj["name"] ?? obj["function"]?["name"])?.ToString();
-                            if (string.Equals(toolName, "express_dialogue", StringComparison.OrdinalIgnoreCase))
-                            {
-                                argsObj = ParseArgs(obj);
-                                if (argsObj != null) break;
-                            }
-                        }
-                    }
-                }
-                else if (token is Newtonsoft.Json.Linq.JObject singleObj)
-                {
-                    argsObj = ParseArgs(singleObj);
-                }
-
-                if (argsObj != null)
-                {
-                    speechText = (argsObj["speech"] ?? argsObj["reply"] ?? argsObj["content"])?.ToString() ?? string.Empty;
-                    thoughtText = (argsObj["thought_desc"] ?? argsObj["thought_tag"] ?? argsObj["thought"])?.ToString();
-
-                    if (!string.IsNullOrWhiteSpace(speechText))
-                        return true;
-                }
-            }
-            catch
-            {
-                // Fallback to regex with escaped or unescaped quotes
-            }
-
-            var match = Regex.Match(
-                raw,
-                @"\\?""speech\\?""\s*:\s*\\?""((?:\\.|[^""\\])+)\\?""",
-                RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                speechText = Regex.Unescape(match.Groups[1].Value);
-                return !string.IsNullOrWhiteSpace(speechText);
-            }
-
-            return false;
-
-            static Newtonsoft.Json.Linq.JObject? ParseArgs(Newtonsoft.Json.Linq.JObject obj)
-            {
-                var argsToken = obj["arguments"] ?? obj["function"]?["arguments"];
-                if (argsToken == null) return null;
-                if (argsToken.Type == Newtonsoft.Json.Linq.JTokenType.Object && argsToken is Newtonsoft.Json.Linq.JObject jobj) return jobj;
-                if (argsToken.Type == Newtonsoft.Json.Linq.JTokenType.String)
-                {
-                    string str = (argsToken as Newtonsoft.Json.Linq.JValue)?.Value?.ToString()?.Trim() ?? string.Empty;
-                    if (!string.IsNullOrWhiteSpace(str)) return Newtonsoft.Json.Linq.JObject.Parse(str);
-                }
-                return null;
-            }
-        }
-
         private static string CleanPromptForSummary(string rawPrompt)
         {
             if (string.IsNullOrWhiteSpace(rawPrompt))
-                return "RimMind.UI.AgentsPage.Trace.TriggerInteraction".Translate();
+                return RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TriggerInteraction", "Triggered interaction");
 
-            // Strip [L0] ~ [L9] headers
-            string cleaned = Regex.Replace(rawPrompt, @"\[L\d+\]\s*", string.Empty);
-
-            // Check if it's auto trigger template before stripping
-            string autoTriggerPrompt = "RimMind.Dialogue.Prompt.AutoTrigger".CanTranslate()
-                ? (string)"RimMind.Dialogue.Prompt.AutoTrigger".Translate()
-                : string.Empty;
-            if ((!string.IsNullOrWhiteSpace(autoTriggerPrompt) && cleaned.Contains(autoTriggerPrompt))
-                || rawPrompt.IndexOf("dialogue_trigger", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (RequestTraceSummarizerRegistry.TrySummarizePrompt(rawPrompt, out string? customPrompt)
+                && !string.IsNullOrWhiteSpace(customPrompt))
             {
-                return "RimMind.UI.AgentsPage.Trace.DailyReaction".Translate();
+                return ToSingleLine(customPrompt);
             }
 
-            // Strip XML tags e.g. <dialogue_trigger>...</dialogue_trigger>
-            cleaned = Regex.Replace(cleaned, @"<[^>]+>", string.Empty);
-
-            // Collapse newlines and whitespace
+            string cleaned = LayerTagRegex.Replace(rawPrompt, string.Empty);
+            cleaned = XmlTagRegex.Replace(cleaned, string.Empty);
             cleaned = ToSingleLine(cleaned);
 
             if (string.IsNullOrWhiteSpace(cleaned))
-                return "RimMind.UI.AgentsPage.Trace.DailyReaction".Translate();
+                return RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.DailyReaction", "Daily reaction");
 
             return cleaned;
         }
@@ -318,19 +250,19 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
             string statusText = status switch
             {
-                AgentRequestTraceStatus.Success => "RimMind.UI.AgentsPage.Trace.Success".Translate(),
-                AgentRequestTraceStatus.Waiting => "RimMind.UI.AgentsPage.Trace.Pending".Translate(),
-                AgentRequestTraceStatus.Streaming => "RimMind.UI.AgentsPage.Trace.Pending".Translate(),
-                AgentRequestTraceStatus.Error => "RimMind.UI.AgentsPage.Trace.Error".Translate(),
-                _ => "RimMind.UI.AgentsPage.Trace.Pending".Translate()
+                AgentRequestTraceStatus.Success => RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.Success", "Success"),
+                AgentRequestTraceStatus.Waiting => RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.Pending", "Pending"),
+                AgentRequestTraceStatus.Streaming => RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.Pending", "Pending"),
+                AgentRequestTraceStatus.Error => RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.Error", "Error"),
+                _ => RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.Pending", "Pending")
             };
 
-            lines.Add("RimMind.UI.AgentsPage.Trace.TooltipTitle".Translate(statusText));
+            lines.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipTitle", "Status: {0}", statusText));
 
             var meta = new List<string>();
-            if (entry.ElapsedMs > 0) meta.Add("RimMind.UI.AgentsPage.Trace.TooltipElapsed".Translate(entry.ElapsedMs));
-            if (entry.TokensUsed > 0) meta.Add("RimMind.UI.AgentsPage.Trace.TooltipTokens".Translate(entry.TokensUsed));
-            if (!string.IsNullOrWhiteSpace(entry.Model)) meta.Add("RimMind.UI.AgentsPage.Trace.TooltipModel".Translate(entry.Model));
+            if (entry.ElapsedMs > 0) meta.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipElapsed", "{0}ms", entry.ElapsedMs));
+            if (entry.TokensUsed > 0) meta.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipTokens", "{0} tok", entry.TokensUsed));
+            if (!string.IsNullOrWhiteSpace(entry.Model)) meta.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipModel", "Model: {0}", entry.Model));
             if (meta.Count > 0)
             {
                 lines.Add(string.Join(" | ", meta));
@@ -338,35 +270,37 @@ namespace RimMind.Infrastructure.UI.AgentsPage
 
             if (!string.IsNullOrWhiteSpace(entry.Source))
             {
-                lines.Add("RimMind.UI.AgentsPage.Trace.TooltipSource".Translate(entry.Source));
+                lines.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipSource", "Source: {0}", entry.Source));
             }
 
             if (!string.IsNullOrWhiteSpace(entry.UserPrompt))
             {
                 string promptClean = CleanPromptForSummary(entry.UserPrompt);
-                lines.Add("RimMind.UI.AgentsPage.Trace.TooltipIntent".Translate(promptClean));
+                lines.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipIntent", "Intent: {0}", promptClean));
             }
 
             if (entry.ToolCalls.Count > 0)
             {
                 string tools = string.Join(", ", entry.ToolCalls.Select(t => t.ToolName));
-                lines.Add("RimMind.UI.AgentsPage.Trace.TooltipTools".Translate(tools));
+                lines.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipTools", "Tools: {0}", tools));
             }
 
             if (!string.IsNullOrWhiteSpace(contentSummary))
             {
-                lines.Add("RimMind.UI.AgentsPage.Trace.TooltipContent".Translate(contentSummary));
+                lines.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipContent", "Content: {0}", contentSummary));
             }
 
             if (!string.IsNullOrWhiteSpace(error))
             {
-                lines.Add("RimMind.UI.AgentsPage.Trace.TooltipError".Translate(error));
+                lines.Add(RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.TooltipError", "Error: {0}", error!));
             }
 
             return string.Join("\n", lines);
         }
 
-        private static string BuildToolCallSummary(AIRequestTraceEntry entry)
+        private static string BuildToolCallSummary(
+            AIRequestTraceEntry entry,
+            IReadOnlyList<string>? suppressedToolNames)
         {
             if (entry.ToolCalls.Count == 0)
                 return string.Empty;
@@ -374,7 +308,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             var relevantTools = entry.ToolCalls
                 .Where(toolCall => toolCall != null
                     && !string.IsNullOrWhiteSpace(toolCall.ToolName)
-                    && !string.Equals(toolCall.ToolName, "express_dialogue", StringComparison.OrdinalIgnoreCase))
+                    && !IsSuppressedTool(toolCall.ToolName, suppressedToolNames))
                 .ToList();
 
             if (relevantTools.Count == 0)
@@ -385,7 +319,23 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                     .Take(ToolCallSummaryLimit)
                     .Select(toolCall => toolCall.ToolName)
                     .Where(name => !string.IsNullOrWhiteSpace(name)));
-            return "RimMind.UI.AgentsPage.Trace.CallTools".Translate(tools);
+            return RimMindText.TrOr("RimMind.UI.AgentsPage.Trace.CallTools", "Call: {0}", tools);
+        }
+
+        private static bool IsSuppressedTool(string toolName, IReadOnlyList<string>? suppressedToolNames)
+        {
+            if (RequestTraceSummarizerRegistry.ShouldSuppressToolCall(toolName))
+                return true;
+
+            if (suppressedToolNames == null || suppressedToolNames.Count == 0)
+                return false;
+
+            for (int i = 0; i < suppressedToolNames.Count; i++)
+            {
+                if (string.Equals(suppressedToolNames[i], toolName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         private static string? ResolveError(AIRequestTraceEntry entry)
@@ -401,17 +351,14 @@ namespace RimMind.Infrastructure.UI.AgentsPage
         private static string ToSingleLine(string? text)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-            string s = Regex.Replace(text!, @"[\r\n]+", " ");
-            s = Regex.Replace(s, @"\s+", " ");
-            return s.Trim();
+            return WhitespaceRegex.Replace(text!, " ").Trim();
         }
 
-        private static string FirstNonEmpty(params string[] values)
+        private static string FirstNonEmpty(params string?[] values)
         {
-            foreach (string value in values)
+            foreach (string? value in values)
             {
                 if (!string.IsNullOrWhiteSpace(value))
-                    return value;
                     return ToSingleLine(value);
             }
 

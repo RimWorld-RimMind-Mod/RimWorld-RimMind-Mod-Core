@@ -1,7 +1,8 @@
-namespace RimMind.Application.Common.Interfaces.Extension;
-
-public interface IExtension
+namespace RimMind.Application.Common.Interfaces.Extension
 {
-    string Id { get; }
-    string OwnerModId { get; }
+    public interface IExtension
+    {
+        string Id { get; }
+        string OwnerModId { get; }
+    }
 }

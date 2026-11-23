@@ -281,65 +281,89 @@ namespace RimMind.Infrastructure.UI
             var handler = registry.FindById(toolId);
             if (handler == null)
             {
-                _executionResult = "RimMind.UI.ToolCallDebug.Failed".Translate(0) + "\n" + "RimMind.UI.ToolCallDebug.Id".Translate(toolId);
+                _executionResult = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.ToolCallDebug.Failed", "Failed ({0}ms)", 0)
+                    + "\n"
+                    + RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.ToolCallDebug.Id", "ID: {0}", toolId);
                 return;
             }
 
             _isExecuting = true;
-            _executionResult = "RimMind.UI.ToolCallDebug.Executing".Translate();
+            _executionResult = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.ToolCallDebug.Executing", "Executing...");
             var operation = new ToolExecutionOperation(runtimeScope.Token);
             _activeExecution = operation;
             string jsonInput = _jsonInput;
 
             var sw = Stopwatch.StartNew();
-
-            Task.Run(async () =>
+            var args = new ToolCallArgs
             {
-                try
+                ToolCallId = "debug-1",
+                ToolName = toolId,
+                ArgumentsJson = jsonInput,
+                PawnId = null,
+                NpcId = null,
+                Ct = CancellationToken.None,
+                TraceId = "debug"
+            };
+
+            // Invoke handler.ExecuteAsync on the Unity main thread so Verse/RimWorld tool handlers never
+            // touch game state from a ThreadPool thread; marshal async continuations back to MainThread.
+            Task<Result<ToolResult, RimMindError>> execTask;
+            try
+            {
+                execTask = handler.ExecuteAsync(args, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                long elapsed = sw.ElapsedMilliseconds;
+                string status = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.ToolCallDebug.Failed", "Failed ({0}ms)", elapsed);
+                TryPublishExecution(operation, () => _executionResult = status + "\n" + ex.Message);
+                return;
+            }
+
+            execTask.ContinueWith(completed =>
+            {
+                sw.Stop();
+                long elapsed = sw.ElapsedMilliseconds;
+
+                if (completed.IsFaulted)
                 {
-                    var args = new ToolCallArgs
-                    {
-                        ToolCallId = "debug-1",
-                        ToolName = toolId,
-                        ArgumentsJson = jsonInput,
-                        PawnId = null,
-                        NpcId = null,
-                        Ct = CancellationToken.None,
-                        TraceId = "debug"
-                    };
-
-                    var result = await handler.ExecuteAsync(args, CancellationToken.None);
-                    sw.Stop();
-                    long elapsed = sw.ElapsedMilliseconds;
-
-                    // Translation and UI state are main-thread only; capture plain data here.
-                    bool succeeded = result.IsOk && !result.Value.IsError;
-                    string detail = result.IsOk
-                        ? Truncate(result.Value.Content, (int)TruncateLen)
-                        : result.Error.Message;
-
+                    Exception root = completed.Exception?.GetBaseException() ?? completed.Exception!;
+                    string message = root?.Message ?? "Unknown error";
                     RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
                     {
-                        string statusKey = succeeded
-                            ? "RimMind.UI.ToolCallDebug.Success"
-                            : "RimMind.UI.ToolCallDebug.Failed";
-                        string status = statusKey.Translate(elapsed);
-                        TryPublishExecution(operation, () => _executionResult = status + "\n" + detail);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    sw.Stop();
-                    long elapsed = sw.ElapsedMilliseconds;
-                    string message = ex.Message;
-
-                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
-                    {
-                        string status = "RimMind.UI.ToolCallDebug.Failed".Translate(elapsed);
+                        string status = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.ToolCallDebug.Failed", "Failed ({0}ms)", elapsed);
                         TryPublishExecution(operation, () => _executionResult = status + "\n" + message);
                     });
+                    return;
                 }
-            });
+
+                if (completed.IsCanceled)
+                {
+                    RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
+                    {
+                        string status = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.ToolCallDebug.Failed", "Failed ({0}ms)", elapsed);
+                        TryPublishExecution(operation, () => _executionResult = status + "\nCanceled");
+                    });
+                    return;
+                }
+
+                var result = completed.Result;
+                bool succeeded = result.IsOk && !result.Value.IsError;
+                string detail = result.IsOk
+                    ? Truncate(result.Value.Content, (int)TruncateLen)
+                    : result.Error.Message;
+
+                RimMind.Presentation.Api.RimMindAPI.MainThread.Post(() =>
+                {
+                    string statusKey = succeeded
+                        ? "RimMind.UI.ToolCallDebug.Success"
+                        : "RimMind.UI.ToolCallDebug.Failed";
+                    string fallback = succeeded ? "Success ({0}ms)" : "Failed ({0}ms)";
+                    string status = RimMind.Presentation.Api.RimMindText.TrOr(statusKey, fallback, elapsed);
+                    TryPublishExecution(operation, () => _executionResult = status + "\n" + detail);
+                });
+            }, TaskScheduler.Default);
         }
 
         private void RefreshExecutionFence()
@@ -360,7 +384,7 @@ namespace RimMind.Infrastructure.UI
             else
             {
                 operation.RecordStaleOnce(RuntimeServiceHub.Shared);
-                _executionResult = "RimMind.UI.Lifecycle.StaleCompletion".Translate();
+                _executionResult = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.UI.Lifecycle.StaleCompletion", "Discarded stale completion.");
             }
 
             _activeExecution = null;

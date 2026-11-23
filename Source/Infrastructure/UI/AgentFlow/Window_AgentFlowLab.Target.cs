@@ -306,7 +306,7 @@ namespace RimMind.Infrastructure.UI
                     "RimMind.UI.AgentFlowLab.Messages".Translate(msgCount.ToString()));
                 y += LineH;
 
-                if (msgCount > 0)
+                if (_lastSnapshot.Messages != null && msgCount > 0)
                 {
                     var sb = new StringBuilder();
                     foreach (var msg in _lastSnapshot.Messages.Take(8))
@@ -342,7 +342,7 @@ namespace RimMind.Infrastructure.UI
 
             if (!string.IsNullOrEmpty(error))
             {
-                _lastError = $"BuildContext: {LocalizeAsyncError(error)}";
+                _lastError = $"BuildContext: {LocalizeAsyncError(error!)}";
                 _stepTracker.Set(FlowLabStep.BuildContext, StepStatus.Failed);
                 return;
             }

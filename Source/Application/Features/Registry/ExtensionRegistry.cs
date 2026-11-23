@@ -22,7 +22,7 @@ namespace RimMind.Application.Features.Registry
             // We overwrite with the new extension, but log a warning for diagnostics.
             if (!_extensions.TryAdd(extension.Id, extension))
             {
-                _log?.Message($"[ExtensionRegistry] Duplicate ID '{extension.Id}' for {typeof(T).Name}, overwriting previous registration");
+                _log?.Warning($"[ExtensionRegistry] Duplicate ID '{extension.Id}' for {typeof(T).Name}, overwriting previous registration");
                 _extensions[extension.Id] = extension;
             }
             else

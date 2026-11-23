@@ -101,7 +101,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 
         private readonly IOpenAISettings _settings;
         private readonly ILogSink? _logSink;
-        private readonly HttpPostDelegate _postAsync;
+        private readonly HttpPostDelegate? _postAsyncOverride;
 
         internal Func<System.Net.Http.HttpRequestMessage, System.Net.Http.HttpCompletionOption, CancellationToken, Task<System.Net.Http.HttpResponseMessage>>? StreamSendOverride { get; set; }
 
@@ -109,7 +109,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         {
             _settings = settings;
             _logSink = logSink;
-            _postAsync = postAsyncOverride ?? HttpTransport.PostAsync;
+            _postAsyncOverride = postAsyncOverride;
         }
 
         private static float ResolveTimeoutSeconds(bool isLocal, int candidateCount, int attempt) =>
@@ -135,12 +135,13 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         {
             var allConfigured = new List<BackupEndpointNode>();
 
-            if (!string.IsNullOrWhiteSpace(_settings.ApiEndpoint) && !string.IsNullOrWhiteSpace(_settings.ApiKey))
+            if (!string.IsNullOrWhiteSpace(_settings.ApiEndpoint)
+                && (!string.IsNullOrWhiteSpace(_settings.ApiKey) || IsLoopbackEndpoint(_settings.ApiEndpoint)))
             {
                 allConfigured.Add(new BackupEndpointNode
                 {
                     Name = "Primary",
-                    Provider = "openai",
+                    Provider = AIProviders.OpenAI,
                     ApiEndpoint = _settings.ApiEndpoint,
                     ModelName = !string.IsNullOrWhiteSpace(_settings.ModelName) ? _settings.ModelName : "gpt-4o-mini",
                     ApiKey = _settings.ApiKey,
@@ -185,22 +186,35 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             string effectiveModel,
             RimMind.Domain.Llm.LlmRequestEnvelope envelope,
             string initialJson,
-            string? headerName,
-            string? headerValue,
             float connectTimeout)
         {
             string currentJson = initialJson;
             string cacheKey = BuildFormatCacheKey(node.ApiEndpoint, effectiveModel);
+            string authHeader = $"Bearer {node.ApiKey}";
+            var decorationContext = new HttpRequestDecorationContext(
+                endpoint,
+                authHeader,
+                CustomSessionId: null,
+                RequestId: envelope.RequestId,
+                NpcId: envelope.NpcId,
+                Provider: node.Provider);
 
             while (true)
             {
                 try
                 {
-                    var (responseText, httpStatusCode) = await _postAsync(
-                        endpoint, currentJson, $"Bearer {node.ApiKey}",
-                        headerName: headerName, headerValue: headerValue,
-                        connectTimeout: connectTimeout,
-                        cancellationToken: envelope.Ct);
+                    (string responseText, long httpStatusCode) = _postAsyncOverride != null
+                        ? await _postAsyncOverride(
+                            endpoint, currentJson, authHeader,
+                            headerName: null, headerValue: null,
+                            connectTimeout: connectTimeout,
+                            cancellationToken: envelope.Ct)
+                        : await HttpTransport.PostAsync(
+                            endpoint, currentJson, authHeader,
+                            headerName: null, headerValue: null,
+                            connectTimeout: connectTimeout,
+                            cancellationToken: envelope.Ct,
+                            decorationContext: decorationContext);
 
                     bool isModeration = ClientExceptionMapper.IsContentModerationResponse((int)httpStatusCode, responseText);
                     if (httpStatusCode == 400 && !isModeration && currentJson.IndexOf("\"response_format\"", StringComparison.Ordinal) >= 0)
@@ -340,10 +354,6 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 {
                     bool isLocal = IsLoopbackEndpoint(node.ApiEndpoint);
                     float connectTimeout = ResolveTimeoutSeconds(isLocal, candidates.Count, attempt);
-                    bool isOpenCode = IsOpenCodeGo(node.ApiEndpoint, node.ApiKey) ||
-                                      string.Equals(node.Provider, "opencode", StringComparison.OrdinalIgnoreCase);
-                    string? headerName = isOpenCode ? "x-opencode-session" : null;
-                    string? headerValue = isOpenCode ? ResolveSessionId(envelope) : null;
 
                     (string responseText, long httpStatusCode) = await PostWithFormatFallbackAsync(
                         node,
@@ -351,8 +361,6 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                         effectiveModel,
                         envelope,
                         json,
-                        headerName,
-                        headerValue,
                         connectTimeout);
 
                     return BuildCompletedResponse(
@@ -416,10 +424,6 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                     endpointOverride: retryNode.ApiEndpoint);
                 bool isLocal = IsLoopbackEndpoint(retryNode.ApiEndpoint);
                 float connectTimeout = isLocal ? 300f : 60f;
-                bool isOpenCode = IsOpenCodeGo(retryNode.ApiEndpoint, retryNode.ApiKey) ||
-                                  string.Equals(retryNode.Provider, "opencode", StringComparison.OrdinalIgnoreCase);
-                string? headerName = isOpenCode ? "x-opencode-session" : null;
-                string? headerValue = isOpenCode ? ResolveSessionId(envelope) : null;
 
                 for (int backoffAttempt = 1; backoffAttempt <= 2; backoffAttempt++)
                 {
@@ -433,8 +437,6 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                             effectiveModel,
                             envelope,
                             json,
-                            headerName,
-                            headerValue,
                             connectTimeout);
 
                         return BuildCompletedResponse(
@@ -524,8 +526,17 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
 
                     using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, endpoint);
                     request.Content = new System.Net.Http.StringContent(json, Encoding.UTF8, "application/json");
-                    request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {node.ApiKey}");
-                    HttpTransport.ApplyDecorators(request, endpoint, $"Bearer {node.ApiKey}", ResolveSessionId(envelope));
+                    string authHeader = $"Bearer {node.ApiKey}";
+                    request.Headers.TryAddWithoutValidation("Authorization", authHeader);
+                    HttpTransport.ApplyDecorators(
+                        request,
+                        new HttpRequestDecorationContext(
+                            endpoint,
+                            authHeader,
+                            CustomSessionId: null,
+                            RequestId: envelope.RequestId,
+                            NpcId: envelope.NpcId,
+                            Provider: node.Provider));
 
                     using var session = StreamSendOverride != null
                         ? await HttpTransport.OpenStreamAsync(request, connectTimeout, effectiveCt, StreamSendOverride).ConfigureAwait(false)
@@ -693,26 +704,6 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
         public Task<Result<List<string>, RimMindError>> QueryNpcMemoriesAsync(string npcId, string query, int limit)
         {
             throw new NotSupportedException("OpenAI does not support NPC server-side state");
-        }
-
-        private static bool IsOpenCodeGo(string? endpoint, string? apiKey)
-        {
-            if (!string.IsNullOrEmpty(endpoint) && endpoint.IndexOf("opencode", StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-            if (!string.IsNullOrEmpty(apiKey) && apiKey.IndexOf("oc_sk_", StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-            return false;
-        }
-
-        private static string ResolveSessionId(RimMind.Domain.Llm.LlmRequestEnvelope envelope)
-        {
-            if (!string.IsNullOrEmpty(envelope.NpcId))
-                return "rimmind-" + envelope.NpcId;
-            if (!string.IsNullOrEmpty(envelope.RequestId))
-                return "rimmind-" + envelope.RequestId;
-            if (!string.IsNullOrEmpty(envelope.TraceId))
-                return "rimmind-" + envelope.TraceId;
-            return "rimmind-" + Guid.NewGuid().ToString("N").Substring(0, 12);
         }
     }
 }

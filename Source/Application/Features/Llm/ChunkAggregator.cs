@@ -13,7 +13,7 @@ namespace RimMind.Application.Features.Llm
         private readonly string _requestId;
         private readonly StringBuilder _contentBuilder = new();
         private readonly StringBuilder _toolCallsBuilder = new();
-        private string? _reasoningContent;
+        private readonly StringBuilder _reasoningBuilder = new();
         private int _promptTokens;
         private int _completionTokens;
         private int _cachedTokens;
@@ -38,7 +38,7 @@ namespace RimMind.Application.Features.Llm
             if (chunk.DeltaToolCallsJson != null)
                 _toolCallsBuilder.Append(chunk.DeltaToolCallsJson);
             if (chunk.DeltaReasoningContent != null)
-                _reasoningContent += chunk.DeltaReasoningContent;
+                _reasoningBuilder.Append(chunk.DeltaReasoningContent);
             if (chunk.DeltaPromptTokens.HasValue)
                 _promptTokens = chunk.DeltaPromptTokens.Value;
             if (chunk.DeltaCompletionTokens.HasValue)
@@ -59,7 +59,7 @@ namespace RimMind.Application.Features.Llm
                 RequestId = _requestId,
                 Content = _contentBuilder.ToString(),
                 ToolCallsJson = _toolCallsBuilder.Length > 0 ? _toolCallsBuilder.ToString() : null,
-                ReasoningContent = _reasoningContent,
+                ReasoningContent = _reasoningBuilder.Length > 0 ? _reasoningBuilder.ToString() : null,
                 TokensUsed = _promptTokens + _completionTokens,
                 PromptTokens = _promptTokens,
                 CompletionTokens = _completionTokens,

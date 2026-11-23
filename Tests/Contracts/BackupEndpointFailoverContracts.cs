@@ -13,7 +13,6 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Models.Npc;
 using RimMind.Infrastructure.Services.Clients;
-using RimMind.Infrastructure.Services.Clients.Hybrid;
 using RimMind.Infrastructure.Services.Clients.OpenAI;
 using RimMind.Infrastructure.Services.Clients.Player2;
 using RimMind.Infrastructure.Services.Clients.Shared;
@@ -108,8 +107,20 @@ namespace RimMind.Tests.Contracts
             Assert.Contains("\"model\":\"grok-4.7\"", requestJsonPayloads[0]);
             Assert.Contains("\"model\":\"deepseek-v4.1-flash-free\"", requestJsonPayloads[1]);
             Assert.Contains("\"max_tokens\":800", requestJsonPayloads[1]);
-            Assert.Equal("x-opencode-session", capturedHeaderNames[1]);
-            Assert.Contains("rimmind-NPC-101", capturedHeaderValues[1]);
+
+            // Verify OpenCodeHeaderDecorator injects x-opencode-session via HttpRequestDecorationContext
+            HttpTransport.RegisterDecorator(OpenCodeHeaderDecorator.Instance);
+            using var decoratedReq = new HttpRequestMessage(HttpMethod.Post, "https://opencode.ai/zen/go/v1/chat/completions");
+            HttpTransport.ApplyDecorators(
+                decoratedReq,
+                new HttpRequestDecorationContext(
+                    Url: "https://opencode.ai/zen/go/v1/chat/completions",
+                    AuthHeader: "Bearer oc_sk_test_placeholder",
+                    RequestId: "req-1",
+                    NpcId: "NPC-101",
+                    Provider: "opencode"));
+            Assert.True(decoratedReq.Headers.Contains("x-opencode-session"));
+            Assert.Contains("rimmind-NPC-101", string.Join(",", decoratedReq.Headers.GetValues("x-opencode-session")));
 
             // 2nd request within 60s cooldown: Primary is isolated, so it routes directly to Backup #1!
             var secondResult = await client.SendAsync(CreateEnvelope("req-2"));
@@ -355,7 +366,7 @@ namespace RimMind.Tests.Contracts
         }
 
         [Fact]
-        public async Task HybridAIClient_AndPlayer2Dtos_PreserveStreamBoundaries_AndSnakeCaseToolPayloads()
+        public void Player2Dtos_PreserveSnakeCaseToolPayloads()
         {
             // Verify Player2RequestDto serializes snake_case fields for tools, tool_choice, and response_format
             var dto = new Player2RequestDto
@@ -370,18 +381,6 @@ namespace RimMind.Tests.Contracts
             Assert.Contains("\"tool_choice\":\"auto\"", json);
             Assert.Contains("\"response_format\":{\"type\":\"json_object\"}", json);
             Assert.Contains("\"tools\":[", json);
-
-            // Verify HybridAIClient does not fall back to local client if remote stream already emitted chunks
-            var remotePrimary = new StubStreamingClient(emitBeforeFail: true);
-            var localFallback = new StubStreamingClient(emitBeforeFail: false);
-            var hybrid = new HybridAIClient(remotePrimary, localFallback);
-
-            var emitted = new List<string>();
-            var res = await hybrid.SendStreamAsync(CreateEnvelope("req-hybrid"), c => { if (!string.IsNullOrEmpty(c.DeltaContent)) emitted.Add(c.DeltaContent!); }, CancellationToken.None);
-            Assert.True(res.IsErr);
-            Assert.Equal(1, remotePrimary.StreamCalls);
-            Assert.Equal(0, localFallback.StreamCalls);
-            Assert.Single(emitted);
         }
 
         [Fact]
@@ -494,45 +493,6 @@ namespace RimMind.Tests.Contracts
                 }
                 throw new IOException("Connection reset mid-stream");
             }
-        }
-
-        private sealed class StubStreamingClient : IAIClient
-        {
-            private readonly bool _emitBeforeFail;
-            public int StreamCalls { get; private set; }
-
-            public StubStreamingClient(bool emitBeforeFail)
-            {
-                _emitBeforeFail = emitBeforeFail;
-            }
-
-            public bool IsLocalEndpoint => false;
-            public bool IsConfigured() => true;
-            public bool SupportsStreaming => true;
-            public bool SupportsNpcServerState => false;
-
-            public Task<Result<LlmResponse, RimMindError>> SendAsync(LlmRequestEnvelope envelope)
-                => Task.FromResult(Result<LlmResponse, RimMindError>.Ok(new LlmResponse { Content = "ok" }));
-
-            public Task<Result<LlmResponse, RimMindError>> SendStreamAsync(LlmRequestEnvelope envelope, Action<LlmChunk> onChunk, CancellationToken ct = default)
-            {
-                StreamCalls++;
-                if (_emitBeforeFail)
-                {
-                    onChunk(new LlmChunk { DeltaContent = "partial-remote" });
-                    return Task.FromResult(Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientTransient("mid-stream drop")));
-                }
-                onChunk(new LlmChunk { DeltaContent = "fallback-ok" });
-                return Task.FromResult(Result<LlmResponse, RimMindError>.Ok(new LlmResponse { Content = "fallback-ok" }));
-            }
-
-            public Task<Result<bool, RimMindError>> SpawnNpcAsync(NpcProfile profile)
-                => Task.FromResult(Result<bool, RimMindError>.Ok(true));
-            public Task<Result<bool, RimMindError>> KillNpcAsync(string npcId)
-                => Task.FromResult(Result<bool, RimMindError>.Ok(true));
-            public Task<Result<List<string>, RimMindError>> QueryNpcMemoriesAsync(string npcId, string query, int limit)
-                => Task.FromResult(Result<List<string>, RimMindError>.Ok(new List<string>()));
-            public void Dispose() { }
         }
     }
 }

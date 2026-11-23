@@ -53,13 +53,14 @@ namespace RimMind.Core.ArchTests.Contracts
 
         private static void AssertSourceAbsent(string forbiddenPattern)
         {
-            AssertAbsent(SourceFiles(RequireSourceDirectory()), RequireSourceDirectory(), forbiddenPattern);
+            string source = ArchTestExtensions.RequireSourceDirectory();
+            AssertAbsent(ArchTestExtensions.SourceFiles(source), source, forbiddenPattern);
         }
 
         private static void AssertLayerAbsent(string layer, string forbiddenPattern)
         {
-            string source = RequireSourceDirectory();
-            AssertAbsent(SourceFiles(Path.Combine(source, layer)), source, forbiddenPattern);
+            string source = ArchTestExtensions.RequireSourceDirectory();
+            AssertAbsent(ArchTestExtensions.SourceFiles(Path.Combine(source, layer)), source, forbiddenPattern);
         }
 
         private static void AssertAbsent(
@@ -69,7 +70,7 @@ namespace RimMind.Core.ArchTests.Contracts
         {
             var pattern = new Regex(forbiddenPattern, RegexOptions.CultureInvariant);
             IReadOnlyList<string> violations = files
-                .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+                .Where(file => pattern.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                 .Select(file => Path.GetRelativePath(source, file))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -80,43 +81,18 @@ namespace RimMind.Core.ArchTests.Contracts
 
         private static void AssertDeclarationUnder(string typeName, string expectedRelativeDirectory)
         {
-            string source = RequireSourceDirectory();
+            string source = ArchTestExtensions.RequireSourceDirectory();
             var declaration = new Regex(
                 $@"\b(?:class|interface|struct|record)\s+{Regex.Escape(typeName)}\b",
                 RegexOptions.CultureInvariant);
-            string[] matches = SourceFiles(source)
-                .Where(file => declaration.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+            string[] matches = ArchTestExtensions.SourceFiles(source)
+                .Where(file => declaration.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                 .ToArray();
             string expected = Path.GetFullPath(Path.Combine(source, expectedRelativeDirectory))
                 .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
             Assert.NotEmpty(matches);
             Assert.All(matches, file => Assert.StartsWith(expected, Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string StripCommentsAndStrings(string source)
-        {
-            return Regex.Replace(
-                source,
-                @"@""(?:""""|[^""])*""|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])'|//[^\r\n]*|/\*.*?\*/",
-                " ",
-                RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        }
-
-        private static IEnumerable<string> SourceFiles(string directory)
-        {
-            return Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part =>
-                    part.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("backup", StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private static string RequireSourceDirectory()
-        {
-            string source = ArchTestExtensions.FindSourceDirectory();
-            Assert.True(Directory.Exists(source), "RimMind-Core/Source must be discoverable.");
-            return source;
         }
     }
 }

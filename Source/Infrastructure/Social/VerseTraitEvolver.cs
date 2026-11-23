@@ -1,4 +1,3 @@
-using System.Linq;
 using RimMind.Application.Common.Interfaces.Agent.Social;
 using RimMind.Domain.Agent.Social;
 using RimMind.Domain.Enums;
@@ -12,8 +11,12 @@ public sealed class VerseTraitEvolver : ITraitEvolver
 {
     public Result<TraitEvolutionRecord, RimMindError> ApplyTraitEvolution(int pawnId, TraitEvolutionRecord record)
     {
-        var pawn = FindPawn(pawnId);
+        var pawn = FindEligiblePawn(pawnId);
         if (pawn == null) return Result<TraitEvolutionRecord, RimMindError>.Err(
+            RimMindErrors.PawnNotFound(pawnId));
+
+        var traits = pawn.story?.traits;
+        if (traits == null) return Result<TraitEvolutionRecord, RimMindError>.Err(
             RimMindErrors.PawnNotFound(pawnId));
 
         var traitDef = DefDatabase<TraitDef>.GetNamedSilentFail(record.TraitDefName);
@@ -22,37 +25,24 @@ public sealed class VerseTraitEvolver : ITraitEvolver
 
         if (record.Kind == TraitEvolutionKind.Gained)
         {
-            if (!pawn.story.traits.HasTrait(traitDef))
-                pawn.story.traits.GainTrait(new Trait(traitDef));
+            if (!traits.HasTrait(traitDef))
+                traits.GainTrait(new Trait(traitDef));
         }
         else
         {
-            var existing = pawn.story.traits.GetTrait(traitDef);
+            var existing = traits.GetTrait(traitDef);
             if (existing != null)
-                pawn.story.traits.RemoveTrait(existing);
+                traits.RemoveTrait(existing);
         }
 
         return Result<TraitEvolutionRecord, RimMindError>.Ok(record);
     }
 
-    private static Pawn? FindPawn(int pawnId)
+    private static Pawn? FindEligiblePawn(int pawnId)
     {
-        var cached = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
-        if (cached != null) return cached;
-
-        if (UnityData.IsInMainThread && Find.Maps != null)
-        {
-            foreach (var map in Find.Maps)
-            {
-                var pawn = map.mapPawns?.FreeColonistsSpawned?.FirstOrDefault(p => p.thingIDNumber == pawnId);
-                if (pawn != null && Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
-                {
-                    Presentation.Api.RimMindPawnLookup.CachePawn(pawn);
-                    return pawn;
-                }
-            }
-        }
-
+        var pawn = Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+        if (pawn != null && Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+            return pawn;
         return null;
     }
 }

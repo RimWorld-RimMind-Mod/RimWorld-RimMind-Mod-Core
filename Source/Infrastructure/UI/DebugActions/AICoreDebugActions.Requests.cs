@@ -159,7 +159,7 @@ namespace RimMind.Infrastructure.UI
             sb.AppendLine($"  AutoApplyMode: (via Context)");
             sb.AppendLine($"  AutoApplyConfidenceThreshold: (via Context)");
             sb.AppendLine($"  RequestOverlayEnabled: (via UI)");
-            sb.AppendLine($"  Player2RemoteUrl: {s.Player2RemoteUrl}");
+            sb.AppendLine($"  Player2RemoteUrl: {s.GetProviderOption("player2.remote_url")}");
             sb.AppendLine($"  TelemetryDataPath: (via Infrastructure)");
             sb.AppendLine($"  AnalysisReportPath: (via Infrastructure)");
             sb.AppendLine($"  IsConfigured: {s.IsConfigured}");

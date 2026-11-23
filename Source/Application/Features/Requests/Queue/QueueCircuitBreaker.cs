@@ -12,17 +12,13 @@ namespace RimMind.Application.Features.Requests.Queue
     internal sealed class QueueCircuitBreaker
     {
         private readonly CooldownTable _cooldowns;
-        private readonly ISettingsProvider _settings;
         public IExtensionRegistry<IModCooldown>? ModCooldowns { get; set; }
 
-        public QueueCircuitBreaker(ISettingsProvider settings, ILogSink? logSink = null, IExtensionRegistry<IModCooldown>? modCooldowns = null)
+        public QueueCircuitBreaker(ISettingsProvider? settings = null, ILogSink? logSink = null, IExtensionRegistry<IModCooldown>? modCooldowns = null)
         {
-            _settings = settings;
             _cooldowns = new CooldownTable(logSink);
             ModCooldowns = modCooldowns;
         }
-
-        public CooldownTable Cooldowns => _cooldowns;
 
         public bool IsOnCooldown(string modId, int currentTick)
             => _cooldowns.IsOnCooldown(modId, currentTick);
@@ -79,11 +75,5 @@ namespace RimMind.Application.Features.Requests.Queue
 
         public void ClearAllCooldowns()
             => _cooldowns.ClearAll();
-
-        public void TickCooldowns()
-            => _cooldowns.Tick();
-
-        public int FailureThreshold => _settings.CircuitBreakerFailureThreshold;
-        public int OpenDurationSec => _settings.CircuitBreakerOpenDurationSec;
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using RimMind.Application.Common.Behaviours;
-using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Pipeline;

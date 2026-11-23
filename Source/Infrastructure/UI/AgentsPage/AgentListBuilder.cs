@@ -23,9 +23,10 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             if (!string.IsNullOrWhiteSpace(pendingSelectedPawnId)
                 && all.All(a => a.Id != pendingSelectedPawnId))
             {
+                string pendingId = pendingSelectedPawnId!;
                 pending.Add(AgentListItem.PendingPawn(
-                    pendingSelectedPawnId,
-                    pendingSelectedPawnLabel ?? pendingSelectedPawnId));
+                    pendingId,
+                    pendingSelectedPawnLabel ?? pendingId));
             }
 
             return new AgentListGroups(

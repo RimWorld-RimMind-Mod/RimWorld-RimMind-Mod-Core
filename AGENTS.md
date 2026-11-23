@@ -9,9 +9,9 @@ RimMind 的运行时与公共 API 前置。Core 负责 LLM 请求、上下文、
 - AI 请求：`Source/Application/Features/Requests/README.md`
 - 上下文：`Source/Presentation/Context/README.md`
 - Agent：`Source/Presentation/Agent/PawnAgent.cs`
-- 自治分级治理：`Source/Application/Features/Agent/AgentAutonomyPolicyService.cs`（`AutonomyDomain` / `AutonomyLevel`）
+- 自治分级治理：`Source/Domain/Agent/Policies/AgentAutonomyPolicy.cs`（`AutonomyDomain` / `AutonomyLevel`）
 - ToolCall 与渐进式帮助：`Source/Application/Features/Pipeline/Unified/ToolCallDispatchMiddleware.cs`、`Source/Application/Features/Tools/QueryToolHelpTool.cs`
-- 主备端点容灾：`Source/Domain/Settings/BackupEndpointNode.cs`、`Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.cs`
+- 主备端点容灾：`Source/Application/Common/Models/Client/BackupEndpointNode.cs`、`Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.cs`
 - 组合与生命周期：`Source/Presentation/Runtime/RimMindCompositionRoot.cs`
 - 游戏内调试：`Source/Infrastructure/UI/DebugActions/README.md`
 - Agent 流程实验室：`Source/Infrastructure/UI/AgentFlow/README.md`

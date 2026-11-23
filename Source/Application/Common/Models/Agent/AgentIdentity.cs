@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 
-using RimMind.Application.Common.Interfaces.Agent;
-
 namespace RimMind.Application.Common.Models.Agent
 {
     /// <summary>
@@ -11,7 +9,7 @@ namespace RimMind.Application.Common.Models.Agent
     /// IExposable serialization is handled by the Presentation-layer subclass
     /// <see cref="RimMind.Application.Common.Models.Agent.SerializableAgentIdentity"/>.
     /// </summary>
-    public class AgentIdentity : IAgentIdentity
+    public class AgentIdentity
     {
         public string NpcId = "";
         public int PawnId;
@@ -19,13 +17,6 @@ namespace RimMind.Application.Common.Models.Agent
         public List<string> Motivations = new List<string>();
         public List<string> PersonalityTraits = new List<string>();
         public List<string> CoreValues = new List<string>();
-
-        string IAgentIdentity.NpcId => NpcId;
-        int IAgentIdentity.PawnId => PawnId;
-        string IAgentIdentity.DisplayName => DisplayName;
-        List<string> IAgentIdentity.Motivations => Motivations;
-        List<string> IAgentIdentity.PersonalityTraits => PersonalityTraits;
-        List<string> IAgentIdentity.CoreValues => CoreValues;
 
         public AgentIdentity() { }
 

@@ -10,6 +10,8 @@ using RimMind.Domain.Agent.Modes;
 using RimMind.Domain.ValueObjects;
 using RimMind.Infrastructure.Agent;
 using RimMind.Infrastructure.Mechanisms;
+using RimMind.Infrastructure.Mechanisms.Pawn.Job;
+using RimMind.Infrastructure.Mechanisms.Pawn.Work;
 using Xunit;
 
 namespace RimMind.Tests.Contracts
@@ -17,16 +19,23 @@ namespace RimMind.Tests.Contracts
     /// <summary>
     /// Regression: LLM decisions with plain-text Param (e.g. "param":"Construction") were silently
     /// replaced with {} so pawn.work.set failed with "Invalid def name ''".
+    /// Verifies Core's pluggable IToolArgumentAdapter implementations via MechanismActionExecutor.
     /// </summary>
     public sealed class AgentDecisionParamAdaptationContracts
     {
+        private static IToolArgumentAdapter[] CoreAdapters() => new IToolArgumentAdapter[]
+        {
+            new WorkMechanismArgumentAdapter(),
+            new JobMechanismArgumentAdapter()
+        };
+
         [Fact]
         public void PlainTextParam_IsForwardedAsWorkTarget_ForWorkSetTool()
         {
             var tools = new ToolRegistry();
             var workTool = new RecordingToolHandler("pawn.work.set");
             tools.Register(workTool);
-            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, () => Array.Empty<IToolArgumentAdapter>());
+            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, CoreAdapters);
 
             var result = executor.ExecuteDecision(
                 new AgentDecision(ActionIntent: "pawn.work.set", Reason: "build shelter", Param: "Construction"),
@@ -46,7 +55,7 @@ namespace RimMind.Tests.Contracts
             var tools = new ToolRegistry();
             var jobTool = new RecordingToolHandler("pawn.job.set");
             tools.Register(jobTool);
-            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, () => Array.Empty<IToolArgumentAdapter>());
+            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, CoreAdapters);
 
             var result = executor.ExecuteDecision(
                 new AgentDecision(ActionIntent: "pawn.job.set", Reason: "starving", Param: "eat a meal"),
@@ -66,7 +75,7 @@ namespace RimMind.Tests.Contracts
             var tools = new ToolRegistry();
             var jobTool = new RecordingToolHandler("pawn_job_set");
             tools.Register(jobTool);
-            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, () => Array.Empty<IToolArgumentAdapter>());
+            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, CoreAdapters);
 
             executor.ExecuteDecision(new AgentDecision(ActionIntent: "pawn_job_set", Reason: "", Param: "{}"), pawnId: 5);
 

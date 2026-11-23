@@ -19,7 +19,8 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("domain does not depend on infrastructure", () => AssertNoUsing("Domain", "RimMind.Infrastructure")),
                 ("domain does not depend on Verse", () => AssertNoUsing("Domain", "Verse")),
                 ("domain does not depend on Harmony", () => AssertNoUsing("Domain", "HarmonyLib")),
-                ("domain does not depend on Unity", () => AssertNoUsing("Domain", "UnityEngine")));
+                ("domain does not depend on Unity", () => AssertNoUsing("Domain", "UnityEngine")),
+                ("domain does not depend on RimWorld", () => AssertNoUsing("Domain", "RimWorld")));
         }
 
         [Fact]
@@ -62,19 +63,19 @@ namespace RimMind.Core.ArchTests.Contracts
 
         private static CsprojAnalysis Project(string directory, string projectName)
         {
-            string source = RequireSourceDirectory();
+            string source = ArchTestExtensions.RequireSourceDirectory();
             return ArchTestExtensions.AnalyzeCsproj(Path.GetFullPath(Path.Combine(source, directory, projectName)));
         }
 
         private static void AssertNoUsing(string relativeLayer, string forbiddenNamespace)
         {
-            string source = RequireSourceDirectory();
+            string source = ArchTestExtensions.RequireSourceDirectory();
             string layer = Path.Combine(source, relativeLayer);
             var pattern = new Regex(
                 $@"^\s*using\s+(?:global::)?{Regex.Escape(forbiddenNamespace)}(?:\.|;)",
                 RegexOptions.Multiline | RegexOptions.CultureInvariant);
-            IReadOnlyList<string> violations = SourceFiles(layer)
-                .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+            IReadOnlyList<string> violations = ArchTestExtensions.SourceFiles(layer)
+                .Where(file => pattern.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                 .Select(file => Path.GetRelativePath(source, file))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -82,31 +83,6 @@ namespace RimMind.Core.ArchTests.Contracts
             Assert.True(
                 violations.Count == 0,
                 $"{relativeLayer} must not reference {forbiddenNamespace}:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
-        }
-
-        private static string StripCommentsAndStrings(string source)
-        {
-            return Regex.Replace(
-                source,
-                @"@""(?:""""|[^""])*""|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])'|//[^\r\n]*|/\*.*?\*/",
-                " ",
-                RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        }
-
-        private static IEnumerable<string> SourceFiles(string directory)
-        {
-            return Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part =>
-                    part.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("backup", StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private static string RequireSourceDirectory()
-        {
-            string source = ArchTestExtensions.FindSourceDirectory();
-            Assert.True(Directory.Exists(source), "RimMind-Core/Source must be discoverable.");
-            return source;
         }
     }
 }

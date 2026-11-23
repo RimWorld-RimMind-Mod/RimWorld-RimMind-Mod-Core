@@ -61,7 +61,8 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("new ProactiveBehaviorExecutor(", thinker, StringComparison.Ordinal);
                     Assert.Contains("_completionFence);", thinker, StringComparison.Ordinal);
                     Assert.Contains("ICompletionFence", executor, StringComparison.Ordinal);
-                    Assert.Contains("_completionFence);", executor, StringComparison.Ordinal);
+                    Assert.Contains("completionFence: _completionFence", executor, StringComparison.Ordinal);
+                    Assert.Contains("mainThreadDispatch: RimMindAPI.MainThread.Post", executor, StringComparison.Ordinal);
                 }),
                 ("non-streaming queue and client invocation preserve the linked token", () =>
                 {

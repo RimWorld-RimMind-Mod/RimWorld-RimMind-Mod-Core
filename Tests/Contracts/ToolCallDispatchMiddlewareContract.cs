@@ -21,6 +21,7 @@ using Xunit;
 
 namespace RimMind.Tests.Contracts
 {
+    [Collection("MechanismToolHandler")]
     public sealed class ToolCallDispatchMiddlewareContract
     {
         [Fact]

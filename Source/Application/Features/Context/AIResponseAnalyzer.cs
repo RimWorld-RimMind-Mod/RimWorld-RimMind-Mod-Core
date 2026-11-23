@@ -6,9 +6,9 @@ using RimMind.Domain.Llm;
 namespace RimMind.Application.Features.Context
 {
     /// <summary>
-    /// Heuristic analyzer: checks if AI response content contains substrings
-    /// from context messages, indicating the AI actually used that context.
-    /// Returns the LayerTag values of messages whose content was referenced.
+    /// Heuristic analyzer: checks if AI response content references text from
+    /// context entries, returning the context key names (matching
+    /// <see cref="ContextSnapshot.IncludedKeys"/>) that appear to have been used.
     /// </summary>
     public sealed class AIResponseAnalyzer
     {

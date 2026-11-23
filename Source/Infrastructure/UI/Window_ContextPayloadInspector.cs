@@ -144,13 +144,10 @@ namespace RimMind.Infrastructure.UI
 
         private void EnsurePawnSelection()
         {
-            if (_selectedPawn == null || _selectedPawn.Dead)
+            if (_selectedPawn == null || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(_selectedPawn))
             {
-                var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList();
-                if (colonists != null && colonists.Count > 0)
-                {
-                    _selectedPawn = colonists[0];
-                }
+                var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(Find.CurrentMap);
+                _selectedPawn = colonists.Count > 0 ? colonists[0] : null;
             }
         }
 
@@ -228,7 +225,7 @@ namespace RimMind.Infrastructure.UI
             Widgets.Label(titleRect, "RimMind.Inspector.ColonistsList".Translate());
             GUI.color = Color.white;
 
-            var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Where(p => !p.Dead).ToList() ?? new List<Pawn>();
+            var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(Find.CurrentMap);
             float rowHeight = 28f;
             Rect viewRect = new Rect(0f, 0f, rect.width - 16f, colonists.Count * rowHeight);
             Rect scrollRect = new Rect(rect.x + 4f, rect.y + 30f, rect.width - 8f, rect.height - 34f);

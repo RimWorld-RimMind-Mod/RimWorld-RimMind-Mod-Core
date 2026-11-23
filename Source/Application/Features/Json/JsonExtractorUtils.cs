@@ -1,4 +1,3 @@
-using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
@@ -64,19 +63,28 @@ namespace RimMind.Application.Features.Json
             }
         }
 
-        public static string? SafeGetString(JObject obj, string key)
+        public static string? SafeGetString(JObject? obj, string key)
         {
-            return obj.TryGetValue(key, out var token) ? token.Value<string>() : null;
+            if (obj == null || !obj.TryGetValue(key, out var token) || token == null || token.Type == JTokenType.Null || token.Type == JTokenType.Undefined)
+                return null;
+            try { return token.Type == JTokenType.String ? token.Value<string>() : token.ToString(); }
+            catch { return null; }
         }
 
-        public static int SafeGetInt(JObject obj, string key, int defaultValue = 0)
+        public static int SafeGetInt(JObject? obj, string key, int defaultValue = 0)
         {
-            return obj.TryGetValue(key, out var token) ? token.Value<int>() : defaultValue;
+            if (obj == null || !obj.TryGetValue(key, out var token) || token == null || token.Type == JTokenType.Null || token.Type == JTokenType.Undefined)
+                return defaultValue;
+            try { return token.Value<int>(); }
+            catch { return defaultValue; }
         }
 
-        public static bool SafeGetBool(JObject obj, string key, bool defaultValue = false)
+        public static bool SafeGetBool(JObject? obj, string key, bool defaultValue = false)
         {
-            return obj.TryGetValue(key, out var token) ? token.Value<bool>() : defaultValue;
+            if (obj == null || !obj.TryGetValue(key, out var token) || token == null || token.Type == JTokenType.Null || token.Type == JTokenType.Undefined)
+                return defaultValue;
+            try { return token.Value<bool>(); }
+            catch { return defaultValue; }
         }
 
         public static string? ExtractString(string json, string propertyName)

@@ -130,7 +130,7 @@ namespace RimMind.Application.Features.Context
             // StalenessTicks > 0 means "cache for this many ticks" — return cached if within window.
             if (cacheable && _entries.TryGetValue(cacheKey, out var entry))
             {
-                if (currentTicks - entry.ComputedAtTicks < def.StalenessTicks)
+                if (currentTicks >= entry.ComputedAtTicks && currentTicks - entry.ComputedAtTicks < def.StalenessTicks)
                 {
                     return ProviderCacheResult.Succeeded(entry.Value);
                 }
@@ -197,12 +197,14 @@ namespace RimMind.Application.Features.Context
         {
             if (currentTicks <= 0) return;
             int last = _lastSweepTicks;
-            if (currentTicks - last < SweepIntervalTicks) return;
+            if (currentTicks >= last && currentTicks - last < SweepIntervalTicks) return;
             if (Interlocked.CompareExchange(ref _lastSweepTicks, currentTicks, last) != last) return;
 
             foreach (var kvp in _entries)
             {
-                if (kvp.Value.StalenessTicks > 0 && currentTicks - kvp.Value.ComputedAtTicks >= kvp.Value.StalenessTicks)
+                if (kvp.Value.StalenessTicks > 0
+                    && (currentTicks < kvp.Value.ComputedAtTicks
+                        || currentTicks - kvp.Value.ComputedAtTicks >= kvp.Value.StalenessTicks))
                 {
                     _entries.TryRemove(kvp.Key, out _);
                 }
@@ -219,6 +221,7 @@ namespace RimMind.Application.Features.Context
         public void Clear()
         {
             _entries.Clear();
+            Interlocked.Exchange(ref _lastSweepTicks, 0);
             lock (_subscriptionSync)
             {
                 if (_bus == null)

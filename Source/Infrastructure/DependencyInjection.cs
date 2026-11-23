@@ -27,7 +27,6 @@ namespace RimMind.Infrastructure
         public IAudioPlayer AudioPlayer { get; init; } = null!;
         public ITickProvider TickProvider { get; init; } = null!;
         public IThreadChecker ThreadChecker { get; init; } = null!;
-        public IPathProvider PathProvider { get; init; } = null!;
         public ILogSink LogSink { get; init; } = null!;
         public ITranslationService TranslationService { get; init; } = null!;
         public IGameMechanismRegistry MechanismRegistry { get; init; } = null!;
@@ -49,8 +48,6 @@ namespace RimMind.Infrastructure
 
             var threadChecker = new VerseThreadChecker();
 
-            var pathProvider = new VersePathProvider();
-
             var logSink = new VerseLogSink();
 
             var translationService = new VerseTranslationService();
@@ -70,7 +67,6 @@ namespace RimMind.Infrastructure
                 AudioPlayer = audioPlayer,
                 TickProvider = tickProvider,
                 ThreadChecker = threadChecker,
-                PathProvider = pathProvider,
                 LogSink = logSink,
                 TranslationService = translationService,
                 MechanismRegistry = mechanismRegistry,
@@ -79,12 +75,6 @@ namespace RimMind.Infrastructure
                 Player2Lifecycle = player2Lifecycle,
                 RequestTraceLog = requestTraceLog
             };
-        }
-
-        public static void AddGameDependentServices()
-        {
-            // Verse creates save-owned components. RimMindRuntimeGameComponent
-            // publishes them together after StartedNewGame/LoadedGame.
         }
 
         public static void RegisterBuiltinClientFactories(IExtensionRegistry<IAIClientFactory> registry,

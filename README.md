@@ -104,11 +104,11 @@ Configurable via **Options -> Mod Settings -> RimMind-Core**:
 | Setting | Default | Description |
 |---|---|---|
 | **AI Provider** | `openai` | Supports OpenAI-compatible endpoints, DeepSeek, Player2, and extended gateways |
-| **API Endpoint & Backup Nodes** | `https://api.deepseek.com/v1` | Primary OpenAI Chat Completions URL plus optional `BackupEndpointNode` failover list |
-| **Model Name** | `deepseek-flash` | Target LLM model identifier (`deepseek-flash`, `deepseek-v4-pro`, `gpt-4o-mini`, etc.) |
+| **API Endpoint & Backup Nodes** | `https://api.openai.com/v1` | Primary OpenAI Chat Completions URL plus optional `BackupEndpointNode` failover list |
+| **Model Name** | `gpt-4o-mini` | Target LLM model identifier (`gpt-4o-mini`, `deepseek-chat`, local Ollama models, etc.) |
 | **Agent Autonomy Policies** | Domain-specific | Per-domain (`Survival`, `Work`, `Social`, `Colony`, `Governance`) level (`Auto`, `AutoWithNotify`, `RecommendOnly`) |
 | **Max Concurrent Requests** | `3` | Maximum simultaneous requests sent to the LLM (1~10) |
-| **Request Timeout** | `60s` | Maximum wait time for LLM response before timeout (10s~180s) |
+| **Request Timeout** | `120s` | Maximum wait time for LLM response before timeout (10s~300s) |
 | **Request Overlay** | `Enabled` | Floating status widget in the lower right showing active requests |
 | **Verbose Logging** | `Disabled` | Outputs detailed payload traces to `Player.log` |
 

@@ -39,9 +39,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Thought
 
             if (!string.IsNullOrEmpty(args.DefName))
             {
-                var thought = pawn.needs?.mood?.thoughts?.memories?.GetFirstMemoryOfDef(FindDef(args.DefName));
+                var thought = pawn.needs?.mood?.thoughts?.memories?.GetFirstMemoryOfDef(FindDef(args.DefName!));
                 if (thought == null)
-                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
                 var info = new { def = thought.def.defName, label = thought.LabelCap, moodOffset = thought.MoodOffset() };
                 return Task.FromResult(Result<string, RimMindError>.Ok(JsonConvert.SerializeObject(info)));
@@ -64,9 +64,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Thought
             if (string.IsNullOrEmpty(args.DefName))
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName("")));
 
-            var thoughtDef = FindDef(args.DefName);
+            var thoughtDef = FindDef(args.DefName!);
             if (thoughtDef == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
             pawn.needs?.mood?.thoughts?.memories?.TryGainMemory(thoughtDef);
             return Task.FromResult(Result<bool, RimMindError>.Ok(true));

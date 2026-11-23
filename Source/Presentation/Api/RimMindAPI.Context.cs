@@ -87,13 +87,13 @@ namespace RimMind.Presentation.Api
             private static SchemaRegistry Schemas => SchemaRegistries.Value;
 
             public static string SchemaPersonalityOutput
-                => Schemas.PersonalityOutput;
+                => Schemas.Find("PersonalityOutput") ?? string.Empty;
 
             public static string SchemaIncidentOutput
-                => Schemas.IncidentOutput;
+                => Schemas.Find("IncidentOutput") ?? string.Empty;
 
             public static string SchemaDarkMemoryOutput
-                => Schemas.DarkMemoryOutput;
+                => Schemas.Find("DarkMemoryOutput") ?? string.Empty;
 
             public static void RegisterSchema(string key, string schema)
                 => Schemas.Register(key, schema);

@@ -237,7 +237,7 @@ namespace RimMind.Presentation.Agent
 
             entries.Add(new ContextEntry(RimMindText.Tr("RimMind.Prompt.MapStatusHeader")));
 
-            if (ctx.IncludeGameTime)
+            if (ctx.IncludeGameTime && Find.TickManager != null && Find.WorldGrid != null)
             {
                 long ticks = Find.TickManager.TicksAbs;
                 Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
@@ -388,7 +388,7 @@ namespace RimMind.Presentation.Agent
         private static string CompressRenderedMapContext(string? raw)
         {
             if (string.IsNullOrEmpty(raw)) return string.Empty;
-            var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var lines = raw!.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
             var sb = new StringBuilder();
             foreach (var line in lines)
             {

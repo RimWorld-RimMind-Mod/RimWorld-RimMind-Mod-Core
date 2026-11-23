@@ -114,10 +114,29 @@ namespace RimMind.Presentation.Settings
             get => _settings.apiEndpoint ?? string.Empty;
             set => _settings.apiEndpoint = value;
         }
-        public string Player2RemoteUrl
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _providerOptions =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+        public string GetProviderOption(string key)
         {
-            get => _settings.player2RemoteUrl ?? string.Empty;
-            set => _settings.player2RemoteUrl = value;
+            if (string.IsNullOrWhiteSpace(key))
+                return string.Empty;
+            if (string.Equals(key, "player2.remote_url", System.StringComparison.OrdinalIgnoreCase))
+                return _settings.player2RemoteUrl ?? string.Empty;
+            return _providerOptions.TryGetValue(key, out var value) ? value : string.Empty;
+        }
+
+        public void SetProviderOption(string key, string value)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                return;
+            string normalized = value ?? string.Empty;
+            if (string.Equals(key, "player2.remote_url", System.StringComparison.OrdinalIgnoreCase))
+            {
+                _settings.player2RemoteUrl = normalized;
+                return;
+            }
+            _providerOptions[key] = normalized;
         }
 
         // IDebugSettings
@@ -202,6 +221,5 @@ namespace RimMind.Presentation.Settings
         // IApiCredentialSettings
         public System.Collections.Generic.IReadOnlyList<RimMind.Application.Common.Models.Client.BackupEndpointNode>? BackupEndpoints => _settings.GetBackupEndpointNodes();
         public bool IsConfigured => _settings.IsConfigured();
-        public bool IsOpenAIConfigured() => _settings.IsOpenAIConfigured();
     }
 }

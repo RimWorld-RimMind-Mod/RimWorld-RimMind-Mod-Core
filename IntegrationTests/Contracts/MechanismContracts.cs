@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Models.Mechanisms;
+using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Common;
 using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
@@ -94,49 +95,68 @@ namespace RimMind.IntegrationTests.Contracts
         }
 
         [Fact]
-        public async Task Mechanism_operation_boundary_preserves_results_and_risk()
+        public async Task Mechanism_tool_handlers_dispatch_operations_risk_and_declared_scopes()
         {
             await ContractCaseRunner.RunAsync(
-                ("query returns the mechanism value", async () =>
+                ("query handler dispatches through MechanismToolHandler and returns mechanism payload", async () =>
                 {
                     var mechanism = new StubMechanism("pawn.work", "Core", "priorities");
-                    Result<string, RimMindError> result = await mechanism.ExecuteQueryAsync(
-                        new MechanismReadArgs { MechanismId = "pawn.work" },
+                    var handler = new MechanismToolHandler(mechanism, mechanism, mechanism, mechanism, MechanismOperationType.Query);
+                    var result = await handler.ExecuteAsync(
+                        new ToolCallArgs { ToolCallId = "q-1", ToolName = handler.Id, ArgumentsJson = "{\"pawn_id\":7}" },
                         CancellationToken.None);
                     Assert.True(result.IsOk);
-                    Assert.Equal("priorities", result.Value);
+                    Assert.False(result.Value.IsError);
+                    Assert.Equal("priorities", result.Value.Content);
+                    Assert.Equal(ToolScope.MetaQuery, handler.Definition.Manifest!.Scopes);
                 }),
-                ("supported write returns success", async () =>
+                ("write handler forwards parsed arguments and exposes manifest risk and approval", async () =>
                 {
-                    var mechanism = new StubMechanism("pawn.work", "Core", "priorities");
-                    Result<bool, RimMindError> result = await mechanism.ExecuteSetAsync(
-                        new MechanismWriteArgs { MechanismId = "pawn.work", Action = "set_priority" },
+                    var mechanism = new StubMechanism("pawn.social", "Core", "priorities", MechanismRisk.Dangerous, ToolScope.Social | ToolScope.ColonistSelf);
+                    var handler = new MechanismToolHandler(mechanism, mechanism, mechanism, mechanism, MechanismOperationType.Set);
+                    Assert.Equal(RiskLevel.High, handler.Definition.Manifest!.RiskLevel);
+                    Assert.True(handler.Definition.Manifest.RequiresApproval);
+                    Assert.Equal(ToolScope.Social | ToolScope.ColonistSelf, handler.Definition.Manifest.Scopes);
+
+                    var result = await handler.ExecuteAsync(
+                        new ToolCallArgs { ToolCallId = "s-1", ToolName = handler.Id, ArgumentsJson = "{\"pawn_id\":7,\"action\":\"set_priority\"}" },
                         CancellationToken.None);
                     Assert.True(result.IsOk);
-                    Assert.True(result.Value);
+                    Assert.False(result.Value.IsError);
+                    Assert.Equal(7, mechanism.LastWriteArgs?.PawnId);
+                    Assert.Equal("set_priority", mechanism.LastWriteArgs?.Action);
                 }),
-                ("unsupported operation returns a typed error", async () =>
+                ("unsupported operation wraps typed error as tool error result", async () =>
                 {
                     var mechanism = new StubMechanism("pawn.work", "Core", "priorities");
-                    Result<bool, RimMindError> result = await mechanism.ExecuteAddAsync(
-                        new MechanismWriteArgs { MechanismId = "pawn.work", Action = "add" },
+                    var handler = new MechanismToolHandler(mechanism, mechanism, mechanism, mechanism, MechanismOperationType.Add);
+                    var result = await handler.ExecuteAsync(
+                        new ToolCallArgs { ToolCallId = "a-1", ToolName = handler.Id, ArgumentsJson = "{\"pawn_id\":7}" },
                         CancellationToken.None);
-                    Assert.True(result.IsErr);
-                    Assert.Equal(RimMindErrorCode.MechanismOperationNotSupported, result.Error.Code);
+                    Assert.True(result.IsOk);
+                    Assert.True(result.Value.IsError);
                 }),
-                ("list returns a stable read-only option set", async () =>
+                ("list handler serializes mechanism options and MechanismListToolHandler filters by category", async () =>
                 {
                     var mechanism = new StubMechanism("pawn.work", "Core", "priorities");
-                    Result<IReadOnlyList<MechanismEnumResult>, RimMindError> result =
-                        await mechanism.ExecuteListAsync(7, CancellationToken.None);
-                    Assert.True(result.IsOk);
-                    Assert.Collection(result.Value, item => Assert.Equal("option", item.DefName));
-                }),
-                ("operation risk is exposed through the public boundary", () =>
-                {
-                    var mechanism = new StubMechanism("pawn.work", "Core", "priorities", MechanismRisk.Dangerous);
-                    Assert.Equal(MechanismRisk.Dangerous, mechanism.GetRiskForOperation(MechanismOperationType.Set));
-                    return Task.CompletedTask;
+                    var listHandler = new MechanismToolHandler(mechanism, mechanism, mechanism, mechanism, MechanismOperationType.List);
+                    var listResult = await listHandler.ExecuteAsync(
+                        new ToolCallArgs { ToolCallId = "l-1", ToolName = listHandler.Id, ArgumentsJson = "{\"pawn_id\":7}" },
+                        CancellationToken.None);
+                    Assert.True(listResult.IsOk);
+                    Assert.False(listResult.Value.IsError);
+                    Assert.Contains("option", listResult.Value.Content, StringComparison.Ordinal);
+
+                    var listToolHandler = new MechanismListToolHandler(
+                        mechanism,
+                        mechanism,
+                        new MechanismToolHelper.FallbackJsonExtractor());
+                    var catalogResult = await listToolHandler.ExecuteAsync(
+                        new ToolCallArgs { ToolCallId = "cat-1", ToolName = listToolHandler.Id, ArgumentsJson = "{\"category\":\"opt\"}" },
+                        CancellationToken.None);
+                    Assert.True(catalogResult.IsOk);
+                    Assert.False(catalogResult.Value.IsError);
+                    Assert.Contains("option", catalogResult.Value.Content, StringComparison.Ordinal);
                 }));
         }
 
@@ -149,21 +169,24 @@ namespace RimMind.IntegrationTests.Contracts
             return registry;
         }
 
-        private sealed class StubMechanism : IGameMechanism
+        private sealed class StubMechanism : IGameMechanism, IMechanismScopeMetadata
         {
             private readonly string _ownerModId;
             private readonly string _queryValue;
+            private readonly ToolScope? _declaredWriteScope;
 
             public StubMechanism(
                 string mechanismId,
                 string ownerModId,
                 string queryValue,
-                MechanismRisk risk = MechanismRisk.Safe)
+                MechanismRisk risk = MechanismRisk.Safe,
+                ToolScope? declaredWriteScope = null)
             {
                 MechanismId = mechanismId;
                 _ownerModId = ownerModId;
                 _queryValue = queryValue;
                 Risk = risk;
+                _declaredWriteScope = declaredWriteScope;
                 SupportedOperations = new[]
                 {
                     MechanismOperationType.Query,
@@ -172,6 +195,7 @@ namespace RimMind.IntegrationTests.Contracts
                 };
             }
 
+            public MechanismWriteArgs? LastWriteArgs { get; private set; }
             string IExtension.Id => MechanismId;
             string IExtension.OwnerModId => _ownerModId;
             public string MechanismId { get; }
@@ -180,6 +204,11 @@ namespace RimMind.IntegrationTests.Contracts
             public IReadOnlyList<MechanismOperationType> SupportedOperations { get; }
             public MechanismDocs Docs { get; } = new() { Summary = "contract mechanism" };
 
+            public ToolScope? GetToolScopeForOperation(MechanismOperationType operation)
+                => operation is MechanismOperationType.Query or MechanismOperationType.List
+                    ? ToolScope.MetaQuery
+                    : _declaredWriteScope;
+
             public Task<Result<string, RimMindError>> ExecuteQueryAsync(
                 MechanismReadArgs args,
                 CancellationToken ct) =>
@@ -187,8 +216,11 @@ namespace RimMind.IntegrationTests.Contracts
 
             public Task<Result<bool, RimMindError>> ExecuteSetAsync(
                 MechanismWriteArgs args,
-                CancellationToken ct) =>
-                Task.FromResult(Result<bool, RimMindError>.Ok(true));
+                CancellationToken ct)
+            {
+                LastWriteArgs = args;
+                return Task.FromResult(Result<bool, RimMindError>.Ok(true));
+            }
 
             public Task<Result<bool, RimMindError>> ExecuteAddAsync(
                 MechanismWriteArgs args,

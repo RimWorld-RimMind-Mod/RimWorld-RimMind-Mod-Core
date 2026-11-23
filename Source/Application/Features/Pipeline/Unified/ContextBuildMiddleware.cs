@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Abstractions;

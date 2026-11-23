@@ -11,11 +11,9 @@ namespace RimMind.Application.Features.Context
         private readonly DiffComputer _computer = new();
         private readonly DiffRecorder _recorder;
         private readonly DiffMerger _merger = new();
-        private readonly ILogSink? _log;
 
         public ContextDiffTracker(ILogSink? log = null)
         {
-            _log = log;
             _recorder = new DiffRecorder();
         }
 
@@ -31,7 +29,7 @@ namespace RimMind.Application.Features.Context
 
         public void MergeExpiredDiffs(string npcId, IContextCacheManager cacheManager)
         {
-            if (_recorder.TryGetDiffStore(npcId, out var diffs))
+            if (_recorder.TryTakeDiffStore(npcId, out var diffs))
                 _merger.MergeExpired(npcId, diffs, cacheManager);
         }
 
@@ -40,24 +38,36 @@ namespace RimMind.Application.Features.Context
         {
             if (keys == null || keys.Count == 0) return;
 
-            // Get current values from L1 block cache
+            // Get current values from L1 block cache and map each key to its declared layer
             var newValues = new Dictionary<string, string>();
+            var keyLayers = new Dictionary<string, ContextLayer>();
             if (cacheManager.TryGetL1BlockCache(npcId, out var cachedBlocks))
             {
                 foreach (var key in keys)
                 {
+                    keyLayers[key.Key] = key.Layer;
                     if (cachedBlocks.TryGetValue(key.Key, out var value))
                         newValues[key.Key] = value;
                 }
+            }
+            else
+            {
+                foreach (var key in keys)
+                    keyLayers[key.Key] = key.Layer;
             }
 
             // Get old values from recorder
             if (!_recorder.TryGetKeyLastValues(npcId, out var oldValues))
                 oldValues = new Dictionary<string, string>();
 
-            // Compute diffs
-            var layer = keys[0].Layer;
-            var diffs = _computer.Compute(oldValues, newValues, layer);
+            // Compute diffs and preserve each key's declared ContextLayer
+            var fallbackLayer = keys[0].Layer;
+            var diffs = _computer.Compute(oldValues, newValues, fallbackLayer);
+            for (int i = 0; i < diffs.Count; i++)
+            {
+                if (keyLayers.TryGetValue(diffs[i].Key, out var keyLayer))
+                    diffs[i].Layer = keyLayer;
+            }
 
             // Record diffs and update last values
             if (diffs.Count > 0)

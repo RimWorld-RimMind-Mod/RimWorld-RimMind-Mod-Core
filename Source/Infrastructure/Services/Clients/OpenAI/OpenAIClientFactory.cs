@@ -69,7 +69,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             var resolvedSettings = settings != null
                 ? new OpenAISettingsAdapter(settings)
                 : _openAISettings;
-            if (resolvedSettings == null) return null;
+            if (resolvedSettings == null) return null!;
             return new OpenAIClient(resolvedSettings, _logSink);
         }
 
@@ -90,7 +90,27 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
             public float DefaultTemperature => _settings.DefaultTemperature;
             public bool DebugLogging => _settings.DebugLogging;
             public System.Collections.Generic.IReadOnlyList<RimMind.Application.Common.Models.Client.BackupEndpointNode>? BackupEndpoints => _settings.BackupEndpoints;
-            public bool IsConfigured() => _settings.IsOpenAIConfigured();
+            public bool IsConfigured()
+            {
+                if (!string.IsNullOrWhiteSpace(_settings.ApiEndpoint)
+                    && (!string.IsNullOrWhiteSpace(_settings.ApiKey)
+                        || RimMind.Application.Features.Llm.RimMindHttpClientPool.IsLoopbackEndpoint(_settings.ApiEndpoint)))
+                {
+                    return true;
+                }
+
+                var backups = _settings.BackupEndpoints;
+                if (backups != null)
+                {
+                    for (int i = 0; i < backups.Count; i++)
+                    {
+                        if (backups[i]?.IsConfigured == true)
+                            return true;
+                    }
+                }
+
+                return false;
+            }
         }
     }
 }

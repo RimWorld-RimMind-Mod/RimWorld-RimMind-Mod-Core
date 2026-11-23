@@ -145,7 +145,7 @@ namespace RimMind.Infrastructure.UI
         {
             RuntimeServiceScope runtimeScope = RuntimeServiceHub.Shared.Capture();
             var keys = runtimeScope.GetOptional<IContextKeyRegistry>()?.GetAll();
-            if (keys.Count == 0)
+            if (keys == null || keys.Count == 0)
             {
                 Log.Message("[RimMind-Core] No registered context keys.");
                 return;

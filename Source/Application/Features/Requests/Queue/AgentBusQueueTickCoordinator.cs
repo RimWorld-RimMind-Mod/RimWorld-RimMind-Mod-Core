@@ -1,6 +1,5 @@
 using System;
 using RimMind.Application.Common.Interfaces;
-using RimMind.Application.Common.Interfaces.Internal;
 
 namespace RimMind.Application.Features.Requests.Queue
 {

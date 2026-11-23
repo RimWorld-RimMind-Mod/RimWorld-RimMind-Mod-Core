@@ -281,14 +281,19 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 if (colonist1 != null)
                 {
                     MoteMaker.ThrowText(colonist1.DrawPos + new Vector3(0f, 0f, 1.35f), map,
-                        "“再吃靴子味的营养膏，本小姐就要去弹药库打保龄球了！”", new Color(1f, 0.85f, 0.45f), 25f);
+                        RimMindText.TrOr("RimMind.Showcase.Advisor.Mote", "\"One more boot-flavored nutrient paste meal and I'm bowling in the mortar shell depot!\""),
+                        new Color(1f, 0.85f, 0.45f), 25f);
                 }
             }
             var advisorReq = new RequestEntry
             {
-                title = "傲娇女仆贝拉的绝食抗议 (Bella's Hunger Strike)",
-                description = "“本小姐已经连续吃了3天靴子味的营养膏了！如果晚餐再没有炙烤牛排，我就去弹药库把迫击炮弹当保龄球打！”",
-                options = new[] { "批准：烹饪精致牛排", "驳回：老实吃营养膏" },
+                title = RimMindText.TrOr("RimMind.Showcase.Advisor.Title", "Bella's Hunger Strike Protest"),
+                description = RimMindText.TrOr("RimMind.Showcase.Advisor.Desc", "\"I have eaten boot-flavored nutrient paste for 3 days straight! If dinner isn't seared steak, I'm taking the mortar shells bowling!\""),
+                options = new[]
+                {
+                    RimMindText.TrOr("RimMind.Showcase.Advisor.Approve", "Approve: Cook Fine Steak"),
+                    RimMindText.TrOr("RimMind.Showcase.Advisor.Reject", "Reject: Stick to Paste")
+                },
                 source = "RimMind-Advisor"
             };
             RequestOverlay.SetWindowRectForTest(new Rect(Screen.width * 0.5f - 260f, 95f, 520f, 185f));
@@ -321,12 +326,14 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 if (colonist1 != null)
                 {
                     MoteMaker.ThrowText(colonist1.DrawPos + new Vector3(-0.8f, 0f, 1.35f), map,
-                        "“终于端上热气腾腾的烤肉排了，今晚总算不用啃皮靴营养膏啦！”", Color.white, 25f);
+                        RimMindText.TrOr("RimMind.Showcase.Dialogue.Line1", "\"Finally, sizzling grilled steak! No more chewing boot-flavored paste tonight!\""),
+                        Color.white, 25f);
                 }
                 if (colonist2 != null && colonist2 != colonist1)
                 {
                     MoteMaker.ThrowText(colonist2.DrawPos + new Vector3(0.8f, 0f, 1.55f), map,
-                        "“敬大厨一杯！+6 社交好感度 ❤️ [THOUGHT: GRATEFUL]”", new Color(1f, 0.5f, 0.75f), 25f);
+                        RimMindText.TrOr("RimMind.Showcase.Dialogue.Line2", "\"Cheers to the chef! +6 Social Opinion [THOUGHT: GRATEFUL]\""),
+                        new Color(1f, 0.5f, 0.75f), 25f);
                 }
             }
             yield return null;
@@ -374,8 +381,8 @@ namespace RimMind.Infrastructure.UI.DebugActions
             Log.Message("[RimMind-Core] Staging Scene 7: 07-storyteller-playthrough.jpg...");
             ClearAllLetters();
             ChoiceLetter letter = (ChoiceLetter)LetterMaker.MakeLetter(
-                "因果律的制裁：狂怒鼠群的复仇",
-                "AI 叙事者已编排戏剧性事件：\n昨天贝拉击退松鼠并在屁股上留下牙印的事件引发了连锁因果反扑！\n\n根据地底啮齿类动物情报网的报告，附近的松鼠家族认为此举严重侵犯了森林主权。一支由 18 只狂暴嗜血松鼠组成的远征军正向殖民地奔袭而来……\n\n“它们目光如炬，誓要为昨天的屁股咬痕讨回公道！”",
+                RimMindText.TrOr("RimMind.Showcase.Storyteller.Title", "Causal Retribution: Revenge of the Mad Squirrel Swarm"),
+                RimMindText.TrOr("RimMind.Showcase.Storyteller.Body", "AI Storyteller orchestrated a dramatic event:\nYesterday's squirrel skirmish triggered a causal retaliation!\n\nAccording to underground rodent intelligence, the local squirrel clans consider the act a grave violation of forest sovereignty. An expedition of 18 maddened squirrels is charging toward the colony...\n\n\"Eyes blazing, they have come to settle yesterday's score!\""),
                 LetterDefOf.ThreatBig);
             Find.LetterStack.ReceiveLetter(letter);
             letter.OpenLetter();
@@ -622,14 +629,44 @@ namespace RimMind.Infrastructure.UI.DebugActions
                     ?? GameServiceHub.Shared.Capture().GetOptional<IAIRequestTraceLog>();
                 if (traceLog != null)
                 {
-                    traceLog.StartRequest("req-personality-1", "RimMind-Personality", "deepseek-flash", "破晓心境自白", "观察日出麦浪", "");
-                    traceLog.CompleteRequest("req-personality-1", "“初升的朝阳照在木屋与麦浪上，虽然昨天屁股被松鼠咬得很痛，但有热饭和伙伴在身边，生活依旧充满希望。”", 340, 180);
+                    traceLog.StartRequest(
+                        "req-personality-1",
+                        "RimMind-Personality",
+                        "demo-model",
+                        RimMindText.TrOr("RimMind.Showcase.Trace.PersonalityScenario", "Dawn Reflection"),
+                        RimMindText.TrOr("RimMind.Showcase.Trace.PersonalityPrompt", "Watching sunrise over the wheat field"),
+                        "");
+                    traceLog.CompleteRequest(
+                        "req-personality-1",
+                        RimMindText.TrOr("RimMind.Showcase.Trace.PersonalityReply", "\"Morning sunlight warms the wooden lodge and wheat fields. Yesterday's squirrel bite still stings, yet with hot meals and friends nearby, life remains full of hope.\""),
+                        340,
+                        180);
 
-                    traceLog.StartRequest("req-actions-1", "RimMind-Actions", "deepseek-flash", "自主建造决策", "place_blueprint(Bed, WoodLog)", "");
-                    traceLog.CompleteRequest("req-actions-1", "{\"tool\":\"place_blueprint\",\"building_def\":\"Bed\",\"stuff_def\":\"WoodLog\",\"reason\":\"为同伴补充温暖的木床\"}", 412, 210);
+                    traceLog.StartRequest(
+                        "req-actions-1",
+                        "RimMind-Actions",
+                        "demo-model",
+                        RimMindText.TrOr("RimMind.Showcase.Trace.ActionsScenario", "Autonomous Build Decision"),
+                        "place_blueprint(Bed, WoodLog)",
+                        "");
+                    traceLog.CompleteRequest(
+                        "req-actions-1",
+                        RimMindText.TrOr("RimMind.Showcase.Trace.ActionsReply", "{\"tool\":\"place_blueprint\",\"building_def\":\"Bed\",\"stuff_def\":\"WoodLog\",\"reason\":\"Build a warm wooden bed for companions\"}"),
+                        412,
+                        210);
 
-                    traceLog.StartRequest("req-dialogue-1", "RimMind-Dialogue", "deepseek-flash", "食堂晚宴交谈", "express_dialogue(speech, relation_delta=+6)", "");
-                    traceLog.CompleteRequest("req-dialogue-1", "“终于端上热气腾腾的烤肉排了，今晚总算不用啃皮靴营养膏啦！”", 285, 165);
+                    traceLog.StartRequest(
+                        "req-dialogue-1",
+                        "RimMind-Dialogue",
+                        "demo-model",
+                        RimMindText.TrOr("RimMind.Showcase.Trace.DialogueScenario", "Dining Hall Banter"),
+                        "express_dialogue(speech, relation_delta=+6)",
+                        "");
+                    traceLog.CompleteRequest(
+                        "req-dialogue-1",
+                        RimMindText.TrOr("RimMind.Showcase.Dialogue.Line1", "\"Finally, sizzling grilled steak! No more chewing boot-flavored paste tonight!\""),
+                        285,
+                        165);
                 }
 
                 // Populate RimMind-Dialogue overlay via reflection so top-left HUD shows real colonist banter
@@ -649,7 +686,7 @@ namespace RimMind.Infrastructure.UI.DebugActions
                                 colonist2,
                                 chitchatVal,
                                 "Evening meal in the wooden dining hall",
-                                "终于端上热气腾腾的烤肉排了，今晚总算不用啃皮靴营养膏啦！",
+                                RimMindText.TrOr("RimMind.Showcase.Dialogue.HudLine1", "Finally, sizzling grilled steak! No more chewing boot-flavored paste tonight!"),
                                 "AMUSED",
                                 "Enjoying hot steak in the dining room"
                             });
@@ -661,7 +698,7 @@ namespace RimMind.Infrastructure.UI.DebugActions
                                     colonist1,
                                     chitchatVal,
                                     "Evening meal reply",
-                                    "敬大厨一杯！木屋里点上火把暖和多了，明天我们把北边的稻田也收割入库吧。",
+                                    RimMindText.TrOr("RimMind.Showcase.Dialogue.HudLine2", "Cheers to the chef! The torches keep the lodge cozy — tomorrow let's harvest the northern rice fields."),
                                     "GRATEFUL",
                                     "Grateful for warm food and shelter"
                                 });

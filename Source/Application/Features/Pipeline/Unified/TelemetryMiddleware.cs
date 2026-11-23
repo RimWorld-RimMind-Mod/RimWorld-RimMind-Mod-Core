@@ -1,12 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Flywheel;
 using RimMind.Application.Common.Interfaces.Pipeline;
 using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Pipeline;
-using RimMind.Domain.Llm;
+using RimMind.Application.Features.Llm;
 using RimMind.Domain.ValueObjects;
 
 namespace RimMind.Application.Features.Pipeline.Unified
@@ -34,15 +36,16 @@ namespace RimMind.Application.Features.Pipeline.Unified
             await next(context);
 
             var elapsed = (DateTime.UtcNow - start).TotalMilliseconds;
+            int toolCallCount = ResolveToolCallCount(context);
 
-            var tags = new System.Collections.Generic.Dictionary<string, string>
+            var tags = new Dictionary<string, string>
             {
                 { "scenario", context.Envelope?.ScenarioId ?? "unknown" },
                 { "is_streaming", (context.Envelope?.IsStreaming ?? false).ToString() },
                 { "npc_id", context.Envelope?.NpcId ?? "none" },
                 { "mode_id", context.AgentModeId.Value },
                 { "trace_id", context.TraceId ?? "none" },
-                { "tool_call_count", (context.ToolCallResults?.Count ?? 0).ToString() }
+                { "tool_call_count", toolCallCount.ToString() }
             };
 
             // Record timing
@@ -64,7 +67,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
             {
                 tags["error_code"] = context.Result.Value.Error.Code.ToString();
                 _telemetry?.Record("unified_request_failure", 1, tags);
-                if (context.Result.Value.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedTelemetry] Request failed: {context.Result.Value.Error.Message} ({elapsed:F0}ms)");
+                if (context.Result.Value.Error.Code != RimMindErrorCode.Cancelled)
+                    _log?.Warning($"[UnifiedTelemetry] Request failed: {LogSecretRedactor.ForLog(context.Result.Value.Error.Message)} ({elapsed:F0}ms)");
             }
             else if (context.IsShortCircuited)
             {
@@ -73,6 +77,25 @@ namespace RimMind.Application.Features.Pipeline.Unified
             }
 
             _log?.Message($"[UnifiedTelemetry] Request {context.Envelope?.RequestId} completed in {elapsed:F0}ms");
+        }
+
+        private static int ResolveToolCallCount(LlmRequestContext context)
+        {
+            if (context.ToolCallResults != null && context.ToolCallResults.Count > 0)
+                return context.ToolCallResults.Count;
+
+            string? toolCallsJson = context.Result?.IsOk == true ? context.Result.Value.Value?.ToolCallsJson : null;
+            if (string.IsNullOrWhiteSpace(toolCallsJson))
+                return 0;
+
+            try
+            {
+                return JArray.Parse(toolCallsJson!).Count;
+            }
+            catch
+            {
+                return 0;
+            }
         }
     }
 }

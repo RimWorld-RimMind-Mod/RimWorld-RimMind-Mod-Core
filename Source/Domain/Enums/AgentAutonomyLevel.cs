@@ -1,7 +1,8 @@
 namespace RimMind.Domain.Enums
 {
     /// <summary>
-    /// Controls how much autonomy an agent has in executing decisions.
+    /// Global risk-threshold autonomy setting persisted in ModSettings (coarse gate).
+    /// Distinct from per-domain <see cref="Policies.AutonomyLevel"/> used by <see cref="Policies.AgentAutonomyPolicy"/>.
     /// <list type="bullet">
     ///   <item><c>Manual</c> — Agent only thinks; every decision requires player approval.</item>
     ///   <item><c>Guided</c> — Low/Medium risk actions auto-execute; High/Critical require approval.</item>

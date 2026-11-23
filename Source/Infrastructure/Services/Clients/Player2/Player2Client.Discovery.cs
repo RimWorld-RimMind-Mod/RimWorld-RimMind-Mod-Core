@@ -89,7 +89,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                         {
                             _lastProbeUtc = DateTime.UtcNow;
                         }
-                        logSink?.LogFromBackground($"[RimMind-Core] Player2 probe error: {ex.Message}");
+                        logSink?.LogFromBackground($"[RimMind-Core] Player2 probe error: {Shared.LogSanitizer.ForLog(ex.Message)}");
                         return null;
                     }
                 });
@@ -103,7 +103,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             var task = ProbeLocalPlayer2KeyAsync(logSink);
             if (task.IsCompleted)
             {
-                if (!string.IsNullOrEmpty(task.Result))
+                if (task.Status == TaskStatus.RanToCompletion && !string.IsNullOrEmpty(task.Result))
                 {
                     client.UpdateDiscoveredKey(task.Result!, isLocal: true);
                 }
@@ -161,7 +161,7 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             }
             catch (Exception ex)
             {
-                logSink?.LogFromBackground($"[RimMind-Core] Local Player2 detection failed: {ex.Message}");
+                logSink?.LogFromBackground($"[RimMind-Core] Local Player2 detection failed: {Shared.LogSanitizer.ForLog(ex.Message)}");
                 return null;
             }
         }

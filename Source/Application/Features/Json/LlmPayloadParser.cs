@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -40,6 +39,11 @@ namespace RimMind.Application.Features.Json
 
         private static readonly Regex PseudoFunctionCallRegex = new Regex(
             @"\b(?<fn>[a-z_][a-z0-9_.]*)\((?<inner>[\s\S]+?)\)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled,
+            RegexTimeout);
+
+        private static readonly Regex MalformedTailPseudoCallRegex = new Regex(
+            @"\b(?<fn>[a-z_][a-z0-9_.]*)\((?<inner>[\s\S]+?)\)?\s*$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled,
             RegexTimeout);
 
@@ -254,6 +258,29 @@ namespace RimMind.Application.Features.Json
                             ArgumentsJson = jObj.ToString(Formatting.None),
                             Reason = ExtractReasonFromObject(jObj)
                         });
+                    }
+                }
+
+                if (results.Count == 0)
+                {
+                    var tailMatch = MalformedTailPseudoCallRegex.Match(cleaned);
+                    if (tailMatch.Success)
+                    {
+                        string fnName = tailMatch.Groups["fn"].Value;
+                        if (IsValidToolIdentifier(fnName))
+                        {
+                            string inner = tailMatch.Groups["inner"].Value.Trim();
+                            var jObj = ParseKeyValueInner(inner);
+                            if (jObj != null && jObj.HasValues)
+                            {
+                                results.Add(new ParsedPseudoFunctionCall
+                                {
+                                    Name = fnName,
+                                    ArgumentsJson = jObj.ToString(Formatting.None),
+                                    Reason = ExtractReasonFromObject(jObj)
+                                });
+                            }
+                        }
                     }
                 }
             }

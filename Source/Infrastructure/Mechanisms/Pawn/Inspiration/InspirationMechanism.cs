@@ -56,9 +56,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Inspiration
             if (string.IsNullOrEmpty(args.DefName))
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName("")));
 
-            var inspirationDef = FindDef(args.DefName);
+            var inspirationDef = FindDef(args.DefName!);
             if (inspirationDef == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
             pawn.mindState?.inspirationHandler?.TryStartInspiration(inspirationDef);
             return Task.FromResult(Result<bool, RimMindError>.Ok(true));

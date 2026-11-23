@@ -41,7 +41,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Skill
             {
                 var skill = pawn.skills?.skills?.FirstOrDefault(s => s.def.defName == args.DefName);
                 if (skill == null)
-                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
                 var info = new { def = args.DefName, level = skill.Level, passion = skill.passion.ToString() };
                 return Task.FromResult(Result<string, RimMindError>.Ok(JsonConvert.SerializeObject(info)));
@@ -66,7 +66,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Skill
 
             var skill = pawn.skills?.skills?.FirstOrDefault(s => s.def.defName == args.DefName);
             if (skill == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
             if (args.Action == "learn_xp" && float.TryParse(args.ValueJson, out var xp))
             {

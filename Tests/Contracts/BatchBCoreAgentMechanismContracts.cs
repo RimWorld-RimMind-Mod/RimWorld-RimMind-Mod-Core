@@ -37,6 +37,7 @@ using Xunit;
 
 namespace RimMind.Tests.Contracts
 {
+    [Collection("MechanismToolHandler")]
     public sealed class BatchBCoreAgentMechanismContracts
     {
         [Fact]

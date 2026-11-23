@@ -14,7 +14,6 @@ using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Features.Agent;
 using RimMind.Application.Features.Agent.InnerVoice;
 using RimMind.Application.Features.Agent.Modes;
-using RimMind.Application.Features.Agent.Psychology;
 using RimMind.Application.Features.Agent.Social;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Domain.Events;
@@ -60,11 +59,6 @@ namespace RimMind.Presentation.Runtime.Composition
             services.Bind<ITraitEvolver>(traitEvolver);
 
             IDreamThoughtInjector? dreamThoughtInjector = null;
-            if (thoughtInjector != null)
-            {
-                dreamThoughtInjector = new RimMind.Infrastructure.Social.VerseDreamThoughtInjector(thoughtInjector);
-                services.Bind<IDreamThoughtInjector>(dreamThoughtInjector);
-            }
 
             var agentLoopScheduler = new AgentLoopScheduler(logSink);
             services.Bind<IAgentLoopScheduler>(agentLoopScheduler);

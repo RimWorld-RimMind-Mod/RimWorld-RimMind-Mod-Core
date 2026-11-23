@@ -21,9 +21,16 @@ namespace RimMind.Presentation.Api
                     ? key.TranslateSimple()
                     : effectiveFallback;
 
-                return args == null || args.Length == 0
-                    ? template
-                    : string.Format(template, args);
+                if (args == null || args.Length == 0)
+                    return template;
+
+                if (template.IndexOf("{0}", StringComparison.Ordinal) < 0
+                    && effectiveFallback.IndexOf("{0}", StringComparison.Ordinal) >= 0)
+                {
+                    template = effectiveFallback;
+                }
+
+                return string.Format(template, args);
             }
             catch
             {

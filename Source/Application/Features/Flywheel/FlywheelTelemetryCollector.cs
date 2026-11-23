@@ -12,10 +12,9 @@ namespace RimMind.Application.Features.Flywheel
     {
         private readonly ConcurrentQueue<TelemetryRecord> _records
             = new ConcurrentQueue<TelemetryRecord>();
-        private readonly ILogSink? _log;
         private const int MaxRecords = RimMindDefaults.TelemetryMaxRecords;
 
-        public FlywheelTelemetryCollector(ILogSink? log = null) { _log = log; }
+        public FlywheelTelemetryCollector(ILogSink? log = null) { }
 
         public void Record(string metric, float value, Dictionary<string, string>? tags = null)
         {
@@ -33,11 +32,13 @@ namespace RimMind.Application.Features.Flywheel
 
         public List<TelemetryRecord> GetRecent(int count = RimMindDefaults.TelemetryRecordLimit)
         {
-            var result = new List<TelemetryRecord>();
-            foreach (var r in _records)
+            if (count <= 0) return new List<TelemetryRecord>();
+            var snapshot = _records.ToArray();
+            int start = Math.Max(0, snapshot.Length - count);
+            var result = new List<TelemetryRecord>(snapshot.Length - start);
+            for (int i = start; i < snapshot.Length; i++)
             {
-                result.Add(r);
-                if (result.Count >= count) break;
+                result.Add(snapshot[i]);
             }
             return result;
         }

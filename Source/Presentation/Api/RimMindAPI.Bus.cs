@@ -79,9 +79,6 @@ namespace RimMind.Presentation.Api
 
             public static void InvalidateClientCache()
                 => CurrentRuntime.InvalidateClientCache();
-
-            public static IAIClient? GetPlayer2Client()
-                => CurrentRuntime.GetPlayer2Client();
         }
     }
 }

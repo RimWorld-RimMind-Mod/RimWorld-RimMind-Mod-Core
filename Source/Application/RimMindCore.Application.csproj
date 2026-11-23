@@ -27,7 +27,4 @@
     <InternalsVisibleTo Include="RimMindCore.Integration.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
-  </ItemGroup>
-
 </Project>

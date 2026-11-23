@@ -7,11 +7,26 @@ namespace RimMind.Infrastructure.Services.Verse
 {
     public sealed class VerseTranslationService : ITranslationService
     {
+        public bool CanTranslate(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+                return false;
+
+            try
+            {
+                return UnityData.IsInMainThread && key.CanTranslate();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static string TranslateSafe(string key)
         {
             try
             {
-                if (!string.IsNullOrEmpty(key) && key.CanTranslate())
+                if (!string.IsNullOrEmpty(key) && UnityData.IsInMainThread && key.CanTranslate())
                     return key.TranslateSimple();
                 return key ?? string.Empty;
             }
@@ -24,7 +39,7 @@ namespace RimMind.Infrastructure.Services.Verse
             {
                 if (string.IsNullOrEmpty(key))
                     return string.Empty;
-                string template = key.CanTranslate() ? key.TranslateSimple() : key;
+                string template = UnityData.IsInMainThread && key.CanTranslate() ? key.TranslateSimple() : key;
                 if (args == null || args.Length == 0)
                     return template;
                 return string.Format(template, args);

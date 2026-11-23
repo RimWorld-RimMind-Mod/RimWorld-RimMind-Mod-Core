@@ -63,9 +63,9 @@ namespace RimMind.Infrastructure.Mechanisms.World.Storyteller
             if (string.IsNullOrEmpty(args.DefName))
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName("")));
 
-            var incidentDef = FindDef(args.DefName);
+            var incidentDef = FindDef(args.DefName!);
             if (incidentDef == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
             var map = ResolveMap(args);
             if (map == null)

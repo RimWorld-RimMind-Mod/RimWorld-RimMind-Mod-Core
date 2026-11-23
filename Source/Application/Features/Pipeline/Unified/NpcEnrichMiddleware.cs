@@ -45,7 +45,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
                     var npcProfile = npcManager?.GetNpc(npcIdText);
                     if (npcProfile != null)
                     {
-                        context.Items["NpcProfile"] = npcProfile;
+                        context.Items[PipelineContextKeys.NpcProfile] = npcProfile;
                         _log?.Message($"[UnifiedNpcEnrich] NPC {npcIdText} enriched");
                     }
                 }

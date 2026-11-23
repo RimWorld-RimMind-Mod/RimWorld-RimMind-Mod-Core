@@ -9,28 +9,17 @@ namespace RimMind.Application.Features.Requests.Queue
     {
         private readonly ConcurrentDictionary<string, int> _table
             = new ConcurrentDictionary<string, int>();
-        private readonly ILogSink? _log;
 
-        public CooldownTable(ILogSink? log = null) { _log = log; }
+        public CooldownTable(ILogSink? log = null) { }
 
-        public void Set(string modId, int ticksRemaining)
+        public void Set(string modId, int nextAllowedTick)
         {
-            _table[modId] = ticksRemaining;
+            _table[modId] = nextAllowedTick;
         }
 
         public int Get(string modId)
         {
             return _table.TryGetValue(modId, out var ticks) ? ticks : 0;
-        }
-
-        public void Tick()
-        {
-            foreach (var key in _table.Keys)
-            {
-                _table.AddOrUpdate(key, 0, (_, v) => Math.Max(0, v - 1));
-                if (_table.TryGetValue(key, out var v) && v <= 0)
-                    _table.TryRemove(key, out _);
-            }
         }
 
         public void Clear(string modId) => _table.TryRemove(modId, out _);
@@ -39,11 +28,6 @@ namespace RimMind.Application.Features.Requests.Queue
         public IReadOnlyDictionary<string, int> GetSnapshot()
         {
             return new Dictionary<string, int>(_table);
-        }
-
-        public int GetModCooldownTicks(string modId)
-        {
-            return Get(modId);
         }
 
         public bool IsOnCooldown(string modId, int currentTick)
@@ -58,9 +42,6 @@ namespace RimMind.Application.Features.Requests.Queue
             return Math.Max(0, nextAllowed - currentTick);
         }
 
-        public IReadOnlyDictionary<string, int> GetAll()
-        {
-            return new Dictionary<string, int>(_table);
-        }
+        public IReadOnlyDictionary<string, int> GetAll() => GetSnapshot();
     }
 }

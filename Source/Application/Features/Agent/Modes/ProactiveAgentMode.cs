@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimMind.Application.Common.Constants;
@@ -97,7 +96,7 @@ public sealed class ProactiveAgentMode : IAgentMode, IProactiveExtensions
 
 internal sealed class ProactiveThinkStrategy : IThinkStrategy
 {
-    private static readonly List<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
+    private static readonly IReadOnlyList<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
 
     public string ScenarioId => ScenarioIds.AgentDecision;
 
@@ -113,7 +112,7 @@ internal sealed class ProactiveThinkStrategy : IThinkStrategy
         var examples = CachedExamples;
         return LlmRequestEnvelopeBuilder
             .ForScenario(ScenarioId)
-            .WithModId("RimMind.Agent")
+            .WithModId(RimMindOwnerConsts.AgentModId)
             .WithNpcId(agent.NpcId)
             .WithGameStateInfo(new GameStateInfo().AddSection("perceptions", query))
             .WithSchema("<Action>...</Action>")

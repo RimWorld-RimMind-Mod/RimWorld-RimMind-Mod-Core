@@ -26,7 +26,7 @@ namespace RimMind.Application.Features.Llm
             RegexOptions.Compiled);
 
         private static readonly Regex KeyPrefixPattern = new Regex(
-            @"\b(?:[a-z]{2,4}_sk|sk-ant|sk-proj|sk|pk|rk|xai|gsk|AIza)[\-_][A-Za-z0-9\-_]{8,}",
+            @"\b(?:(?:[a-z]{2,4}_sk|sk-ant|sk-proj|sk|pk|rk|xai|gsk)[\-_][A-Za-z0-9\-_]{8,}|AIza[A-Za-z0-9\-_]{16,})",
             RegexOptions.Compiled);
 
         public static string Redact(string? text)

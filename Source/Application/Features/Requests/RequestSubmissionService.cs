@@ -2,15 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Async;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Pipeline;
-using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Common.Models.Debug;
 using RimMind.Application.Common.Models.Pipeline;
+using RimMind.Application.Features.Context;
+using RimMind.Application.Features.Llm;
 using RimMind.Application.Features.Requests.Queue;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
@@ -137,23 +138,23 @@ namespace RimMind.Application.Features.Requests
                 envelope.RequestId,
                 GetTraceSource(envelope),
                 _modelSettings?.ModelName ?? string.Empty,
-                BuildTracePrompt(envelope, "system"),
-                BuildTracePrompt(envelope, "user"),
-                BuildTracePrompt(envelope, "assistant"));
+                EnvelopePromptFormatter.FormatRolePrompt(envelope, "system"),
+                EnvelopePromptFormatter.FormatRolePrompt(envelope, "user"),
+                EnvelopePromptFormatter.FormatRolePrompt(envelope, "assistant"));
 
             string rolloutId = string.Empty;
             int turnIndex = 0;
             if (envelope.Hints != null)
             {
-                if (envelope.Hints.TryGetValue("rollout_id", out var hintedRollout) && !string.IsNullOrWhiteSpace(hintedRollout))
+                if (envelope.Hints.TryGetValue(LlmHintKeys.RolloutId, out var hintedRollout) && !string.IsNullOrWhiteSpace(hintedRollout))
                     rolloutId = hintedRollout;
-                if (envelope.Hints.TryGetValue("turn_index", out var hintedTurn) && int.TryParse(hintedTurn, out var parsedTurn))
+                if (envelope.Hints.TryGetValue(LlmHintKeys.TurnIndex, out var hintedTurn) && int.TryParse(hintedTurn, out var parsedTurn))
                     turnIndex = parsedTurn;
             }
 
             bool isAgentRollout = !string.IsNullOrWhiteSpace(rolloutId)
-                || ScenarioIds.IsDecisionScenario(envelope.ScenarioId)
-                || string.Equals(envelope.ModId, "RimMind.Agent", StringComparison.OrdinalIgnoreCase);
+                || ScenarioRegistry.IsDecisionScenario(envelope.ScenarioId)
+                || string.Equals(envelope.ModId, RimMindOwnerConsts.AgentModId, StringComparison.OrdinalIgnoreCase);
 
             if (isAgentRollout && string.IsNullOrWhiteSpace(rolloutId))
                 rolloutId = !string.IsNullOrWhiteSpace(envelope.TraceId) ? envelope.TraceId : envelope.RequestId;
@@ -213,8 +214,9 @@ namespace RimMind.Application.Features.Requests
                                 bool alreadyDispatched = envelope.ToolDispatchMode == ToolCallDispatchMode.Auto
                                     && dispatched != null
                                     && dispatched.Any(r =>
-                                        (!string.IsNullOrEmpty(call.Id) && string.Equals(r.ToolCallId, call.Id, StringComparison.Ordinal))
-                                        || string.Equals(r.ToolName, call.Name, StringComparison.OrdinalIgnoreCase));
+                                        !string.IsNullOrEmpty(call.Id)
+                                            ? string.Equals(r.ToolCallId, call.Id, StringComparison.Ordinal)
+                                            : string.Equals(r.ToolName, call.Name, StringComparison.OrdinalIgnoreCase));
 
                                 if (alreadyDispatched)
                                     continue;
@@ -251,28 +253,6 @@ namespace RimMind.Application.Features.Requests
             if (!string.IsNullOrWhiteSpace(envelope.ScenarioId)) parts.Add($"scenario:{envelope.ScenarioId}");
             if (!string.IsNullOrWhiteSpace(envelope.NpcId)) parts.Add($"npc:{envelope.NpcId}");
             return parts.Count > 0 ? string.Join(" | ", parts) : "unknown";
-        }
-
-        private static string BuildTracePrompt(LlmRequestEnvelope envelope, string role)
-        {
-            if (envelope.Messages == null || envelope.Messages.Count == 0)
-                return string.Empty;
-
-            var prompt = new StringBuilder();
-            foreach (var message in envelope.Messages)
-            {
-                if (!string.Equals(message.Role, role, StringComparison.OrdinalIgnoreCase) ||
-                    string.IsNullOrWhiteSpace(message.Content))
-                    continue;
-
-                if (prompt.Length > 0)
-                    prompt.AppendLine().AppendLine();
-                if (!string.IsNullOrWhiteSpace(message.LayerTag))
-                    prompt.Append('[').Append(message.LayerTag).Append("] ");
-                prompt.Append(message.Content);
-            }
-
-            return prompt.ToString();
         }
     }
 }

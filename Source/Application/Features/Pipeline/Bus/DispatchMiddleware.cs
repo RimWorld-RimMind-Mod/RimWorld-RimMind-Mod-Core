@@ -17,12 +17,10 @@ namespace RimMind.Application.Features.Pipeline.Bus
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
 
         private readonly Action<AgentBusEvent> _dispatch;
-        private readonly ILogSink? _log;
 
         public DispatchMiddleware(Action<AgentBusEvent> dispatch, ILogSink? log = null)
         {
             _dispatch = dispatch;
-            _log = log;
         }
 
         public Task InvokeAsync(BusPublishContext context, MiddlewareDelegate<BusPublishContext> next)

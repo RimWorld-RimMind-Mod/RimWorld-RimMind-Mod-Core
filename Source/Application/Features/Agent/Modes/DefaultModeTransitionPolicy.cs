@@ -1,8 +1,6 @@
 using RimMind.Application.Common.Constants;
-using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
-using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Domain.Agent.Modes;
 
 namespace RimMind.Application.Features.Agent.Modes

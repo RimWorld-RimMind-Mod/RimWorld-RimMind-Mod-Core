@@ -237,14 +237,14 @@ namespace RimMind.Infrastructure.UI
             var envelope = LlmRequestEnvelopeBuilder
                 .ForNpc(agent.NpcId ?? $"NPC-{_pawn.thingIDNumber}", gameStateInfo: new GameStateInfo().AddSection("dialogue_input", message))
                 .ForScenarioId(ScenarioIds.Dialogue)
-                .WithModId("RimMind.Dialogue")
+                .WithModId(RimMind.Application.Common.Constants.RimMindOwnerConsts.CoreModId)
                 .WithMaxTokens(settings?.MaxTokens ?? RimMindDefaults.MaxTokens)
                 .WithTemperature(settings?.DefaultTemperature ?? RimMindDefaults.DefaultTemperature)
                 .Streaming(chunk =>
                 {
                     // Background thread: append under lock only; OnGUI reads a snapshot.
                     if (!string.IsNullOrEmpty(chunk.DeltaContent))
-                        AppendStreamDelta(request, chunk.DeltaContent);
+                        AppendStreamDelta(request, chunk.DeltaContent!);
                 })
                 .Build();
 

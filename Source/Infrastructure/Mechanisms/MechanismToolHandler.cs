@@ -87,7 +87,7 @@ namespace RimMind.Infrastructure.Mechanisms
         public string Id => Definition.Id;
         public string OwnerModId => string.IsNullOrWhiteSpace(_metadata?.OwnerModId)
             ? RimMindOwnerConsts.CoreModId
-            : _metadata.OwnerModId;
+            : _metadata!.OwnerModId;
         public ToolDefinition Definition { get; }
 
         public async Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
@@ -244,7 +244,7 @@ namespace RimMind.Infrastructure.Mechanisms
 
             try
             {
-                return JObject.Parse(json);
+                return JObject.Parse(json!);
             }
             catch (Exception)
             {
@@ -628,6 +628,13 @@ namespace RimMind.Infrastructure.Mechanisms
             MechanismOperationType operation,
             RimMind.Domain.Agent.Policies.AutonomyDomain? defaultDomain)
         {
+            if (metadata is IMechanismScopeMetadata scopeMetadata)
+            {
+                var declared = scopeMetadata.GetToolScopeForOperation(operation);
+                if (declared.HasValue)
+                    return declared.Value;
+            }
+
             if (operation == MechanismOperationType.List)
                 return ToolScope.MetaQuery;
 
@@ -644,17 +651,7 @@ namespace RimMind.Infrastructure.Mechanisms
                 return ToolScope.ColonyBuild | ToolScope.ColonyManage;
 
             if (metadata.Scope == MechanismScope.Pawn)
-            {
-                string id = metadata.MechanismId ?? string.Empty;
-                if (id.IndexOf("interaction", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    id.IndexOf("relation", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    id.IndexOf("recruit", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    return ToolScope.Social | ToolScope.ColonistSelf;
-                }
-
                 return ToolScope.ColonistSelf;
-            }
 
             return ToolScope.ColonistSelf | ToolScope.ColonyManage;
         }

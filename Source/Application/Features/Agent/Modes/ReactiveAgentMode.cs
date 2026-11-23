@@ -1,11 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Interfaces.Tools;
-using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
@@ -20,10 +18,10 @@ namespace RimMind.Application.Features.Agent.Modes;
 public sealed class ReactiveAgentMode : IAgentMode
 {
     public AgentModeId ModeId => AgentModeId.Reactive;
-        public string DisplayName => "Reactive";
-        public string Description => "Responds to perception events only";
-        public string Id => ModeId.Value;
-        public string OwnerModId => RimMindOwnerConsts.CoreModId;
+    public string DisplayName => "Reactive";
+    public string Description => "Responds to perception events only";
+    public string Id => ModeId.Value;
+    public string OwnerModId => RimMindOwnerConsts.CoreModId;
 
     public bool IsApplicable(IAgentInfo agent)
         => agent.State == AgentState.Active;
@@ -35,18 +33,16 @@ public sealed class ReactiveAgentMode : IAgentMode
 
     public IThinkStrategy GetThinkStrategy() => SharedStrategy;
 
-    private static readonly string[] ExcludedToolPrefixes = { "planning.", "dream.", "reflect.", "trait_evolution." };
-
     public IReadOnlyList<string> AllowedToolIds(IToolRegistry registry)
         => registry.GetDefinitionsForScope(RimMind.Application.Features.Tools.ToolScopeProjection.ColonistAgentDefaultScope)
-            .Where(d => !ExcludedToolPrefixes.Any(p => d.Id.StartsWith(p)))
+            .Where(d => d.Manifest?.RequiresProactiveMode != true)
             .Select(d => d.Id)
             .ToList();
 }
 
 internal sealed class ReactiveThinkStrategy : IThinkStrategy
 {
-    private static readonly List<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
+    private static readonly IReadOnlyList<ChatMessage> CachedExamples = ThinkStrategyHelper.BuildDecisionExamples();
 
     public string ScenarioId => ScenarioIds.AgentDecision;
 
@@ -59,7 +55,7 @@ internal sealed class ReactiveThinkStrategy : IThinkStrategy
         var examples = CachedExamples;
         return LlmRequestEnvelopeBuilder
             .ForScenario(ScenarioId)
-            .WithModId("RimMind.Agent")
+            .WithModId(RimMindOwnerConsts.AgentModId)
             .WithNpcId(agent.NpcId)
             .WithGameStateInfo(new GameStateInfo().AddSection("perceptions", query))
             .WithSchema("<Action>...</Action>")

@@ -39,7 +39,7 @@ namespace RimMind.Presentation.Agent
         private readonly ProactiveBehaviorExecutor _proactiveExecutor;
         private readonly ThinkContextEnricher _contextEnricher;
         private readonly ILogSink? _log;
-        private readonly IDecisionProcessor _decisionProcessor;
+        private readonly DecisionProcessor _decisionProcessor;
         private readonly InnerVoiceHandler? _innerVoiceHandler;
         private readonly IPsychologyWatcher? _psychologyWatcher;
         private readonly ITickProvider _tickProvider;
@@ -187,7 +187,7 @@ namespace RimMind.Presentation.Agent
                 _activeRolloutId = $"rollout-{_agent.Identity.NpcId}-{Find.TickManager?.TicksGame ?? 0}-{Guid.NewGuid().ToString("N").Substring(0, 6)}";
                 var envelope = strategy.BuildEnvelope(_agent, entries, availableTools);
                 EnrichEnvelope(envelope, voiceText);
-                _requestSentTick = Find.TickManager.TicksGame;
+                _requestSentTick = Find.TickManager?.TicksGame ?? 0;
                 _requestSentUtc = DateTime.UtcNow;
                 SendThinkRequest(envelope, strategy, availableTools, 0);
             }
