@@ -21,7 +21,7 @@ namespace RimMind.Infrastructure.Services.Clients.Shared
         /// <list type="bullet">
         /// <item><see cref="OperationCanceledException"/> while <paramref name="callerToken"/> is cancelled → <see cref="RimMindErrors.Cancelled"/></item>
         /// <item><see cref="OperationCanceledException"/> / <see cref="TimeoutException"/> otherwise (our own per-request timeout fired) → <see cref="RimMindErrors.Timeout"/>,
-        /// which the circuit breaker counts and <c>HybridAIClient</c> treats as retryable</item>
+        /// which the circuit breaker counts and failover wrappers treat as retryable</item>
         /// <item><see cref="HttpTransport.HttpException"/> → <see cref="RimMindErrors.ClientTransient"/> or <see cref="RimMindErrors.ClientPermanent"/> based on StatusCode</item>
         /// <item>Network failures (<see cref="HttpRequestException"/>, <see cref="IOException"/>) → <see cref="RimMindErrors.ClientTransient"/></item>
         /// <item>Other exceptions → <see cref="RimMindErrors.Internal"/> (or ClientTransient if <paramref name="useClientTransientForGeneric"/> is true)</item>

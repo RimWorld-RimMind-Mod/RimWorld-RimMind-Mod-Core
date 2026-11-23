@@ -105,7 +105,6 @@ namespace RimMind.Tests.Contracts
             public StubClientManager(IAIClient? client) => _client = client;
 
             public IAIClient? GetClient() => _client;
-            public IAIClient? GetPlayer2Client() => null;
             public void InvalidateCache() { }
         }
 

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using RimMind.Testing;
 using Xunit;
 
@@ -18,8 +17,7 @@ namespace RimMind.Core.ArchTests.Contracts
         [Fact]
         public void Core_source_maintains_generic_vs_specific_separation_invariants()
         {
-            string sourceRoot = ArchTestExtensions.FindSourceDirectory();
-            Assert.True(Directory.Exists(sourceRoot), "RimMind-Core/Source must be discoverable.");
+            string sourceRoot = ArchTestExtensions.RequireSourceDirectory();
 
             ContractCaseRunner.Run(
                 ("no vendor literals outside concrete client adapters and dev harnesses", () =>
@@ -38,13 +36,13 @@ namespace RimMind.Core.ArchTests.Contracts
                     };
 
                     var violations = new List<string>();
-                    foreach (string file in EnumerateCoreSourceFiles(sourceRoot))
+                    foreach (string file in ArchTestExtensions.SourceFiles(sourceRoot))
                     {
                         string rel = Path.GetRelativePath(sourceRoot, file).Replace('\\', '/');
                         if (IsAllowedVendorAdapterPath(rel))
                             continue;
 
-                        string code = StripComments(File.ReadAllText(file));
+                        string code = ArchTestExtensions.StripComments(File.ReadAllText(file));
                         foreach (string literal in forbiddenVendors)
                         {
                             if (code.IndexOf(literal, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -61,7 +59,7 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("HttpTransport has zero vendor sniffing and delegates to IHttpRequestDecorator", () =>
                 {
                     string transportPath = Path.Combine(sourceRoot, "Infrastructure", "Services", "Clients", "HttpTransport.cs");
-                    string code = StripComments(File.ReadAllText(transportPath));
+                    string code = ArchTestExtensions.StripComments(File.ReadAllText(transportPath));
                     Assert.DoesNotContain("opencode", code, StringComparison.OrdinalIgnoreCase);
                     Assert.DoesNotContain("oc_sk_", code, StringComparison.OrdinalIgnoreCase);
                     Assert.Contains("IHttpRequestDecorator", code, StringComparison.Ordinal);
@@ -69,7 +67,7 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("CoreContextProviders contains zero Storyteller prompt literals", () =>
                 {
                     string providersPath = Path.Combine(sourceRoot, "Presentation", "Context", "CoreContextProviders.cs");
-                    string code = StripComments(File.ReadAllText(providersPath));
+                    string code = ArchTestExtensions.StripComments(File.ReadAllText(providersPath));
                     Assert.DoesNotContain("You are the RimWorld storyteller AI", code, StringComparison.OrdinalIgnoreCase);
                     Assert.DoesNotContain("Storyteller rules:", code, StringComparison.OrdinalIgnoreCase);
                     Assert.DoesNotContain("IncidentOutput schema", code, StringComparison.OrdinalIgnoreCase);
@@ -77,26 +75,23 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("MechanismToolHandler uses declarative IMechanismAutonomyMetadata instead of hardcoding pawn.work", () =>
                 {
                     string handlerPath = Path.Combine(sourceRoot, "Infrastructure", "Mechanisms", "MechanismToolHandler.cs");
-                    string code = StripComments(File.ReadAllText(handlerPath));
+                    string code = ArchTestExtensions.StripComments(File.ReadAllText(handlerPath));
                     Assert.DoesNotContain("\"pawn.work\"", code, StringComparison.OrdinalIgnoreCase);
                     Assert.Contains("IMechanismAutonomyMetadata", code, StringComparison.Ordinal);
                 }),
-                ("Core lookup and map context builders contain zero hardcoded Actions tool prefixes", () =>
+                ("Core production code contains zero hardcoded Actions tool prefixes outside dev debug harnesses", () =>
                 {
-                    string[] filesToCheck =
-                    {
-                        Path.Combine(sourceRoot, "Presentation", "Common", "RimMindPawnLookup.cs"),
-                        Path.Combine(sourceRoot, "Presentation", "Agent", "MapContextBuilder.cs"),
-                        Path.Combine(sourceRoot, "Presentation", "Context", "CoreContextProviders.cs")
-                    };
-
                     var violations = new List<string>();
-                    foreach (string path in filesToCheck)
+                    foreach (string path in ArchTestExtensions.SourceFiles(sourceRoot))
                     {
-                        string code = StripComments(File.ReadAllText(path));
+                        string rel = Path.GetRelativePath(sourceRoot, path).Replace('\\', '/');
+                        if (rel.StartsWith("Infrastructure/UI/DebugActions/", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        string code = ArchTestExtensions.StripComments(File.ReadAllText(path));
                         if (code.IndexOf("actions_", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
-                            violations.Add(Path.GetRelativePath(sourceRoot, path));
+                            violations.Add(rel);
                         }
                     }
 
@@ -107,13 +102,72 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("RimMindRuntimeGameComponent.NotifyGameStopped uses pure IGameScopedService dispatch without Player2 hardcoding", () =>
                 {
                     string compPath = Path.Combine(sourceRoot, "Presentation", "Runtime", "RimMindRuntimeGameComponent.cs");
-                    string code = StripComments(File.ReadAllText(compPath));
+                    string code = ArchTestExtensions.StripComments(File.ReadAllText(compPath));
                     int start = code.IndexOf("internal static void NotifyGameStopped", StringComparison.Ordinal);
                     Assert.True(start >= 0, "NotifyGameStopped method must exist");
-                    int nextMethod = code.IndexOf("private static IExtensionRegistry<IGameScopedService>", start, StringComparison.Ordinal);
-                    Assert.True(nextMethod > start, "NotifyGameStopped method boundary must be discoverable");
-                    string methodBody = code.Substring(start, nextMethod - start);
+                    string methodBody = ArchTestExtensions.ExtractBraceBalancedBlock(code, start);
                     Assert.DoesNotContain("Player2GameLifecycleService", methodBody, StringComparison.Ordinal);
+                }),
+                ("Application layer contains zero Infrastructure/Verse adapter string leaks", () =>
+                {
+                    string appDir = Path.Combine(sourceRoot, "Application");
+                    var violations = new List<string>();
+                    foreach (string file in ArchTestExtensions.SourceFiles(appDir))
+                    {
+                        string code = ArchTestExtensions.StripComments(File.ReadAllText(file));
+                        if (code.IndexOf("VerseLogSink", StringComparison.Ordinal) >= 0
+                            || code.IndexOf("LongEventHandler", StringComparison.Ordinal) >= 0)
+                        {
+                            violations.Add(Path.GetRelativePath(sourceRoot, file));
+                        }
+                    }
+
+                    Assert.True(
+                        violations.Count == 0,
+                        $"Application must not reference Infrastructure/Verse adapter names:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+                }),
+                ("Application generic seams stay free of hardcoded submodule/vendor/test leaks", () =>
+                {
+                    string schemaCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Context", "SchemaRegistry.cs")));
+                    Assert.DoesNotContain("PersonalityOutput", schemaCode, StringComparison.Ordinal);
+                    Assert.DoesNotContain("IncidentOutput", schemaCode, StringComparison.Ordinal);
+                    Assert.DoesNotContain("DarkMemoryOutput", schemaCode, StringComparison.Ordinal);
+
+                    string credCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Common", "Interfaces", "Internal", "IApiCredentialSettings.cs")));
+                    Assert.DoesNotContain("Player2RemoteUrl", credCode, StringComparison.Ordinal);
+                    Assert.DoesNotContain("IsOpenAIConfigured", credCode, StringComparison.Ordinal);
+
+                    string clientMgrCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Common", "Interfaces", "Internal", "IClientManager.cs")));
+                    Assert.DoesNotContain("GetPlayer2Client", clientMgrCode, StringComparison.Ordinal);
+
+                    string codecCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Llm", "OpenAIWireCodec.cs")));
+                    Assert.DoesNotContain("\"RimMind.Test\"", codecCode, StringComparison.Ordinal);
+
+                    string registryCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Tools", "ToolRegistry.cs")));
+                    Assert.DoesNotContain("IToolRegistry? Current", registryCode, StringComparison.Ordinal);
+
+                    string orchestratorCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Agent", "ProactiveBehaviorOrchestrator.cs")));
+                    Assert.DoesNotContain("TaskScheduler.Current", orchestratorCode, StringComparison.Ordinal);
+
+                    string redactorCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Llm", "LogSecretRedactor.cs")));
+                    Assert.Contains("AIza[A-Za-z0-9", redactorCode, StringComparison.Ordinal);
+
+                    string reactiveCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Agent", "Modes", "ReactiveAgentMode.cs")));
+                    Assert.DoesNotContain("ExcludedToolPrefixes", reactiveCode, StringComparison.Ordinal);
+                    Assert.Contains("RequiresProactiveMode", reactiveCode, StringComparison.Ordinal);
+
+                    string taskBuilderCode = ArchTestExtensions.StripComments(File.ReadAllText(
+                        Path.Combine(sourceRoot, "Application", "Features", "Prompt", "TaskInstructionBuilder.cs")));
+                    Assert.DoesNotContain("StripDiacritics", taskBuilderCode, StringComparison.Ordinal);
+                    Assert.Contains("CanTranslate", taskBuilderCode, StringComparison.Ordinal);
                 }));
         }
 
@@ -122,24 +176,6 @@ namespace RimMind.Core.ArchTests.Contracts
             return relativeSlashPath.StartsWith("Infrastructure/Services/Clients/OpenAI/", StringComparison.OrdinalIgnoreCase)
                 || relativeSlashPath.StartsWith("Infrastructure/Services/Clients/Player2/", StringComparison.OrdinalIgnoreCase)
                 || relativeSlashPath.StartsWith("Infrastructure/UI/DebugActions/", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static IEnumerable<string> EnumerateCoreSourceFiles(string sourceRoot)
-        {
-            return Directory.EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part =>
-                    part.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("backup", StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private static string StripComments(string source)
-        {
-            return Regex.Replace(
-                source,
-                @"//[^\r\n]*|/\*.*?\*/",
-                " ",
-                RegexOptions.Singleline | RegexOptions.CultureInvariant);
         }
     }
 }

@@ -61,7 +61,15 @@ namespace RimMind.Application.Features.Tools
 
             ToolScope inferred = ToolScope.None;
 
-            if (manifest?.DefaultDomain is AutonomyDomain domain)
+            AutonomyDomain? resolvedDomain = manifest?.DefaultDomain;
+            if (!resolvedDomain.HasValue
+                && !string.IsNullOrWhiteSpace(manifest?.AutonomyDomainId)
+                && Enum.TryParse<AutonomyDomain>(manifest!.AutonomyDomainId!.Trim(), ignoreCase: true, out var parsedDomain))
+            {
+                resolvedDomain = parsedDomain;
+            }
+
+            if (resolvedDomain is AutonomyDomain domain)
             {
                 switch (domain)
                 {

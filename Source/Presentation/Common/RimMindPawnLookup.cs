@@ -99,7 +99,8 @@ namespace RimMind.Presentation.Api
         public static void UncachePawn(string? thingId)
         {
             if (string.IsNullOrEmpty(thingId)) return;
-            if (PawnByIdCache.TryRemove(thingId, out var pawn))
+            string key = thingId!;
+            if (PawnByIdCache.TryRemove(key, out var pawn))
             {
                 if (pawn != null && pawn.thingIDNumber > 0)
                 {
@@ -110,7 +111,7 @@ namespace RimMind.Presentation.Api
             {
                 foreach (var kvp in PawnByNumberCache)
                 {
-                    if (kvp.Value?.ThingID == thingId)
+                    if (kvp.Value?.ThingID == key)
                     {
                         PawnByNumberCache.TryRemove(kvp.Key, out _);
                     }
@@ -154,15 +155,16 @@ namespace RimMind.Presentation.Api
         public static Pawn? FindPawnById(string? pawnId)
         {
             if (string.IsNullOrEmpty(pawnId)) return null;
+            string id = pawnId!;
 
-            if (PawnByIdCache.TryGetValue(pawnId, out var cached))
+            if (PawnByIdCache.TryGetValue(id, out var cached))
             {
                 if (cached != null && !cached.Dead && !cached.DestroyedOrNull())
                 {
                     return cached;
                 }
                 UncachePawn(cached?.thingIDNumber ?? 0);
-                PawnByIdCache.TryRemove(pawnId, out _);
+                PawnByIdCache.TryRemove(id, out _);
             }
 
             // In RimWorld 1.6, accessing Find.Maps or mapPawns off the main thread triggers
@@ -172,20 +174,20 @@ namespace RimMind.Presentation.Api
                 return null;
             }
 
-            if (MissById.IsRecentMiss(pawnId)) return null;
+            if (MissById.IsRecentMiss(id)) return null;
 
             // ThingID is "<defName><thingIDNumber>"; compare the cheap number first so the scan
             // does not allocate a ThingID string for every pawn.
-            int numberHint = TryParseTrailingNumber(pawnId);
+            int numberHint = TryParseTrailingNumber(id);
             var pawn = ScanLoadedPawns(p =>
-                (numberHint <= 0 || p.thingIDNumber == numberHint) && p.ThingID == pawnId);
+                (numberHint <= 0 || p.thingIDNumber == numberHint) && p.ThingID == id);
             if (pawn != null)
             {
                 CachePawn(pawn);
                 return pawn;
             }
 
-            MissById.RecordMiss(pawnId);
+            MissById.RecordMiss(id);
             return null;
         }
 
@@ -406,8 +408,11 @@ namespace RimMind.Presentation.Api
                     for (int i = 0; i < colonists.Count; i++)
                     {
                         var p = colonists[i];
-                        CachePawn(p);
-                        snapshot.Add(p);
+                        if (IsActiveSpawnedColonist(p))
+                        {
+                            CachePawn(p);
+                            snapshot.Add(p);
+                        }
                     }
                     return snapshot;
                 }
@@ -491,53 +496,10 @@ namespace RimMind.Presentation.Api
 
         /// <summary>
         /// Formats a raw tool/action identifier (e.g. "pawn.job.take_job") into a clean human-readable title
-        /// for UI overlays, motes, and approval cards. Prefers <see cref="Application.Common.Models.Tools.ToolManifest.DisplayName"/>
-        /// when the tool is registered.
+        /// for UI overlays, motes, and approval cards. Delegates to <see cref="ToolActionDisplayFormatter"/>.
         /// </summary>
         public static string FormatHumanReadableActionName(string? rawName)
-        {
-            if (string.IsNullOrWhiteSpace(rawName))
-                return "Action";
-
-            var trimmed = rawName!.Trim();
-            try
-            {
-                var registry = RuntimeServiceHub.Shared.Capture().GetOptional<IToolRegistry>();
-                var displayName = registry?.FindById(trimmed)?.Definition?.Manifest?.DisplayName;
-                if (!string.IsNullOrWhiteSpace(displayName))
-                    return displayName!;
-            }
-            catch
-            {
-                // Safe fallback when runtime is not booted (e.g. unit tests).
-            }
-
-            string[] prefixes = { "pawn.job.", "pawn.", "map.", "world.", "pawn_", "rimmind_" };
-            foreach (var prefix in prefixes)
-            {
-                if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                    trimmed.Length > prefix.Length)
-                {
-                    trimmed = trimmed.Substring(prefix.Length);
-                    break;
-                }
-            }
-
-            var tokens = trimmed.Split(new[] { '_', '.', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length == 0)
-                return trimmed;
-
-            var formatted = new string[tokens.Length];
-            for (int i = 0; i < tokens.Length; i++)
-            {
-                var token = tokens[i];
-                formatted[i] = token.Length == 1
-                    ? token.ToUpperInvariant()
-                    : char.ToUpperInvariant(token[0]) + token.Substring(1);
-            }
-
-            return string.Join(" ", formatted);
-        }
+            => ToolActionDisplayFormatter.FormatHumanReadableActionName(rawName);
 
         /// <summary>
         /// Checks if a pawn is an active spawned player colony domestic animal or pet (not dead, not destroyed, spawned on a map, player faction, animal).

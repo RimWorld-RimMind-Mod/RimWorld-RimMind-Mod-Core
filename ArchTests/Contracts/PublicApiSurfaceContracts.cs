@@ -12,7 +12,6 @@ using Xunit;
 
 namespace RimMind.Core.ArchTests.Contracts
 {
-    [Trait("Phase", "N")]
     public sealed class PublicApiSurfaceContracts
     {
         private static readonly string[] CanonicalNestedGroups =
@@ -50,7 +49,7 @@ namespace RimMind.Core.ArchTests.Contracts
                 "RimMindAPI.Settings.get_Telemetry"
             };
 
-        private static readonly string[] ExpectedObsoleteFlatAliases =
+        private static readonly string[] RetiredFlatAliases =
         {
             "PauseQueue",
             "ResumeQueue",
@@ -117,31 +116,30 @@ namespace RimMind.Core.ArchTests.Contracts
                         missing.Length == 0,
                         $"Missing or non-static canonical RimMindAPI nested groups: {string.Join(", ", missing)}");
                 }),
-                ("deprecated flat aliases on RimMindAPI carry [Obsolete]", () =>
+                ("retired flat aliases on RimMindAPI remain absent (hard-cut to nested groups)", () =>
                 {
-                    var missingObsolete = new List<string>();
-                    foreach (string memberName in ExpectedObsoleteFlatAliases)
+                    var stillPresent = new List<string>();
+                    foreach (string memberName in RetiredFlatAliases)
                     {
                         MemberInfo[] members = apiType.GetMember(
                             memberName,
                             BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
-                        if (members.Length == 0
-                            || members.Any(m => m.GetCustomAttribute<ObsoleteAttribute>() == null))
+                        if (members.Length > 0)
                         {
-                            missingObsolete.Add(memberName);
+                            stillPresent.Add(memberName);
                         }
                     }
 
                     Assert.True(
-                        missingObsolete.Count == 0,
-                        $"Flat RimMindAPI aliases missing [Obsolete]: {string.Join(", ", missingObsolete)}");
+                        stillPresent.Count == 0,
+                        $"Retired flat RimMindAPI aliases must remain absent: {string.Join(", ", stillPresent)}");
                 }));
         }
 
         [Fact]
         public void Nested_RimMindAPI_groups_do_not_expose_internal_interfaces_outside_allowlist()
         {
-            string sourceRoot = RequireSourceDirectory();
+            string sourceRoot = ArchTestExtensions.RequireSourceDirectory();
             string internalInterfacesDir = Path.Combine(
                 sourceRoot,
                 "Application",
@@ -149,7 +147,7 @@ namespace RimMind.Core.ArchTests.Contracts
                 "Interfaces",
                 "Internal");
 
-            var internalTypeNames = SourceFiles(internalInterfacesDir)
+            var internalTypeNames = ArchTestExtensions.SourceFiles(internalInterfacesDir)
                 .Select(Path.GetFileNameWithoutExtension)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Cast<string>()
@@ -250,19 +248,44 @@ namespace RimMind.Core.ArchTests.Contracts
                                 continue;
                             }
 
-                            Match match = internalTypePattern.Match(trimmed);
+                            int startLine = i + 1;
+                            var signature = new System.Text.StringBuilder(trimmed);
+                            while (!trimmed.Contains("=>", StringComparison.Ordinal)
+                                && !trimmed.Contains("{", StringComparison.Ordinal)
+                                && !trimmed.Contains(";", StringComparison.Ordinal)
+                                && i + 1 < lines.Length)
+                            {
+                                i++;
+                                trimmed = lines[i].Trim();
+                                signature.Append(' ').Append(trimmed);
+                            }
+
+                            string fullSignature = signature.ToString();
+                            int bodyStart = fullSignature.IndexOf("=>", StringComparison.Ordinal);
+                            int braceStart = fullSignature.IndexOf('{');
+                            int semiStart = fullSignature.IndexOf(';');
+                            int cut = fullSignature.Length;
+                            if (bodyStart >= 0) cut = Math.Min(cut, bodyStart);
+                            if (braceStart >= 0) cut = Math.Min(cut, braceStart);
+                            if (semiStart >= 0) cut = Math.Min(cut, semiStart);
+                            string headerOnly = fullSignature.Substring(0, cut);
+
+                            Match match = internalTypePattern.Match(headerOnly);
                             if (!match.Success)
                                 continue;
 
+                            string expectedPrefix = $"RimMindAPI.{groupName}.";
                             bool isAllowlisted = AllowlistedInternalSurfaceMembers.Any(allowed =>
                             {
-                                string shortMember = allowed.Split('.').Last();
-                                return trimmed.Contains($" {shortMember}", StringComparison.Ordinal);
+                                if (!allowed.StartsWith(expectedPrefix, StringComparison.Ordinal))
+                                    return false;
+                                string shortMember = allowed.Substring(expectedPrefix.Length);
+                                return Regex.IsMatch(headerOnly, $@"\b{Regex.Escape(shortMember)}\b", RegexOptions.CultureInvariant);
                             });
 
                             if (!isAllowlisted)
                             {
-                                publicSignatureViolations.Add($"{Path.GetFileName(file)}:{i + 1} ({groupName}): {trimmed}");
+                                publicSignatureViolations.Add($"{Path.GetFileName(file)}:{startLine} ({groupName}): {headerOnly.Trim()}");
                             }
                         }
                     }
@@ -276,7 +299,7 @@ namespace RimMind.Core.ArchTests.Contracts
         [Fact]
         public void Domain_and_Application_do_not_contain_hardcoded_provider_literals()
         {
-            string sourceRoot = RequireSourceDirectory();
+            string sourceRoot = ArchTestExtensions.RequireSourceDirectory();
             string[] layers = { "Domain", "Application" };
             string[] forbiddenLiterals = { "\"opencode\"", "\"oc_sk_\"", "\"deepseek.com\"" };
             HashSet<string> allowedFiles = new(StringComparer.OrdinalIgnoreCase)
@@ -292,9 +315,9 @@ namespace RimMind.Core.ArchTests.Contracts
                         () =>
                         {
                             var violations = layers
-                                .SelectMany(layer => SourceFiles(Path.Combine(sourceRoot, layer)))
+                                .SelectMany(layer => ArchTestExtensions.SourceFiles(Path.Combine(sourceRoot, layer)))
                                 .Where(file => !allowedFiles.Contains(Path.GetFileName(file)))
-                                .Where(file => StripComments(File.ReadAllText(file)).Contains(literal, StringComparison.OrdinalIgnoreCase))
+                                .Where(file => ArchTestExtensions.StripComments(File.ReadAllText(file)).Contains(literal, StringComparison.OrdinalIgnoreCase))
                                 .Select(file => Path.GetRelativePath(sourceRoot, file))
                                 .OrderBy(path => path, StringComparer.Ordinal)
                                 .ToArray();
@@ -309,15 +332,16 @@ namespace RimMind.Core.ArchTests.Contracts
         [Fact]
         public void Owner_ids_and_Harmony_patches_obey_building_block_architecture_rules()
         {
-            string repoRoot = RepositoryRoot();
-            string sourceRoot = RequireSourceDirectory();
+            string repoRoot = ArchTestExtensions.RepositoryRoot();
+            string sourceRoot = ArchTestExtensions.RequireSourceDirectory();
 
             ContractCaseRunner.Run(
-                ("RimMindOwnerConsts defines all 9 canonical module owner IDs as distinct non-empty constants", () =>
+                ("RimMindOwnerConsts defines all 10 canonical module owner IDs and AgentModId as distinct non-empty constants", () =>
                 {
                     string[] ids =
                     {
                         RimMindOwnerConsts.CoreModId,
+                        RimMindOwnerConsts.AgentModId,
                         RimMindOwnerConsts.ActionsModId,
                         RimMindOwnerConsts.AdvisorModId,
                         RimMindOwnerConsts.DialogueModId,
@@ -325,7 +349,8 @@ namespace RimMind.Core.ArchTests.Contracts
                         RimMindOwnerConsts.PersonalityModId,
                         RimMindOwnerConsts.StorytellerModId,
                         RimMindOwnerConsts.BridgeRimTalkModId,
-                        RimMindOwnerConsts.BridgeRimChatModId
+                        RimMindOwnerConsts.BridgeRimChatModId,
+                        RimMindOwnerConsts.ExtensionModelServiceModId
                     };
 
                     Assert.All(ids, id => Assert.False(string.IsNullOrWhiteSpace(id)));
@@ -345,8 +370,8 @@ namespace RimMind.Core.ArchTests.Contracts
                         .Distinct(StringComparer.OrdinalIgnoreCase);
 
                     var violations = sourceDirs
-                        .SelectMany(SourceFiles)
-                        .Where(file => emptyOwnerPattern.IsMatch(StripComments(File.ReadAllText(file))))
+                        .SelectMany(ArchTestExtensions.SourceFiles)
+                        .Where(file => emptyOwnerPattern.IsMatch(ArchTestExtensions.StripComments(File.ReadAllText(file))))
                         .Select(file => Path.GetRelativePath(repoRoot, file))
                         .OrderBy(path => path, StringComparer.Ordinal)
                         .ToArray();
@@ -365,7 +390,7 @@ namespace RimMind.Core.ArchTests.Contracts
                         "Patch_PersonalityIncident.cs");
                     if (File.Exists(personalityPatchPath))
                     {
-                        string personalityIncidentPatch = StripComments(File.ReadAllText(personalityPatchPath));
+                        string personalityIncidentPatch = ArchTestExtensions.StripComments(File.ReadAllText(personalityPatchPath));
                         Assert.Contains("IncidentWorker.TryExecute", personalityIncidentPatch, StringComparison.Ordinal);
                         Assert.DoesNotContain("TryExecuteWorker", personalityIncidentPatch, StringComparison.Ordinal);
                     }
@@ -385,8 +410,8 @@ namespace RimMind.Core.ArchTests.Contracts
                     var patchViolations = nonPatchSubmods
                         .Select(mod => Path.Combine(repoRoot, mod, "Source"))
                         .Where(Directory.Exists)
-                        .SelectMany(SourceFiles)
-                        .Where(file => forbiddenGameEventPatchPattern.IsMatch(StripComments(File.ReadAllText(file))))
+                        .SelectMany(ArchTestExtensions.SourceFiles)
+                        .Where(file => forbiddenGameEventPatchPattern.IsMatch(ArchTestExtensions.StripComments(File.ReadAllText(file))))
                         .Select(file => Path.GetRelativePath(repoRoot, file))
                         .OrderBy(path => path, StringComparer.Ordinal)
                         .ToArray();
@@ -437,42 +462,6 @@ namespace RimMind.Core.ArchTests.Contracts
             }
 
             return internalTypeNames.Contains(type.Name);
-        }
-
-        private static string StripComments(string source)
-        {
-            return Regex.Replace(
-                source,
-                @"//[^\r\n]*|/\*.*?\*/",
-                " ",
-                RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        }
-
-        private static IEnumerable<string> SourceFiles(string directory)
-        {
-            Assert.True(Directory.Exists(directory), $"Source directory must exist: {directory}");
-            return Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part =>
-                    part.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("backup", StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private static string RequireSourceDirectory()
-        {
-            string source = ArchTestExtensions.FindSourceDirectory();
-            Assert.True(Directory.Exists(source), "RimMind-Core/Source must be discoverable.");
-            return source;
-        }
-
-        private static string RepositoryRoot()
-        {
-            string source = RequireSourceDirectory();
-            DirectoryInfo? core = Directory.GetParent(source);
-            Assert.NotNull(core);
-            DirectoryInfo? root = core!.Parent;
-            Assert.NotNull(root);
-            return root!.FullName;
         }
     }
 }

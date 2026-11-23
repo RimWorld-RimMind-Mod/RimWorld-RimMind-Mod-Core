@@ -1058,47 +1058,48 @@ namespace RimMind.Infrastructure.UI
         private static bool IsExpectedDomainRejection(string toolId, string? error)
         {
             if (string.IsNullOrEmpty(error)) return false;
+            string err = error!;
 
             // pawn.recruit.trigger: pawn is already in player's faction
-            if (toolId == "pawn.recruit.trigger" && error.IndexOf("already a colonist", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (toolId == "pawn.recruit.trigger" && err.IndexOf("already a colonist", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
 
             // pawn.equipment.set: drop_weapon when pawn has no weapon equipped
-            if (toolId == "pawn.equipment.set" && error.IndexOf("no weapon equipped", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (toolId == "pawn.equipment.set" && err.IndexOf("no weapon equipped", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
 
             // pawn.interaction.trigger: social_relax when no joy activity is available
-            if (toolId == "pawn.interaction.trigger" && error.IndexOf("no social relax", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (toolId == "pawn.interaction.trigger" && err.IndexOf("no social relax", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
 
             // world.storyteller.trigger: conditions for incident not currently met
-            if (toolId == "world.storyteller.trigger" && error.IndexOf("Failed to execute incident", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (toolId == "world.storyteller.trigger" && err.IndexOf("Failed to execute incident", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
 
             // pawn.job.set: when specific job target not present or cannot work
-            if (toolId == "pawn.job.set" && (error.IndexOf("missing", StringComparison.OrdinalIgnoreCase) >= 0
-                || error.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0
-                || error.IndexOf("No job available", StringComparison.OrdinalIgnoreCase) >= 0))
+            if (toolId == "pawn.job.set" && (err.IndexOf("missing", StringComparison.OrdinalIgnoreCase) >= 0
+                || err.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0
+                || err.IndexOf("No job available", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
             // pawn.work.set: when player autonomy policy disables WorkPriorityModification
-            if (toolId == "pawn.work.set" && error.IndexOf("by player autonomy policy", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (toolId == "pawn.work.set" && err.IndexOf("by player autonomy policy", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
 
             // Composite actions on fresh -quicktest map: resource safety guard or missing worktable
             if ((toolId == "actions_plan_room_project" || toolId == "actions_place_blueprint") &&
-                (error.IndexOf("[Safety Guard]", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 error.IndexOf("minimum survival threshold", StringComparison.OrdinalIgnoreCase) >= 0))
+                (err.IndexOf("[Safety Guard]", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 err.IndexOf("minimum survival threshold", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
             if (toolId == "actions_add_worktable_bill" &&
-                (error.IndexOf("No worktable found", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 error.IndexOf("worktable", StringComparison.OrdinalIgnoreCase) >= 0))
+                (err.IndexOf("No worktable found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 err.IndexOf("worktable", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
             if (toolId == "actions_designate_resources" &&
-                (error.IndexOf("No valid", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 error.IndexOf("found within", StringComparison.OrdinalIgnoreCase) >= 0))
+                (err.IndexOf("No valid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 err.IndexOf("found within", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
             return false;
@@ -1215,7 +1216,7 @@ namespace RimMind.Infrastructure.UI
                 if (resolved && callbackInvoked && isCleared)
                 {
                     checksPassed++;
-                    result.Details.Add("[PASS] Simulated Click: [批准] button clicked -> Request resolved, callback executed, and cleared from overlay");
+                    result.Details.Add("[PASS] Simulated Click: [Approve] button clicked -> Request resolved, callback executed, and cleared from overlay");
                 }
                 else
                 {

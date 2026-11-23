@@ -21,7 +21,6 @@ namespace RimMind.Application.Features.AgentBus
         private readonly ConcurrentQueue<DeferredPublish> _backgroundQueue
             = new ConcurrentQueue<DeferredPublish>();
         private ILogSink? _log;
-        private readonly IThreadChecker? _threadChecker;
         private readonly Action<AgentBusEvent> _dispatchAction;
         private IPipeline<BusPublishContext>? _pipeline;
         private int _handlerIdCounter;
@@ -72,7 +71,6 @@ namespace RimMind.Application.Features.AgentBus
         public AgentBusImpl(ILogSink? log = null, IThreadChecker? threadChecker = null)
         {
             _log = log;
-            _threadChecker = threadChecker;
             _dispatchAction = DispatchToHandlers;
         }
 
@@ -92,9 +90,13 @@ namespace RimMind.Application.Features.AgentBus
         {
             if (evt == null) return;
             BindPendingSubscriptions();
-            if (!_handlers.TryGetValue(evt.GetType(), out var list) || list.Count == 0) return;
+            if (!_handlers.TryGetValue(evt.GetType(), out var list)) return;
             HandlerEntry[] snapshot;
-            lock (list) { snapshot = list.ToArray(); }
+            lock (list)
+            {
+                if (list.Count == 0) return;
+                snapshot = list.ToArray();
+            }
             foreach (var entry in snapshot)
             {
                 try { entry.Action(evt); }
@@ -214,18 +216,6 @@ namespace RimMind.Application.Features.AgentBus
             }
         }
 
-        /// <summary>
-        /// Obsolete: action-based unsubscribe is unreliable because subscriptions wrap the original handler in a lambda.
-        /// Use <see cref="Unsubscribe{T}(string)"/> with the key returned from <see cref="Subscribe{T}(Action{T})"/>.
-        /// </summary>
-        [Obsolete("Use Unsubscribe<T>(string key) instead. Action-based unsubscribe is unreliable due to lambda wrapping.")]
-        public void Unsubscribe<T>(Action<T> handler) where T : AgentBusEvent
-        {
-            throw new NotSupportedException(
-                "Unsubscribe by Action is unreliable due to lambda wrapping. " +
-                "Use Unsubscribe<T>(string key) with the key returned from Subscribe<T>(Action<T>).");
-        }
-
         [ThreadAffinity(ThreadAffinityKind.MainOnly)]
         public void Publish<T>(T evt) where T : AgentBusEvent
         {
@@ -245,7 +235,11 @@ namespace RimMind.Application.Features.AgentBus
         {
             if (evt == null) return;
             BindPendingSubscriptions();
-            if (!_handlers.TryGetValue(evt.GetType(), out var list) || list.Count == 0) return;
+            if (!_handlers.TryGetValue(evt.GetType(), out var list)) return;
+            lock (list)
+            {
+                if (list.Count == 0) return;
+            }
             _backgroundQueue.Enqueue(new DeferredPublish(evt.GetType(), evt));
         }
 

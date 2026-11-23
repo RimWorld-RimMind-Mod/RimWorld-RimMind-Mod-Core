@@ -4,7 +4,6 @@ using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Pipeline;
 using RimMind.Application.Common.Models.Pipeline;
-using RimMind.Domain.Common;
 
 namespace RimMind.Application.Features.Pipeline.Bus
 {
@@ -28,10 +27,10 @@ namespace RimMind.Application.Features.Pipeline.Bus
         {
             if (_threadChecker != null && !_threadChecker.IsMainThread)
             {
-                _log?.Warning("[BusThreadAffinity] Bus publish called from non-main thread — this may cause race conditions in RimWorld's single-threaded simulation");
+                _log?.Warning("[BusThreadAffinity] Bus publish called from non-main thread — this may cause race conditions in single-threaded game simulation");
                 throw new InvalidOperationException(
                     "Bus publish must be called from the main thread. " +
-                    "Use LongEventHandler or QueueWorkItem to marshal to the main thread first.");
+                    "Use PublishFromBackground or MainThreadDispatchQueue to marshal to the main thread first.");
             }
             return next(context);
         }

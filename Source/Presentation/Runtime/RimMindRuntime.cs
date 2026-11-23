@@ -152,7 +152,6 @@ namespace RimMind.Presentation.Runtime
 
         public IAIClient? GetClient() => ClientManager.GetClient();
         public void InvalidateClientCache() => ClientManager.InvalidateCache();
-        public IAIClient? GetPlayer2Client() => ClientManager.GetPlayer2Client();
         public ISettingsProvider? GetSettingsProvider() => ResolveOptional<ISettingsProvider>(c => c.SettingsProvider);
     }
 }

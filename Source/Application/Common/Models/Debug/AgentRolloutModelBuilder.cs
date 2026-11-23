@@ -278,8 +278,8 @@ namespace RimMind.Application.Common.Models.Debug
                 return true;
             string scenario = ResolveScenarioId(entry);
             string mod = ResolveModId(entry);
-            return Context.ScenarioIds.IsDecisionScenario(scenario)
-                || string.Equals(mod, "RimMind.Agent", StringComparison.OrdinalIgnoreCase);
+            return Features.Context.ScenarioRegistry.IsDecisionScenario(scenario)
+                || string.Equals(mod, Constants.RimMindOwnerConsts.AgentModId, StringComparison.OrdinalIgnoreCase);
         }
 
         private static double ComputePrefixReuseRatio(IReadOnlyList<AIRequestTraceEntry> turns)

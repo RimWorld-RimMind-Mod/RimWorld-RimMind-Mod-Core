@@ -74,7 +74,6 @@ namespace RimMind.Presentation.Runtime.Composition
             services.Bind(infraBag.AudioPlayer);
             services.Bind(infraBag.TickProvider);
             services.Bind(infraBag.ThreadChecker);
-            services.Bind(infraBag.PathProvider);
             services.Bind(infraBag.LogSink);
             services.Bind(infraBag.TranslationService);
             services.Bind(infraBag.MechanismRegistry);

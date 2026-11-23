@@ -3,14 +3,13 @@ using System.Linq;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
-using RimMind.Application.Common.Helpers;
 
 namespace RimMind.Presentation.Runtime
 {
     public class ClientManager : IClientManager, IDisposable
     {
+        private readonly object _sync = new object();
         private IAIClient? _client;
-        private IAIClient? _player2Client;
         private string _lastProvider = "";
         private string _lastApiKey = "";
         private string _lastEndpoint = "";
@@ -37,37 +36,50 @@ namespace RimMind.Presentation.Runtime
             var s = GetSettings();
             if (s == null) return null;
 
-            if (_client != null &&
-                _lastProvider == s.Provider &&
-                _lastApiKey == s.ApiKey &&
-                _lastEndpoint == s.ApiEndpoint &&
-                _lastModel == s.ModelName)
-                return _client;
+            string provider = s.Provider;
+            string apiKey = s.ApiKey;
+            string endpoint = s.ApiEndpoint;
+            string model = s.ModelName;
 
-            DisposeClient(ref _client);
-            _client = CreateClient(s);
-            _lastProvider = s.Provider;
-            _lastApiKey = s.ApiKey;
-            _lastEndpoint = s.ApiEndpoint;
-            _lastModel = s.ModelName;
-            return _client;
-        }
+            IAIClient? staleClient = null;
+            IAIClient? currentClient;
 
-        public IAIClient? GetPlayer2Client()
-        {
-            var s = GetSettings();
-            if (s == null) return null;
-            if (AIProviderRegistry.RequiresApiKey(s.Provider)) return null;
+            lock (_sync)
+            {
+                if (_disposed) return null;
 
-            if (_player2Client != null) return _player2Client;
-            _player2Client = CreateClient(s);
-            return _player2Client;
+                if (_client != null &&
+                    _lastProvider == provider &&
+                    _lastApiKey == apiKey &&
+                    _lastEndpoint == endpoint &&
+                    _lastModel == model)
+                {
+                    return _client;
+                }
+
+                staleClient = _client;
+                _client = CreateClient(s);
+                _lastProvider = provider;
+                _lastApiKey = apiKey;
+                _lastEndpoint = endpoint;
+                _lastModel = model;
+                currentClient = _client;
+            }
+
+            DisposeClient(staleClient);
+            return currentClient;
         }
 
         public void InvalidateCache()
         {
-            DisposeClient(ref _client);
-            DisposeClient(ref _player2Client);
+            IAIClient? staleClient;
+            lock (_sync)
+            {
+                staleClient = _client;
+                _client = null;
+            }
+
+            DisposeClient(staleClient);
         }
 
         private IAIClient? CreateClient(ISettingsProvider s)
@@ -77,22 +89,27 @@ namespace RimMind.Presentation.Runtime
             return factory?.Create(s);
         }
 
-        private static void DisposeClient(ref IAIClient? client)
+        private static void DisposeClient(IAIClient? client)
         {
             if (client is IDisposable disposable)
             {
                 try { disposable.Dispose(); }
                 catch { /* swallow dispose errors */ }
             }
-            client = null;
         }
 
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
-            DisposeClient(ref _client);
-            DisposeClient(ref _player2Client);
+            IAIClient? staleClient;
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                staleClient = _client;
+                _client = null;
+            }
+
+            DisposeClient(staleClient);
         }
     }
 }

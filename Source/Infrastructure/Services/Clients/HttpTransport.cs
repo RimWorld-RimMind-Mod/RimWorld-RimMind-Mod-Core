@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Features.Llm;
 using RimMind.Infrastructure.Services.Clients.Shared;
 
@@ -54,16 +55,40 @@ namespace RimMind.Infrastructure.Services.Clients
         }
 
         public static void RegisterDecorator(IHttpRequestDecorator decorator)
-            => HttpRequestDecorators.Register(decorator);
+            => HttpRequestDecoratorRegistry.Register(decorator);
 
-        public static void ApplyDecorators(HttpRequestMessage request, string? url, string? authHeader, string? customSessionId = null)
-            => HttpRequestDecorators.ApplyAll(request, url, authHeader, customSessionId);
+        public static void ApplyDecorators(HttpRequestMessage request, HttpRequestDecorationContext context)
+            => HttpRequestDecoratorRegistry.ApplyAll(request, context);
+
+        public static void ApplyDecorators(
+            HttpRequestMessage request,
+            string? url,
+            string? authHeader,
+            string? customSessionId = null,
+            string? requestId = null,
+            string? npcId = null,
+            string? provider = null)
+            => HttpRequestDecoratorRegistry.ApplyAll(
+                request,
+                new HttpRequestDecorationContext(url, authHeader, customSessionId, requestId, npcId, provider));
 
         public static async Task<(string body, long statusCode)> PostAsync(
             string url, string jsonBody, string? authHeader = null,
             string? headerName = null, string? headerValue = null,
             float connectTimeout = 60f,
             CancellationToken cancellationToken = default)
+        {
+            return await PostAsync(
+                url, jsonBody, authHeader, headerName, headerValue,
+                connectTimeout, cancellationToken, decorationContext: null).ConfigureAwait(false);
+        }
+
+        public static async Task<(string body, long statusCode)> PostAsync(
+            string url, string jsonBody, string? authHeader,
+            string? headerName, string? headerValue,
+            float connectTimeout,
+            CancellationToken cancellationToken,
+            HttpRequestDecorationContext? decorationContext)
         {
             using var timeoutCts = connectTimeout > 0 ? new CancellationTokenSource(TimeSpan.FromSeconds(connectTimeout)) : null;
             using var linkedCts = timeoutCts != null
@@ -78,7 +103,9 @@ namespace RimMind.Infrastructure.Services.Clients
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
 
-            ApplyDecorators(request, url, authHeader, headerValue);
+            ApplyDecorators(
+                request,
+                decorationContext ?? new HttpRequestDecorationContext(url, authHeader, CustomSessionId: headerName == null ? headerValue : null));
 
             using var response = await _http.SendAsync(request, effectiveToken).ConfigureAwait(false);
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -108,7 +135,7 @@ namespace RimMind.Infrastructure.Services.Clients
             if (headerName != null && headerValue != null)
                 request.Headers.TryAddWithoutValidation(headerName, headerValue);
 
-            ApplyDecorators(request, url, authHeader, headerValue);
+            ApplyDecorators(request, new HttpRequestDecorationContext(url, authHeader));
 
             using var response = await _http.SendAsync(request, effectiveToken).ConfigureAwait(false);
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

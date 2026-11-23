@@ -165,6 +165,7 @@ namespace RimMind.Presentation.Runtime
                 services.Bind<IAgentActionBridgeAccessor>(actionBridge);
 
                 ToolMechanismComposition.RegisterAllMechanisms(infraBag.MechanismRegistry);
+                ToolMechanismComposition.RegisterBuiltinArgumentAdapters(extensions.GetExtensionRegistry<IToolArgumentAdapter>());
 
                 var clientServices = ClientComposition.ComposeClientManager(
                     services, extensions, resolvedSettings);
@@ -211,6 +212,7 @@ namespace RimMind.Presentation.Runtime
 
                 var llmMiddleware = extensions.GetExtensionRegistry<IMiddleware<LlmRequestContext>>();
                 services.Bind(llmMiddleware);
+                var deferredRuntime = new DeferredRuntimeProxy();
                 var unifiedPipeline = UnifiedRequestPipelineFactory.Build(
                     appBag.ToolRegistry,
                     logSink,
@@ -221,7 +223,9 @@ namespace RimMind.Presentation.Runtime
                     llmMiddleware,
                     contextServices.RelevanceLearner,
                     new AIResponseAnalyzer(),
-                    infraBag.RequestTraceLog);
+                    infraBag.RequestTraceLog,
+                    runtime: deferredRuntime,
+                    queueSettings: resolvedSettings);
                 services.Bind<IPipeline<LlmRequestContext>>(unifiedPipeline);
                 var requestSubmission = new RequestSubmissionService(
                     appBag.Queue,
@@ -275,6 +279,7 @@ namespace RimMind.Presentation.Runtime
                     result.AgentBus,
                     actionBridge);
                 runtime = new RimMindRuntime(result, lifecycle, extensionManager, extensions);
+                deferredRuntime.Attach(runtime);
                 var modeRegistry = extensions.GetExtensionRegistry<Application.Common.Interfaces.Agent.Modes.IAgentMode>();
                 extensionManager.RegisterBuiltinModes(modeRegistry);
                 services.Bind(modeRegistry);
@@ -303,5 +308,21 @@ namespace RimMind.Presentation.Runtime
             }
         }
 
+        private sealed class DeferredRuntimeProxy : IRimMindRuntime
+        {
+            private volatile RimMindRuntime? _target;
+
+            public void Attach(RimMindRuntime runtime) => _target = runtime;
+
+            public bool IsShutdown => _target?.IsShutdown == true;
+
+            public IExtensionRegistry<T> GetExtensionRegistry<T>() where T : class, IExtension
+                => (_target ?? throw new InvalidOperationException("Runtime is not yet attached.")).GetExtensionRegistry<T>();
+
+            public void AddMiddleware<TContext>(IMiddleware<TContext> middleware) where TContext : IPipelineContext
+                => (_target ?? throw new InvalidOperationException("Runtime is not yet attached.")).AddMiddleware(middleware);
+
+            public void Dispose() => _target?.Dispose();
+        }
     }
 }

@@ -1,22 +1,22 @@
-# Deploy this RimMind mod to RimWorld Mods folder.
+# Deploy this RimMind mod to RimWorld Mods folder (Windows PowerShell).
 # Place at: RimMind-*/script/deploy-single.ps1
 #
 # Usage:
 #   .\script\deploy-single.ps1
 #   .\script\deploy-single.ps1 "D:\Games\RimWorld"
-#   $env:RIMWORLD_PATH="D:\Games\RimWorld"; .\script\deploy-single.ps1
+#   $env:RIMWORLD_DIR="D:\Games\RimWorld"; .\script\deploy-single.ps1
 
 param(
-    [string]$RimWorldDir = ""
+    [string]$RimWorldDir = "",
+    [string[]]$GameVersions = @("1.7", "1.6")
 )
 
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ModDir    = Resolve-Path (Join-Path $ScriptDir "..")
+$ModDir    = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 $ModName   = Split-Path -Leaf $ModDir
 
-# 自动检测常见 RimWorld 安装路径
 function Detect-RimWorldPath {
     $paths = @(
         "C:\Program Files (x86)\Steam\steamapps\common\RimWorld",
@@ -31,15 +31,16 @@ function Detect-RimWorldPath {
     return $null
 }
 
-# 解析 RimWorld 路径
-if ($env:RIMWORLD_PATH) {
+if ($RimWorldDir -eq "" -and $env:RIMWORLD_DIR) {
+    $RimWorldDir = $env:RIMWORLD_DIR
+} elseif ($RimWorldDir -eq "" -and $env:RIMWORLD_PATH) {
     $RimWorldDir = $env:RIMWORLD_PATH
 } elseif ($RimWorldDir -eq "") {
     $RimWorldDir = Detect-RimWorldPath
     if (-not $RimWorldDir) {
         Write-Error "Cannot find RimWorld installation"
         Write-Host "  Usage: .\script\deploy-single.ps1 [RimWorldPath]" -ForegroundColor Yellow
-        Write-Host "  Or:    `$env:RIMWORLD_PATH='D:\Games\RimWorld'; .\script\deploy-single.ps1" -ForegroundColor Yellow
+        Write-Host "  Or:    `$env:RIMWORLD_DIR='D:\Games\RimWorld'; .\script\deploy-single.ps1" -ForegroundColor Yellow
         exit 1
     }
 }
@@ -50,92 +51,88 @@ if (-not (Test-Path $RimWorldDir)) {
 }
 
 $RimWorldMods = Join-Path $RimWorldDir "Mods"
-
-# 确保 Mods 目录存在
 if (-not (Test-Path $RimWorldMods)) {
     Write-Error "Mods directory not found at $RimWorldMods"
     exit 1
 }
 
-# 构建
+# Build for all target game versions (1.7 & 1.6)
 $SourceDir = Join-Path $ModDir "Source"
 
-if ($ModName -eq "RimMind-Core") {
-    $domainCsproj = Join-Path $SourceDir "Domain\RimMindCore.Domain.csproj"
-    $applicationCsproj = Join-Path $SourceDir "Application\RimMindCore.Application.csproj"
-    $coreCsproj = Get-ChildItem -Path $SourceDir -Filter "RimMindCore.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+foreach ($gameVersion in $GameVersions) {
+    Write-Host "=== Building $ModName (RimWorld $gameVersion) ===" -ForegroundColor Cyan
 
-    if (-not (Test-Path $domainCsproj)) {
-        Write-Error "Domain csproj not found: $domainCsproj"
-        exit 1
-    }
-    if (-not (Test-Path $applicationCsproj)) {
-        Write-Error "Application csproj not found: $applicationCsproj"
-        exit 1
-    }
-    if (-not $coreCsproj) {
-        Write-Error "Core csproj not found in $SourceDir"
-        exit 1
-    }
+    if ($ModName -eq "RimMind-Core") {
+        $domainCsproj = Join-Path $SourceDir "Domain\RimMindCore.Domain.csproj"
+        $applicationCsproj = Join-Path $SourceDir "Application\RimMindCore.Application.csproj"
+        $coreCsproj = Get-ChildItem -Path $SourceDir -Filter "RimMindCore.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
 
-    Write-Host "=== Building $ModName (Domain) ===" -ForegroundColor Cyan
-    dotnet build $domainCsproj -c Release --nologo -v quiet
-    if ($LASTEXITCODE -ne 0) { Write-Error "Domain build failed"; exit $LASTEXITCODE }
-    Write-Host "  Domain build successful"
-
-    Write-Host "=== Building $ModName (Application) ===" -ForegroundColor Cyan
-    dotnet build $applicationCsproj -c Release --nologo -v quiet
-    if ($LASTEXITCODE -ne 0) { Write-Error "Application build failed"; exit $LASTEXITCODE }
-    Write-Host "  Application build successful"
-
-    Write-Host "=== Building $ModName (Core) ===" -ForegroundColor Cyan
-    dotnet build $coreCsproj.FullName -c Release --nologo -v quiet
-    if ($LASTEXITCODE -ne 0) { Write-Error "Core build failed"; exit $LASTEXITCODE }
-    Write-Host "  Core build successful"
-} else {
-    $CSPROJ = Get-ChildItem -Path $SourceDir -Filter "*.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($CSPROJ) {
-        Write-Host "=== Building $ModName ===" -ForegroundColor Cyan
-        dotnet build $CSPROJ.FullName -c Release --nologo -v quiet
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Build failed"
-            exit $LASTEXITCODE
+        if (-not (Test-Path $domainCsproj)) {
+            Write-Error "Domain csproj not found: $domainCsproj"
+            exit 1
         }
-        Write-Host "  Build successful"
+        if (-not (Test-Path $applicationCsproj)) {
+            Write-Error "Application csproj not found: $applicationCsproj"
+            exit 1
+        }
+        if (-not $coreCsproj) {
+            Write-Error "Core csproj not found in $SourceDir"
+            exit 1
+        }
+
+        dotnet build $domainCsproj -c Release -p:GameVersion=$gameVersion -p:SkipDeployToModsFolder=true --nologo -v quiet
+        if ($LASTEXITCODE -ne 0) { Write-Error "Domain build failed ($gameVersion)"; exit $LASTEXITCODE }
+
+        dotnet build $applicationCsproj -c Release -p:GameVersion=$gameVersion -p:SkipDeployToModsFolder=true --nologo -v quiet
+        if ($LASTEXITCODE -ne 0) { Write-Error "Application build failed ($gameVersion)"; exit $LASTEXITCODE }
+
+        dotnet build $coreCsproj.FullName -c Release -p:GameVersion=$gameVersion -p:SkipDeployToModsFolder=true --nologo -v quiet
+        if ($LASTEXITCODE -ne 0) { Write-Error "Core build failed ($gameVersion)"; exit $LASTEXITCODE }
     } else {
-        Write-Host "No .csproj found in Source\, skipping build" -ForegroundColor Yellow
+        $csproj = Get-ChildItem -Path $SourceDir -Filter "*.csproj" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($csproj) {
+            dotnet build $csproj.FullName -c Release -p:GameVersion=$gameVersion -p:SkipDeployToModsFolder=true --nologo -v quiet
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Build failed ($gameVersion)"
+                exit $LASTEXITCODE
+            }
+        } else {
+            Write-Host "No .csproj found in Source\, skipping build" -ForegroundColor Yellow
+        }
     }
 }
 
-# 部署
+# Deploy with clean runtime exclusions (never copy Core/Newtonsoft DLLs into non-Core mods)
 $DestDir = Join-Path $RimWorldMods $ModName
 Write-Host "=== Deploying $ModName -> $DestDir ===" -ForegroundColor Cyan
 
-$ExcludeDirs = @('Source', 'Tests', 'obj', '.git', 'script')
-$ExcludeFiles = @('*.csproj', '*.user', '.gitignore')
-$SourceItems = Get-ChildItem -Path $ModDir | Where-Object {
-    $item = $_
-    if ($item.PSIsContainer -and $ExcludeDirs -contains $item.Name) { return $false }
-    if (-not $item.PSIsContainer) {
-        foreach ($pattern in $ExcludeFiles) {
-            if ($item.Name -like $pattern) { return $false }
+$excludeFiles = @(
+    "*.csproj", "*.user", ".gitignore", ".git", ".gitattributes",
+    ".coderabbit.yaml", ".pre-commit-config.yaml",
+    "AGENTS.md", "CLAUDE.md", "Directory.Build.props", "Directory.Build.targets",
+    "INTRODUCTION.txt", "*.deps.json"
+)
+if ($ModName -ne "RimMind-Core") {
+    $excludeFiles += @(
+        "0_RimMindDomain.*", "1_RimMindApplication.*", "2_RimMindCore.*", "Newtonsoft.Json.*"
+    )
+}
+
+robocopy $ModDir $DestDir /MIR /XD Source Tests ArchTests IntegrationTests TestSupport obj bin .git .github .claude docs script /XF $excludeFiles /NFL /NDL /NJH /NJS /NP
+if ($LASTEXITCODE -ge 8) {
+    Write-Error "Deployment failed (robocopy exit $LASTEXITCODE)"
+    exit $LASTEXITCODE
+}
+
+if ($ModName -ne "RimMind-Core") {
+    foreach ($ver in $GameVersions) {
+        $deployedAssemblies = Join-Path $DestDir "$ver\Assemblies"
+        if (Test-Path $deployedAssemblies) {
+            foreach ($pattern in @("0_RimMindDomain.*", "1_RimMindApplication.*", "2_RimMindCore.*", "Newtonsoft.Json.*")) {
+                Get-ChildItem -Path $deployedAssemblies -Filter $pattern -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+            }
         }
     }
-    return $true
 }
 
-if (Test-Path $DestDir) {
-    Get-ChildItem -Path $DestDir | Remove-Item -Recurse -Force
-}
-
-foreach ($item in $SourceItems) {
-    Copy-Item -Path $item.FullName -Destination $DestDir -Recurse -Force
-}
-
-# 验证部署
-if (Test-Path $DestDir) {
-    Write-Host "  Done: $DestDir" -ForegroundColor Green
-} else {
-    Write-Error "Deployment verification failed"
-    exit 1
-}
+Write-Host "  Done: $DestDir" -ForegroundColor Green

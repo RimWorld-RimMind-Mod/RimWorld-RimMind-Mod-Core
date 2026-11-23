@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using RimMind.Application.Common.Behaviours;
 using RimMind.Application.Common.Interfaces.Abstractions;
-using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Flywheel;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
 using RimMind.Application.Common.Interfaces.Pipeline;
+using RimMind.Application.Common.Interfaces.Runtime;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Features.Context;
@@ -26,12 +26,14 @@ namespace RimMind.Application.Features.Pipeline.Unified
             IExtensionRegistry<IMiddleware<LlmRequestContext>>? extensions = null,
             IRelevanceLearner? relevanceLearner = null,
             AIResponseAnalyzer? responseAnalyzer = null,
-            IAIRequestTraceLog? requestTraceLog = null)
+            IAIRequestTraceLog? requestTraceLog = null,
+            IRimMindRuntime? runtime = null,
+            IQueueSettings? queueSettings = null)
         {
             var analyzer = responseAnalyzer ?? new AIResponseAnalyzer();
             var middlewares = new List<IMiddleware<LlmRequestContext>>
             {
-                new ShortCircuitMiddleware(log),
+                new ShortCircuitMiddleware(log, runtime),
                 new TraceContextMiddleware(log),
                 new NpcEnrichMiddleware(npcManagers, log),
                 new InputGuardrailMiddleware(new IInputGuardrail[]
@@ -43,10 +45,9 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 new ContextBuildMiddleware(contextEngine, log),
                 new ContextFeedbackMiddleware(relevanceLearner ?? new RelevanceLearner(), analyzer, log),
                 new RequestSanitizeMiddleware(log),
-                new CacheMiddleware(log),
                 new TelemetryMiddleware(telemetry, log),
                 new CircuitBreakerMiddleware(circuitBreakerSettings, log),
-                new RetryMiddleware(log: log),
+                new RetryMiddleware(log: log, queueSettings: queueSettings),
                 new ClientInvokeMiddleware(log, requestTraceLog),
                 new ToolCallDispatchMiddleware(toolRegistry, log, requestTraceLog),
                 new OutputGuardrailMiddleware()

@@ -9,6 +9,7 @@ namespace RimMind.Domain.Agent.Policies
     public sealed class AgentAutonomyPolicy
     {
         private readonly Dictionary<AutonomyDomain, AutonomyLevel> _domainLevels = new();
+        private readonly Dictionary<string, AutonomyLevel> _customDomainLevels = new(StringComparer.OrdinalIgnoreCase);
 
         public AgentAutonomyPolicy()
         {
@@ -20,9 +21,30 @@ namespace RimMind.Domain.Agent.Policies
             return _domainLevels.TryGetValue(domain, out var level) ? level : AutonomyLevel.RequireApproval;
         }
 
+        public AutonomyLevel GetLevel(string? domainId)
+        {
+            if (string.IsNullOrWhiteSpace(domainId))
+                return AutonomyLevel.RequireApproval;
+            if (Enum.TryParse<AutonomyDomain>(domainId!.Trim(), ignoreCase: true, out var builtIn))
+                return GetLevel(builtIn);
+            return _customDomainLevels.TryGetValue(domainId.Trim(), out var custom) ? custom : AutonomyLevel.RequireApproval;
+        }
+
         public void SetLevel(AutonomyDomain domain, AutonomyLevel level)
         {
             _domainLevels[domain] = level;
+        }
+
+        public void SetLevel(string domainId, AutonomyLevel level)
+        {
+            if (string.IsNullOrWhiteSpace(domainId)) return;
+            var trimmed = domainId.Trim();
+            if (Enum.TryParse<AutonomyDomain>(trimmed, ignoreCase: true, out var builtIn))
+            {
+                _domainLevels[builtIn] = level;
+                return;
+            }
+            _customDomainLevels[trimmed] = level;
         }
 
         public bool CanExecuteAutonomous(AutonomyDomain domain)
@@ -30,14 +52,29 @@ namespace RimMind.Domain.Agent.Policies
             return GetLevel(domain) == AutonomyLevel.FullAutonomous;
         }
 
+        public bool CanExecuteAutonomous(string? domainId)
+        {
+            return GetLevel(domainId) == AutonomyLevel.FullAutonomous;
+        }
+
         public bool RequiresApproval(AutonomyDomain domain)
         {
             return GetLevel(domain) == AutonomyLevel.RequireApproval;
         }
 
+        public bool RequiresApproval(string? domainId)
+        {
+            return GetLevel(domainId) == AutonomyLevel.RequireApproval;
+        }
+
         public bool IsDisabled(AutonomyDomain domain)
         {
             return GetLevel(domain) == AutonomyLevel.Disabled;
+        }
+
+        public bool IsDisabled(string? domainId)
+        {
+            return GetLevel(domainId) == AutonomyLevel.Disabled;
         }
 
         public void SetDefaultPreset()
@@ -73,9 +110,14 @@ namespace RimMind.Domain.Agent.Policies
         public void CopyFrom(AgentAutonomyPolicy? other)
         {
             if (other == null) return;
-            foreach (AutonomyDomain domain in System.Enum.GetValues(typeof(AutonomyDomain)))
+            foreach (AutonomyDomain domain in Enum.GetValues(typeof(AutonomyDomain)))
             {
                 _domainLevels[domain] = other.GetLevel(domain);
+            }
+            _customDomainLevels.Clear();
+            foreach (var kvp in other._customDomainLevels)
+            {
+                _customDomainLevels[kvp.Key] = kvp.Value;
             }
         }
 
@@ -85,6 +127,10 @@ namespace RimMind.Domain.Agent.Policies
             foreach (var kvp in _domainLevels)
             {
                 clone._domainLevels[kvp.Key] = kvp.Value;
+            }
+            foreach (var kvp in _customDomainLevels)
+            {
+                clone._customDomainLevels[kvp.Key] = kvp.Value;
             }
             return clone;
         }

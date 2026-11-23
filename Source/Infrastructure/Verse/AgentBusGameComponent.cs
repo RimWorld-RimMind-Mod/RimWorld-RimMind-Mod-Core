@@ -13,15 +13,46 @@ using Verse;
 
 namespace RimMind.Infrastructure.Verse
 {
-    public class AgentBusGameComponent : GameComponent
+    public class AgentBusGameComponent : GameComponent, IDisposable
     {
+        private static readonly object ActiveLock = new object();
+        private static AgentBusGameComponent? _activeInstance;
+
         private readonly RuntimeBinding _binding = new RuntimeBinding();
         private AgentBusQueueTickCoordinator? _tickCoordinator;
 
         public AgentBusGameComponent(Game game) : base() { }
 
+        private void RegisterAsActive()
+        {
+            AgentBusGameComponent? previous = null;
+            lock (ActiveLock)
+            {
+                if (!ReferenceEquals(_activeInstance, this))
+                {
+                    previous = _activeInstance;
+                    _activeInstance = this;
+                }
+            }
+
+            previous?.Dispose();
+        }
+
+        internal static void DisposeActiveInstance()
+        {
+            AgentBusGameComponent? active;
+            lock (ActiveLock)
+            {
+                active = _activeInstance;
+                _activeInstance = null;
+            }
+
+            active?.Dispose();
+        }
+
         private void Refresh()
         {
+            RegisterAsActive();
             _binding.Refresh(Bind);
         }
 
@@ -100,6 +131,12 @@ namespace RimMind.Infrastructure.Verse
 
         public void Dispose()
         {
+            lock (ActiveLock)
+            {
+                if (ReferenceEquals(_activeInstance, this))
+                    _activeInstance = null;
+            }
+
             _binding.Dispose();
             _tickCoordinator = null;
         }
@@ -123,6 +160,24 @@ namespace RimMind.Infrastructure.Verse
 
                 _subscribers.Clear();
             }
+        }
+    }
+
+    internal sealed class AgentBusGameLifecycleService : RimMind.Application.Common.Interfaces.Extension.IGameScopedService
+    {
+        public static readonly AgentBusGameLifecycleService Instance = new AgentBusGameLifecycleService();
+
+        public string Id => "core.agent_bus.game_lifecycle";
+
+        public string OwnerModId => RimMind.Application.Common.Constants.RimMindOwnerConsts.CoreModId;
+
+        public void OnGameStarted()
+        {
+        }
+
+        public void OnGameStopped()
+        {
+            AgentBusGameComponent.DisposeActiveInstance();
         }
     }
 }

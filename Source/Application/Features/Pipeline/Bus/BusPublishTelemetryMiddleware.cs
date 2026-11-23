@@ -15,8 +15,13 @@ namespace RimMind.Application.Features.Pipeline.Bus
         public string OwnerModId => RimMindOwnerConsts.CoreModId;
 
         private readonly ILogSink? _log;
+        private readonly bool _verboseLogging;
 
-        public BusPublishTelemetryMiddleware(ILogSink? log = null) { _log = log; }
+        public BusPublishTelemetryMiddleware(ILogSink? log = null, bool verboseLogging = false)
+        {
+            _log = log;
+            _verboseLogging = verboseLogging;
+        }
 
         public async Task InvokeAsync(BusPublishContext context, MiddlewareDelegate<BusPublishContext> next)
         {
@@ -27,7 +32,7 @@ namespace RimMind.Application.Features.Pipeline.Bus
             }
             finally
             {
-                if (_log != null && _log.GetType().Name != "VerseLogSink")
+                if (_log != null && _verboseLogging)
                 {
                     var elapsed = (DateTime.UtcNow - start).TotalMilliseconds;
                     _log.Message($"[BusTelemetry] Event {context.Event?.GetType().Name} published in {elapsed:F0}ms");

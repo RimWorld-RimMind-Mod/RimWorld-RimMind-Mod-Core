@@ -188,18 +188,15 @@ namespace RimMind.Infrastructure.UI
 
             bool hasAgent = false;
             var map = Find.CurrentMap;
-            var allPawns = map?.mapPawns?.AllPawns;
-            if (allPawns != null)
+            var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+            for (int i = 0; i < colonists.Count; i++)
             {
-                for (int i = 0; i < allPawns.Count; i++)
+                Pawn pawn = colonists[i];
+                var comp = CompPawnAgent.GetComp(pawn);
+                if (comp?.Agent != null)
                 {
-                    Pawn pawn = allPawns[i];
-                    var comp = CompPawnAgent.GetComp(pawn);
-                    if (comp?.Agent != null)
-                    {
-                        hasAgent = true;
-                        break;
-                    }
+                    hasAgent = true;
+                    break;
                 }
             }
             if (!hasAgent)

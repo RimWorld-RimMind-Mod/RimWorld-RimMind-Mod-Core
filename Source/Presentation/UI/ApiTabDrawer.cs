@@ -185,7 +185,6 @@ namespace RimMind.Presentation.UI
             s.Persist();
         }
 
-        internal static string? CurrentPresetFeedback => null;
         private static void DrawConnectionSection(
             Listing_Standard listing,
             ISettingsProvider s,
@@ -208,7 +207,7 @@ namespace RimMind.Presentation.UI
 
             listing.Gap(6f);
 
-            if (!string.IsNullOrEmpty(AIProviderRegistry.GetSettingsTabId(s.Provider, providerRegistry)))
+            if (!string.IsNullOrEmpty(AIProviderRegistry.GetSettingsTabId(s.Provider)))
             {
                 DrawExtendedServiceSection(listing, s, providerRegistry, scope);
             }
@@ -230,32 +229,38 @@ namespace RimMind.Presentation.UI
             ISettingsProvider s,
             IExtensionRegistry<IAIClientFactory>? providerRegistry = null)
         {
-            if (string.Equals(s.Provider, Domain.Common.AIProviders.Player2, StringComparison.OrdinalIgnoreCase))
-                return UiText.Get("RimMind.Settings.Provider.Player2");
-
-            if (providerRegistry != null)
+            var providerPresets = AIProviderRegistry.GetPresets(s.Provider);
+            if (providerPresets.Count > 0)
             {
-                var factory = providerRegistry.All.FirstOrDefault(f =>
-                    string.Equals(f.ProviderId, s.Provider, StringComparison.OrdinalIgnoreCase));
-                if (factory != null && !string.IsNullOrEmpty(factory.DisplayLabel))
-                    return factory.DisplayLabel;
-            }
-
-            if (string.Equals(s.Provider, Domain.Common.AIProviders.OpenAI, StringComparison.OrdinalIgnoreCase))
-            {
-                string openAiLabel = UiText.Get("RimMind.Settings.Provider.OpenAI");
                 var matchedPreset = AIProviderRegistry.MatchPresetByEndpoint(s.ApiEndpoint);
-                if (matchedPreset != null)
+                if (matchedPreset != null
+                    && string.Equals(matchedPreset.ProviderId, s.Provider, StringComparison.OrdinalIgnoreCase))
                 {
                     string presetLabel = ResolvePresetLabel(matchedPreset);
                     if (!string.IsNullOrWhiteSpace(presetLabel))
                         return presetLabel;
                 }
 
-                return openAiLabel + " (" + UiText.Get("RimMind.Settings.Provider.Custom") + ")";
+                string baseLabel = ResolveFactoryOrDescriptorLabel(s.Provider, providerRegistry);
+                return baseLabel + " (" + UiText.Get("RimMind.Settings.Provider.Custom", "Custom") + ")";
             }
 
-            return GetProviderLabel(s.Provider);
+            return ResolveFactoryOrDescriptorLabel(s.Provider, providerRegistry);
+        }
+
+        private static string ResolveFactoryOrDescriptorLabel(
+            string providerId,
+            IExtensionRegistry<IAIClientFactory>? providerRegistry)
+        {
+            if (providerRegistry != null)
+            {
+                var factory = providerRegistry.All.FirstOrDefault(f =>
+                    string.Equals(f.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
+                if (factory != null && !string.IsNullOrEmpty(factory.DisplayLabel))
+                    return factory.DisplayLabel;
+            }
+
+            return GetProviderLabel(providerId);
         }
 
         private static string ResolvePresetLabel(AIProviderPreset preset)
@@ -271,90 +276,105 @@ namespace RimMind.Presentation.UI
             IPlayer2Lifecycle? player2Lifecycle)
         {
             var options = new List<FloatMenuOption>();
+            var addedProviderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // 1. OpenAI-compatible presets registered via AIProviderRegistry
-            var openAiPresets = AIProviderRegistry.GetPresets(Domain.Common.AIProviders.OpenAI);
-            if (openAiPresets.Count > 0)
+            var orderedFactories = providerRegistry != null
+                ? providerRegistry.All.Where(f => f.VisibleInMenu).OrderBy(f => f.OrderWeight).ToList()
+                : new List<IAIClientFactory>();
+
+            foreach (var factory in orderedFactories)
             {
-                foreach (var preset in openAiPresets)
+                if (!addedProviderIds.Add(factory.ProviderId))
+                    continue;
+
+                var presets = AIProviderRegistry.GetPresets(factory.ProviderId);
+                if (presets.Count > 0)
                 {
-                    var capturedPreset = preset;
-                    string label = ResolvePresetLabel(capturedPreset);
-                    options.Add(new FloatMenuOption(label, () =>
+                    foreach (var preset in presets)
+                    {
+                        var capturedPreset = preset;
+                        string label = ResolvePresetLabel(capturedPreset);
+                        options.Add(new FloatMenuOption(label, () =>
+                        {
+                            ApplyProviderPreset(
+                                s,
+                                capturedPreset.ProviderId,
+                                capturedPreset.Endpoint,
+                                capturedPreset.ModelName,
+                                label);
+                        }));
+                    }
+                    continue;
+                }
+
+                string factoryLabel = !string.IsNullOrEmpty(factory.DisplayLabel)
+                    ? factory.DisplayLabel
+                    : GetProviderLabel(factory.ProviderId);
+                var capturedFactory = factory;
+                options.Add(new FloatMenuOption(factoryLabel, () =>
+                {
+                    if (!string.IsNullOrEmpty(capturedFactory.DefaultEndpoint)
+                        || !string.IsNullOrEmpty(capturedFactory.DefaultModelName))
                     {
                         ApplyProviderPreset(
                             s,
-                            capturedPreset.ProviderId,
-                            capturedPreset.Endpoint,
-                            capturedPreset.ModelName,
-                            label);
-                    }));
-                }
-            }
-            else
-            {
-                var openAiDescriptor = AIProviderRegistry.GetDescriptor(Domain.Common.AIProviders.OpenAI);
-                string openAiLabel = UiText.Get("RimMind.Settings.Provider.OpenAI");
-                options.Add(new FloatMenuOption(openAiLabel, () =>
-                {
-                    ApplyProviderPreset(
-                        s,
-                        Domain.Common.AIProviders.OpenAI,
-                        openAiDescriptor?.DefaultEndpoint ?? RimMindCoreSettings.DefaultApiEndpoint,
-                        openAiDescriptor?.DefaultModelName ?? RimMindCoreSettings.DefaultModelName,
-                        openAiLabel);
+                            capturedFactory.ProviderId,
+                            capturedFactory.DefaultEndpoint ?? string.Empty,
+                            capturedFactory.DefaultModelName ?? string.Empty,
+                            factoryLabel);
+                    }
+                    else
+                    {
+                        SwitchToProvider(s, capturedFactory.ProviderId, player2Lifecycle);
+                    }
                 }));
             }
 
-            // 2. Player2 (local/cloud)
-            options.Add(new FloatMenuOption(UiText.Get("RimMind.Settings.Provider.Player2"), () =>
-            {
-                s.Provider = Domain.Common.AIProviders.Player2;
-                s.Persist();
-                RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
-                var currentClientManager = ClientManager.ResolveOptional(operationScope);
-                currentClientManager?.InvalidateCache();
-            }));
-
-            // 3+. Dynamically registered provider factories (extensions such as ModelService)
-            if (providerRegistry != null)
-            {
-                var externalFactories = providerRegistry.All
-                    .Where(f => f.VisibleInMenu
-                        && !string.Equals(f.ProviderId, Domain.Common.AIProviders.OpenAI, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(f.ProviderId, Domain.Common.AIProviders.Player2, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(f => f.OrderWeight);
-
-                foreach (var factory in externalFactories)
-                {
-                    string label = !string.IsNullOrEmpty(factory.DisplayLabel) ? factory.DisplayLabel : GetProviderLabel(factory.ProviderId);
-                    var capturedFactory = factory;
-                    options.Add(new FloatMenuOption(label, () =>
-                    {
-                        s.Provider = capturedFactory.ProviderId;
-                        if (!string.IsNullOrEmpty(capturedFactory.DefaultEndpoint))
-                            s.ApiEndpoint = capturedFactory.DefaultEndpoint!;
-                        if (!string.IsNullOrEmpty(capturedFactory.DefaultModelName))
-                            s.ModelName = capturedFactory.DefaultModelName!;
-                        s.Persist();
-                        RuntimeServiceScope operationScope = RuntimeServiceHub.Shared.Capture();
-                        var currentClientManager = ClientManager.ResolveOptional(operationScope);
-                        currentClientManager?.InvalidateCache();
-                    }));
-                }
-            }
-
             var allProviders = AIProviderRegistry.GetAllProviderIds(providerRegistry);
-            foreach (var p in allProviders)
+            foreach (var providerId in allProviders)
             {
-                if (string.Equals(p, Domain.Common.AIProviders.OpenAI, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(p, Domain.Common.AIProviders.Player2, StringComparison.OrdinalIgnoreCase)
-                    || (providerRegistry != null && providerRegistry.All.Any(f => string.Equals(f.ProviderId, p, StringComparison.OrdinalIgnoreCase))))
+                if (!addedProviderIds.Add(providerId))
                     continue;
-                var label = GetProviderLabel(p);
-                options.Add(new FloatMenuOption(label, () =>
+
+                var presets = AIProviderRegistry.GetPresets(providerId);
+                if (presets.Count > 0)
                 {
-                    SwitchToProvider(s, p, player2Lifecycle);
+                    foreach (var preset in presets)
+                    {
+                        var capturedPreset = preset;
+                        string label = ResolvePresetLabel(capturedPreset);
+                        options.Add(new FloatMenuOption(label, () =>
+                        {
+                            ApplyProviderPreset(
+                                s,
+                                capturedPreset.ProviderId,
+                                capturedPreset.Endpoint,
+                                capturedPreset.ModelName,
+                                label);
+                        }));
+                    }
+                    continue;
+                }
+
+                var descriptor = AIProviderRegistry.GetDescriptor(providerId);
+                string labelText = GetProviderLabel(providerId);
+                string capturedId = providerId;
+                options.Add(new FloatMenuOption(labelText, () =>
+                {
+                    if (!string.IsNullOrEmpty(descriptor?.DefaultEndpoint)
+                        || !string.IsNullOrEmpty(descriptor?.DefaultModelName))
+                    {
+                        ApplyProviderPreset(
+                            s,
+                            capturedId,
+                            descriptor?.DefaultEndpoint ?? string.Empty,
+                            descriptor?.DefaultModelName ?? string.Empty,
+                            labelText);
+                    }
+                    else
+                    {
+                        SwitchToProvider(s, capturedId, player2Lifecycle);
+                    }
                 }));
             }
 
@@ -411,7 +431,7 @@ namespace RimMind.Presentation.UI
                 new Color(0.5f, 0.9f, 0.6f));
             listing.Gap(4f);
 
-            string? settingsTabId = AIProviderRegistry.GetSettingsTabId(s.Provider, providerRegistry);
+            string? settingsTabId = AIProviderRegistry.GetSettingsTabId(s.Provider);
             bool isRegistered = !string.IsNullOrEmpty(s.Provider)
                 && (providerRegistry?.FindById(s.Provider) != null || !string.IsNullOrEmpty(settingsTabId));
             if (isRegistered && !string.IsNullOrEmpty(settingsTabId))
@@ -759,7 +779,8 @@ namespace RimMind.Presentation.UI
             listing.Gap(4f);
             string remoteUrlDesc = UiText.Get("RimMind.Settings.Player2.RemoteUrl.Desc");
             listing.LabelWithTooltip(UiText.Get("RimMind.Settings.Player2.RemoteUrl"), remoteUrlDesc);
-            s.Player2RemoteUrl = listing.TextEntryWithTooltip(s.Player2RemoteUrl, remoteUrlDesc);
+            string remoteUrl = listing.TextEntryWithTooltip(s.GetProviderOption("player2.remote_url"), remoteUrlDesc);
+            s.SetProviderOption("player2.remote_url", remoteUrl);
 
             listing.Gap(4f);
             {

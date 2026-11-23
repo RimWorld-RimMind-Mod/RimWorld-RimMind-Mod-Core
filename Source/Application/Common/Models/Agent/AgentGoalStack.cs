@@ -54,10 +54,13 @@ namespace RimMind.Application.Common.Models.Agent
             {
                 var removable = _goals.FirstOrDefault(g => g.Status == GoalStatus.Proposed);
                 if (removable == null) return false;
-                if (removable.Status == GoalStatus.Active) _activeCount--;
                 _goals.Remove(removable);
             }
-            if (ActiveCount < MaxActiveGoals && goal.Status == GoalStatus.Proposed)
+            if (goal.Status == GoalStatus.Active)
+            {
+                _activeCount++;
+            }
+            else if (ActiveCount < MaxActiveGoals && goal.Status == GoalStatus.Proposed)
             {
                 goal.Status = GoalStatus.Active;
                 _activeCount++;
@@ -118,6 +121,7 @@ namespace RimMind.Application.Common.Models.Agent
         {
             _goals.Clear();
             _activeCount = 0;
+            BumpVersion();
         }
 
         private void BumpVersion() => _version++;

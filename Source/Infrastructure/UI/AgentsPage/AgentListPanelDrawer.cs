@@ -23,20 +23,16 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             _pawnById.Clear();
 
             var map = Find.CurrentMap;
-            var allSpawned = map?.mapPawns?.AllPawnsSpawned;
-            if (allSpawned != null)
+            var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+            for (int i = 0; i < colonists.Count; i++)
             {
-                for (int i = 0; i < allSpawned.Count; i++)
-                {
-                    Pawn pawn = allSpawned[i];
-                    if (pawn == null) continue;
-                    var comp = CompPawnAgent.GetComp(pawn);
-                    if (comp?.Agent == null) continue;
-                    AgentState state = comp.Agent.State;
-                    string id = pawn.ThingID;
-                    _agents.Add(AgentListItem.ExistingPawn(id, pawn.LabelShortCap, state));
-                    _pawnById[id] = pawn;
-                }
+                Pawn pawn = colonists[i];
+                var comp = CompPawnAgent.GetComp(pawn);
+                if (comp?.Agent == null) continue;
+                AgentState state = comp.Agent.State;
+                string id = pawn.ThingID;
+                _agents.Add(AgentListItem.ExistingPawn(id, pawn.LabelShortCap, state));
+                _pawnById[id] = pawn;
             }
 
             string? pendingId = hubSelectedPawn != null

@@ -4,7 +4,6 @@ using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Agent;
 using RimMind.Application.Common.Interfaces.Agent.Modes;
-using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
@@ -23,7 +22,7 @@ namespace RimMind.Application.Features.Agent
     /// executes decisions, records behavior, and publishes events.
     /// Extracted from PawnThinker.ProcessPendingCallback for single-responsibility.
     /// </summary>
-    public class DecisionProcessor : IDecisionProcessor
+    public class DecisionProcessor
     {
         private readonly IAgentControl _agent;
         private readonly IAgentBus _agentBus;
@@ -34,9 +33,9 @@ namespace RimMind.Application.Features.Agent
         private readonly Action<AgentWorkflowPhase> _transitionWorkflow;
         private readonly Func<AgentDecision, Result<Unit, RimMindError>> _executeDecision;
         private readonly Func<int> _getPawnId;
-        private readonly IDecisionValidator _validator;
+        private readonly DecisionValidator _validator;
         private readonly IToolRegistry? _toolRegistry;
-        private readonly IAgenticLoopService _loopService;
+        private readonly AgenticLoopService _loopService;
         private readonly Action<string, string, bool, string?, string?>? _recordTraceOutcome;
 
         public DecisionProcessor(
@@ -49,9 +48,9 @@ namespace RimMind.Application.Features.Agent
             Func<AgentDecision, Result<Unit, RimMindError>> executeDecision,
             Func<int> getPawnId,
             ILogSink? log = null,
-            IDecisionValidator? validator = null,
+            DecisionValidator? validator = null,
             IToolRegistry? toolRegistry = null,
-            IAgenticLoopService? loopService = null,
+            AgenticLoopService? loopService = null,
             Action<string, string, bool, string?, string?>? recordTraceOutcome = null)
         {
             _agent = agent ?? throw new ArgumentNullException(nameof(agent));

@@ -176,19 +176,19 @@ namespace RimMind.Application.Features.Bridges
         {
             if (type == null)
             {
-                _warnCallback?.Invoke(FormatMessage("GetStaticPropertyValue: type is null."));
+                WarnOnce("static-prop:null-type", FormatMessage("GetStaticPropertyValue: type is null."));
                 return null;
             }
 
             try
             {
-                var prop = GetCachedProperty(type, propertyName, BindingFlags.Public | BindingFlags.Static);
+                var prop = GetCachedProperty(type, propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                 if (prop == null) return null;
                 return prop.GetValue(null);
             }
             catch (Exception ex)
             {
-                _warnCallback?.Invoke(FormatMessage($"GetStaticPropertyValue({type.Name}.{propertyName}) failed: {ex.Message}"));
+                WarnOnce($"static-prop-ex:{type.FullName}:{propertyName}", FormatMessage($"GetStaticPropertyValue({type.Name}.{propertyName}) failed: {ex.Message}"));
                 return null;
             }
         }
@@ -200,7 +200,7 @@ namespace RimMind.Application.Features.Bridges
         {
             if (instance == null)
             {
-                _warnCallback?.Invoke(FormatMessage("GetInstanceFieldValue: instance is null."));
+                WarnOnce($"inst-field:null-instance:{fieldName}", FormatMessage("GetInstanceFieldValue: instance is null."));
                 return null;
             }
 
@@ -212,27 +212,61 @@ namespace RimMind.Application.Features.Bridges
             }
             catch (Exception ex)
             {
-                _warnCallback?.Invoke(FormatMessage($"GetInstanceFieldValue({instance.GetType().Name}.{fieldName}) failed: {ex.Message}"));
+                WarnOnce($"inst-field-ex:{instance.GetType().FullName}:{fieldName}", FormatMessage($"GetInstanceFieldValue({instance.GetType().Name}.{fieldName}) failed: {ex.Message}"));
                 return null;
             }
         }
 
-        public object? TryGetSingletonInstance(Type? managerType, string instancePropertyName = "Instance")
+        /// <summary>
+        /// Resolves a singleton instance from a static property or static field (public or non-public).
+        /// Missing members and invocation errors are deduplicated via <see cref="WarnOnce"/>.
+        /// </summary>
+        public object? TryGetSingletonInstance(Type? managerType, string instanceMemberName = "Instance")
         {
             if (managerType == null)
             {
-                _warnCallback?.Invoke(FormatMessage("TryGetManagerInstance: managerType is null."));
+                WarnOnce("singleton:null-type", FormatMessage("TryGetSingletonInstance: managerType is null."));
                 return null;
             }
 
-            var instance = GetStaticPropertyValue(managerType, instancePropertyName);
-            if (instance == null)
+            const BindingFlags staticFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+            try
             {
-                _warnCallback?.Invoke(FormatMessage($"TryGetManagerInstance: instance is null on {managerType.Name}."));
+                var prop = GetCachedProperty(managerType, instanceMemberName, staticFlags, warnIfMissing: false);
+                if (prop != null)
+                {
+                    var val = prop.GetValue(null);
+                    if (val != null) return val;
+                }
+                else
+                {
+                    var field = GetCachedField(managerType, instanceMemberName, staticFlags, warnIfMissing: false);
+                    if (field != null)
+                    {
+                        var val = field.GetValue(null);
+                        if (val != null) return val;
+                    }
+                    else
+                    {
+                        WarnOnce(
+                            $"singleton-missing:{managerType.FullName}:{instanceMemberName}",
+                            FormatMessage($"TryGetSingletonInstance: static property/field '{instanceMemberName}' not found on {managerType.Name}."));
+                        return null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WarnOnce(
+                    $"singleton-ex:{managerType.FullName}:{instanceMemberName}",
+                    FormatMessage($"TryGetSingletonInstance({managerType.Name}.{instanceMemberName}) failed: {ex.Message}"));
                 return null;
             }
 
-            return instance;
+            WarnOnce(
+                $"singleton-null:{managerType.FullName}:{instanceMemberName}",
+                FormatMessage($"TryGetSingletonInstance: instance is null on {managerType.Name}."));
+            return null;
         }
 
         public void ResetForTesting()

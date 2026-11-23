@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using RimMind.Application.Common.Interfaces.Diagnostics;
 using RimMind.Application.Common.Models.Debug;
 using RimMind.Infrastructure.UI.AgentsPage;
 using Xunit;
@@ -44,7 +46,7 @@ namespace RimMind.Tests.Contracts
             {
                 RequestId = "req-002",
                 State = AIRequestTraceState.Running,
-                UserPrompt = "[L4] <dialogue_trigger>\n请根据你当前的状态和周围环境,自然地做出回应。\n</dialogue_trigger>"
+                UserPrompt = "[L4] <event_trigger>\nObserve surrounding state and respond naturally.\n</event_trigger>"
             };
 
             var rows = AgentRequestTraceRowBuilder.BuildRecent(new[] { entry });
@@ -52,9 +54,9 @@ namespace RimMind.Tests.Contracts
 
             var row = rows[0];
             Assert.Equal(AgentRequestTraceStatus.Waiting, row.Status);
-            Assert.Contains("DailyReaction", row.Summary);
+            Assert.Contains("Observe surrounding state", row.Summary);
             Assert.DoesNotContain("[L4]", row.Summary);
-            Assert.DoesNotContain("<dialogue_trigger>", row.Summary);
+            Assert.DoesNotContain("<event_trigger>", row.Summary);
             Assert.DoesNotContain("\n", row.Summary);
             Assert.DoesNotContain("\r", row.Summary);
         }
@@ -100,25 +102,78 @@ namespace RimMind.Tests.Contracts
         }
 
         [Fact]
-        public void BuildRow_HandlesExpressDialogueToolCallWithEscapedJsonArguments()
+        public void BuildRow_DelegatesSummarizationAndToolSuppression_ToRegisteredTraceSummarizer()
         {
-            var entry = new AIRequestTraceEntry
+            const string owner = "test.trace.summarizer";
+            var summarizer = new StubTraceSummarizer(owner);
+            RequestTraceSummarizerRegistry.Register(summarizer);
+            try
             {
-                RequestId = "req-005",
-                State = AIRequestTraceState.Completed,
-                Response = "[{\"id\":\"call_99\",\"type\":\"function\",\"function\":{\"name\":\"express_dialogue\",\"arguments\":\"{\\\"speech\\\":\\\"今天天气真不错。\\\",\\\"thought_tag\\\":\\\"VALUED\\\",\\\"thought_desc\\\":\\\"轻松愉快\\\"}\"}}]"
-            };
-            entry.ToolCalls.Add(new AIRequestToolCallTrace("call_99", "express_dialogue", true, null));
+                var waitingEntry = new AIRequestTraceEntry
+                {
+                    RequestId = "req-005-wait",
+                    State = AIRequestTraceState.Running,
+                    UserPrompt = "[L4] <custom_trigger>auto</custom_trigger>"
+                };
+                var waitRow = Assert.Single(AgentRequestTraceRowBuilder.BuildRecent(new[] { waitingEntry }));
+                Assert.Equal(AgentRequestTraceStatus.Waiting, waitRow.Status);
+                Assert.Contains("CustomTriggerSummary", waitRow.Summary);
 
-            var rows = AgentRequestTraceRowBuilder.BuildRecent(new[] { entry });
-            Assert.Single(rows);
+                var completedEntry = new AIRequestTraceEntry
+                {
+                    RequestId = "req-005-done",
+                    State = AIRequestTraceState.Completed,
+                    Response = "[{\"id\":\"call_99\",\"type\":\"function\",\"function\":{\"name\":\"custom_speech_tool\",\"arguments\":\"{}\"}}]"
+                };
+                completedEntry.ToolCalls.Add(new AIRequestToolCallTrace("call_99", "custom_speech_tool", true, null));
 
-            var row = rows[0];
-            Assert.Equal(AgentRequestTraceStatus.Success, row.Status);
-            Assert.Contains("今天天气真不错。", row.Summary);
-            Assert.Contains("轻松愉快", row.Summary);
-            Assert.DoesNotContain("express_dialogue", row.Summary);
-            Assert.DoesNotContain("call_99", row.Summary);
+                var doneRow = Assert.Single(AgentRequestTraceRowBuilder.BuildRecent(new[] { completedEntry }));
+                Assert.Equal(AgentRequestTraceStatus.Success, doneRow.Status);
+                Assert.Contains("Clear skies today.", doneRow.Summary);
+                Assert.DoesNotContain("custom_speech_tool", doneRow.Summary);
+                Assert.DoesNotContain("call_99", doneRow.Summary);
+            }
+            finally
+            {
+                RequestTraceSummarizerRegistry.UnregisterByOwner(owner);
+            }
+        }
+
+        private sealed class StubTraceSummarizer : IRequestTraceSummarizer
+        {
+            public StubTraceSummarizer(string ownerModId)
+            {
+                OwnerModId = ownerModId;
+            }
+
+            public string Id => "test.summarizer.custom";
+            public string OwnerModId { get; }
+            public int Order => 10;
+
+            public bool TrySummarizeResponse(AIRequestTraceEntry entry, out RequestTraceSummary? summary)
+            {
+                if (entry.Response != null && entry.Response.Contains("custom_speech_tool", StringComparison.Ordinal))
+                {
+                    summary = new RequestTraceSummary("Clear skies today.", new[] { "custom_speech_tool" });
+                    return true;
+                }
+                summary = null;
+                return false;
+            }
+
+            public bool TrySummarizePrompt(string rawPrompt, out string? summary)
+            {
+                if (rawPrompt.Contains("<custom_trigger>", StringComparison.Ordinal))
+                {
+                    summary = "CustomTriggerSummary";
+                    return true;
+                }
+                summary = null;
+                return false;
+            }
+
+            public bool ShouldSuppressToolCall(string toolName)
+                => string.Equals(toolName, "custom_speech_tool", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

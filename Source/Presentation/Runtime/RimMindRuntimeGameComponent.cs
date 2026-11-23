@@ -1,12 +1,16 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Interfaces.Agent;
+using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Interfaces.Extension;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Interfaces.Npc;
+using RimMind.Application.Features.Requests.Queue;
+using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 using RimMind.Presentation.Runtime.Services;
 using RimMind.Presentation.UI;
@@ -23,6 +27,7 @@ namespace RimMind.Presentation.Runtime
         private readonly Game _game;
         private int _lastTick = -1;
         private bool _initialized;
+        private bool _gameStartedNotified;
         private long _cachedHubGeneration = -1;
 
         public RimMindRuntimeGameComponent(Game game) : base()
@@ -66,7 +71,7 @@ namespace RimMind.Presentation.Runtime
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
-            NotifyGameStarted();
+            NotifyGameStartedOnce();
             CheckMissingApiKeyNotification();
         }
 
@@ -77,7 +82,7 @@ namespace RimMind.Presentation.Runtime
             EnsureInitialized();
             PublishGameServices();
             ResetRuntimeAgents();
-            NotifyGameStarted();
+            NotifyGameStartedOnce();
             CheckMissingApiKeyNotification();
         }
 
@@ -85,6 +90,14 @@ namespace RimMind.Presentation.Runtime
         {
             base.FinalizeInit();
             RimMindPawnLookup.ClearCache();
+            NotifyGameStartedOnce();
+        }
+
+        private void NotifyGameStartedOnce()
+        {
+            if (_gameStartedNotified)
+                return;
+            _gameStartedNotified = true;
             NotifyGameStarted();
         }
 
@@ -241,6 +254,33 @@ namespace RimMind.Presentation.Runtime
                 {
                     _lastTick = -1;
                 }
+            }
+        }
+    }
+
+    internal sealed class CoreGameLifecycleCleanupService : IGameScopedService
+    {
+        public static readonly CoreGameLifecycleCleanupService Instance = new CoreGameLifecycleCleanupService();
+
+        public string Id => "core.game_lifecycle_cleanup";
+
+        public string OwnerModId => RimMindOwnerConsts.CoreModId;
+
+        public void OnGameStarted()
+        {
+        }
+
+        public void OnGameStopped()
+        {
+            var scope = RuntimeServiceHub.Shared.Capture();
+            scope.GetOptional<IHistoryManager>()?.LoadFromSave(new Dictionary<string, List<HistoryEntry>>());
+
+            var queue = scope.GetOptional<IRequestQueue>();
+            if (queue != null)
+            {
+                queue.CancelAllRequests();
+                if (queue is ITickableRequestQueue tickable)
+                    tickable.Reset();
             }
         }
     }

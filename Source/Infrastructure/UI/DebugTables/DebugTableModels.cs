@@ -123,7 +123,7 @@ namespace RimMind.Infrastructure.UI.DebugTables
 
             int safeMaxChars = System.Math.Max(1, maxChars);
 
-            string oneLine = value
+            string oneLine = value!
                 .Replace("\r", " ")
                 .Replace("\n", " ")
                 .Replace("<", "[")

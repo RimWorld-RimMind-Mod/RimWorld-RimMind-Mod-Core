@@ -16,10 +16,8 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
     public partial class Player2Client
     {
         private const int BalanceQueryTimeoutSec = RimMindDefaults.Player2BalanceQueryTimeout;
-        private const int BalancePollingDelayMs = RimMindDefaults.Player2BalancePollingDelay;
 
         private static volatile float _cachedJoulesBalance = -1f;
-        private static DateTime _lastBalanceCheck = DateTime.MinValue;
         private static readonly object _balanceLock = new object();
 
         public static float CachedJoulesBalance => _cachedJoulesBalance;
@@ -79,7 +77,6 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
                         lock (_balanceLock)
                         {
                             _cachedJoulesBalance = balance;
-                            _lastBalanceCheck = DateTime.Now;
                         }
                     }
                 }

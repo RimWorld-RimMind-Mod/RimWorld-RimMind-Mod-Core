@@ -6,6 +6,5 @@ namespace RimMind.Application.Common.Interfaces.Internal
     {
         IAIClient? GetClient();
         void InvalidateCache();
-        IAIClient? GetPlayer2Client();
     }
 }

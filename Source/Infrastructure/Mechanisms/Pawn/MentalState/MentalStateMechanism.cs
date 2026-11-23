@@ -67,9 +67,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.MentalState
             if (string.IsNullOrEmpty(args.DefName))
                 return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName("")));
 
-            var mentalStateDef = FindDef(args.DefName);
+            var mentalStateDef = FindDef(args.DefName!);
             if (mentalStateDef == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
             bool started = pawn.mindState?.mentalStateHandler?.TryStartMentalState(mentalStateDef, "Triggered by AI", true) == true;
             if (!started)

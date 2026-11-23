@@ -136,7 +136,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
                 return label + ": " + (row.ErrorMessage?.Replace('\r', ' ').Replace('\n', ' ').Trim() ?? string.Empty);
 
             return row.HasError && !string.IsNullOrWhiteSpace(row.ErrorMessage)
-                ? label + ": " + summary + " - " + row.ErrorMessage.Replace('\r', ' ').Replace('\n', ' ').Trim()
+                ? label + ": " + summary + " - " + row.ErrorMessage!.Replace('\r', ' ').Replace('\n', ' ').Trim()
                 : label + ": " + summary;
         }
 

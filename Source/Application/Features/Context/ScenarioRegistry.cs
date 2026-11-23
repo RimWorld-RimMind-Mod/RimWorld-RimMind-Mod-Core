@@ -2,8 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces.Abstractions;
-using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.Context;
+using RimMind.Domain.Llm;
 
 namespace RimMind.Application.Features.Context
 {
@@ -26,6 +26,8 @@ namespace RimMind.Application.Features.Context
         public string[] DefaultExcludeKeys { get; init; } = new string[0];
         public IReadOnlyDictionary<string, float>? RelevanceWeights { get; init; }
         public string? OwnerModId { get; init; }
+        public bool IsDecisionScenario { get; init; }
+        public ToolCallDispatchMode? DefaultToolDispatchMode { get; init; }
     }
 
     public class ScenarioMeta
@@ -39,6 +41,8 @@ namespace RimMind.Application.Features.Context
         public string[] DefaultExcludeKeys = new string[0];
         public IReadOnlyDictionary<string, float>? RelevanceWeights;
         public string? OwnerModId;
+        public bool IsDecisionScenario;
+        public ToolCallDispatchMode? DefaultToolDispatchMode;
         internal bool IsCoreFallback;
     }
 
@@ -143,6 +147,8 @@ namespace RimMind.Application.Features.Context
                 DefaultExcludeKeys = descriptor.DefaultExcludeKeys ?? new string[0],
                 RelevanceWeights = copiedWeights,
                 OwnerModId = descriptor.OwnerModId,
+                IsDecisionScenario = descriptor.IsDecisionScenario,
+                DefaultToolDispatchMode = descriptor.DefaultToolDispatchMode,
                 IsCoreFallback = isCoreFallback
             };
         }
@@ -227,41 +233,59 @@ namespace RimMind.Application.Features.Context
             return new List<ScenarioMeta>(_scenarios.Values);
         }
 
+        public static bool IsDecisionScenario(string? scenarioId)
+        {
+            if (string.IsNullOrWhiteSpace(scenarioId))
+                return false;
+            var meta = Get(scenarioId!);
+            if (meta != null)
+                return meta.IsDecisionScenario || ScenarioIds.IsDecisionScenario(scenarioId);
+            return ScenarioIds.IsDecisionScenario(scenarioId);
+        }
+
+        public static ToolCallDispatchMode? GetDefaultToolDispatchMode(string? scenarioId)
+        {
+            if (string.IsNullOrWhiteSpace(scenarioId))
+                return null;
+            return Get(scenarioId!)?.DefaultToolDispatchMode;
+        }
+
         public static void RegisterCoreScenarios(ITranslationService? translationService = null, ILogSink? logSink = null)
         {
             if (_coreRegistered) return;
             _coreRegistered = true;
-            RegisterCoreFallback(ScenarioIds.Dialogue, 10, Translate(translationService, "RimMind.Application.Scenario.Dialogue"),
+            RegisterCoreFallback(ScenarioIds.Dialogue, 10, Translate(translationService, "RimMind.Application.Scenario.Dialogue", "Dialogue"),
                 defaultBudget: 0.6f, l4Mode: L4Mode.BudgetControlled,
                 defaultExcludeKeys: new[] { "combat_status", "task_progress" }, logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.CrisisDialogue, 8, Translate(translationService, "RimMind.Application.Scenario.CrisisDialogue"),
+            RegisterCoreFallback(ScenarioIds.CrisisDialogue, 8, Translate(translationService, "RimMind.Application.Scenario.CrisisDialogue", "Crisis Dialogue"),
                 defaultBudget: 0.7f, l4Mode: L4Mode.BudgetControlled,
                 defaultExcludeKeys: new[] { "task_progress" }, logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.Decision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
+            RegisterCoreFallback(ScenarioIds.Decision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision", "Decision"),
                 defaultBudget: 0.5f, l4Mode: L4Mode.None,
-                defaultExcludeKeys: new string[0], logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.AgentDecision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
+                defaultExcludeKeys: new string[0], logSink: logSink, isDecisionScenario: true);
+            RegisterCoreFallback(ScenarioIds.AgentDecision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision", "Decision"),
                 defaultBudget: 0.55f, l4Mode: L4Mode.None,
-                defaultExcludeKeys: new string[0], logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.AdvisorDecision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision"),
+                defaultExcludeKeys: new string[0], logSink: logSink, isDecisionScenario: true);
+            RegisterCoreFallback(ScenarioIds.AdvisorDecision, 0, Translate(translationService, "RimMind.Application.Scenario.Decision", "Decision"),
                 defaultBudget: 0.6f, l4Mode: L4Mode.None,
-                defaultExcludeKeys: new string[0], logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.Personality, 3, Translate(translationService, "RimMind.Application.Scenario.Personality"),
+                defaultExcludeKeys: new string[0], logSink: logSink, isDecisionScenario: true);
+            RegisterCoreFallback(ScenarioIds.Personality, 3, Translate(translationService, "RimMind.Application.Scenario.Personality", "Personality"),
                 defaultBudget: 0.4f, l4Mode: L4Mode.MemoryOnly,
                 defaultExcludeKeys: new[] { "combat_status" }, logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.Storyteller, 8, Translate(translationService, "RimMind.Application.Scenario.Storyteller"),
+            RegisterCoreFallback(ScenarioIds.Storyteller, 8, Translate(translationService, "RimMind.Application.Scenario.Storyteller", "Storyteller"),
                 defaultBudget: 0.7f, l4Mode: L4Mode.NarrativeMemory,
                 defaultExcludeKeys: new[] { "npc_identity", "pawn_base_info", "fixed_relations",
                     "ideology", "skills_summary", "health", "mood", "current_job",
                     "combat_status", "target_info", "task_progress", "npc_commands" }, logSink: logSink);
-            RegisterCoreFallback(ScenarioIds.Memory, 0, Translate(translationService, "RimMind.Application.Scenario.Memory"),
+            RegisterCoreFallback(ScenarioIds.Memory, 0, Translate(translationService, "RimMind.Application.Scenario.Memory", "Memory"),
                 defaultBudget: 0.4f, l4Mode: L4Mode.None,
                 defaultExcludeKeys: new[] { "combat_status", "current_job", "mood",
                     "task_progress", "npc_commands", "target_info" }, logSink: logSink);
         }
 
         private static void RegisterCoreFallback(string scenarioId, int defaultBaseRounds, string description,
-            float defaultBudget, L4Mode l4Mode, string[] defaultExcludeKeys, ILogSink? logSink)
+            float defaultBudget, L4Mode l4Mode, string[] defaultExcludeKeys, ILogSink? logSink,
+            bool isDecisionScenario = false)
         {
             RegisterInternal(
                 new ScenarioDescriptor
@@ -271,15 +295,20 @@ namespace RimMind.Application.Features.Context
                     Description = description,
                     DefaultBudget = defaultBudget,
                     L4Mode = l4Mode,
-                    DefaultExcludeKeys = defaultExcludeKeys
+                    DefaultExcludeKeys = defaultExcludeKeys,
+                    IsDecisionScenario = isDecisionScenario
                 },
                 logSink,
                 isCoreFallback: true);
         }
 
-        private static string Translate(ITranslationService? translationService, string key)
+        private static string Translate(ITranslationService? translationService, string key, string fallback)
         {
-            return translationService?.Translate(key) ?? key;
+            if (translationService == null)
+                return key;
+            return translationService.CanTranslate(key)
+                ? translationService.Translate(key)
+                : fallback;
         }
 
         public static int GetBaseRounds(string scenarioId)

@@ -166,7 +166,6 @@ namespace RimMind.Infrastructure.UI
             RuntimeServiceScope runtimeScope = RuntimeServiceHub.Shared.Capture();
             var mechanismRegistry = runtimeScope.GetOptional<IGameMechanismRegistry>();
             var toolRegistry = runtimeScope.GetOptional<IToolRegistry>();
-            var approvalGate = runtimeScope.GetOptional<IHumanApprovalGate>();
 
             if (mechanismRegistry == null)
             {
@@ -197,21 +196,7 @@ namespace RimMind.Infrastructure.UI
                 }
 
                 string riskStr = mech.Risk.ToString();
-                string approvalStr = "";
-                if (approvalGate != null && _lastDecision != null)
-                {
-                    var riskLevel = mech.Risk switch
-                    {
-                        MechanismRisk.Safe => RiskLevel.Low,
-                        MechanismRisk.Moderate => RiskLevel.Medium,
-                        MechanismRisk.Dangerous => RiskLevel.High,
-                        _ => RiskLevel.Low
-                    };
-                    bool needsApproval = approvalGate.RequiresApproval(_lastDecision, riskLevel);
-                    approvalStr = needsApproval ? " [APPROVAL REQUIRED]" : "";
-                }
-
-                sb.AppendLine($"  {mech.MechanismId} [{mech.Scope}] risk={riskStr} actions={actionsStr}{toolMatch}{approvalStr}");
+                sb.AppendLine($"  {mech.MechanismId} [{mech.Scope}] risk={riskStr} actions={actionsStr}{toolMatch}");
             }
 
             if (_lastDecision == null)
@@ -261,14 +246,12 @@ namespace RimMind.Infrastructure.UI
 
                 if (toolRegistry != null)
                 {
-                    var validator = RuntimeServiceHub.Shared.Capture().GetOptional<IDecisionValidator>();
-                    if (validator != null)
-                    {
-                        var validationResult = validator.Validate(_lastDecision, toolRegistry);
-                        _validationInfo = validationResult.IsValid
-                            ? "RimMind.UI.AgentFlowLab.ValidationPassed".Translate()
-                            : "RimMind.UI.AgentFlowLab.ValidationFailed".Translate(validationResult.Reason);
-                    }
+                    var validator = RuntimeServiceHub.Shared.Capture().GetOptional<DecisionValidator>()
+                        ?? new DecisionValidator();
+                    var validationResult = validator.Validate(_lastDecision, toolRegistry);
+                    _validationInfo = validationResult.IsValid
+                        ? "RimMind.UI.AgentFlowLab.ValidationPassed".Translate()
+                        : "RimMind.UI.AgentFlowLab.ValidationFailed".Translate(validationResult.Reason);
                 }
             }
 
@@ -310,7 +293,7 @@ namespace RimMind.Infrastructure.UI
 
             if (!string.IsNullOrEmpty(execution.Error))
             {
-                _lastError = $"ExecuteMechanism: {LocalizeAsyncError(execution.Error)}";
+                _lastError = $"ExecuteMechanism: {LocalizeAsyncError(execution.Error!)}";
                 _stepTracker.Set(FlowLabStep.Execute, StepStatus.Failed);
                 return;
             }

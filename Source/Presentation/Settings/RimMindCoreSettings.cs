@@ -104,14 +104,24 @@ namespace RimMind.Presentation.Settings
         {
             if (!AIProviderRegistry.RequiresApiKey(provider))
                 return true;
-            return IsOpenAIConfigured();
+            return HasConfiguredEndpointAndCredentials();
         }
 
-        public bool IsOpenAIConfigured()
+        private bool HasConfiguredEndpointAndCredentials()
         {
-            if (!string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiEndpoint))
-                return true;
-            return backupEndpoints != null && backupEndpoints.Any(b => b != null && b.enabled && !string.IsNullOrWhiteSpace(b.apiKey) && !string.IsNullOrWhiteSpace(b.apiEndpoint));
+            if (!string.IsNullOrWhiteSpace(apiEndpoint))
+            {
+                if (!string.IsNullOrWhiteSpace(apiKey) || IsLoopbackEndpoint(apiEndpoint))
+                    return true;
+            }
+            return backupEndpoints != null && backupEndpoints.Any(b =>
+                b != null && b.enabled && !string.IsNullOrWhiteSpace(b.apiEndpoint)
+                && (!string.IsNullOrWhiteSpace(b.apiKey) || IsLoopbackEndpoint(b.apiEndpoint)));
+        }
+
+        private static bool IsLoopbackEndpoint(string? endpoint)
+        {
+            return Uri.TryCreate(endpoint?.Trim(), UriKind.Absolute, out var uri) && uri.IsLoopback;
         }
 
         public override void ExposeData()

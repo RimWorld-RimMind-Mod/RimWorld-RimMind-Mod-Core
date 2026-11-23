@@ -103,9 +103,6 @@ namespace RimMind.Application.Common.Models
         public const float ReserveBudgetWeight = 0.4f;
 
         // Queue settings
-        /// <summary>Game ticks per millisecond (for tick-to-ms conversion).</summary>
-        public const int TicksPerMillisecond = 16;
-
         /// <summary>Number of failures before circuit breaker opens.</summary>
         public const int CircuitBreakerFailureThreshold = 5;
 

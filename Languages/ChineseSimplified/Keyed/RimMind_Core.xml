@@ -37,7 +37,6 @@
   <RimMind.Settings.ModelName.Desc>要使用的模型 ID，如 deepseek-flash、deepseek-v4-pro、gpt-4o-mini 等。</RimMind.Settings.ModelName.Desc>
   <RimMind.Settings.BackupEndpoints>备用 API 容灾节点列表 (Failover List)</RimMind.Settings.BackupEndpoints>
   <RimMind.Settings.BackupEndpoints.Desc>按顺序排列的备用 API 节点列表。当主 API 节点请求失败（如 HTTP 503/502/429、超时或空响应）时，RimMind 会在单次请求内自动平滑切换至列表中的下一个可用备用节点，并对故障节点执行 60 秒临时隔离。</RimMind.Settings.BackupEndpoints.Desc>
-  <RimMind.Settings.BackupEndpoints.AddOpenCode>+ OpenCode Go 备用</RimMind.Settings.BackupEndpoints.AddOpenCode>
   <RimMind.Settings.BackupEndpoints.AddCustom>+ 自定义备用</RimMind.Settings.BackupEndpoints.AddCustom>
   <RimMind.Settings.BackupEndpoints.Empty>暂未配置备用节点。点击「+ 自定义备用」添加自动容灾保护。</RimMind.Settings.BackupEndpoints.Empty>
   <RimMind.Settings.ForceJsonMode>强制 JSON 模式（response_format）</RimMind.Settings.ForceJsonMode>
@@ -434,9 +433,14 @@
   <RimMind.Agent.ITab.CreateFailed>无法创建 Agent：工厂不可用</RimMind.Agent.ITab.CreateFailed>
   <RimMind.Agent.ITab.Status>状态</RimMind.Agent.ITab.Status>
   <RimMind.Agent.ITab.Mode>模式</RimMind.Agent.ITab.Mode>
+  <RimMind.Agent.ITab.WorkflowPhase>工作流阶段</RimMind.Agent.ITab.WorkflowPhase>
+  <RimMind.Agent.ITab.Autonomy>自主权</RimMind.Agent.ITab.Autonomy>
   <RimMind.Agent.ITab.Goals>目标</RimMind.Agent.ITab.Goals>
+  <RimMind.Agent.ITab.None>（无）</RimMind.Agent.ITab.None>
   <RimMind.Agent.ITab.Strategy>策略权重</RimMind.Agent.ITab.Strategy>
+  <RimMind.Agent.ITab.NoData>（暂无数据）</RimMind.Agent.ITab.NoData>
   <RimMind.Agent.ITab.History>行为历史</RimMind.Agent.ITab.History>
+  <RimMind.Agent.ITab.NoHistory>（暂无记录）</RimMind.Agent.ITab.NoHistory>
   <!-- MainTabWindow_RimMindHub.cs -->
   <RimMind.UI.Hub.Title>RimMind 调试中心</RimMind.UI.Hub.Title>
   <RimMind.UI.Hub.Tab.Overview>概览</RimMind.UI.Hub.Tab.Overview>
@@ -448,16 +452,10 @@
   <RimMind.UI.Hub.Tab.Settings>设置</RimMind.UI.Hub.Tab.Settings>
   <RimMind.UI.Hub.SelectedPawn>已选择小人</RimMind.UI.Hub.SelectedPawn>
   <RimMind.UI.Hub.NoPawn>未选择小人</RimMind.UI.Hub.NoPawn>
-  <RimMind.UI.Hub.AgentSummary>运行时 Agent 状态</RimMind.UI.Hub.AgentSummary>
   <RimMind.UI.Hub.PendingRequests>待处理 AI 请求</RimMind.UI.Hub.PendingRequests>
   <RimMind.UI.Hub.AgentLoop>Agent 运行循环</RimMind.UI.Hub.AgentLoop>
   <RimMind.UI.Hub.AgentLoopLastTick>最近循环 Tick</RimMind.UI.Hub.AgentLoopLastTick>
-  <RimMind.UI.Hub.AgentLoopFaults>循环故障数</RimMind.UI.Hub.AgentLoopFaults>
-  <RimMind.UI.Hub.AgentLoopPawn>小人</RimMind.UI.Hub.AgentLoopPawn>
-  <RimMind.UI.Hub.AgentLoopScoped>作用域</RimMind.UI.Hub.AgentLoopScoped>
-  <RimMind.UI.Hub.AgentLoopNeverRun>尚未运行</RimMind.UI.Hub.AgentLoopNeverRun>
   <RimMind.UI.Hub.QueueMissing>队列：尚未初始化</RimMind.UI.Hub.QueueMissing>
-  <RimMind.UI.Hub.QueueState>队列状态</RimMind.UI.Hub.QueueState>
   <RimMind.UI.Hub.QuickActions>快捷操作</RimMind.UI.Hub.QuickActions>
   <RimMind.UI.Hub.Settings>设置</RimMind.UI.Hub.Settings>
   <RimMind.UI.Hub.SettingsEntryTitle>设置</RimMind.UI.Hub.SettingsEntryTitle>
@@ -787,7 +785,6 @@
   <RimMind.UI.ResetToDefaults>恢复默认</RimMind.UI.ResetToDefaults>
   <!-- UX Optimization: Presets & Sections & HUD -->
   <RimMind.Settings.PresetsBarTitle>⚙️ 快捷配置预设</RimMind.Settings.PresetsBarTitle>
-  <RimMind.Settings.PresetApplied>已应用预设：{0}</RimMind.Settings.PresetApplied>
   <RimMind.Settings.Preset.Responsive>⚡ 响应优先</RimMind.Settings.Preset.Responsive>
   <RimMind.Settings.Preset.Responsive.Desc>快速交互：MaxTokens=600，并发=3，超时=25秒，冷却=15秒。适合即时对话与快节奏智能体。</RimMind.Settings.Preset.Responsive.Desc>
   <RimMind.Settings.Preset.Balanced>⚖️ 均衡标准</RimMind.Settings.Preset.Balanced>
@@ -806,7 +803,6 @@
   <RimMind.Settings.OpenContextPayloadInspector.Desc>打开实时报文检查器，可查看组装后的上下文、测试发送或复制完整 JSON 报文。</RimMind.Settings.OpenContextPayloadInspector.Desc>
   <RimMind.UI.RequestOverlay.PendingCount>待审批: {0}</RimMind.UI.RequestOverlay.PendingCount>
   <RimMind.UI.RequestOverlay.MiniPillTooltip>RimMind 待审批悬浮窗（已收起）。悬停展开完整视图。</RimMind.UI.RequestOverlay.MiniPillTooltip>
-  <RimMind.UI.Hub.StatusSummaryTitle>系统概况与运行状态</RimMind.UI.Hub.StatusSummaryTitle>
   <RimMind.UI.Hub.ShortcutsTitle>快速操作</RimMind.UI.Hub.ShortcutsTitle>
   <RimMind.UI.Hub.QueueCountLabel>请求队列</RimMind.UI.Hub.QueueCountLabel>
   <RimMind.UI.Hub.ActiveRequests>进行中</RimMind.UI.Hub.ActiveRequests>
@@ -905,4 +901,22 @@
   <RimMind.AutonomyDomain.WorkPriorityModification>工作优先级表</RimMind.AutonomyDomain.WorkPriorityModification>
   <RimMind.AutonomyDomain.WorkPriorityModificationTip>修改殖民者工作面板的数字优先级（1-4）。默认禁止，防止 AI 覆盖玩家手动配置的工作表。</RimMind.AutonomyDomain.WorkPriorityModificationTip>
   <RimMind.Prompt.ColonyRooms>殖民地房间拓扑: [{0}]</RimMind.Prompt.ColonyRooms>
+  <!-- ShowcaseSceneCaptureRunner.cs -->
+  <RimMind.Showcase.Advisor.Mote>“再吃靴子味的营养膏，本小姐就要去弹药库打保龄球了！”</RimMind.Showcase.Advisor.Mote>
+  <RimMind.Showcase.Advisor.Title>傲娇女仆贝拉的绝食抗议</RimMind.Showcase.Advisor.Title>
+  <RimMind.Showcase.Advisor.Desc>“本小姐已经连续吃了3天靴子味的营养膏了！如果晚餐再没有炙烤牛排，我就去弹药库把迫击炮弹当保龄球打！”</RimMind.Showcase.Advisor.Desc>
+  <RimMind.Showcase.Advisor.Approve>批准：烹饪精致牛排</RimMind.Showcase.Advisor.Approve>
+  <RimMind.Showcase.Advisor.Reject>驳回：老实吃营养膏</RimMind.Showcase.Advisor.Reject>
+  <RimMind.Showcase.Dialogue.Line1>“终于端上热气腾腾的烤肉排了，今晚总算不用啃皮靴营养膏啦！”</RimMind.Showcase.Dialogue.Line1>
+  <RimMind.Showcase.Dialogue.Line2>“敬大厨一杯！+6 社交好感度 ❤️ [THOUGHT: GRATEFUL]”</RimMind.Showcase.Dialogue.Line2>
+  <RimMind.Showcase.Dialogue.HudLine1>终于端上热气腾腾的烤肉排了，今晚总算不用啃皮靴营养膏啦！</RimMind.Showcase.Dialogue.HudLine1>
+  <RimMind.Showcase.Dialogue.HudLine2>敬大厨一杯！木屋里点上火把暖和多了，明天我们把北边的稻田也收割入库吧。</RimMind.Showcase.Dialogue.HudLine2>
+  <RimMind.Showcase.Storyteller.Title>因果律的制裁：狂怒鼠群的复仇</RimMind.Showcase.Storyteller.Title>
+  <RimMind.Showcase.Storyteller.Body>AI 叙事者已编排戏剧性事件：\n昨天贝拉击退松鼠并在屁股上留下牙印的事件引发了连锁因果反扑！\n\n根据地底啮齿类动物情报网的报告，附近的松鼠家族认为此举严重侵犯了森林主权。一支由 18 只狂暴嗜血松鼠组成的远征军正向殖民地奔袭而来……\n\n“它们目光如炬，誓要为昨天的屁股咬痕讨回公道！”</RimMind.Showcase.Storyteller.Body>
+  <RimMind.Showcase.Trace.PersonalityScenario>破晓心境自白</RimMind.Showcase.Trace.PersonalityScenario>
+  <RimMind.Showcase.Trace.PersonalityPrompt>观察日出麦浪</RimMind.Showcase.Trace.PersonalityPrompt>
+  <RimMind.Showcase.Trace.PersonalityReply>“初升的朝阳照在木屋与麦浪上，虽然昨天屁股被松鼠咬得很痛，但有热饭和伙伴在身边，生活依旧充满希望。”</RimMind.Showcase.Trace.PersonalityReply>
+  <RimMind.Showcase.Trace.ActionsScenario>自主建造决策</RimMind.Showcase.Trace.ActionsScenario>
+  <RimMind.Showcase.Trace.ActionsReply>{"tool":"place_blueprint","building_def":"Bed","stuff_def":"WoodLog","reason":"为同伴补充温暖的木床"}</RimMind.Showcase.Trace.ActionsReply>
+  <RimMind.Showcase.Trace.DialogueScenario>食堂晚宴交谈</RimMind.Showcase.Trace.DialogueScenario>
 </LanguageData>

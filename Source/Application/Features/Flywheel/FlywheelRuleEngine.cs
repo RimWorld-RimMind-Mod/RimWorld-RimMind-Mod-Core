@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Flywheel;
 using RimMind.Application.Common.Models.Flywheel;
-using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Common.Models;
 
 namespace RimMind.Application.Features.Flywheel
@@ -26,13 +25,24 @@ namespace RimMind.Application.Features.Flywheel
             _log?.Message($"Analyzing {records.Count} telemetry records");
 
             float totalTokens = 0f;
+            int tokenSampleCount = 0;
             foreach (var record in records)
             {
-                totalTokens += record.Value;
+                if (record == null) continue;
+                if (string.Equals(record.Metric, "unified_tokens_used", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(record.Metric, "tokens_used", StringComparison.OrdinalIgnoreCase))
+                {
+                    totalTokens += record.Value;
+                    tokenSampleCount++;
+                }
             }
 
-            float avgTokens = totalTokens / records.Count;
+            if (tokenSampleCount == 0) return;
+
             float budget = _store.Get("ContextBudget");
+            if (budget <= 0f) return;
+
+            float avgTokens = totalTokens / tokenSampleCount;
             float ratio = avgTokens / (budget * RimMindDefaults.MaxTokens);
 
             if (ratio > 0.9f)
@@ -50,9 +60,13 @@ namespace RimMind.Application.Features.Flywheel
             var recommendations = new List<ParameterRecommendation>();
             if (metrics == null) return recommendations;
 
-            if (metrics.TryGetValue("avg_tokens_used", out var avgTokens) && avgTokens > 0)
+            bool hasTokens = metrics.TryGetValue("unified_tokens_used_avg", out var avgTokens)
+                || metrics.TryGetValue("avg_tokens_used", out avgTokens);
+            if (hasTokens && avgTokens > 0f)
             {
                 float budget = _store.Get("ContextBudget");
+                if (budget <= 0f) return recommendations;
+
                 float ratio = avgTokens / (budget * RimMindDefaults.MaxTokens);
                 if (ratio > 0.9f)
                 {

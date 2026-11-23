@@ -62,7 +62,8 @@ namespace RimMind.Presentation.Agent
                     pawnId,
                     _log,
                     behaviorRegistry: behaviorRegistry,
-                    completionFence: _completionFence);
+                    completionFence: _completionFence,
+                    mainThreadDispatch: RimMindAPI.MainThread.Post);
             }
             int currentTick = Find.TickManager?.TicksGame ?? 0;
             _cachedOrchestrator.ExecuteAll(agent, currentTick);

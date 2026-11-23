@@ -84,7 +84,7 @@ namespace RimMind.Infrastructure.UI
 
             string? requestedPageId = _navigation.ConsumeRequestedPageId();
             if (!string.IsNullOrEmpty(requestedPageId))
-                _pageId = ResolvePageId(requestedPageId);
+                _pageId = ResolvePageId(requestedPageId!);
         }
 
         private IReadOnlyList<TabbedPageTabModel> BuildTabModels()

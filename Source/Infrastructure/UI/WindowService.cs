@@ -7,7 +7,8 @@ public class WindowService : IWindowService
 {
     public void OpenAgentDialogue(object pawn)
     {
-        Find.WindowStack.Add(new Window_AgentDialogue(pawn as Pawn));
+        if (pawn is Pawn p)
+            Find.WindowStack.Add(new Window_AgentDialogue(p));
     }
 
     public void OpenRequestLog()

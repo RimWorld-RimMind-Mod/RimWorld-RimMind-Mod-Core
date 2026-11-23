@@ -40,7 +40,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Need
             {
                 var need = pawn.needs?.AllNeeds?.FirstOrDefault(n => n.def.defName == args.DefName);
                 if (need == null)
-                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
                 var info = new { def = args.DefName, curLevel = need.CurLevel };
                 return Task.FromResult(Result<string, RimMindError>.Ok(JsonConvert.SerializeObject(info)));
@@ -65,7 +65,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Need
 
             var need = pawn.needs?.AllNeeds?.FirstOrDefault(n => n.def.defName == args.DefName);
             if (need == null)
-                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                return Task.FromResult(Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
             if (args.Action == "set_level" && float.TryParse(args.ValueJson, out var level))
             {

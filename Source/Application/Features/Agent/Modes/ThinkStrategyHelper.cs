@@ -2,15 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
-using RimMind.Application.Common.Interfaces.Agent.Modes;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Features.Json;
-using RimMind.Application.Features.Tools;
 using RimMind.Domain.Agent.Modes;
-using RimMind.Domain.Common;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
 
@@ -40,8 +36,7 @@ public static class ThinkStrategyHelper
         sb.AppendLine("<perceptions>");
 
         // Prioritize the most recent entries and highest importance so the prompt stays well within BudgetOverflowGuardrail (8000 chars)
-        int startIndex = System.Math.Max(0, perceptions.Count - MaxFormattedPerceptions);
-        int count = 0;
+        int startIndex = Math.Max(0, perceptions.Count - MaxFormattedPerceptions);
         for (int i = perceptions.Count - 1; i >= startIndex; i--)
         {
             var p = perceptions[i];
@@ -50,38 +45,19 @@ public static class ThinkStrategyHelper
             if (sb.Length + line.Length + 32 > MaxFormattedPerceptionChars)
                 break;
             sb.AppendLine(line);
-            count++;
         }
 
         sb.AppendLine("</perceptions>");
         return sb.ToString();
     }
 
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(50);
-
-    private static readonly Regex PseudoFunctionCallRegex = new Regex(
-        @"\b(?<fn>[a-z_][a-z0-9_.]*)\((?<inner>[\s\S]+?)\)?\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        RegexTimeout);
-
-    private static readonly Regex PseudoFunctionKeyRegex = new Regex(
-        @"(?:^|,\s*)(?<key>[a-z_][a-z0-9_]*)\)?\s*[:=]\s*",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        RegexTimeout);
-
-    private static readonly Regex ToToolCommentaryRegex = new Regex(
-        @"\bto=(?:functions\.|tools\.)?(?<fn>[a-z_][a-z0-9_.]*)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        RegexTimeout);
-
-    private static readonly List<ChatMessage> CachedDecisionExamples = CreateDecisionExamples();
+    private static readonly IReadOnlyList<ChatMessage> CachedDecisionExamples = CreateDecisionExamples().AsReadOnly();
 
     public static bool IsQueryToolName(string? toolName, IToolRegistry? toolRegistry = null)
     {
         if (string.IsNullOrWhiteSpace(toolName)) return false;
 
-        var registry = toolRegistry ?? ToolRegistry.Current;
-        var handler = registry?.FindById(toolName!);
+        var handler = toolRegistry?.FindById(toolName!);
         if (handler?.Definition?.Manifest != null)
         {
             return handler.Definition.Manifest.Kind == ToolKind.Query;
@@ -213,196 +189,12 @@ public static class ThinkStrategyHelper
 
     internal static (string? Id, string? Name, string? ArgsJson, string? Reason) TryExtractToolCallFromContent(string? content)
     {
-        if (string.IsNullOrWhiteSpace(content)) return (null, null, null, null);
-        string trimmed = content!.Trim();
-
-        // 0. Check raw JSON tool call object: {"name": "actions_eat_and_recreation", "parameters": {...}} or {"tool": "...", "arguments": {...}}
-        int firstBrace = trimmed.IndexOf('{');
-        if (firstBrace >= 0)
-        {
-            int lastBrace = trimmed.LastIndexOf('}');
-            string jsonCandidate = lastBrace > firstBrace
-                ? trimmed.Substring(firstBrace, lastBrace - firstBrace + 1)
-                : trimmed.Substring(firstBrace);
-
-            Newtonsoft.Json.Linq.JObject? rawObj = null;
-            try
-            {
-                rawObj = Newtonsoft.Json.Linq.JToken.Parse(jsonCandidate) as Newtonsoft.Json.Linq.JObject;
-            }
-            catch
-            {
-                try
-                {
-                    string repaired = JsonRepairer.Repair(trimmed.Substring(firstBrace));
-                    rawObj = Newtonsoft.Json.Linq.JToken.Parse(repaired) as Newtonsoft.Json.Linq.JObject;
-                }
-                catch { }
-            }
-
-            if (rawObj != null)
-            {
-                string? rawToolName = rawObj.Value<string>("name")
-                    ?? rawObj.Value<string>("tool")
-                    ?? (rawObj["function"] as Newtonsoft.Json.Linq.JObject)?.Value<string>("name");
-                if (!string.IsNullOrWhiteSpace(rawToolName) && IsValidFallbackToolIdentifier(rawToolName))
-                {
-                    var paramsToken = rawObj["parameters"]
-                        ?? rawObj["arguments"]
-                        ?? rawObj["args"]
-                        ?? rawObj["param"]
-                        ?? (rawObj["function"] as Newtonsoft.Json.Linq.JObject)?["arguments"];
-                    string? argsJson = null;
-                    string? reason = rawObj.Value<string>("reason");
-                    if (paramsToken is Newtonsoft.Json.Linq.JObject paramsObj)
-                    {
-                        argsJson = paramsObj.ToString(Newtonsoft.Json.Formatting.None);
-                        reason ??= paramsObj.Value<string>("reason");
-                    }
-                    else if (paramsToken != null && paramsToken.Type == Newtonsoft.Json.Linq.JTokenType.String)
-                    {
-                        argsJson = paramsToken.ToString();
-                        if (!string.IsNullOrWhiteSpace(argsJson))
-                        {
-                            try
-                            {
-                                if (Newtonsoft.Json.Linq.JToken.Parse(argsJson!) is Newtonsoft.Json.Linq.JObject parsedParams)
-                                    reason ??= parsedParams.Value<string>("reason");
-                            }
-                            catch { }
-                        }
-                    }
-                    else
-                    {
-                        var copyObj = (Newtonsoft.Json.Linq.JObject)rawObj.DeepClone();
-                        copyObj.Remove("name");
-                        copyObj.Remove("tool");
-                        copyObj.Remove("function");
-                        copyObj.Remove("id");
-                        copyObj.Remove("type");
-                        if (copyObj.HasValues)
-                            argsJson = copyObj.ToString(Newtonsoft.Json.Formatting.None);
-                    }
-
-                    return (rawObj.Value<string>("id"), rawToolName, argsJson ?? "{}", reason);
-                }
-            }
-        }
-
-        // 1. Check pseudo-function call syntax: tool_name(key=val, ...)
-        // Require a structured tool identifier (containing '_' or '.') immediately followed by '('
-        // so ordinary parenthetical prose like "I'm tired (reason: no sleep)" is never treated as a tool call.
-        Match match;
-        try
-        {
-            match = PseudoFunctionCallRegex.Match(trimmed);
-        }
-        catch (RegexMatchTimeoutException)
-        {
+        var parsed = LlmPayloadParser.ParsePseudoFunctionCalls(content);
+        if (parsed.Count == 0)
             return (null, null, null, null);
-        }
 
-        if (match.Success)
-        {
-            string fnName = match.Groups["fn"].Value;
-            if (!IsValidFallbackToolIdentifier(fnName))
-                return (null, null, null, null);
-
-            string inner = match.Groups["inner"].Value.Trim();
-            MatchCollection keyMatches;
-            try
-            {
-                keyMatches = PseudoFunctionKeyRegex.Matches(inner);
-            }
-            catch (RegexMatchTimeoutException)
-            {
-                return (null, null, null, null);
-            }
-            if (keyMatches.Count > 0)
-            {
-                var jObj = new Newtonsoft.Json.Linq.JObject();
-                for (int i = 0; i < keyMatches.Count; i++)
-                {
-                    string key = keyMatches[i].Groups["key"].Value;
-                    int valStart = keyMatches[i].Index + keyMatches[i].Length;
-                    int valEnd = (i + 1 < keyMatches.Count) ? keyMatches[i + 1].Index : inner.Length;
-                    string rawVal = inner.Substring(valStart, valEnd - valStart).Trim();
-                    if ((rawVal.StartsWith("\"") && rawVal.EndsWith("\"") && rawVal.Length >= 2) ||
-                        (rawVal.StartsWith("'") && rawVal.EndsWith("'") && rawVal.Length >= 2) ||
-                        (rawVal.StartsWith("“") && rawVal.EndsWith("”") && rawVal.Length >= 2) ||
-                        (rawVal.StartsWith("(") && rawVal.EndsWith(")") && rawVal.Length >= 2))
-                    {
-                        rawVal = rawVal.Substring(1, rawVal.Length - 2).Replace("\\\"", "\"");
-                    }
-                    else if (rawVal.StartsWith("(") && keyMatches[i].Value.IndexOf(')') >= 0)
-                    {
-                        rawVal = rawVal.Substring(1).TrimEnd(')').Trim();
-                    }
-                    if (int.TryParse(rawVal, out int intVal))
-                        jObj[key] = intVal;
-                    else
-                        jObj[key] = rawVal;
-                }
-                string argsJson = jObj.ToString(Newtonsoft.Json.Formatting.None);
-                string? reason = jObj.Value<string>("reason");
-                return (null, fnName, argsJson, reason);
-            }
-        }
-
-        // 2. Check commentary syntax: to=tool_name or to=functions.tool_name [optional {...}]
-        Match toMatch;
-        try
-        {
-            toMatch = ToToolCommentaryRegex.Match(trimmed);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            return (null, null, null, null);
-        }
-
-        if (toMatch.Success)
-        {
-            string fnName = toMatch.Groups["fn"].Value;
-            if (IsValidFallbackToolIdentifier(fnName))
-            {
-                string afterMatch = trimmed.Substring(toMatch.Index + toMatch.Length).Trim();
-                string? argsJson = "{}";
-                string? reason = null;
-                int braceStart = afterMatch.IndexOf('{');
-                int braceEnd = afterMatch.LastIndexOf('}');
-                if (braceStart >= 0 && braceEnd > braceStart)
-                {
-                    string candidate = afterMatch.Substring(braceStart, braceEnd - braceStart + 1);
-                    try
-                    {
-                        if (Newtonsoft.Json.Linq.JToken.Parse(candidate) is Newtonsoft.Json.Linq.JObject argObj)
-                        {
-                            argsJson = argObj.ToString(Newtonsoft.Json.Formatting.None);
-                            reason = argObj.Value<string>("reason");
-                        }
-                    }
-                    catch { }
-                }
-                else if (braceStart >= 0)
-                {
-                    string candidate = afterMatch.Substring(braceStart);
-                    try
-                    {
-                        string repaired = JsonRepairer.Repair(candidate);
-                        if (Newtonsoft.Json.Linq.JToken.Parse(repaired) is Newtonsoft.Json.Linq.JObject argObj)
-                        {
-                            argsJson = argObj.ToString(Newtonsoft.Json.Formatting.None);
-                            reason = argObj.Value<string>("reason");
-                        }
-                    }
-                    catch { }
-                }
-
-                return (null, fnName, argsJson, reason);
-            }
-        }
-
-        return (null, null, null, null);
+        var first = parsed[0];
+        return (first.Id, first.Name, first.ArgumentsJson, first.Reason);
     }
 
     private static (string? Id, string? Name, string? ArgsJson, string? Reason) TryExtractFirstToolCall(string? toolCallsJson)
@@ -450,20 +242,7 @@ public static class ThinkStrategyHelper
         }
     }
 
-    private static bool IsValidFallbackToolIdentifier(string? fnName)
-    {
-        if (string.IsNullOrWhiteSpace(fnName)) return false;
-        if (fnName!.IndexOf('_') < 0 && fnName.IndexOf('.') < 0) return false;
-        if (fnName[0] == '.' || fnName[fnName.Length - 1] == '.') return false;
-        foreach (char c in fnName)
-        {
-            if (!(char.IsLetterOrDigit(c) || c == '_' || c == '.'))
-                return false;
-        }
-        return true;
-    }
-
-    public static List<ChatMessage> BuildDecisionExamples() => CachedDecisionExamples;
+    public static IReadOnlyList<ChatMessage> BuildDecisionExamples() => CachedDecisionExamples;
 
     private static List<ChatMessage> CreateDecisionExamples()
     {

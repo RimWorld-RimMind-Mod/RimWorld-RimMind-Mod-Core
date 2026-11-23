@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using RimMind.Application.Common.Interfaces;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Domain.Events;
@@ -25,6 +24,11 @@ namespace RimMind.Application.Features.Agent.InnerVoice
 
         public void StartListening()
         {
+            if (_subscriptionKey != null)
+            {
+                _agentBus.Unsubscribe<InnerVoiceEvent>(_subscriptionKey);
+                _subscriptionKey = null;
+            }
             _subscriptionKey = _agentBus.Subscribe<InnerVoiceEvent>(OnInnerVoiceEvent);
         }
 
@@ -35,6 +39,7 @@ namespace RimMind.Application.Features.Agent.InnerVoice
                 _agentBus.Unsubscribe<InnerVoiceEvent>(_subscriptionKey);
                 _subscriptionKey = null;
             }
+            _pendingVoices.Clear();
         }
 
         private void OnInnerVoiceEvent(InnerVoiceEvent evt)

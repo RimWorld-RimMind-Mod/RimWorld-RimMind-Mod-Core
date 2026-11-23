@@ -38,39 +38,33 @@ namespace RimMind.Presentation.UI
             clientManager?.InvalidateCache();
             Log.Message(BuildConnectionDebugLine("start", s, providerRegistry, null, null));
 
-            // Each provider selects its client independently of RequiresApiKey. (Previously a brace-less
-            // `if (!RequiresApiKey) if (player2) {...} else if (extended_service) {...}` bound the else-if to the
-            // inner if, so extended_service silently fell through to the OpenAI path whenever it required a key.)
-            Func<IAIClient?> getClient;
+            Func<IAIClient?> getClient = () => clientManager?.GetClient();
             string stage;
             string notConfiguredKey;
             bool requireConfiguredClient;
-            if (s.Provider == "player2")
+            if (!string.IsNullOrEmpty(AIProviderRegistry.GetSettingsTabId(s.Provider)))
             {
-                getClient = () => clientManager?.GetPlayer2Client();
-                stage = "player2-client";
-                notConfiguredKey = "RimMind.Settings.Player2.NotAvailable";
-                requireConfiguredClient = false;
-            }
-            else if (!string.IsNullOrEmpty(AIProviderRegistry.GetSettingsTabId(s.Provider, providerRegistry)))
-            {
-                getClient = () => clientManager?.GetClient();
-                stage = "modelservice-client";
+                stage = "extended-provider-client";
                 notConfiguredKey = "RimMind.Settings.ModelService.NoActiveNodes";
                 requireConfiguredClient = true;
             }
+            else if (!AIProviderRegistry.RequiresApiKey(s.Provider, providerRegistry))
+            {
+                stage = "keyless-provider-client";
+                notConfiguredKey = "RimMind.Settings.Player2.NotAvailable";
+                requireConfiguredClient = false;
+            }
             else
             {
-                if (!s.IsOpenAIConfigured())
+                if (!s.IsConfigured)
                 {
-                    Log.Message(BuildConnectionDebugLine("openai-settings-not-configured", s, providerRegistry, null, null));
+                    Log.Message(BuildConnectionDebugLine("provider-settings-not-configured", s, providerRegistry, null, null));
                     _testStatus = UiText.Get("RimMind.Settings.Status.NotConfigured", "Not configured");
                     _testStatusColor = Color.yellow;
                     return;
                 }
 
-                getClient = () => clientManager?.GetClient();
-                stage = "openai-client";
+                stage = "api-key-provider-client";
                 notConfiguredKey = "RimMind.Settings.Status.NotConfigured";
                 requireConfiguredClient = false;
             }
@@ -128,7 +122,7 @@ namespace RimMind.Presentation.UI
                     long rttMs = stopwatch.ElapsedMilliseconds;
                     if (result.TryGetValue(out var response))
                     {
-                        string status = SafeFormat(okFormat, rttMs, (response.Content ?? string.Empty).Trim(), response.TokensUsed);
+                        string status = SafeFormat(okFormat, rttMs, (response?.Content ?? string.Empty).Trim(), response?.TokensUsed ?? 0);
                         PostToMainThread(() => TryPublishConnectionTest(operation, status, okColor));
                     }
                     else
@@ -139,7 +133,8 @@ namespace RimMind.Presentation.UI
                 }
                 catch (Exception ex)
                 {
-                    string status = SafeFormat(exceptionFormat, ex.Message);
+                    string safeMessage = RimMind.Infrastructure.Services.Clients.Shared.LogSanitizer.ForLog(ex.Message);
+                    string status = SafeFormat(exceptionFormat, safeMessage);
                     PostToMainThread(() => TryPublishConnectionTest(operation, status, failColor));
                 }
             });
@@ -212,7 +207,10 @@ namespace RimMind.Presentation.UI
             s.ApiKey = (s.ApiKey ?? string.Empty).Trim();
             s.ApiEndpoint = (s.ApiEndpoint ?? string.Empty).Trim();
             s.ModelName = (s.ModelName ?? string.Empty).Trim();
-            s.Player2RemoteUrl = (s.Player2RemoteUrl ?? string.Empty).Trim();
+            string rawRemoteUrl = s.GetProviderOption("player2.remote_url") ?? string.Empty;
+            string trimmedRemoteUrl = rawRemoteUrl.Trim();
+            if (!string.Equals(rawRemoteUrl, trimmedRemoteUrl, StringComparison.Ordinal))
+                s.SetProviderOption("player2.remote_url", trimmedRemoteUrl);
         }
 
         private static string BuildConnectionDebugLine(

@@ -147,6 +147,22 @@ namespace RimMind.Application.Common.Helpers
             Register(new AIProviderDescriptor(providerId, requiresApiKey, settingsTabId, displayLabelKey, ownerModId));
         }
 
+        public static void RegisterFromFactory(
+            IAIClientFactory factory,
+            string? settingsTabId = null,
+            string? displayLabelKey = null)
+        {
+            if (factory == null) throw new ArgumentNullException(nameof(factory));
+            Register(new AIProviderDescriptor(
+                factory.ProviderId,
+                RequiresApiKey: factory.RequiresApiKey,
+                SettingsTabId: settingsTabId,
+                DisplayLabelKey: displayLabelKey,
+                OwnerModId: factory.OwnerModId,
+                DefaultEndpoint: factory.DefaultEndpoint,
+                DefaultModelName: factory.DefaultModelName));
+        }
+
         public static bool Unregister(string providerId)
         {
             if (string.IsNullOrWhiteSpace(providerId))
@@ -154,7 +170,7 @@ namespace RimMind.Application.Common.Helpers
 
             lock (SyncRoot)
             {
-                return Descriptors.Remove(providerId);
+                return Descriptors.Remove(providerId.Trim());
             }
         }
 
@@ -177,15 +193,7 @@ namespace RimMind.Application.Common.Helpers
         }
 
         public static AIProviderDescriptor? FindDescriptor(string? providerId)
-        {
-            if (string.IsNullOrWhiteSpace(providerId))
-                return null;
-
-            lock (SyncRoot)
-            {
-                return Descriptors.TryGetValue(providerId!, out var descriptor) ? descriptor : null;
-            }
-        }
+            => GetDescriptor(providerId);
 
         public static IReadOnlyList<AIProviderDescriptor> GetAllDescriptors()
         {
@@ -236,12 +244,12 @@ namespace RimMind.Application.Common.Helpers
             return true;
         }
 
-        public static string? GetSettingsTabId(string? providerId, IExtensionRegistry<IAIClientFactory>? registry = null)
+        public static string? GetSettingsTabId(string? providerId)
         {
             if (string.IsNullOrWhiteSpace(providerId))
                 return null;
 
-            var descriptor = FindDescriptor(providerId);
+            var descriptor = GetDescriptor(providerId);
             if (!string.IsNullOrWhiteSpace(descriptor?.SettingsTabId))
                 return descriptor!.SettingsTabId;
 

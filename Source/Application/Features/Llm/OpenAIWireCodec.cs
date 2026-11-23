@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using RimMind.Domain.Common;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
 
@@ -34,46 +33,25 @@ namespace RimMind.Application.Features.Llm
             if (envelope == null) throw new ArgumentNullException(nameof(envelope));
 
             int effectiveMaxTokens = envelope.MaxTokens > 0
-                ? (defaultMaxTokens > envelope.MaxTokens && envelope.ScenarioId != "RimMind.Test"
-                    ? defaultMaxTokens
-                    : envelope.MaxTokens)
+                ? envelope.MaxTokens
                 : defaultMaxTokens;
 
             var messages = BuildMessages(envelope);
             var responseFormat = BuildResponseFormat(envelope, forceJsonMode, messages);
             var (tools, toolChoice) = BuildTools(envelope);
 
-            object payload;
-            if (omitZeroMaxTokens && effectiveMaxTokens <= 0)
+            var payload = new WireRequestDto
             {
-                payload = new WireRequestOmitMaxTokensDto
-                {
-                    model = modelName,
-                    messages = messages,
-                    max_tokens = null,
-                    temperature = envelope.Temperature,
-                    stream = stream,
-                    stream_options = stream ? new WireStreamOptionsDto() : null,
-                    response_format = responseFormat,
-                    tools = tools,
-                    tool_choice = toolChoice,
-                };
-            }
-            else
-            {
-                payload = new WireRequestDto
-                {
-                    model = modelName,
-                    messages = messages,
-                    max_tokens = effectiveMaxTokens,
-                    temperature = envelope.Temperature,
-                    stream = stream,
-                    stream_options = stream ? new WireStreamOptionsDto() : null,
-                    response_format = responseFormat,
-                    tools = tools,
-                    tool_choice = toolChoice,
-                };
-            }
+                model = modelName,
+                messages = messages,
+                max_tokens = (omitZeroMaxTokens && effectiveMaxTokens <= 0) ? (int?)null : effectiveMaxTokens,
+                temperature = envelope.Temperature,
+                stream = stream,
+                stream_options = stream ? new WireStreamOptionsDto() : null,
+                response_format = responseFormat,
+                tools = tools,
+                tool_choice = toolChoice,
+            };
 
             if (customizePayload != null)
             {
@@ -102,16 +80,25 @@ namespace RimMind.Application.Features.Llm
                     string errMsg = AsString(token["error"]?["message"]) ?? "Unknown API error";
                     string errType = AsString(token["error"]?["type"]) ?? string.Empty;
                     string errCode = AsString(token["error"]?["code"]) ?? string.Empty;
+                    int embeddedStatus = AsInt(token["error"]?["status"]) ?? 0;
                     string safeErr = LogSecretRedactor.ForLog(errMsg);
+                    string combined = $"{errCode} {errType} {errMsg}";
 
-                    if (errMsg.IndexOf("Content Exists Risk", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    if (HttpErrorClassifier.IsContentModerationResponse(400, combined) ||
                         errCode.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         errType.IndexOf("content_filter", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ContentFiltered(safeErr));
                     }
 
-                    if (string.Equals(errType, "server_error", StringComparison.OrdinalIgnoreCase) ||
+                    if (HttpErrorClassifier.IsQuotaOrAuthError(embeddedStatus, combined))
+                    {
+                        return Result<LlmResponse, RimMindError>.Err(RimMindErrors.ClientQuotaOrAuth(safeErr));
+                    }
+
+                    if (HttpErrorClassifier.IsTransientRateLimitOrQueueError(embeddedStatus, combined) ||
+                        HttpErrorClassifier.IsTransientHttpFailure(embeddedStatus, combined) ||
+                        string.Equals(errType, "server_error", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(errType, "api_error", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(errCode, "server_error", StringComparison.OrdinalIgnoreCase))
                     {
@@ -440,19 +427,6 @@ namespace RimMind.Application.Features.Llm
         {
             public string model = "";
             public List<WireMessageDto>? messages;
-            public int max_tokens;
-            public float temperature;
-            public bool stream;
-            public WireStreamOptionsDto? stream_options;
-            public WireResponseFormatDto? response_format;
-            public List<WireToolDto>? tools;
-            public object? tool_choice;
-        }
-
-        private sealed class WireRequestOmitMaxTokensDto
-        {
-            public string model = "";
-            public List<WireMessageDto>? messages;
             public int? max_tokens;
             public float temperature;
             public bool stream;
@@ -496,17 +470,12 @@ namespace RimMind.Application.Features.Llm
             public string role = "";
             public string? content;
             public string? reasoning_content;
-            public string? name;
             public string? tool_call_id;
             public List<WireToolCallDto>? tool_calls;
-            [JsonProperty("function_call")]
-            public object? function_call;
         }
 
         private sealed class WireToolCallDto
         {
-            [JsonProperty("index", NullValueHandling = NullValueHandling.Ignore)]
-            public int? Index;
             [JsonProperty("id")]
             public string Id = "";
             [JsonProperty("type")]
@@ -522,6 +491,7 @@ namespace RimMind.Application.Features.Llm
             [JsonProperty("arguments")]
             public string Arguments = "";
         }
+#pragma warning restore CS0649
 #pragma warning restore IDE1006
     }
 }

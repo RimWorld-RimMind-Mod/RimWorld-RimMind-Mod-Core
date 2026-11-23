@@ -65,7 +65,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             }
             else
             {
-                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedClientInvoke] Error: {result.Error.Message}");
+                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedClientInvoke] Error: {LogSecretRedactor.ForLog(result.Error.Message)}");
                 context.Result = result;
             }
         }
@@ -75,14 +75,16 @@ namespace RimMind.Application.Features.Pipeline.Unified
             RecordFinalPrompts(context.Envelope);
             // Streaming: use SendStreamAsync with callback; the Result now carries the final LlmResponse
             var aggregator = new ChunkAggregator(context.Envelope.RequestId);
+            var onChunk = context.Envelope.OnStreamChunk;
             var result = await client.SendStreamAsync(context.Envelope, chunk =>
             {
                 aggregator.Append(chunk);
+                onChunk?.Invoke(chunk);
             }, context.Ct);
 
             if (result.IsErr)
             {
-                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedClientInvoke] Stream error: {result.Error.Message}");
+                if (result.Error.Code != RimMindErrorCode.Cancelled) _log?.Warning($"[UnifiedClientInvoke] Stream error: {LogSecretRedactor.ForLog(result.Error.Message)}");
                 aggregator.SetError(result.Error);
                 var errorResult = aggregator.BuildFinalResponse();
                 context.Result = errorResult;
@@ -120,35 +122,13 @@ namespace RimMind.Application.Features.Pipeline.Unified
 
             _traceLog.UpdateRequestPrompts(
                 envelope.RequestId,
-                BuildPrompt(envelope, "system"),
-                BuildPrompt(envelope, "user"),
-                BuildPrompt(envelope, "assistant"));
+                EnvelopePromptFormatter.FormatRolePrompt(envelope, "system"),
+                EnvelopePromptFormatter.FormatRolePrompt(envelope, "user"),
+                EnvelopePromptFormatter.FormatRolePrompt(envelope, "assistant"));
 
             var layers = AIRequestTraceEntry.ExtractLayerTraces(envelope.Messages);
             if (layers.Count > 0)
                 _traceLog.UpdateRequestLayers(envelope.RequestId, layers);
-        }
-
-        private static string BuildPrompt(LlmRequestEnvelope envelope, string role)
-        {
-            var messages = envelope.Messages;
-            if (messages == null || messages.Count == 0)
-                return string.Empty;
-
-            var text = new System.Text.StringBuilder();
-            foreach (var message in messages)
-            {
-                if (!string.Equals(message.Role, role, StringComparison.OrdinalIgnoreCase)
-                    || string.IsNullOrWhiteSpace(message.Content))
-                    continue;
-
-                if (text.Length > 0)
-                    text.AppendLine().AppendLine();
-                if (!string.IsNullOrWhiteSpace(message.LayerTag))
-                    text.Append('[').Append(message.LayerTag).Append("] ");
-                text.Append(message.Content);
-            }
-            return text.ToString();
         }
 
         private static LlmRequestEnvelope CloneWithCancellationToken(

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using RimMind.Application.Common.Interfaces.Mechanisms;
 using RimMind.Application.Common.Models.Mechanisms;
+using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
 using Verse;
@@ -12,13 +13,18 @@ using RimWorld;
 
 namespace RimMind.Infrastructure.Mechanisms.Pawn.Relations
 {
-    public sealed class RelationsMechanism : GameMechanismBaseNoDef
+    public sealed class RelationsMechanism : GameMechanismBaseNoDef, IMechanismScopeMetadata
     {
         public override string MechanismId => "pawn.relations";
         public override MechanismScope Scope => MechanismScope.Pawn;
         public override MechanismRisk Risk => MechanismRisk.Safe;
         public override IReadOnlyList<MechanismOperationType> SupportedOperations => _supportedOps;
         public override MechanismDocs Docs => _docs;
+
+        public ToolScope? GetToolScopeForOperation(MechanismOperationType operation)
+            => operation is MechanismOperationType.Query or MechanismOperationType.List
+                ? ToolScope.MetaQuery
+                : ToolScope.Social | ToolScope.ColonistSelf;
 
         private static readonly IReadOnlyList<MechanismOperationType> _supportedOps =
             new List<MechanismOperationType> { MechanismOperationType.Query }.AsReadOnly();

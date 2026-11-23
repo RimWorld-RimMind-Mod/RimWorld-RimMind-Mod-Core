@@ -26,42 +26,29 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("public static IExtensionRegistry<IAgentMode> Modes => Ext.Get<IAgentMode>();", apiSource, StringComparison.Ordinal);
                     Assert.Contains("public static IExtensionRegistry<IModeTransitionPolicy> ModePolicies => Ext.Get<IModeTransitionPolicy>();", apiSource, StringComparison.Ordinal);
                 }),
-                ("flat forwarding aliases guide callers to nested groups via [Obsolete]", () =>
+                ("retired [Obsolete] flat aliases have been hard-cut from RimMindAPI.cs", () =>
                 {
-                    string[] expectedGuidance =
+                    int totalObsoleteCount = Regex.Matches(apiSource, @"\[Obsolete\(").Count;
+                    Assert.Equal(0, totalObsoleteCount);
+
+                    string[] retiredMembers =
                     {
-                        "[Obsolete(\"Use RimMindAPI.Request.PauseQueue instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Request.ResumeQueue instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Request.ActiveRequestCount instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Request.TotalQueuedCount instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Request.ClearModCooldown instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Request.GetModCooldownTicksLeft instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.ShouldSkipDialogue instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.ShouldSkipFloatMenu instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.ShouldSkipAction instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.ShouldSkipStorytellerIncident instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.TriggerDialogue instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.NotifyIncidentExecuted instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.CanTriggerDialogue instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.RegisterAgentIdentityProvider instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Ext.RegisterAgentActionBridge instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Providers.GetProviderData instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Providers.GetStaticProviderData instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Providers.GetRegisteredCategories instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Providers.UnregisterByOwner instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Settings.IsConfigured instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Settings.GetContextEngine instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Bus.PublishPerception instead.\")]",
-                        "[Obsolete(\"Use RimMindAPI.Bus.InvalidateClientCache instead.\")]"
+                        "PauseQueue(",
+                        "ResumeQueue(",
+                        "ActiveRequestCount =>",
+                        "TotalQueuedCount =>",
+                        "ShouldSkipDialogue(",
+                        "TriggerDialogue(",
+                        "GetProviderData(",
+                        "GetAgentBus(",
+                        "GetPlayer2Client(",
+                        "InvalidateClientCache("
                     };
 
-                    foreach (string attr in expectedGuidance)
+                    foreach (string retired in retiredMembers)
                     {
-                        Assert.Contains(attr, apiSource, StringComparison.Ordinal);
+                        Assert.DoesNotContain(retired, apiSource, StringComparison.Ordinal);
                     }
-
-                    int totalObsoleteCount = Regex.Matches(apiSource, @"\[Obsolete\(").Count;
-                    Assert.True(totalObsoleteCount >= 34, $"Expected at least 34 [Obsolete] attributes on RimMindAPI.cs, found {totalObsoleteCount}.");
                 }));
         }
 

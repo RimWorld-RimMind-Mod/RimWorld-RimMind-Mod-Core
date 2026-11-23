@@ -98,17 +98,79 @@ namespace RimMind.Presentation.Api
         }
 
         protected static JObject? TryParseArgumentsObject(string? argumentsJson)
+            => CompositeToolExecutionTemplate.TryParseArgumentsObject(argumentsJson);
+
+        /// <summary>
+        /// Runs the shared composite-tool execution template: cancellation check, single-pass JSON parsing,
+        /// optional Unity main-thread guard, and structured exception-to-<see cref="RimMindError"/> mapping.
+        /// </summary>
+        protected Task<Result<ToolResult, RimMindError>> ExecuteTemplateAsync(
+            ToolCallArgs? args,
+            Func<JObject?, ToolCallArgs, CancellationToken, Task<Result<ToolResult, RimMindError>>> body,
+            CancellationToken ct,
+            bool requireMainThread = true)
         {
-            if (string.IsNullOrWhiteSpace(argumentsJson))
-                return null;
-            try
-            {
-                return JToken.Parse(argumentsJson!) as JObject;
-            }
-            catch
-            {
-                return null;
-            }
+            return CompositeToolExecutionTemplate.ExecuteWithGuardsAsync(
+                Id,
+                args,
+                requireMainThread ? (_, effectiveArgs) => EnsureMainThread(effectiveArgs) : null,
+                body,
+                ct);
+        }
+
+        /// <summary>
+        /// Runs the full colonist-targeted composite-tool template: main-thread guard, single-pass JSON parsing,
+        /// pawn_id resolution, active spawned colonist liveness verification, autonomy policy check, and
+        /// structured exception handling. Eliminates repeated boilerplate in colonist-scoped tools.
+        /// </summary>
+        protected Task<Result<ToolResult, RimMindError>> ExecuteColonistToolAsync(
+            ToolCallArgs? args,
+            Func<Verse.Pawn, JObject?, ToolCallArgs, CancellationToken, Task<Result<ToolResult, RimMindError>>> body,
+            CancellationToken ct,
+            string pawnIdKey = "pawn_id",
+            AutonomyDomain? domainOverride = null)
+        {
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
+
+            Verse.Pawn? resolvedPawn = null;
+
+            return CompositeToolExecutionTemplate.ExecuteWithGuardsAsync(
+                Id,
+                args,
+                (root, effectiveArgs) =>
+                {
+                    var threadGuard = EnsureMainThread(effectiveArgs);
+                    if (threadGuard.IsErr)
+                        return threadGuard;
+
+                    var pawnIdResult = TryGetPawnIdOrError(root, effectiveArgs, pawnIdKey);
+                    if (pawnIdResult.IsErr)
+                        return Result<Unit, RimMindError>.Err(pawnIdResult.Error);
+
+                    int pawnId = pawnIdResult.Value;
+                    var pawn = RimMindPawnLookup.FindPawnByNumber(pawnId);
+                    if (pawn == null || !RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+                    {
+                        return Result<Unit, RimMindError>.Err(
+                            CompositeToolExecutionTemplate.InvalidActionError(
+                                $"{pawnIdKey} {pawnId} is not an active spawned colonist",
+                                effectiveArgs.TraceId));
+                    }
+
+                    var domain = domainOverride ?? ResolveAutonomyDomain(root, effectiveArgs);
+                    if (domain.HasValue)
+                    {
+                        var permission = CheckPermission(pawn, domain.Value, effectiveArgs);
+                        if (permission.IsErr)
+                            return permission;
+                    }
+
+                    resolvedPawn = pawn;
+                    return Result<Unit, RimMindError>.Ok(Unit.Value);
+                },
+                (root, effectiveArgs, token) => body(resolvedPawn!, root, effectiveArgs, token),
+                ct);
         }
 
         protected virtual IToolHandler? FindTool(string toolId) => RimMindAPI.Tools.FindById(toolId);
@@ -253,39 +315,7 @@ namespace RimMind.Presentation.Api
         /// Reads a typed argument from a pre-parsed <see cref="JObject"/> (zero re-parsing).
         /// </summary>
         protected static bool TryGetArgument<T>(JObject? root, string key, out T value)
-        {
-            value = default!;
-            if (root == null || string.IsNullOrEmpty(key))
-                return false;
-
-            try
-            {
-                var token = root[key];
-                if (token == null || token.Type == JTokenType.Null)
-                    return false;
-
-                if (typeof(T) == typeof(int) && token.Type == JTokenType.String)
-                {
-                    if (PawnIdParser.TryParse(token.ToString(), out int parsedInt))
-                    {
-                        value = (T)(object)parsedInt;
-                        return true;
-                    }
-                    return false;
-                }
-
-                var converted = token.Value<T>();
-                if (converted == null)
-                    return false;
-
-                value = converted;
-                return true;
-            }
-            catch (Exception ex) when (ex is JsonException or FormatException or OverflowException or InvalidCastException or ArgumentException)
-            {
-                return false;
-            }
-        }
+            => CompositeToolExecutionTemplate.TryGetArgument(root, key, out value);
 
         /// <summary>
         /// Reads a typed argument from raw JSON arguments. Prefer the <see cref="JObject"/> overload when reading multiple keys.
@@ -298,52 +328,15 @@ namespace RimMind.Presentation.Api
 
         protected static Result<T, RimMindError> TryGetArgumentOrError<T>(
             JObject? root, string key, string? traceId)
-        {
-            if (TryGetArgument(root, key, out T value))
-                return Result<T, RimMindError>.Ok(value);
-
-            return Result<T, RimMindError>.Err(
-                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
-                {
-                    TraceId = traceId
-                });
-        }
+            => CompositeToolExecutionTemplate.TryGetArgumentOrError<T>(root, key, traceId);
 
         protected static Result<T, RimMindError> TryGetArgumentOrError<T>(
             string? argumentsJson, string key, string? traceId)
-        {
-            if (TryGetArgument(argumentsJson, key, out T value))
-                return Result<T, RimMindError>.Ok(value);
-
-            return Result<T, RimMindError>.Err(
-                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
-                {
-                    TraceId = traceId
-                });
-        }
+            => CompositeToolExecutionTemplate.TryGetArgumentOrError<T>(TryParseArgumentsObject(argumentsJson), key, traceId);
 
         protected static Result<int, RimMindError> TryGetPawnIdOrError(
             JObject? root, ToolCallArgs args, string key = "pawn_id")
-        {
-            int contextFallbackId = (args.PawnId.HasValue && args.PawnId.Value > 0)
-                ? args.PawnId.Value
-                : (PawnIdParser.TryParse(args.NpcId, out int parsedNpcId) && parsedNpcId > 0 ? parsedNpcId : 0);
-
-            if (TryGetArgument<int>(root, key, out int id) && id > 0)
-                return Result<int, RimMindError>.Ok(id);
-
-            if (key != "pawn_id" && TryGetArgument<int>(root, "pawn_id", out int fallbackId) && fallbackId > 0)
-                return Result<int, RimMindError>.Ok(fallbackId);
-
-            if (contextFallbackId > 0)
-                return Result<int, RimMindError>.Ok(contextFallbackId);
-
-            return Result<int, RimMindError>.Err(
-                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
-                {
-                    TraceId = args.TraceId
-                });
-        }
+            => CompositeToolExecutionTemplate.TryGetPawnIdOrError(root, args, key);
 
         protected static Result<int, RimMindError> TryGetPawnIdOrError(
             ToolCallArgs args, string key = "pawn_id")

@@ -1,3 +1,6 @@
+using RimMind.Application.Common.Helpers;
+using RimMind.Application.Features.Llm;
+
 namespace RimMind.Application.Common.Models.Client
 {
     /// <summary>
@@ -15,7 +18,9 @@ namespace RimMind.Application.Common.Models.Client
         public bool IsConfigured =>
             Enabled &&
             !string.IsNullOrWhiteSpace(ApiEndpoint) &&
-            !string.IsNullOrWhiteSpace(ApiKey) &&
-            !string.IsNullOrWhiteSpace(ModelName);
+            !string.IsNullOrWhiteSpace(ModelName) &&
+            (!string.IsNullOrWhiteSpace(ApiKey) ||
+             RimMindHttpClientPool.IsLoopbackEndpoint(ApiEndpoint) ||
+             !AIProviderRegistry.RequiresApiKey(Provider));
     }
 }

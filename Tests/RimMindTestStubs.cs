@@ -88,25 +88,3 @@ namespace RimMind.Presentation.Runtime
         }
     }
 }
-
-namespace RimMind.Application.Common.Interfaces.Internal
-{
-    // Test-only compatibility seam for legacy tests retained on disk until the
-    // compact contract-project cutover. Production has no service locator.
-    internal static class RimMindServiceLocator
-    {
-        private static readonly Dictionary<Type, object> Services = new Dictionary<Type, object>();
-
-        public static void Register<T>(T instance) where T : class
-            => Services[typeof(T)] = instance;
-
-        public static T? Get<T>() where T : class
-            => Services.TryGetValue(typeof(T), out var value) ? (T)value : null;
-
-        public static T? TryGet<T>() where T : class => Get<T>();
-
-        public static bool IsRegistered<T>() => Services.ContainsKey(typeof(T));
-
-        public static void Reset() => Services.Clear();
-    }
-}

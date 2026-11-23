@@ -14,7 +14,7 @@
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,6 +39,8 @@
     <Compile Include="../Source/Presentation/Agent/ThreatScanner.cs" />
     <Compile Include="../Source/Presentation/Agent/Perception/*.cs" />
     <Compile Include="../Source/Infrastructure/Agent/MechanismActionExecutor.cs" />
+    <Compile Include="../Source/Infrastructure/Mechanisms/Pawn/Job/JobMechanismArgumentAdapter.cs" />
+    <Compile Include="../Source/Infrastructure/Mechanisms/Pawn/Work/WorkMechanismArgumentAdapter.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgent.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgentFactory.cs" />
     <Compile Include="../Source/Presentation/Agent/ScopedAgentManager.cs" />
@@ -57,9 +59,9 @@
     <Compile Include="../Source/Infrastructure/UI/AgentFlow/AgentFlowAsyncCoordinator.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentFlow/AgentFlowStepTracker.cs" />
     <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentLifecycleGroup.cs" />
-    <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentPageLayout.cs" Link="Infrastructure\UI\AgentsPage\AgentPageLayout.cs" />
-    <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentPageViewModel.cs" Link="Infrastructure\UI\AgentsPage\AgentPageViewModel.cs" />
-    <Compile Include="..\Source\Infrastructure\UI\AgentsPage\AgentRequestTraceRowBuilder.cs" Link="Infrastructure\UI\AgentsPage\AgentRequestTraceRowBuilder.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentPageLayout.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentPageViewModel.cs" />
+    <Compile Include="../Source/Infrastructure/UI/AgentsPage/AgentRequestTraceRowBuilder.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugCenter/*.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugCenter/Pages/SettingsEntryDebugCenterPageDrawer.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugCenter/Overview/*.cs" />
@@ -94,8 +96,6 @@
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenAIClient.RequestBuilding.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/Player2/*.cs" />
-    <Compile Include="../Source/Infrastructure/Services/Clients/Hybrid/HybridAIClient.cs" />
-    <Compile Include="../Source/Infrastructure/Services/Clients/IHttpRequestDecorator.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/OpenAI/OpenCodeHeaderDecorator.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/HttpTransport.cs" />
     <Compile Include="../Source/Infrastructure/Services/Clients/Shared/*.cs" />
@@ -106,6 +106,7 @@
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismListToolHandler.cs" />
     <Compile Include="../Source/Infrastructure/Mechanisms/MechanismToolHelper.cs" />
     <Compile Include="../Source/Presentation/Common/RimMindPawnLookup.cs" />
+    <Compile Include="../Source/Presentation/Common/ToolActionDisplayFormatter.cs" />
     <Compile Include="../Source/Presentation/Api/RimMindAPI.MainThread.cs" />
     <Compile Include="../Source/Infrastructure/UI/DebugActions/SettingsOverrideScope.cs" />
   </ItemGroup>

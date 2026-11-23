@@ -73,6 +73,7 @@ namespace RimMind.Application.Features.Prompt
 
         public static string Truncate(string input, int maxLength)
         {
+            if (maxLength < 0) return string.Empty;
             if (string.IsNullOrEmpty(input) || input.Length <= maxLength) return input;
             return input.Substring(0, maxLength) + "...";
         }
@@ -80,9 +81,10 @@ namespace RimMind.Application.Features.Prompt
         public static string RemoveDuplicateLines(string input)
         {
             if (string.IsNullOrEmpty(input)) return input;
+            var normalized = input.Replace("\r\n", "\n").Replace('\r', '\n');
             var seen = new HashSet<string>();
             var sb = new StringBuilder();
-            foreach (var line in input.Split('\n'))
+            foreach (var line in normalized.Split('\n'))
             {
                 if (seen.Add(line))
                 {

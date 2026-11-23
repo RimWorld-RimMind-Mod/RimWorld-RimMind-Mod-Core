@@ -19,7 +19,9 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("generic service lookup is not consumed", () => AssertDependentSourceAbsent(@"\bGetService\s*<")),
                 ("generic try lookup is not consumed", () => AssertDependentSourceAbsent(@"\bTryGetService\s*<")),
                 ("runtime service hub is not consumed", () => AssertDependentSourceAbsent(@"\bRuntimeServiceHub\b")),
-                ("runtime snapshots are not consumed", () => AssertDependentSourceAbsent(@"\bRuntimeServiceSnapshot\b")));
+                ("runtime snapshots are not consumed", () => AssertDependentSourceAbsent(@"\bRuntimeServiceSnapshot\b")),
+                ("settings singleton is not consumed", () => AssertDependentSourceAbsent(@"RimMindCoreMod\s*\.\s*Settings")),
+                ("internal core namespace is not consumed", () => AssertDependentSourceAbsent(@"\bRimMind\.Core\.Internal\b")));
         }
 
         [Fact]
@@ -37,7 +39,9 @@ namespace RimMind.Core.ArchTests.Contracts
                 ("dialogue does not depend on peer feature mods", () =>
                     AssertNoUsing("RimMind-Dialogue", "Actions", "Advisor", "Memory", "Personality", "Storyteller", "Bridge")),
                 ("storyteller does not depend on peer feature mods", () =>
-                    AssertNoUsing("RimMind-Storyteller", "Actions", "Advisor", "Memory", "Personality", "Dialogue", "Bridge")));
+                    AssertNoUsing("RimMind-Storyteller", "Actions", "Advisor", "Memory", "Personality", "Dialogue", "Bridge")),
+                ("extension model service does not depend on peer feature mods", () =>
+                    AssertNoUsing("RimMind-Extension-ModelService", "Actions", "Advisor", "Memory", "Personality", "Dialogue", "Storyteller", "Bridge")));
         }
 
         [Fact]
@@ -106,10 +110,13 @@ namespace RimMind.Core.ArchTests.Contracts
                 "mcocdaa.RimMindActions",
                 "mcocdaa.RimMindDialogue",
                 "mcocdaa.RimMindPersonality",
-                "mcocdaa.RimMindStoryteller"
+                "mcocdaa.RimMindStoryteller",
+                "mcocdaa.RimMindModelService",
+                "mcocdaa.RimMindBridgeRimTalk",
+                "mcocdaa.RimMindBridgeRimChat"
             };
 
-            var productionFiles = SourceFiles(coreSourceDir).ToArray();
+            var productionFiles = ArchTestExtensions.SourceFiles(coreSourceDir).ToArray();
 
             ContractCaseRunner.Run(
                 forbiddenPackageIds
@@ -132,7 +139,7 @@ namespace RimMind.Core.ArchTests.Contracts
         [Fact]
         public void Downstream_submodules_maintain_generic_vs_specific_separation_boundaries()
         {
-            string root = RepositoryRoot();
+            string root = ArchTestExtensions.RepositoryRoot();
             string[] allDependentMods =
             {
                 "RimMind-Actions",
@@ -156,8 +163,8 @@ namespace RimMind.Core.ArchTests.Contracts
                     var violations = allDependentMods
                         .Select(mod => Path.Combine(root, mod, "Source"))
                         .Where(Directory.Exists)
-                        .SelectMany(SourceFiles)
-                        .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+                        .SelectMany(ArchTestExtensions.SourceFiles)
+                        .Where(file => pattern.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                         .Select(file => Path.GetRelativePath(root, file))
                         .OrderBy(path => path, StringComparer.Ordinal)
                         .ToArray();
@@ -172,8 +179,8 @@ namespace RimMind.Core.ArchTests.Contracts
                     if (!Directory.Exists(perceptionDir))
                         return;
 
-                    var violations = SourceFiles(perceptionDir)
-                        .Where(file => StripCommentsOnly(File.ReadAllText(file)).IndexOf("actions_", StringComparison.OrdinalIgnoreCase) >= 0)
+                    var violations = ArchTestExtensions.SourceFiles(perceptionDir)
+                        .Where(file => ArchTestExtensions.StripComments(File.ReadAllText(file)).IndexOf("actions_", StringComparison.OrdinalIgnoreCase) >= 0)
                         .Select(file => Path.GetRelativePath(root, file))
                         .OrderBy(path => path, StringComparer.Ordinal)
                         .ToArray();
@@ -191,8 +198,8 @@ namespace RimMind.Core.ArchTests.Contracts
                     var violations = allDependentMods
                         .Select(mod => Path.Combine(root, mod, "Source"))
                         .Where(Directory.Exists)
-                        .SelectMany(SourceFiles)
-                        .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+                        .SelectMany(ArchTestExtensions.SourceFiles)
+                        .Where(file => pattern.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                         .Select(file => Path.GetRelativePath(root, file))
                         .OrderBy(path => path, StringComparer.Ordinal)
                         .ToArray();
@@ -203,22 +210,13 @@ namespace RimMind.Core.ArchTests.Contracts
                 }));
         }
 
-        private static string StripCommentsOnly(string source)
-        {
-            return Regex.Replace(
-                source,
-                @"//[^\r\n]*|/\*.*?\*/",
-                " ",
-                RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        }
-
         private static void AssertDependentSourceAbsent(string forbiddenPattern)
         {
             var pattern = new Regex(forbiddenPattern, RegexOptions.CultureInvariant);
-            string root = RepositoryRoot();
+            string root = ArchTestExtensions.RepositoryRoot();
             IReadOnlyList<string> violations = DiscoverDependentMods()
-                .SelectMany(mod => SourceFiles(Path.Combine(root, mod, "Source")))
-                .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+                .SelectMany(mod => ArchTestExtensions.SourceFiles(Path.Combine(root, mod, "Source")))
+                .Where(file => pattern.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                 .Select(file => Path.GetRelativePath(root, file))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -235,7 +233,7 @@ namespace RimMind.Core.ArchTests.Contracts
 
         private static void AssertNoPattern(string mod, string forbiddenPattern)
         {
-            string root = RepositoryRoot();
+            string root = ArchTestExtensions.RepositoryRoot();
             string modSourceDir = Path.Combine(root, mod, "Source");
             if (!Directory.Exists(modSourceDir) && DiscoverDependentMods().Count == 0)
             {
@@ -245,8 +243,8 @@ namespace RimMind.Core.ArchTests.Contracts
             var pattern = new Regex(
                 forbiddenPattern,
                 RegexOptions.Multiline | RegexOptions.CultureInvariant);
-            IReadOnlyList<string> violations = SourceFiles(modSourceDir)
-                .Where(file => pattern.IsMatch(StripCommentsAndStrings(File.ReadAllText(file))))
+            IReadOnlyList<string> violations = ArchTestExtensions.SourceFiles(modSourceDir)
+                .Where(file => pattern.IsMatch(ArchTestExtensions.StripCommentsAndStrings(File.ReadAllText(file))))
                 .Select(file => Path.GetRelativePath(root, file))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -257,7 +255,7 @@ namespace RimMind.Core.ArchTests.Contracts
 
         private static IReadOnlyList<string> DiscoverDependentMods()
         {
-            string root = RepositoryRoot();
+            string root = ArchTestExtensions.RepositoryRoot();
             return Directory.EnumerateDirectories(root, "RimMind-*", SearchOption.TopDirectoryOnly)
                 .Where(directory => !Path.GetFileName(directory).Equals("RimMind-Core", StringComparison.OrdinalIgnoreCase))
                 .Where(directory => Directory.Exists(Path.Combine(directory, "Source")))
@@ -266,36 +264,6 @@ namespace RimMind.Core.ArchTests.Contracts
                 .Cast<string>()
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
-        }
-
-        private static string StripCommentsAndStrings(string source)
-        {
-            return Regex.Replace(
-                source,
-                @"@""(?:""""|[^""])*""|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])'|//[^\r\n]*|/\*.*?\*/",
-                " ",
-                RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        }
-
-        private static IEnumerable<string> SourceFiles(string directory)
-        {
-            Assert.True(Directory.Exists(directory), $"Source directory must exist: {directory}");
-            return Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part =>
-                    part.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                    part.Equals("backup", StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private static string RepositoryRoot()
-        {
-            string source = ArchTestExtensions.FindSourceDirectory();
-            Assert.True(Directory.Exists(source), "RimMind-Core/Source must be discoverable.");
-            DirectoryInfo? core = Directory.GetParent(source);
-            Assert.NotNull(core);
-            DirectoryInfo? root = core!.Parent;
-            Assert.NotNull(root);
-            return root!.FullName;
         }
     }
 }

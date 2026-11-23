@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using RimMind.Application.Common.Helpers;
-using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Client;
@@ -10,11 +9,9 @@ namespace RimMind.Application.Features.Requests.Queue
 {
     internal sealed class DefaultSettingsProvider : ISettingsProvider
     {
+        private static readonly IContextSettings SharedDefaultContext = new DefaultContextSettings();
         private const int kCircuitBreakerFailureThreshold = RimMindDefaults.CircuitBreakerFailureThreshold;
         private const int kCircuitBreakerOpenDurationSec = RimMindDefaults.CircuitBreakerOpenDurationSec;
-        private const int kMaxCacheEntries = RimMindDefaults.MaxCacheEntries;
-        private const float kMoodDiffThreshold = RimMindDefaults.DefaultMoodDiffThreshold;
-        private const float kTemperatureDiffThreshold = RimMindDefaults.DefaultTemperatureDiffThreshold;
 
         public int QueueProcessInterval { get => RimMindDefaults.QueueProcessInterval; set { } }
         public int MaxConcurrentRequests { get => RimMindDefaults.DefaultMaxConcurrentRequests; set { } }
@@ -35,7 +32,6 @@ namespace RimMind.Application.Features.Requests.Queue
         public string Provider { get => AIProviderRegistry.GetDefaultProviderId(); set { } }
         public string ApiKey { get => ""; set { } }
         public string ApiEndpoint { get => ""; set { } }
-        public string Player2RemoteUrl { get => ""; set { } }
         public IReadOnlyList<BackupEndpointNode>? BackupEndpoints => null;
         public bool DebugLogging { get => false; set { } }
         public int CircuitBreakerFailureThreshold => kCircuitBreakerFailureThreshold;
@@ -43,7 +39,7 @@ namespace RimMind.Application.Features.Requests.Queue
         public int ContextCalibrateInterval { get => RimMindDefaults.FlywheelCalibrateInterval; set { } }
         public int ContextDiffLifetimeTicks { get => RimMindDefaults.ContextDiffLifetimeTicks; set { } }
         public bool IsConfigured => false;
-        public IContextSettings Context => new DefaultContextSettings();
+        public IContextSettings Context => SharedDefaultContext;
         public bool RequestOverlayEnabled { get => true; set { } }
         public float RequestOverlayX { get => 20f; set { } }
         public float RequestOverlayY { get => 20f; set { } }
@@ -56,7 +52,8 @@ namespace RimMind.Application.Features.Requests.Queue
         public string CustomMapPrompt { get => ""; set { } }
         public FlywheelAutoApplyMode AutoApplyMode { get => FlywheelAutoApplyMode.Off; set { } }
         public float AutoApplyConfidenceThreshold { get => RimMindDefaults.AutoApplyConfidenceThreshold; set { } }
-        public bool IsOpenAIConfigured() => false;
+        public string GetProviderOption(string key) => "";
+        public void SetProviderOption(string key, string value) { }
         public void Persist() { /* Null Object: defaults are immutable, nothing to persist */ }
 
         AgentAutonomyLevel IAgentAutonomySettings.AutonomyLevel { get => AgentAutonomyLevel.Autonomous; set { } }

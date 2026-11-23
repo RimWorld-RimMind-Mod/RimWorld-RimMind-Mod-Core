@@ -48,7 +48,7 @@ namespace RimMind.Presentation.UI
         private string _inputText = string.Empty;
         private bool _isWaiting;
         private bool _autoScroll = true;
-        private bool _closed;
+        private volatile bool _closed;
 
         protected RimMindChatWindowBase()
         {

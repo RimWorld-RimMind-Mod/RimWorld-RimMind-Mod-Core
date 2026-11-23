@@ -4,11 +4,14 @@ using System.Threading.Tasks;
 using RimMind.Application.Common.Interfaces.Client;
 using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.Client;
-using RimMind.Domain.Common;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
+using RimMind.Infrastructure.Services.Clients.Shared;
+using RimMind.Presentation.Api;
+using RimMind.Presentation.Runtime.Services;
+using RimMind.Presentation.UI;
+using RimMind.Presentation.UI.Framework;
 using UnityEngine;
-using Verse;
 
 namespace RimMind.Infrastructure.UI.DebugCenter
 {
@@ -16,13 +19,14 @@ namespace RimMind.Infrastructure.UI.DebugCenter
     {
         private static readonly object Lock = new();
         private static bool _isTesting;
-        private static string _lastStatus = "RimMind.UI.Hub.PingNotRun".Translate();
+        private static string? _lastStatus;
         private static long _lastLatencyMs;
         private static int _lastTokensUsed;
         private static string? _lastSnippet;
         private static string? _lastError;
         private static Color _statusColor = RimMindUI.ColorMuted;
         private static bool _offlineSimulationMode;
+        private static GenerationUiOperation? _activeOperation;
 
         public static bool IsTesting
         {
@@ -32,7 +36,15 @@ namespace RimMind.Infrastructure.UI.DebugCenter
 
         public static string LastStatus
         {
-            get { lock (Lock) return _lastStatus; }
+            get
+            {
+                lock (Lock)
+                {
+                    if (_lastStatus != null)
+                        return _lastStatus;
+                }
+                return UiText.Get("RimMind.UI.Hub.PingNotRun", "Not tested");
+            }
             private set { lock (Lock) _lastStatus = value; }
         }
 
@@ -77,24 +89,30 @@ namespace RimMind.Infrastructure.UI.DebugCenter
             if (IsTesting)
                 return;
 
+            var operation = GenerationUiOperation.Capture(
+                RuntimeServiceHub.Shared,
+                LifecycleEventSources.LiveAiProbe);
+
             if (OfflineSimulationMode)
             {
-                IsTesting = true;
-                LastStatus = "RimMind.Settings.Status.Testing".Translate();
-                StatusColor = RimMindUI.ColorPaused;
+                lock (Lock)
+                {
+                    _activeOperation = operation;
+                    _isTesting = true;
+                    _lastStatus = UiText.Get("RimMind.Settings.Status.Testing", "Testing...");
+                    _statusColor = RimMindUI.ColorPaused;
+                }
                 Task.Run(async () =>
                 {
                     await Task.Delay(180).ConfigureAwait(false);
-                    lock (Lock)
-                    {
-                        _lastStatus = "200 OK (Offline Sim)";
-                        _lastLatencyMs = 180;
-                        _lastTokensUsed = 12;
-                        _lastSnippet = "{\"status\":\"ok\",\"simulated\":true}";
-                        _lastError = null;
-                        _statusColor = RimMindUI.ColorActive;
-                        _isTesting = false;
-                    }
+                    RimMindAPI.MainThread.Post(() => PublishResult(
+                        operation,
+                        status: "200 OK (Offline Sim)",
+                        latencyMs: 180,
+                        tokensUsed: 12,
+                        snippet: "{\"status\":\"ok\",\"simulated\":true}",
+                        error: null,
+                        color: RimMindUI.ColorActive));
                 });
                 return;
             }
@@ -103,36 +121,39 @@ namespace RimMind.Infrastructure.UI.DebugCenter
             {
                 lock (Lock)
                 {
-                    _lastStatus = "RimMind.Settings.Status.NotConfigured".Translate();
+                    _lastStatus = UiText.Get("RimMind.Settings.Status.NotConfigured", "Not configured");
                     _lastError = "API key or endpoint missing in Settings.";
                     _statusColor = RimMindUI.ColorPaused;
                 }
                 return;
             }
 
-            IsTesting = true;
-            LastStatus = "RimMind.Settings.Status.Testing".Translate();
-            StatusColor = RimMindUI.ColorPaused;
-            LastError = null;
-            LastSnippet = null;
+            lock (Lock)
+            {
+                _activeOperation = operation;
+                _isTesting = true;
+                _lastStatus = UiText.Get("RimMind.Settings.Status.Testing", "Testing...");
+                _statusColor = RimMindUI.ColorPaused;
+                _lastError = null;
+                _lastSnippet = null;
+            }
 
+            string provider = settings.Provider;
             Task.Run(async () =>
             {
                 try
                 {
-                    IAIClient? client = settings.Provider == "player2"
-                        ? clientManager?.GetPlayer2Client()
-                        : clientManager?.GetClient();
-
+                    IAIClient? client = clientManager?.GetClient();
                     if (client == null)
                     {
-                        lock (Lock)
-                        {
-                            _lastStatus = "FAIL (No Client)";
-                            _lastError = $"AIClient unavailable for provider '{settings.Provider}'.";
-                            _statusColor = RimMindUI.ColorError;
-                            _isTesting = false;
-                        }
+                        RimMindAPI.MainThread.Post(() => PublishResult(
+                            operation,
+                            status: "FAIL (No Client)",
+                            latencyMs: 0,
+                            tokensUsed: 0,
+                            snippet: null,
+                            error: $"AIClient unavailable for provider '{provider}'.",
+                            color: RimMindUI.ColorError));
                         return;
                     }
 
@@ -156,45 +177,86 @@ namespace RimMind.Infrastructure.UI.DebugCenter
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     Result<LlmResponse, RimMindError> result = await client.SendAsync(envelope).ConfigureAwait(false);
                     sw.Stop();
+                    long elapsed = sw.ElapsedMilliseconds;
 
-                    lock (Lock)
+                    if (result.TryGetValue(out var response))
                     {
-                        _lastLatencyMs = sw.ElapsedMilliseconds;
-                        if (result.TryGetValue(out var response))
-                        {
-                            _lastStatus = "200 OK";
-                            _lastTokensUsed = response?.TokensUsed ?? 0;
-                            _lastSnippet = response?.Content?.Trim() ?? "OK";
-                            _lastError = null;
-                            _statusColor = RimMindUI.ColorActive;
-                        }
-                        else
-                        {
-                            string codeStr = result.Error != null ? ((int)result.Error.Code).ToString() : "FAIL";
-                            _lastStatus = $"{codeStr} (FAIL)";
-                            _lastError = result.Error?.Message ?? "Unknown error";
-                            _lastTokensUsed = 0;
-                            _statusColor = RimMindUI.ColorError;
-                        }
+                        int tokens = response?.TokensUsed ?? 0;
+                        string snippet = response?.Content?.Trim() ?? "OK";
+                        RimMindAPI.MainThread.Post(() => PublishResult(
+                            operation,
+                            status: "200 OK",
+                            latencyMs: elapsed,
+                            tokensUsed: tokens,
+                            snippet: snippet,
+                            error: null,
+                            color: RimMindUI.ColorActive));
+                    }
+                    else
+                    {
+                        string codeStr = result.Error != null ? ((int)result.Error.Code).ToString() : "FAIL";
+                        string errorMsg = LogSanitizer.ForLog(result.Error?.Message ?? "Unknown error");
+                        RimMindAPI.MainThread.Post(() => PublishResult(
+                            operation,
+                            status: $"{codeStr} (FAIL)",
+                            latencyMs: elapsed,
+                            tokensUsed: 0,
+                            snippet: null,
+                            error: errorMsg,
+                            color: RimMindUI.ColorError));
                     }
                 }
                 catch (Exception ex)
                 {
-                    lock (Lock)
-                    {
-                        _lastStatus = "ERROR";
-                        _lastError = ex.Message;
-                        _statusColor = RimMindUI.ColorError;
-                    }
+                    string safeError = LogSanitizer.ForLog(ex.Message);
+                    RimMindAPI.MainThread.Post(() => PublishResult(
+                        operation,
+                        status: "ERROR",
+                        latencyMs: 0,
+                        tokensUsed: 0,
+                        snippet: null,
+                        error: safeError,
+                        color: RimMindUI.ColorError));
                 }
-                finally
+            });
+        }
+
+        private static void PublishResult(
+            GenerationUiOperation operation,
+            string status,
+            long latencyMs,
+            int tokensUsed,
+            string? snippet,
+            string? error,
+            Color color)
+        {
+            if (!operation.CanPublish())
+            {
+                lock (Lock)
                 {
-                    lock (Lock)
+                    if (ReferenceEquals(_activeOperation, operation))
                     {
+                        _activeOperation = null;
                         _isTesting = false;
                     }
                 }
-            });
+                return;
+            }
+
+            lock (Lock)
+            {
+                if (!ReferenceEquals(_activeOperation, operation))
+                    return;
+
+                _activeOperation = null;
+                _isTesting = false;
+                _lastStatus = status;
+                _lastLatencyMs = latencyMs;
+                _lastTokensUsed = tokensUsed;
+                _lastSnippet = snippet;
+                _lastError = error;
+                _statusColor = color;
+            }
         }
     }
 }

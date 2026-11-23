@@ -41,7 +41,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Health
                 var hediff = pawn.health?.hediffSet?.hediffs?
                     .FirstOrDefault(h => h.def.defName == args.DefName);
                 if (hediff == null)
-                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
                 var info = new
                 {

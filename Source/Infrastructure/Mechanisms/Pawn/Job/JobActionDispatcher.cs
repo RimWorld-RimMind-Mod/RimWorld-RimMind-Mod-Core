@@ -15,12 +15,6 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
 {
     public static class JobActionDispatcher
     {
-        [ThreadStatic]
-        private static bool _captureJobForQueue;
-
-        [ThreadStatic]
-        private static VerseJob? _capturedQueueJob;
-
         /// <summary>
         /// Starts a forced job and verifies the game actually accepted it. StartJob can silently
         /// refuse (mental state, drafted pawn, failed reservation, job ending on its first toil);
@@ -30,11 +24,6 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         {
             if (pawn?.jobs == null || job == null)
                 return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction(mechanismId, "no job tracker or job"));
-            if (_captureJobForQueue)
-            {
-                _capturedQueueJob = job;
-                return Result<bool, RimMindError>.Ok(true);
-            }
             pawn.jobs.StartJob(job, JobCondition.InterruptForced);
             if (!ReferenceEquals(pawn.CurJob, job))
             {
@@ -44,8 +33,50 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             }
             return Result<bool, RimMindError>.Ok(true);
         }
+
+        private static Result<bool, RimMindError> StartBuiltJob(VersePawn pawn, Result<VerseJob, RimMindError> built)
+        {
+            if (built.IsErr)
+                return Result<bool, RimMindError>.Err(built.Error);
+            return StartJobVerified(pawn, built.Value);
+        }
+
         public static Result<bool, RimMindError> HandleAssignWork(VersePawn pawn, MechanismWriteArgs args)
         {
+            if (TryBuildAssignWorkJob(pawn, args, allowPriorityOverrideFallback: true, out var job, out var handledByOverride, out var error))
+            {
+                if (job != null)
+                    return StartJobVerified(pawn, job);
+
+                if (handledByOverride)
+                {
+                    try
+                    {
+                        pawn.jobs?.CheckForJobOverride();
+                    }
+                    catch
+                    {
+                        // Ignore job override transient errors
+                    }
+                    return Result<bool, RimMindError>.Ok(true);
+                }
+            }
+
+            return Result<bool, RimMindError>.Err(error ?? RimMindErrors.Internal("assign_work failed"));
+        }
+
+        private static bool TryBuildAssignWorkJob(
+            VersePawn pawn,
+            MechanismWriteArgs args,
+            bool allowPriorityOverrideFallback,
+            out VerseJob? job,
+            out bool handledByOverride,
+            out RimMindError? error)
+        {
+            job = null;
+            handledByOverride = false;
+            error = null;
+
             var workType = ExtractParam(args, "work_type") ?? ExtractParam(args, "job_type") ?? args.DefName;
             if (string.IsNullOrEmpty(workType))
             {
@@ -61,14 +92,21 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
                     anyWork = null;
                 }
                 if (anyWork == null)
-                    return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "assign_work: missing work_type and no available work found"));
-                return StartJobVerified(pawn, anyWork);
+                {
+                    error = RimMindErrors.InvalidAction("pawn.job", "assign_work: missing work_type and no available work found");
+                    return false;
+                }
+                job = anyWork;
+                return true;
             }
 
             var candidateGivers = ResolveCandidateWorkGivers(workType!);
             var workTypeDef = ResolveWorkTypeDef(workType!, candidateGivers);
             if (candidateGivers.Count == 0 && workTypeDef == null)
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidDefName(workType ?? ""));
+            {
+                error = RimMindErrors.InvalidDefName(workType ?? "");
+                return false;
+            }
 
             bool priorityUpdated = false;
             if (workTypeDef != null
@@ -89,28 +127,23 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
                 if (workGiver?.Worker == null) continue;
                 if (workGiver.workType != null && pawn.WorkTypeIsDisabled(workGiver.workType)) continue;
 
-                var job = TryFindJobFromGiver(pawn, workGiver);
-                if (job != null)
+                var candidateJob = TryFindJobFromGiver(pawn, workGiver);
+                if (candidateJob != null)
                 {
-                    job.workGiverDef = workGiver;
-                    return StartJobVerified(pawn, job);
+                    candidateJob.workGiverDef = workGiver;
+                    job = candidateJob;
+                    return true;
                 }
             }
 
-            if (!_captureJobForQueue && (priorityUpdated || (workTypeDef != null && !pawn.WorkTypeIsDisabled(workTypeDef))))
+            if (allowPriorityOverrideFallback && (priorityUpdated || (workTypeDef != null && !pawn.WorkTypeIsDisabled(workTypeDef))))
             {
-                try
-                {
-                    pawn.jobs?.CheckForJobOverride();
-                }
-                catch
-                {
-                    // Ignore job override transient errors
-                }
-                return Result<bool, RimMindError>.Ok(true);
+                handledByOverride = true;
+                return true;
             }
 
-            return Result<bool, RimMindError>.Err(RimMindErrors.Internal($"No actionable target on map for work/job '{workType}'"));
+            error = RimMindErrors.Internal($"No actionable target on map for work/job '{workType}'");
+            return false;
         }
 
         private static WorkTypeDef? ResolveWorkTypeDef(string rawType, System.Collections.Generic.List<WorkGiverDef> candidateGivers)
@@ -264,34 +297,39 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         }
 
         public static Result<bool, RimMindError> HandleMoveTo(VersePawn pawn, MechanismWriteArgs args)
+            => StartBuiltJob(pawn, TryBuildMoveToJob(pawn, args));
+
+        private static Result<VerseJob, RimMindError> TryBuildMoveToJob(VersePawn pawn, MechanismWriteArgs args)
         {
             var cellX = ExtractIntParam(args, "cell_x");
             var cellZ = ExtractIntParam(args, "cell_z");
             if (cellX == 0 && cellZ == 0)
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: missing cell_x/cell_z"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: missing cell_x/cell_z"));
 
             var map = pawn.Map;
             if (map == null)
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: pawn has no map"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: pawn has no map"));
 
             var cell = new IntVec3(cellX, 0, cellZ);
             if (!cell.IsValid || !cell.InBounds(map))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: invalid or out of bounds cell"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: invalid or out of bounds cell"));
 
             if (cell.Fogged(map))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cell is fogged"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cell is fogged"));
 
             if (!cell.Standable(map))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cell is not standable"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cell is not standable"));
 
             if (!pawn.CanReach(cell, PathEndMode.OnCell, Danger.Deadly))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cannot reach cell"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "move_to: cannot reach cell"));
 
-            var job = JobMaker.MakeJob(JobDefOf.Goto, new LocalTargetInfo(cell));
-            return StartJobVerified(pawn, job);
+            return Result<VerseJob, RimMindError>.Ok(JobMaker.MakeJob(JobDefOf.Goto, new LocalTargetInfo(cell)));
         }
 
         public static Result<bool, RimMindError> HandleEatFood(VersePawn pawn, MechanismWriteArgs args)
+            => StartBuiltJob(pawn, TryBuildEatFoodJob(pawn, args));
+
+        private static Result<VerseJob, RimMindError> TryBuildEatFoodJob(VersePawn pawn, MechanismWriteArgs args)
         {
             var food = pawn.inventory?.innerContainer?.FirstOrDefault(
                 t => t != null && !t.Destroyed && t.def != null && t.def.IsNutritionGivingIngestible && t.IngestibleNow);
@@ -361,18 +399,18 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
                 var harvestPlantJob = TryDesignateAndHarvestWildFoodPlant(pawn, map);
                 if (harvestPlantJob != null)
                 {
-                    return StartJobVerified(pawn, harvestPlantJob);
+                    return Result<VerseJob, RimMindError>.Ok(harvestPlantJob);
                 }
             }
 
             if (food == null)
             {
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "eat_food: no available food found"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "eat_food: no available food found"));
             }
 
             var job = JobMaker.MakeJob(JobDefOf.Ingest, new LocalTargetInfo(food));
             job.count = System.Math.Max(1, FoodUtility.WillIngestStackCountOf(pawn, food.def, food.GetStatValue(StatDefOf.Nutrition)));
-            return StartJobVerified(pawn, job);
+            return Result<VerseJob, RimMindError>.Ok(job);
         }
 
         private static VerseJob? TryDesignateAndHarvestWildFoodPlant(VersePawn pawn, global::Verse.Map map)
@@ -458,57 +496,69 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         }
 
         public static Result<bool, RimMindError> HandleForceRest(VersePawn pawn, MechanismWriteArgs args)
+            => StartBuiltJob(pawn, TryBuildForceRestJob(pawn, args));
+
+        private static Result<VerseJob, RimMindError> TryBuildForceRestJob(VersePawn pawn, MechanismWriteArgs args)
         {
             var bed = RestUtility.FindBedFor(pawn);
             var job = bed != null ? JobMaker.MakeJob(JobDefOf.LayDown, new LocalTargetInfo(bed)) : JobMaker.MakeJob(JobDefOf.LayDown, pawn.Position);
-            return StartJobVerified(pawn, job);
+            return Result<VerseJob, RimMindError>.Ok(job);
         }
 
         public static Result<bool, RimMindError> HandleTendPawn(VersePawn pawn, MechanismWriteArgs args)
+            => StartBuiltJob(pawn, TryBuildTendPawnJob(pawn, args));
+
+        private static Result<VerseJob, RimMindError> TryBuildTendPawnJob(VersePawn pawn, MechanismWriteArgs args)
         {
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
             var targetPawn = FindTargetPawnOnSameMap(pawn, targetPawnId);
             if (targetPawn == null)
-                return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
             if (!pawn.CanReserveAndReach(targetPawn, PathEndMode.Touch, Danger.Deadly))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "tend_pawn: cannot reserve or reach target pawn"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "tend_pawn: cannot reserve or reach target pawn"));
 
             var job = JobMaker.MakeJob(JobDefOf.TendPatient, new LocalTargetInfo(targetPawn));
             job.count = 1;
-            return StartJobVerified(pawn, job);
+            return Result<VerseJob, RimMindError>.Ok(job);
         }
 
         public static Result<bool, RimMindError> HandleRescuePawn(VersePawn pawn, MechanismWriteArgs args)
+            => StartBuiltJob(pawn, TryBuildRescuePawnJob(pawn, args));
+
+        private static Result<VerseJob, RimMindError> TryBuildRescuePawnJob(VersePawn pawn, MechanismWriteArgs args)
         {
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
             var targetPawn = FindTargetPawnOnSameMap(pawn, targetPawnId);
             if (targetPawn == null)
-                return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
             Building_Bed bed = RestUtility.FindBedFor(targetPawn, pawn, checkSocialProperness: false, ignoreOtherReservations: false, targetPawn.GuestStatus);
             if (bed == null || !pawn.CanReserveAndReach(targetPawn, PathEndMode.OnCell, Danger.Deadly))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "rescue_pawn: no available bed or cannot reserve/reach target pawn"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "rescue_pawn: no available bed or cannot reserve/reach target pawn"));
 
             var job = JobMaker.MakeJob(JobDefOf.Rescue, targetPawn, bed);
             job.count = 1;
-            return StartJobVerified(pawn, job);
+            return Result<VerseJob, RimMindError>.Ok(job);
         }
 
         public static Result<bool, RimMindError> HandleArrestPawn(VersePawn pawn, MechanismWriteArgs args)
+            => StartBuiltJob(pawn, TryBuildArrestPawnJob(pawn, args));
+
+        private static Result<VerseJob, RimMindError> TryBuildArrestPawnJob(VersePawn pawn, MechanismWriteArgs args)
         {
             var targetPawnId = ExtractIntParam(args, "target_pawn_id");
             var targetPawn = FindTargetPawnOnSameMap(pawn, targetPawnId);
             if (targetPawn == null)
-                return Result<bool, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.PawnNotFound(targetPawnId));
 
             Building_Bed bed = RestUtility.FindBedFor(targetPawn, pawn, checkSocialProperness: false, ignoreOtherReservations: false, GuestStatus.Prisoner);
             if (bed == null || !pawn.CanReserveAndReach(targetPawn, PathEndMode.OnCell, Danger.Deadly))
-                return Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "arrest_pawn: no available prisoner bed or cannot reserve/reach target pawn"));
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", "arrest_pawn: no available prisoner bed or cannot reserve/reach target pawn"));
 
             var job = JobMaker.MakeJob(JobDefOf.Arrest, targetPawn, bed);
             job.count = 1;
-            return StartJobVerified(pawn, job);
+            return Result<VerseJob, RimMindError>.Ok(job);
         }
 
         public static Result<bool, RimMindError> HandleCancelJob(VersePawn pawn, MechanismWriteArgs args)
@@ -758,41 +808,40 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
             builtJob = null;
             error = null;
 
-            bool prevCapture = _captureJobForQueue;
-            VerseJob? prevJob = _capturedQueueJob;
-            try
+            if (subAction == "assign_work" || subAction == "take_job")
             {
-                _captureJobForQueue = true;
-                _capturedQueueJob = null;
-
-                Result<bool, RimMindError> res = subAction switch
+                if (TryBuildAssignWorkJob(pawn, subArgs, allowPriorityOverrideFallback: false, out var workJob, out _, out var workError)
+                    && workJob != null)
                 {
-                    "assign_work" or "take_job" => HandleAssignWork(pawn, subArgs),
-                    "move_to" => HandleMoveTo(pawn, subArgs),
-                    "eat_food" => HandleEatFood(pawn, subArgs),
-                    "force_rest" => HandleForceRest(pawn, subArgs),
-                    "tend_pawn" => HandleTendPawn(pawn, subArgs),
-                    "rescue_pawn" => HandleRescuePawn(pawn, subArgs),
-                    "arrest_pawn" => HandleArrestPawn(pawn, subArgs),
-                    _ => Result<bool, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", $"unsupported queued sub-action '{subAction}'"))
-                };
-
-                if (res.IsOk && _capturedQueueJob != null)
-                {
-                    builtJob = _capturedQueueJob;
+                    builtJob = workJob;
                     return true;
                 }
 
-                error = res.IsErr
-                    ? res.Error
-                    : RimMindErrors.InvalidAction("pawn.job", $"failed to build queueable job for '{subAction}'");
+                error = workError ?? RimMindErrors.InvalidAction("pawn.job", $"failed to build queueable job for '{subAction}'");
                 return false;
             }
-            finally
+
+            Result<VerseJob, RimMindError> res = subAction switch
             {
-                _captureJobForQueue = prevCapture;
-                _capturedQueueJob = prevJob;
+                "move_to" => TryBuildMoveToJob(pawn, subArgs),
+                "eat_food" => TryBuildEatFoodJob(pawn, subArgs),
+                "force_rest" => TryBuildForceRestJob(pawn, subArgs),
+                "tend_pawn" => TryBuildTendPawnJob(pawn, subArgs),
+                "rescue_pawn" => TryBuildRescuePawnJob(pawn, subArgs),
+                "arrest_pawn" => TryBuildArrestPawnJob(pawn, subArgs),
+                _ => Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job", $"unsupported queued sub-action '{subAction}'"))
+            };
+
+            if (res.IsOk && res.Value != null)
+            {
+                builtJob = res.Value;
+                return true;
             }
+
+            error = res.IsErr
+                ? res.Error
+                : RimMindErrors.InvalidAction("pawn.job", $"failed to build queueable job for '{subAction}'");
+            return false;
         }
 
         private static string? ExtractParam(MechanismWriteArgs args, string key)

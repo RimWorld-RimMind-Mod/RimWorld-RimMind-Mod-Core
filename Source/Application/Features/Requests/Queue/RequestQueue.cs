@@ -12,16 +12,15 @@ using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Helpers;
 using RimMind.Application.Common.Models.Client;
 using RimMind.Application.Common.Models;
+using RimMind.Application.Features.Llm;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
 using AIRequestState = RimMind.Domain.Llm.AIRequestState;
 
 namespace RimMind.Application.Features.Requests.Queue
 {
-    public class RequestQueue : ITickableRequestQueue
+    public class RequestQueue : ITickableRequestQueue, IDisposable
     {
-        private const long TicksPerMillisecond = RimMindDefaults.TicksPerMillisecond;
-
         private readonly RequestCompletionInbox _completionInbox = new RequestCompletionInbox();
 
         private readonly object _queueLock = new object();
@@ -37,14 +36,13 @@ namespace RimMind.Application.Features.Requests.Queue
         private readonly ILogSink? _logSink;
         private readonly ICompletionFence _completionFence;
 
-        private ILogSink? LogSink => _logSink;
-
         private readonly Func<ISettingsProvider?>? _settingsFactory;
 
         private int _lastQueueProcessTick;
         private int _nextTrackingId;
         private bool _isPaused;
         private bool _isProcessingLocalRequest;
+        private bool _disposed;
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
         public int CurrentTick { get; set; }
@@ -77,7 +75,18 @@ namespace RimMind.Application.Features.Requests.Queue
             _settingsFactory = settingsFactory;
             _logSink = logSink;
             _completionFence = completionFence ?? UnboundedCompletionFence.Instance;
-            _circuitBreaker = new QueueCircuitBreaker(Settings, logSink, modCooldowns);
+            _circuitBreaker = new QueueCircuitBreaker(settings: null, logSink: logSink, modCooldowns: modCooldowns);
+        }
+
+        public void Dispose()
+        {
+            lock (_queueLock)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                try { _cts.Cancel(); } catch (ObjectDisposedException) { }
+                try { _cts.Dispose(); } catch (ObjectDisposedException) { }
+            }
         }
 
         public void Tick()
@@ -108,14 +117,15 @@ namespace RimMind.Application.Features.Requests.Queue
             lock (_queueLock)
             {
                 var previous = _cts;
-                _cts = new CancellationTokenSource();
-                previous.Cancel();
+                if (!_disposed)
+                    _cts = new CancellationTokenSource();
+                try { previous.Cancel(); } catch (ObjectDisposedException) { }
 
                 var cancelled = Result<LlmResponse, RimMindError>.Err(
                     new RimMindError(RimMindErrorCode.Cancelled, "Request cancelled"));
                 foreach (var tracked in _activeRequests.Values.ToList())
                 {
-                    tracked.CancellationSource?.Cancel();
+                    try { tracked.CancellationSource?.Cancel(); } catch (ObjectDisposedException) { }
                     Complete(tracked, cancelled);
                 }
                 foreach (var queue in _modQueues.Values)
@@ -123,7 +133,10 @@ namespace RimMind.Application.Features.Requests.Queue
                     foreach (var tracked in queue.ToList()) Complete(tracked, cancelled);
                     queue.Clear();
                 }
-                previous.Dispose();
+                if (!_disposed)
+                {
+                    try { previous.Dispose(); } catch (ObjectDisposedException) { }
+                }
             }
         }
 
@@ -264,6 +277,17 @@ namespace RimMind.Application.Features.Requests.Queue
             while (queue.Count > 0)
             {
                 var t = queue[0];
+                if (t.Envelope.Ct.IsCancellationRequested)
+                {
+                    queue.RemoveAt(0);
+                    t.State = AIRequestState.Cancelled;
+                    Complete(t, Result<LlmResponse, RimMindError>.Err(
+                        new RimMindError(RimMindErrorCode.Cancelled, "Request cancelled before dispatch")));
+                    if (Settings.DebugLogging)
+                        EnqueueLog($"[RimMind-Core] Dropped cancelled request {t.Envelope.RequestId} before dispatch");
+                    continue;
+                }
+
                 if (IsExpired(t, now, nowUtc, out string expireReason))
                 {
                     queue.RemoveAt(0);
@@ -355,10 +379,29 @@ namespace RimMind.Application.Features.Requests.Queue
 
         private void FireRequest(TrackedRequest tracked)
         {
-            tracked.CancellationSource = CancellationTokenSource.CreateLinkedTokenSource(
-                _cts.Token,
-                tracked.Envelope.Ct,
-                _completionFence.CancellationToken);
+            if (_disposed)
+            {
+                tracked.State = AIRequestState.Cancelled;
+                Complete(tracked, Result<LlmResponse, RimMindError>.Err(
+                    new RimMindError(RimMindErrorCode.Cancelled, "Request queue disposed")));
+                return;
+            }
+
+            try
+            {
+                tracked.CancellationSource = CancellationTokenSource.CreateLinkedTokenSource(
+                    _cts.Token,
+                    tracked.Envelope.Ct,
+                    _completionFence.CancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                tracked.State = AIRequestState.Cancelled;
+                Complete(tracked, Result<LlmResponse, RimMindError>.Err(
+                    new RimMindError(RimMindErrorCode.Cancelled, "Request cancellation source disposed")));
+                return;
+            }
+
             var ct = tracked.CancellationSource.Token;
             Task.Run(async () =>
             {
@@ -375,7 +418,7 @@ namespace RimMind.Application.Features.Requests.Queue
                 }
                 catch (Exception ex)
                 {
-                    LogSink?.LogFromBackground($"[RimMind-Core] Execute threw for {tracked.Envelope.RequestId}: {ex.Message}", isWarning: true);
+                    _logSink?.LogFromBackground($"[RimMind-Core] Execute threw for {tracked.Envelope.RequestId}: {LogSecretRedactor.ForLog(ex.Message)}", isWarning: true);
                     result = Result<LlmResponse, RimMindError>.Err(
                         new RimMindError(RimMindErrorCode.InternalError, ex.Message));
                 }
@@ -409,7 +452,7 @@ namespace RimMind.Application.Features.Requests.Queue
             lock (_queueLock)
             {
                 if (_activeRequests.Count == 0) return;
-                var nowUtc = DateTime.UtcNow;
+                var nowUtc = NowUtc();
                 int timeoutMs = Settings.RequestTimeoutMs;
                 var timedOut = new List<TrackedRequest>();
                 foreach (var kvp in _activeRequests)

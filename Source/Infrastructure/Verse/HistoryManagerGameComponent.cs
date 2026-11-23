@@ -52,6 +52,14 @@ namespace RimMind.Infrastructure.Verse
             }
         }
 
+        public override void StartedNewGame()
+        {
+            base.StartedNewGame();
+            _restorePending = false;
+            _serializedHistory = EmptyHistory;
+            _historyManager.ValueOrDefault?.LoadFromSave(new Dictionary<string, List<HistoryEntry>>());
+        }
+
         public override void LoadedGame()
         {
             base.LoadedGame();

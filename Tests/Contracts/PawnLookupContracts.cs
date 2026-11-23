@@ -435,13 +435,22 @@ namespace RimMind.Tests.Contracts
                     string runtimeCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Presentation", "Runtime", "RimMindRuntimeGameComponent.cs"));
                     Assert.Contains("Player2Client.StopHealthCheck()", runtimeCode, StringComparison.Ordinal);
                 })),
-                ("VersePawnSleepDetector and Window_AgentProgressFloat follow pawn lookup and thread-safety invariants", (Action)(() =>
+                ("GetSpawnedColonistsSafe filters dead and prisoner pawns on main thread, and Window_AgentProgressFloat avoids raw AllPawns scans", (Action)(() =>
                 {
-                    string root = FindRepoRoot();
-                    string sleepCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "Social", "VersePawnSleepDetector.cs"));
-                    Assert.Contains("RimMindPawnLookup.FindPawnById", sleepCode, StringComparison.Ordinal);
-                    Assert.DoesNotContain("WorldPawns", sleepCode, StringComparison.Ordinal);
+                    UnityData.IsInMainThread = true;
+                    var map = new Map();
+                    var liveColonist = new Pawn { thingIDNumber = 701, Map = map, Spawned = true, IsColonist = true, Faction = RimWorld.Faction.OfPlayer };
+                    var deadColonist = new Pawn { thingIDNumber = 702, Map = map, Spawned = true, IsColonist = true, Dead = true, Faction = RimWorld.Faction.OfPlayer };
+                    var prisoner = new Pawn { thingIDNumber = 703, Map = map, Spawned = true, IsColonist = true, IsPrisoner = true, Faction = RimWorld.Faction.OfPlayer };
+                    map.mapPawns.FreeColonistsSpawned.Add(liveColonist);
+                    map.mapPawns.FreeColonistsSpawned.Add(deadColonist);
+                    map.mapPawns.FreeColonistsSpawned.Add(prisoner);
 
+                    var safeColonists = RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+                    Assert.Single(safeColonists);
+                    Assert.Same(liveColonist, safeColonists[0]);
+
+                    string root = FindRepoRoot();
                     string floatCode = File.ReadAllText(Path.Combine(root, "RimMind-Core", "Source", "Infrastructure", "UI", "Window_AgentProgressFloat.cs"));
                     Assert.Contains("RimMindPawnLookup.GetEligibleColonists(Find.CurrentMap)", floatCode, StringComparison.Ordinal);
                     Assert.DoesNotContain("Find.CurrentMap.mapPawns.AllPawns", floatCode, StringComparison.Ordinal);

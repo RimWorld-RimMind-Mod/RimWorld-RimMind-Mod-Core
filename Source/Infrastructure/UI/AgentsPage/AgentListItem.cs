@@ -77,7 +77,7 @@ namespace RimMind.Infrastructure.UI.AgentsPage
             string? errorSummary)
         {
             if (!string.IsNullOrWhiteSpace(errorSummary))
-                return errorSummary;
+                return errorSummary!;
 
             if (isPendingCreation)
                 return "Pending creation";

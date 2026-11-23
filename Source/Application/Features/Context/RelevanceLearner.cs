@@ -17,6 +17,7 @@ namespace RimMind.Application.Features.Context
         private int _lastCleanupTick = 0;
         private const int CleanupIntervalTicks = 600;   // ~10 seconds
         private const int TraceTimeoutTicks = 36000;    // ~10 minutes
+        private const int MaxPendingTraces = 1024;
 
         public RelevanceLearner(ITickProvider? tickProvider = null)
         {
@@ -27,6 +28,10 @@ namespace RimMind.Application.Features.Context
         {
             if (string.IsNullOrEmpty(traceId) || includedKeys == null) return;
             MaybeCleanup();
+            if (_pendingTraces.Count >= MaxPendingTraces)
+            {
+                _pendingTraces.Clear();
+            }
             var nowTick = _tickProvider?.TicksGame ?? 0;
             _pendingTraces[traceId] = (scenario, includedKeys, nowTick);
         }
@@ -65,11 +70,11 @@ namespace RimMind.Application.Features.Context
         {
             var now = _tickProvider?.TicksGame ?? 0;
             if (now == 0) return;  // no tick provider, can't determine age
-            if (now - _lastCleanupTick < CleanupIntervalTicks) return;
+            if (now >= _lastCleanupTick && now - _lastCleanupTick < CleanupIntervalTicks) return;
             _lastCleanupTick = now;
 
             var expired = _pendingTraces
-                .Where(kvp => now - kvp.Value.TimestampTick > TraceTimeoutTicks)
+                .Where(kvp => now < kvp.Value.TimestampTick || now - kvp.Value.TimestampTick > TraceTimeoutTicks)
                 .Select(kvp => kvp.Key)
                 .ToList();
             foreach (var id in expired)

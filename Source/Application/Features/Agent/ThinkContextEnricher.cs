@@ -15,7 +15,7 @@ using RimMind.Domain.Llm;
 
 namespace RimMind.Application.Features.Agent
 {
-    public sealed class ThinkContextEnricher : IEnvelopeEnricher
+    public sealed class ThinkContextEnricher
     {
         private readonly InnerVoiceHandler? _innerVoiceHandler;
         private readonly IPsychologyWatcher? _psychologyWatcher;

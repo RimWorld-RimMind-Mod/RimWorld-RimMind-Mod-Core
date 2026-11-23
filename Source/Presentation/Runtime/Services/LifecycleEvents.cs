@@ -34,6 +34,7 @@ namespace RimMind.Presentation.Runtime.Services
         public const string RuntimeLifetime = "runtime_lifetime";
         public const string SettingsUi = "settings_ui";
         public const string RequestOverlay = "RequestOverlay";
+        public const string LiveAiProbe = "live_ai_probe";
 
         private static readonly HashSet<string> Approved = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -51,7 +52,8 @@ namespace RimMind.Presentation.Runtime.Services
             AgentContextPreview,
             RuntimeLifetime,
             SettingsUi,
-            RequestOverlay
+            RequestOverlay,
+            LiveAiProbe
         };
 
         public static string Normalize(string? source)

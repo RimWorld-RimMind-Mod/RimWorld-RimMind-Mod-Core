@@ -513,6 +513,7 @@ namespace RimMind.Tests.Contracts
         {
             private readonly string _prefix;
             public PrefixTranslationService(string prefix) => _prefix = prefix;
+            public bool CanTranslate(string key) => !string.IsNullOrEmpty(key);
             public string Translate(string key) => _prefix + key;
             public string Translate(string key, object arg0) => Translate(key);
             public string Translate(string key, object arg0, object arg1) => Translate(key);

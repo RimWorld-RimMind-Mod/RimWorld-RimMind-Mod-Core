@@ -104,11 +104,11 @@ flowchart TD
 | 设置项 | 默认值 | 说明 |
 |---|---|---|
 | **AI Provider** | `openai` | 支持 OpenAI 兼容端点、DeepSeek、Player2 与扩展网关 |
-| **API 端点与备用节点** | `https://api.deepseek.com/v1` | 主 OpenAI Chat Completions URL 及 `BackupEndpointNode` 自动故障转移列表 |
-| **模型名称** | `deepseek-flash` | 目标大语言模型标识符（如 `deepseek-flash`、`deepseek-v4-pro`、`gpt-4o-mini`） |
+| **API 端点与备用节点** | `https://api.openai.com/v1` | 主 OpenAI Chat Completions URL 及 `BackupEndpointNode` 自动故障转移列表 |
+| **模型名称** | `gpt-4o-mini` | 目标大语言模型标识符（如 `gpt-4o-mini`、`deepseek-chat`、本地 Ollama 模型等） |
 | **智能体自治策略** | 按领域分级 | 独立配置五大领域（`Survival`/`Work`/`Social`/`Colony`/`Governance`）的自治级别（`Auto`/`AutoWithNotify`/`RecommendOnly`） |
 | **最大并发请求数** | `3` | 同时发送给大模型的请求上限（1~10） |
-| **请求超时** | `60秒` | 等待 AI 响应的最大超时时限（10~180秒） |
+| **请求超时** | `120秒` | 等待 AI 响应的最大超时时限（10~300秒） |
 | **请求悬浮窗** | `开启` | 屏幕右下角实时显示请求处理状态与迷你胶囊 |
 | **详细调试日志** | `关闭` | 输出完整报文跟踪日志至 `Player.log` |
 

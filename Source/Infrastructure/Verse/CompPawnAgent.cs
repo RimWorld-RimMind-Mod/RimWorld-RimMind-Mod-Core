@@ -166,6 +166,10 @@ namespace RimMind.Infrastructure.Verse
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
+            if (parent is Pawn pawn)
+            {
+                RimMind.Presentation.Api.RimMindPawnLookup.UncachePawn(pawn);
+            }
             UnregisterFromAgentLoop();
             ClearIntentSession();
             base.PostDeSpawn(map, mode);
@@ -234,13 +238,13 @@ namespace RimMind.Infrastructure.Verse
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
-            if (!(parent is Pawn pawn))
+            if (!(parent is Pawn pawn) || !RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
                 yield break;
 
             yield return new Command_Action
             {
-                defaultLabel = "RimMind.Agent.Gizmo.Control".Translate(),
-                defaultDesc = "RimMind.Agent.Gizmo.ControlDesc".Translate(),
+                defaultLabel = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.Agent.Gizmo.Control", "AI Agent"),
+                defaultDesc = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.Agent.Gizmo.ControlDesc", "Open RimMind AI Agent control panel."),
                 icon = AgentIcon,
                 action = () =>
                 {
@@ -252,8 +256,8 @@ namespace RimMind.Infrastructure.Verse
             {
                 yield return new Command_Action
                 {
-                    defaultLabel = "RimMind.Agent.Gizmo.DevView".Translate(),
-                    defaultDesc = "RimMind.Agent.Gizmo.DevViewDesc".Translate(),
+                    defaultLabel = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.Agent.Gizmo.DevView", "Agent Debug"),
+                    defaultDesc = RimMind.Presentation.Api.RimMindText.TrOr("RimMind.Agent.Gizmo.DevViewDesc", "Log AI Agent debug info."),
                     icon = AgentDevIcon,
                     action = () =>
                     {

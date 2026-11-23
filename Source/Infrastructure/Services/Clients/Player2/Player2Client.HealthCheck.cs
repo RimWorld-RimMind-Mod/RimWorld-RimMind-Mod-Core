@@ -15,20 +15,21 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
         private const int HealthCheckIntervalMs = RimMindDefaults.Player2HealthCheckIntervalMs;
         private const int MinHealthCheckIntervalSec = RimMindDefaults.Player2MinHealthCheckIntervalSec;
         private const int LocalAvailabilityTimeoutSec = 2;
-        private const int HealthCheckPollingDelayMs = RimMindDefaults.HealthCheckPollingDelayMs;
 
+        private static readonly object _healthCheckLock = new object();
         private static DateTime _lastHealthCheck = DateTime.MinValue;
         private static volatile bool _healthCheckActive;
-        private static CancellationTokenSource _healthCheckCts = new CancellationTokenSource();
+        private static CancellationTokenSource? _healthCheckCts;
 
-        private async Task StartHealthCheckLoopAsync()
+        private async Task StartHealthCheckLoopAsync(CancellationToken ct)
         {
             try
             {
-                while (_healthCheckActive && !_healthCheckCts.IsCancellationRequested)
+                while (_healthCheckActive && !ct.IsCancellationRequested)
                 {
-                    await Task.Delay(HealthCheckIntervalMs, _healthCheckCts.Token).ConfigureAwait(false);
-                    if (_healthCheckActive) await EnsureHealthCheck(force: true).ConfigureAwait(false);
+                    await Task.Delay(HealthCheckIntervalMs, ct).ConfigureAwait(false);
+                    if (_healthCheckActive && !ct.IsCancellationRequested)
+                        await EnsureHealthCheck(force: true).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -37,13 +38,16 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
             catch (Exception ex)
             {
                 _logSink?.LogFromBackground($"[RimMind-Core] Player2 health check loop crashed: {Shared.LogSanitizer.ForLog(ex.Message)}", isWarning: true);
-                _healthCheckActive = false;
+                lock (_healthCheckLock)
+                {
+                    _healthCheckActive = false;
+                }
             }
         }
 
-        private void StartHealthCheckLoop()
+        private void StartHealthCheckLoop(CancellationToken ct)
         {
-            _ = StartHealthCheckLoopAsync();
+            _ = StartHealthCheckLoopAsync(ct);
         }
 
         private async Task EnsureHealthCheck(bool force = false)
@@ -73,13 +77,20 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         public static void StopHealthCheck()
         {
-            _healthCheckActive = false;
-            try
+            CancellationTokenSource? ctsToCancel;
+            lock (_healthCheckLock)
             {
-                _healthCheckCts.Cancel();
+                _healthCheckActive = false;
+                ctsToCancel = _healthCheckCts;
+                _healthCheckCts = null;
             }
-            catch (ObjectDisposedException)
+
+            if (ctsToCancel != null)
             {
+                try { ctsToCancel.Cancel(); }
+                catch (ObjectDisposedException) { }
+                try { ctsToCancel.Dispose(); }
+                catch (ObjectDisposedException) { }
             }
         }
 
@@ -116,16 +127,29 @@ namespace RimMind.Infrastructure.Services.Clients.Player2
 
         internal void InitiateHealthCheckIfNeeded()
         {
-            if (!_healthCheckActive && !string.IsNullOrEmpty(_apiKey) && !_isLocalConnection)
+            if (string.IsNullOrEmpty(_apiKey) || _isLocalConnection)
+                return;
+
+            CancellationToken ct;
+            CancellationTokenSource? staleCts = null;
+            lock (_healthCheckLock)
             {
-                if (_healthCheckCts.IsCancellationRequested)
-                {
-                    _healthCheckCts.Dispose();
-                    _healthCheckCts = new CancellationTokenSource();
-                }
+                if (_healthCheckActive)
+                    return;
+
+                staleCts = _healthCheckCts;
+                _healthCheckCts = new CancellationTokenSource();
+                ct = _healthCheckCts.Token;
                 _healthCheckActive = true;
-                StartHealthCheckLoop();
             }
+
+            if (staleCts != null)
+            {
+                try { staleCts.Dispose(); }
+                catch (ObjectDisposedException) { }
+            }
+
+            StartHealthCheckLoop(ct);
         }
     }
 }

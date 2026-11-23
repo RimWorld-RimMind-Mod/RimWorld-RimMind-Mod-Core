@@ -47,12 +47,50 @@ namespace RimMind.Application.Features.Context.Diff
 
         public bool TryGetDiffStore(string npcId, out List<ContextDiff> diffs)
         {
-            return _diffStore.TryGetValue(npcId, out diffs!);
+            if (_diffStore.TryGetValue(npcId, out var list))
+            {
+                lock (list)
+                {
+                    diffs = new List<ContextDiff>(list);
+                }
+                return true;
+            }
+            diffs = null!;
+            return false;
+        }
+
+        public bool TryTakeDiffStore(string npcId, out List<ContextDiff> diffs)
+        {
+            if (_diffStore.TryGetValue(npcId, out var list))
+            {
+                lock (list)
+                {
+                    if (list.Count == 0)
+                    {
+                        diffs = new List<ContextDiff>();
+                        return false;
+                    }
+                    diffs = new List<ContextDiff>(list);
+                    list.Clear();
+                }
+                return true;
+            }
+            diffs = null!;
+            return false;
         }
 
         public bool TryGetKeyLastValues(string npcId, out Dictionary<string, string> values)
         {
-            return _keyLastValues.TryGetValue(npcId, out values!);
+            if (_keyLastValues.TryGetValue(npcId, out var dict))
+            {
+                lock (dict)
+                {
+                    values = new Dictionary<string, string>(dict);
+                }
+                return true;
+            }
+            values = null!;
+            return false;
         }
 
         public void ClearNpcDiffs(string npcId) => _diffStore.TryRemove(npcId, out _);

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using RimMind.Application.Common.Interfaces.Abstractions;
 using RimMind.Application.Common.Interfaces.Context;
 using RimMind.Application.Common.Models;
@@ -226,11 +225,6 @@ namespace RimMind.Application.Features.Context
             }
             var denom = (float)(Math.Sqrt(normA) * Math.Sqrt(normB));
             return denom > 0 ? dot / denom : 0f;
-        }
-
-        private static ContextLayer ChooseLayer(ContextLayer declared, float cumulative)
-        {
-            return declared;
         }
 
         private static void AddToAllocation(BudgetAllocation alloc, ContextLayer layer, KeyMeta key)

@@ -70,8 +70,10 @@ namespace RimMind.Application.Features.Llm
         public void RecordFailure(string nodeKey, RimMindError error, bool isRateLimited = false, long? nowMs = null)
         {
             if (string.IsNullOrEmpty(nodeKey)) return;
-            // Content moderation and permanent request schema errors must NOT isolate endpoints
-            if (error.Code == RimMindErrorCode.ContentFiltered || error.Code == RimMindErrorCode.Cancelled)
+            // Content moderation, cancellation, and permanent request schema errors must NOT isolate endpoints
+            if (error.Code == RimMindErrorCode.ContentFiltered ||
+                error.Code == RimMindErrorCode.Cancelled ||
+                error.Code == RimMindErrorCode.ClientPermanentFailure)
                 return;
 
             if (error.Code == RimMindErrorCode.ClientQuotaOrAuthFailure)

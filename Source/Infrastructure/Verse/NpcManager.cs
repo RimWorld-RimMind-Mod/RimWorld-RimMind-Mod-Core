@@ -63,7 +63,11 @@ namespace RimMind.Infrastructure.Verse
             }
         }
 
-        void INpcManager.IndexPawn(object pawn) => IndexPawn(pawn as Pawn);
+        void INpcManager.IndexPawn(object pawn)
+        {
+            if (pawn is Pawn p)
+                IndexPawn(p);
+        }
 
         public void UnindexPawn(int thingId)
         {

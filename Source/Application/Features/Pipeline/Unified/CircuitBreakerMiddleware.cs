@@ -44,7 +44,9 @@ namespace RimMind.Application.Features.Pipeline.Unified
             public bool CanaryInProgress;
         }
 
-        private readonly Dictionary<string, CircuitBucket> _buckets = new Dictionary<string, CircuitBucket>(StringComparer.Ordinal);
+        private readonly Dictionary<string, CircuitBucket> _providerBuckets = new Dictionary<string, CircuitBucket>(StringComparer.Ordinal);
+        private readonly ConditionalWeakTable<IAIClient, CircuitBucket> _clientBuckets = new ConditionalWeakTable<IAIClient, CircuitBucket>();
+        private readonly CircuitBucket _defaultBucket = new CircuitBucket();
         private CircuitBucket _lastBucket = new CircuitBucket();
 
         internal string CurrentStateName { get { lock (_syncRoot) return _lastBucket.State.ToString(); } }
@@ -55,7 +57,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
         {
             lock (_syncRoot)
             {
-                return _buckets.TryGetValue(ResolveClientKey(client), out var bucket)
+                return client != null && _clientBuckets.TryGetValue(client, out var bucket)
                     ? bucket.State.ToString()
                     : CircuitState.Closed.ToString();
             }
@@ -65,7 +67,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
         {
             lock (_syncRoot)
             {
-                return _buckets.TryGetValue(ResolveClientKey(client), out var bucket)
+                return client != null && _clientBuckets.TryGetValue(client, out var bucket)
                     ? bucket.ConsecutiveFailures
                     : 0;
             }
@@ -148,44 +150,43 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 {
                     OnFailureLocked(bucket, context.Result.Value.Error, isCanary);
                 }
-                else
+                else if (context.Result?.IsOk == true)
                 {
                     OnSuccessLocked(bucket, isCanary);
+                }
+                else if (isCanary)
+                {
+                    bucket.CanaryInProgress = false;
                 }
             }
         }
 
         private CircuitBucket GetOrCreateBucketLocked(LlmRequestContext context)
         {
-            string key = ResolveProviderKey(context);
-            if (!_buckets.TryGetValue(key, out var bucket))
+            CircuitBucket bucket;
+            if (context.Envelope?.Hints != null
+                && context.Envelope.Hints.TryGetValue(LlmHintKeys.ProviderId, out var providerId)
+                && !string.IsNullOrWhiteSpace(providerId))
             {
-                bucket = new CircuitBucket();
-                _buckets[key] = bucket;
+                string key = providerId!;
+                if (!_providerBuckets.TryGetValue(key, out bucket!))
+                {
+                    bucket = new CircuitBucket();
+                    _providerBuckets[key] = bucket;
+                }
             }
+            else if (context.Client != null)
+            {
+                bucket = _clientBuckets.GetOrCreateValue(context.Client);
+            }
+            else
+            {
+                bucket = _defaultBucket;
+            }
+
             _lastBucket = bucket;
             return bucket;
         }
-
-        private static string ResolveProviderKey(LlmRequestContext context)
-        {
-            if (context.Envelope?.Hints != null
-                && context.Envelope.Hints.TryGetValue("ProviderId", out var providerId)
-                && !string.IsNullOrWhiteSpace(providerId))
-            {
-                return providerId!;
-            }
-
-            if (context.Client != null)
-            {
-                return ResolveClientKey(context.Client);
-            }
-
-            return "default";
-        }
-
-        private static string ResolveClientKey(IAIClient client)
-            => $"client:{client.GetType().FullName}:{RuntimeHelpers.GetHashCode(client)}";
 
         private void ShortCircuitOpen(LlmRequestContext context)
         {

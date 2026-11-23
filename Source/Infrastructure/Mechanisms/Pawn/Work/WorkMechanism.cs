@@ -59,9 +59,9 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Work
 
             if (!string.IsNullOrEmpty(args.DefName))
             {
-                var workDef = FindDef(args.DefName);
+                var workDef = FindDef(args.DefName!);
                 if (workDef == null)
-                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName)));
+                    return Task.FromResult(Result<string, RimMindError>.Err(RimMindErrors.InvalidDefName(args.DefName!)));
 
                 var info = new { def = workDef.defName, label = workDef.label, priority = pawn.workSettings.GetPriority(workDef) };
                 return Task.FromResult(Result<string, RimMindError>.Ok(JsonConvert.SerializeObject(info)));

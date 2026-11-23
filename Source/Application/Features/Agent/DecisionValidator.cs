@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -6,7 +7,13 @@ using RimMind.Application.Common.Interfaces.Tools;
 
 namespace RimMind.Application.Features.Agent
 {
-    public class DecisionValidator : IDecisionValidator
+    public sealed record ValidationResult(bool IsValid, string Reason = "")
+    {
+        public static ValidationResult Ok() => new(true);
+        public static ValidationResult Fail(string reason) => new(false, reason);
+    }
+
+    public class DecisionValidator
     {
         public ValidationResult Validate(AgentDecision decision, IToolRegistry toolRegistry)
         {
@@ -19,23 +26,25 @@ namespace RimMind.Application.Features.Agent
             if (decision.ActionIntent == "dialogue.free")
                 return ValidationResult.Ok();
 
-            var dotIndex = decision.ActionIntent.IndexOf('.');
-            if (dotIndex < 0 || dotIndex >= decision.ActionIntent.Length - 1)
-                return ValidationResult.Fail($"ActionIntent '{decision.ActionIntent}' does not follow mechanism.action format");
-
-            var mechanismId = decision.ActionIntent.Substring(0, dotIndex);
-            var actionSuffix = decision.ActionIntent.Substring(dotIndex + 1);
-
             var handler = toolRegistry.FindById(decision.ActionIntent);
             if (handler == null)
             {
-                var mechanismExists = toolRegistry.All.Any(h => h.Id.StartsWith(mechanismId + "."));
-                if (!mechanismExists)
+                var dotIndex = decision.ActionIntent.LastIndexOf('.');
+                if (dotIndex <= 0 || dotIndex >= decision.ActionIntent.Length - 1)
+                    return ValidationResult.Fail($"Unknown tool or ActionIntent '{decision.ActionIntent}'");
+
+                var mechanismId = decision.ActionIntent.Substring(0, dotIndex);
+                var actionSuffix = decision.ActionIntent.Substring(dotIndex + 1);
+                string prefix = mechanismId + ".";
+
+                var matchingHandlers = toolRegistry.All
+                    .Where(h => h.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (matchingHandlers.Count == 0)
                     return ValidationResult.Fail($"No mechanism found for '{mechanismId}' in ActionIntent '{decision.ActionIntent}'");
 
-                var supportedSuffixes = toolRegistry.All
-                    .Where(h => h.Id.StartsWith(mechanismId + "."))
-                    .Select(h => h.Id.Substring(mechanismId.Length + 1))
+                var supportedSuffixes = matchingHandlers
+                    .Select(h => h.Id.Substring(prefix.Length))
                     .ToList();
                 return ValidationResult.Fail($"Operation '{actionSuffix}' not supported by mechanism '{mechanismId}'. Supported: {string.Join(", ", supportedSuffixes)}");
             }

@@ -232,8 +232,9 @@ namespace RimMind.Presentation.Agent
 
         public void AddGoal(AgentGoal goal)
         {
-            if (goal != null && goal is not SerializableAgentGoal)
-                _log?.Warning($"[RimMind.Agent] action=NonSerializableGoal npcId={Identity.NpcId} goal={goal.Description}");
+            if (goal == null) return;
+            if (goal is not SerializableAgentGoal)
+                _log?.Warning($"[RimMind.Agent] action=NonSerializableGoal npcId={Identity?.NpcId} goal={goal.Description}");
             GoalStack.TryAdd(goal, Pawn.thingIDNumber);
         }
 
@@ -379,12 +380,12 @@ namespace RimMind.Presentation.Agent
                 {
                     if (choice == approveLabel)
                     {
-                        _log?.Message($"[RimMind.Agent] action=ApprovedActionExecuting npcId={Identity.NpcId} intent={intent}");
+                        _log?.Message($"[RimMind.Agent] action=ApprovedActionExecuting npcId={Identity?.NpcId} intent={intent}");
                         _actor.ExecuteDecision(decision);
                     }
                     else
                     {
-                        _log?.Message($"[RimMind.Agent] action=RejectedAction npcId={Identity.NpcId} intent={intent}");
+                        _log?.Message($"[RimMind.Agent] action=RejectedAction npcId={Identity?.NpcId} intent={intent}");
                     }
                 },
                 completionCallback = completionReason =>
@@ -392,7 +393,7 @@ namespace RimMind.Presentation.Agent
                     if (completionReason == RequestCompletionReason.Selected)
                         return;
 
-                    _log?.Message($"[RimMind.Agent] action=ApprovalDismissedOrExpired npcId={Identity.NpcId} intent={intent} reason={completionReason}");
+                    _log?.Message($"[RimMind.Agent] action=ApprovalDismissedOrExpired npcId={Identity?.NpcId} intent={intent} reason={completionReason}");
                 }
             };
 
@@ -402,7 +403,7 @@ namespace RimMind.Presentation.Agent
             }
             catch (Exception ex)
             {
-                _log?.Warning($"[RimMind.Agent] Failed to register pending request for {Identity.NpcId}: {ex.Message}");
+                _log?.Warning($"[RimMind.Agent] Failed to register pending request for {Identity?.NpcId}: {ex.Message}");
             }
         }
 
@@ -517,9 +518,8 @@ namespace RimMind.Presentation.Agent
             // Clean up resources
             Cleanup();
 
-            // Note: AgentBus uses key-based subscriptions, but PawnAgent doesn't track its subscription keys.
-            // The AgentBus.ClearAllSubscribers() in AgentBusGameComponent handles full cleanup on game load.
-            // Individual agent unsubscription requires tracking subscription keys (future enhancement).
+            // AgentBus subscribers owned by the game component are released via AgentBusGameComponent.Dispose()
+            // during CoreGameLifecycleCleanupService.OnGameStopped() and on new/loaded game rebind.
         }
 
         public string GetDebugInfo()

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -13,6 +15,25 @@ namespace RimMind.Application.Features.Agent
     /// </summary>
     public static class DecisionMapper
     {
+        private static readonly ConcurrentDictionary<string, (string MechanismId, string Action)> ActionAliases =
+            new ConcurrentDictionary<string, (string MechanismId, string Action)>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["prioritize_work"] = ("pawn.work", "set_priority"),
+                ["set_work_priority"] = ("pawn.work", "set_priority"),
+                ["take_job"] = ("pawn.job", "assign_work")
+            };
+
+        /// <summary>
+        /// Registers or overrides an action intent alias mapping to a target mechanism and action.
+        /// Allows submodules to register shorthand intents without modifying Core.
+        /// </summary>
+        public static void RegisterActionAlias(string alias, string mechanismId, string action)
+        {
+            if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(mechanismId))
+                return;
+            ActionAliases[alias.Trim()] = (mechanismId.Trim(), action ?? string.Empty);
+        }
+
         /// <summary>
         /// Map an AgentDecision to a MechanismWriteArgs for the given pawn.
         /// ActionIntent format: "mechanismId.action" (e.g., "pawn.job.force_rest")
@@ -40,7 +61,8 @@ namespace RimMind.Application.Features.Agent
                 else if (paramsDict.TryGetValue("job_type", out var jt) && !string.IsNullOrEmpty(jt))
                     defName = jt;
 
-                if (mechanismId == "pawn.work")
+                if (string.Equals(action, "set_priority", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(mechanismId, "pawn.work", StringComparison.OrdinalIgnoreCase))
                 {
                     if (paramsDict.TryGetValue("priority", out var prio) && !string.IsNullOrEmpty(prio))
                         valueJson = prio;
@@ -94,12 +116,8 @@ namespace RimMind.Application.Features.Agent
             if (string.IsNullOrEmpty(actionIntent))
                 return ("pawn.job", "");
 
-            if (string.Equals(actionIntent, "prioritize_work", System.StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionIntent, "set_work_priority", System.StringComparison.OrdinalIgnoreCase))
-                return ("pawn.work", "set_priority");
-
-            if (string.Equals(actionIntent, "take_job", System.StringComparison.OrdinalIgnoreCase))
-                return ("pawn.job", "assign_work");
+            if (ActionAliases.TryGetValue(actionIntent, out var aliased))
+                return aliased;
 
             var lastDot = actionIntent.LastIndexOf('.');
             if (lastDot <= 0)

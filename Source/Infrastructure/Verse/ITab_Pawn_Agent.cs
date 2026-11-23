@@ -4,6 +4,7 @@ using RimMind.Application.Common.Interfaces.Internal;
 using RimMind.Application.Common.Models.Agent;
 using RimMind.Domain.Enums;
 using RimMind.Infrastructure.UI;
+using RimMind.Presentation.Api;
 using RimMind.Presentation.Runtime.Services;
 using RimMind.Presentation.UI.Layout;
 using RimMind.Presentation.Agent;
@@ -25,12 +26,14 @@ namespace RimMind.Infrastructure.Verse
             labelKey = "RimMind.Agent.ITab.Label";
         }
 
-        private Pawn SelectedPawn => SelThing as Pawn;
+        private Pawn? SelectedPawn => SelThing as Pawn;
+
+        public override bool IsVisible => SelectedPawn != null && RimMindPawnLookup.IsActiveSpawnedColonist(SelectedPawn);
 
         protected override void FillTabContents(Rect inRect, RimMindLayoutScope scope)
         {
             var pawn = SelectedPawn;
-            if (pawn == null) return;
+            if (pawn == null || !RimMindPawnLookup.IsActiveSpawnedColonist(pawn)) return;
 
             var comp = CompPawnAgent.GetComp(pawn);
             var agent = comp?.Agent;
@@ -53,28 +56,28 @@ namespace RimMind.Infrastructure.Verse
             float curY = 0f;
 
             // ── Section: Status ──
-            curY = RimMindUI.DrawSectionHeader(contentRect, curY, "RimMind.Agent.ITab.Status".Translate());
+            curY = RimMindUI.DrawSectionHeader(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.Status", "Status"));
 
             var (stateTextColor, stateBgColor) = RimMindUI.GetStateBadgeColors(
                 agent.State == AgentState.Active,
                 agent.State == AgentState.Paused);
             string stateKey = $"RimMind.Agent.State.{agent.State}";
-            string stateLabel = stateKey.CanTranslate() ? (string)stateKey.Translate() : agent.State.ToString();
+            string stateLabel = RimMindText.TrOr(stateKey, agent.State.ToString());
             curY = RimMindUI.DrawStatusBadge(contentRect, curY, stateLabel, stateTextColor, stateBgColor);
 
-            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "RimMind.Agent.ITab.Mode".Translate(), agent.CurrentModeId.Value);
+            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.Mode", "Mode"), agent.CurrentModeId.Value);
 
-            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "WorkflowPhase", agent.WorkflowPhase.ToString());
-            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, "Autonomy", agent.AutonomyLevel.ToString());
+            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.WorkflowPhase", "Workflow Phase"), agent.WorkflowPhase.ToString());
+            curY = RimMindUI.DrawKeyValueRow(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.Autonomy", "Autonomy"), agent.AutonomyLevel.ToString());
 
             // ── Section: Goals ──
             curY = RimMindUI.DrawDivider(contentRect, curY);
-            curY = RimMindUI.DrawSectionHeader(contentRect, curY, "RimMind.Agent.ITab.Goals".Translate());
+            curY = RimMindUI.DrawSectionHeader(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.Goals", "Goals"));
 
             var goals = agent.GoalStack.Goals;
             if (goals.Count == 0)
             {
-                curY = RimMindUI.DrawWrappedLabel(contentRect, curY, "  (none)", RimMindUI.ColorMuted);
+                curY = RimMindUI.DrawWrappedLabel(contentRect, curY, "  " + RimMindText.TrOr("RimMind.Agent.ITab.None", "(none)"), RimMindUI.ColorMuted);
             }
             else
             {
@@ -93,12 +96,12 @@ namespace RimMind.Infrastructure.Verse
 
             // ── Section: Strategy ──
             curY = RimMindUI.DrawDivider(contentRect, curY);
-            curY = RimMindUI.DrawSectionHeader(contentRect, curY, "RimMind.Agent.ITab.Strategy".Translate());
+            curY = RimMindUI.DrawSectionHeader(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.Strategy", "Strategy"));
 
             var topW = agent.StrategyOptimizer.GetTopN(5);
             if (topW.Count == 0)
             {
-                curY = RimMindUI.DrawWrappedLabel(contentRect, curY, "  (no data)", RimMindUI.ColorMuted);
+                curY = RimMindUI.DrawWrappedLabel(contentRect, curY, "  " + RimMindText.TrOr("RimMind.Agent.ITab.NoData", "(no data)"), RimMindUI.ColorMuted);
             }
             else
             {
@@ -110,12 +113,12 @@ namespace RimMind.Infrastructure.Verse
 
             // ── Section: History ──
             curY = RimMindUI.DrawDivider(contentRect, curY);
-            curY = RimMindUI.DrawSectionHeader(contentRect, curY, "RimMind.Agent.ITab.History".Translate());
+            curY = RimMindUI.DrawSectionHeader(contentRect, curY, RimMindText.TrOr("RimMind.Agent.ITab.History", "History"));
 
             var recent = agent.GetRecentHistory(5);
             if (recent.Count == 0)
             {
-                curY = RimMindUI.DrawWrappedLabel(contentRect, curY, "  (no history)", RimMindUI.ColorMuted);
+                curY = RimMindUI.DrawWrappedLabel(contentRect, curY, "  " + RimMindText.TrOr("RimMind.Agent.ITab.NoHistory", "(no history)"), RimMindUI.ColorMuted);
             }
             else
             {
@@ -134,7 +137,7 @@ namespace RimMind.Infrastructure.Verse
             {
                 curY = RimMindUI.DrawDivider(contentRect, curY);
                 Rect inspectBtn = new Rect(contentRect.x, curY, 180f, 26f);
-                if (Widgets.ButtonText(inspectBtn, "RimMind.Inspector.OpenButton".Translate()))
+                if (Widgets.ButtonText(inspectBtn, RimMindText.TrOr("RimMind.Inspector.OpenButton", "Inspect Context Payload")))
                 {
                     Find.WindowStack.Add(new Window_ContextPayloadInspector(agent.Pawn));
                 }
@@ -149,14 +152,22 @@ namespace RimMind.Infrastructure.Verse
             float y = rect.y;
 
             scope.Record(rect, "EmptyState:NoAgent");
-            RimMindUI.DrawEmptyState(rect, "RimMind.Agent.ITab.NoAgent".Translate(),
-                "RimMind.Agent.ITab.NoAgentHint".Translate());
+            RimMindUI.DrawEmptyState(rect,
+                RimMindText.TrOr("RimMind.Agent.ITab.NoAgent", "No AI Agent"),
+                RimMindText.TrOr("RimMind.Agent.ITab.NoAgentHint", "Create an AI Agent for this colonist."));
 
             y = rect.y + rect.height - 40f;
             Rect createBtn = new Rect(rect.x, y, 160f, 28f);
             scope.Record(createBtn, "Button:CreateAgent");
-            if (Widgets.ButtonText(createBtn, "RimMind.Agent.ITab.CreateAgent".Translate()))
+            if (Widgets.ButtonText(createBtn, RimMindText.TrOr("RimMind.Agent.ITab.CreateAgent", "Create Agent")))
             {
+                if (!RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+                {
+                    Messages.Message(RimMindText.TrOr("RimMind.Agent.ITab.CreateFailed", "Failed to create AI Agent."),
+                        MessageTypeDefOf.RejectInput, false);
+                    return;
+                }
+
                 RuntimeServiceScope runtimeScope = RuntimeServiceHub.Shared.Capture();
                 var factory = runtimeScope.GetOptional<IPawnAgentFactoryVerse>();
                 var agentBus = runtimeScope.GetOptional<IAgentBus>();
@@ -171,13 +182,13 @@ namespace RimMind.Infrastructure.Verse
                     else if (createdAgent != null)
                     {
                         RuntimeServiceHub.Shared.RecordStaleCompletion(LifecycleEventSources.PawnAgentTab);
-                        Messages.Message("RimMind.Agent.ITab.CreateFailed".Translate(),
+                        Messages.Message(RimMindText.TrOr("RimMind.Agent.ITab.CreateFailed", "Failed to create AI Agent."),
                             MessageTypeDefOf.RejectInput, false);
                     }
                 }
                 else
                 {
-                    Messages.Message("RimMind.Agent.ITab.CreateFailed".Translate(),
+                    Messages.Message(RimMindText.TrOr("RimMind.Agent.ITab.CreateFailed", "Failed to create AI Agent."),
                         MessageTypeDefOf.RejectInput, false);
                 }
             }
