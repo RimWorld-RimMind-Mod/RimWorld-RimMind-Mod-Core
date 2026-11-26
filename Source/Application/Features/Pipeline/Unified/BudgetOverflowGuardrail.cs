@@ -5,7 +5,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
     public sealed class BudgetOverflowGuardrail : IInputGuardrail
     {
         public string Name => "budget_overflow";
-        private const int MaxGameStateInfoLength = 8000;
+        internal const int MaxGameStateInfoLength = 8000;
 
         public GuardrailResult Check(LlmRequestEnvelope envelope)
         {

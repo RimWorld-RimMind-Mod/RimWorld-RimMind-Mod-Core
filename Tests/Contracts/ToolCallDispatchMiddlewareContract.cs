@@ -11,6 +11,7 @@ using RimMind.Application.Common.Models.Context;
 using RimMind.Application.Common.Models.Mechanisms;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Common.Threading;
 using RimMind.Application.Features.Pipeline.Unified;
 using RimMind.Domain.Enums;
 using RimMind.Domain.Llm;
@@ -156,6 +157,192 @@ namespace RimMind.Tests.Contracts
                         MechanismToolHandler.IsMainThreadPredicate = prev;
                     }
                 }));
+        }
+
+        [Fact]
+        public async Task Main_thread_marshaling_executes_off_thread_calls_on_main_thread_handles_timeout_and_isolates_throws()
+        {
+            await ContractCaseRunner.RunAsync(
+                ("off-main-thread query handler is marshaled to main thread and sees IsMainThread == true", async () =>
+                {
+                    using var onMainThread = new ThreadLocal<bool>(() => false);
+                    bool? observedMainThread = null;
+                    var reader = new MainThreadReader(
+                        post: action => Task.Run(() =>
+                        {
+                            onMainThread.Value = true;
+                            try { action(); }
+                            finally { onMainThread.Value = false; }
+                        }),
+                        isMainThread: () => onMainThread.Value);
+
+                    var queryHandler = new CallbackHandler(
+                        "pawn.health.query",
+                        ToolKind.Query,
+                        (args, _) =>
+                        {
+                            observedMainThread = onMainThread.Value;
+                            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("healthy", args.ToolCallId, "pawn.health.query")));
+                        });
+
+                    var middleware = new ToolCallDispatchMiddleware(
+                        new FakeRegistry(queryHandler),
+                        mainThreadReader: reader);
+
+                    var context = new LlmRequestContext(new LlmRequestEnvelope
+                    {
+                        RequestId = "req-mt-ok",
+                        ModId = "RimMind.Agent",
+                        ScenarioId = ScenarioIds.AgentDecision,
+                        ToolDispatchMode = ToolCallDispatchMode.Auto
+                    });
+
+                    Assert.False(reader.IsMainThread);
+                    await middleware.InvokeAsync(context, ctx =>
+                    {
+                        ctx.Result = Result<LlmResponse, RimMindError>.Ok(new LlmResponse
+                        {
+                            ToolCallsJson = "[{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"pawn.health.query\",\"arguments\":\"{}\"}}]"
+                        });
+                        return Task.CompletedTask;
+                    });
+
+                    Assert.Equal(true, observedMainThread);
+                    Assert.NotNull(context.ToolCallResults);
+                    Assert.Single(context.ToolCallResults!);
+                    Assert.False(context.ToolCallResults![0].IsError);
+                    Assert.Equal("healthy", context.ToolCallResults![0].Content);
+                }),
+                ("main-thread dispatch timeout returns IsError ToolResult cleanly without throwing", async () =>
+                {
+                    int handlerCalls = 0;
+                    var stalledReader = new MainThreadReader(
+                        post: _ => { /* intentionally never drained */ },
+                        isMainThread: () => false);
+
+                    var queryHandler = new CallbackHandler(
+                        "pawn.health.query",
+                        ToolKind.Query,
+                        (args, _) =>
+                        {
+                            Interlocked.Increment(ref handlerCalls);
+                            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("healthy", args.ToolCallId, "pawn.health.query")));
+                        });
+
+                    var middleware = new ToolCallDispatchMiddleware(
+                        new FakeRegistry(queryHandler),
+                        mainThreadReader: stalledReader,
+                        mainThreadTimeout: TimeSpan.FromMilliseconds(40));
+
+                    var context = new LlmRequestContext(new LlmRequestEnvelope
+                    {
+                        RequestId = "req-mt-timeout",
+                        ModId = "RimMind.Agent",
+                        ScenarioId = ScenarioIds.AgentDecision,
+                        ToolDispatchMode = ToolCallDispatchMode.Auto
+                    });
+
+                    await middleware.InvokeAsync(context, ctx =>
+                    {
+                        ctx.Result = Result<LlmResponse, RimMindError>.Ok(new LlmResponse
+                        {
+                            ToolCallsJson = "[{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"pawn.health.query\",\"arguments\":\"{}\"}}]"
+                        });
+                        return Task.CompletedTask;
+                    });
+
+                    Assert.Equal(0, handlerCalls);
+                    Assert.NotNull(context.ToolCallResults);
+                    Assert.Single(context.ToolCallResults!);
+                    Assert.True(context.ToolCallResults![0].IsError);
+                    Assert.Contains("timed out waiting for Unity main thread", context.ToolCallResults![0].Content, StringComparison.OrdinalIgnoreCase);
+                    Assert.True(context.Result!.Value.IsOk);
+                }),
+                ("throwing handler marshaled to main thread is isolated and remaining calls still execute", async () =>
+                {
+                    using var onMainThread = new ThreadLocal<bool>(() => false);
+                    bool? okObservedMainThread = null;
+                    var reader = new MainThreadReader(
+                        post: action => Task.Run(() =>
+                        {
+                            onMainThread.Value = true;
+                            try { action(); }
+                            finally { onMainThread.Value = false; }
+                        }),
+                        isMainThread: () => onMainThread.Value);
+
+                    var thrower = new CallbackHandler(
+                        "pawn.broken.query",
+                        ToolKind.Query,
+                        (_, _) => throw new InvalidOperationException("main-thread boom"));
+                    var ok = new CallbackHandler(
+                        "pawn.ok.query",
+                        ToolKind.Query,
+                        (args, _) =>
+                        {
+                            okObservedMainThread = onMainThread.Value;
+                            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("survived", args.ToolCallId, "pawn.ok.query")));
+                        });
+
+                    var middleware = new ToolCallDispatchMiddleware(
+                        new FakeRegistry(thrower, ok),
+                        mainThreadReader: reader);
+
+                    var context = new LlmRequestContext(new LlmRequestEnvelope
+                    {
+                        RequestId = "req-mt-throw",
+                        ModId = "RimMind.Agent",
+                        ScenarioId = ScenarioIds.AgentDecision,
+                        ToolDispatchMode = ToolCallDispatchMode.Auto
+                    });
+
+                    await middleware.InvokeAsync(context, ctx =>
+                    {
+                        ctx.Result = Result<LlmResponse, RimMindError>.Ok(new LlmResponse
+                        {
+                            ToolCallsJson =
+                                "[{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"pawn.broken.query\",\"arguments\":\"{}\"}}," +
+                                "{\"id\":\"c2\",\"type\":\"function\",\"function\":{\"name\":\"pawn.ok.query\",\"arguments\":\"{}\"}}]"
+                        });
+                        return Task.CompletedTask;
+                    });
+
+                    Assert.Equal(true, okObservedMainThread);
+                    Assert.NotNull(context.ToolCallResults);
+                    Assert.Equal(2, context.ToolCallResults!.Count);
+                    Assert.True(context.ToolCallResults![0].IsError);
+                    Assert.Contains("main-thread boom", context.ToolCallResults![0].Content, StringComparison.OrdinalIgnoreCase);
+                    Assert.False(context.ToolCallResults![1].IsError);
+                    Assert.Equal("survived", context.ToolCallResults![1].Content);
+                    Assert.True(context.Result!.Value.IsOk);
+                }));
+        }
+
+        private sealed class CallbackHandler : IToolHandler
+        {
+            private readonly ToolKind _kind;
+            private readonly Func<ToolCallArgs, CancellationToken, Task<Result<ToolResult, RimMindError>>> _execute;
+
+            public CallbackHandler(
+                string id,
+                ToolKind kind,
+                Func<ToolCallArgs, CancellationToken, Task<Result<ToolResult, RimMindError>>> execute)
+            {
+                Id = id;
+                _kind = kind;
+                _execute = execute;
+            }
+
+            public string Id { get; }
+            public string OwnerModId => "TestMod";
+            public ToolDefinition Definition => new ToolDefinition
+            {
+                Id = Id,
+                Manifest = new ToolManifest { Kind = _kind }
+            };
+
+            public Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct)
+                => _execute(args, ct);
         }
 
         private sealed class CountingMechanism : IMechanismReader, IMechanismWriter, IMechanismTrigger, IMechanismMetadata

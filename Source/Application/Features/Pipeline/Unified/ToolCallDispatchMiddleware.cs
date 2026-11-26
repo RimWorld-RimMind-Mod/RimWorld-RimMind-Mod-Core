@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -11,6 +12,7 @@ using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Common.Threading;
 using RimMind.Domain.Llm;
 using RimMind.Domain.ValueObjects;
 
@@ -26,15 +28,21 @@ namespace RimMind.Application.Features.Pipeline.Unified
         private readonly IToolRegistry _toolRegistry;
         private readonly ILogSink? _log;
         private readonly IAIRequestTraceLog? _traceLog;
+        private readonly MainThreadReader? _mainThreadReader;
+        private readonly TimeSpan _mainThreadTimeout;
 
         public ToolCallDispatchMiddleware(
             IToolRegistry toolRegistry,
             ILogSink? log = null,
-            IAIRequestTraceLog? traceLog = null)
+            IAIRequestTraceLog? traceLog = null,
+            MainThreadReader? mainThreadReader = null,
+            TimeSpan? mainThreadTimeout = null)
         {
             _toolRegistry = toolRegistry;
             _log = log;
             _traceLog = traceLog;
+            _mainThreadReader = mainThreadReader;
+            _mainThreadTimeout = mainThreadTimeout ?? MainThreadReader.DefaultTimeout;
         }
 
         public async Task InvokeAsync(LlmRequestContext context, MiddlewareDelegate<LlmRequestContext> next)
@@ -110,7 +118,27 @@ namespace RimMind.Application.Features.Pipeline.Unified
             Result<ToolResult, RimMindError> result;
             try
             {
-                result = await handler.ExecuteAsync(args, ct);
+                if (_mainThreadReader != null && !_mainThreadReader.IsMainThread)
+                {
+                    var execTask = await _mainThreadReader
+                        .ReadAsync<Task<Result<ToolResult, RimMindError>>?>(
+                            () => handler.ExecuteAsync(args, ct),
+                            fallback: null,
+                            timeout: _mainThreadTimeout,
+                            ct: ct)
+                        .ConfigureAwait(false);
+                    if (execTask == null)
+                    {
+                        string timeoutMsg = $"Tool '{entry.FunctionName}' timed out waiting for Unity main thread";
+                        _log?.Warning($"[RimMind.ToolCall] action=Failed toolName={entry.FunctionName} toolCallId={entry.Id} npcId={context.Envelope?.NpcId ?? "none"} error={timeoutMsg}");
+                        return ToolResult.Fail(timeoutMsg, entry.Id, entry.FunctionName);
+                    }
+                    result = await execTask.ConfigureAwait(false);
+                }
+                else
+                {
+                    result = await handler.ExecuteAsync(args, ct).ConfigureAwait(false);
+                }
             }
             catch (System.OperationCanceledException) when (ct.IsCancellationRequested)
             {

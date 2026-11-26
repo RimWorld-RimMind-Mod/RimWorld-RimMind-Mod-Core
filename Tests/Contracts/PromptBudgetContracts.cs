@@ -144,5 +144,43 @@ namespace RimMind.Tests.Contracts
                     Assert.Contains("Stanley，外面天寒地冻的", argsJson!);
                 }));
         }
+
+        [Fact]
+        public void EnrichWithToolCallResults_truncates_oversized_round2_payload_to_fit_BudgetOverflowGuardrail()
+        {
+            ContractCaseRunner.Run(
+                ("12000-char Round-2 tool result is truncated cleanly and passes BudgetOverflowGuardrail", () =>
+                {
+                    var enricher = new RimMind.Application.Features.Agent.ThinkContextEnricher();
+                    var guardrail = new RimMind.Application.Features.Pipeline.Unified.BudgetOverflowGuardrail();
+
+                    var envelope = RimMind.Application.Features.Llm.LlmRequestEnvelopeBuilder
+                        .ForScenario(ScenarioIds.AgentDecision)
+                        .WithModId("RimMind.Agent")
+                        .WithNpcId("NPC-101")
+                        .WithGameStateInfo(new RimMind.Domain.Llm.GameStateInfo()
+                            .AddSection("perceptions", new string('p', 1200))
+                            .AddSection("behavior_history", new string('h', 600)))
+                        .Build();
+
+                    var hugeResults = new List<RimMind.Application.Common.Models.Tools.ToolResult>
+                    {
+                        RimMind.Application.Common.Models.Tools.ToolResult.Ok(
+                            new string('x', 12000),
+                            toolCallId: "tc-huge",
+                            toolName: "actions_query_buildable_structures")
+                    };
+
+                    enricher.EnrichWithToolCallResults(envelope, hugeResults, round: 2);
+
+                    Assert.NotNull(envelope.GameStateInfo);
+                    string renderedXml = envelope.GameStateInfo!.ToXml();
+                    Assert.True(
+                        renderedXml.Length <= RimMind.Application.Features.Pipeline.Unified.BudgetOverflowGuardrail.MaxGameStateInfoLength,
+                        $"Expected GameStateInfo XML <= {RimMind.Application.Features.Pipeline.Unified.BudgetOverflowGuardrail.MaxGameStateInfoLength} chars, got {renderedXml.Length}");
+                    Assert.Contains("...[truncated to fit GameStateInfo budget]", renderedXml);
+                    Assert.True(guardrail.Check(envelope).Passed);
+                }));
+        }
     }
 }
