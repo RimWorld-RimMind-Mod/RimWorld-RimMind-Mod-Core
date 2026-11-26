@@ -675,11 +675,13 @@ namespace RimMind.Infrastructure.UI
                 // 3. Execute Tool
                 bool temporarilyUnlockedWorkPolicy = false;
                 AutonomyLevel savedWorkPolicy = AutonomyLevel.Disabled;
-                int savedFirefighterPrio = 3;
+                WorkTypeDef? testWorkType = null;
+                int savedWorkPrio = 3;
                 if (tool.Definition.Id == "pawn.work.set" && colonist != null)
                 {
+                    testWorkType = ResolveTestWorkType(colonist);
                     savedWorkPolicy = RimMindAPI.Autonomy.GetLevel(colonist, AutonomyDomain.WorkPriorityModification);
-                    savedFirefighterPrio = colonist.workSettings != null ? colonist.workSettings.GetPriority(WorkTypeDefOf.Firefighter) : 3;
+                    savedWorkPrio = colonist.workSettings != null ? colonist.workSettings.GetPriority(testWorkType) : 3;
                     if (savedWorkPolicy == AutonomyLevel.Disabled)
                     {
                         RimMindAPI.Autonomy.SetLevel(colonist, AutonomyDomain.WorkPriorityModification, AutonomyLevel.FullAutonomous);
@@ -709,10 +711,13 @@ namespace RimMind.Infrastructure.UI
 
                 if (tool.Definition.Id == "pawn.work.set" && colonist != null)
                 {
-                    if (colonist.workSettings != null)
+                    if (colonist.workSettings != null && testWorkType != null)
                     {
                         colonist.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
-                        colonist.workSettings.SetPriority(WorkTypeDefOf.Firefighter, savedFirefighterPrio);
+                        if (!colonist.WorkTypeIsDisabled(testWorkType))
+                        {
+                            colonist.workSettings.SetPriority(testWorkType, savedWorkPrio);
+                        }
                     }
                     if (temporarilyUnlockedWorkPolicy)
                     {
@@ -868,6 +873,32 @@ namespace RimMind.Infrastructure.UI
             RecordSuiteResult(suiteResult);
         }
 
+        private static WorkTypeDef ResolveTestWorkType(Pawn? colonist)
+        {
+            if (colonist == null || !colonist.WorkTypeIsDisabled(WorkTypeDefOf.Firefighter))
+                return WorkTypeDefOf.Firefighter;
+
+            var allDefs = DefDatabase<WorkTypeDef>.AllDefsListForReading;
+            if (allDefs != null)
+            {
+                for (int i = 0; i < allDefs.Count; i++)
+                {
+                    var wt = allDefs[i];
+                    if (wt != null && wt.visible && !colonist.WorkTypeIsDisabled(wt))
+                        return wt;
+                }
+
+                for (int i = 0; i < allDefs.Count; i++)
+                {
+                    var wt = allDefs[i];
+                    if (wt != null && !colonist.WorkTypeIsDisabled(wt))
+                        return wt;
+                }
+            }
+
+            return WorkTypeDefOf.Firefighter;
+        }
+
         private ToolCallArgs BuildTestArgumentsForTool(IToolHandler tool, Pawn? pawn, VerseMap? map)
         {
             int pawnId = pawn?.thingIDNumber ?? 0;
@@ -897,7 +928,7 @@ namespace RimMind.Infrastructure.UI
                     break;
 
                 case "pawn.work.set":
-                    dict["def_name"] = "Firefighter";
+                    dict["def_name"] = ResolveTestWorkType(pawn).defName;
                     dict["value"] = "3";
                     break;
 
@@ -1082,8 +1113,10 @@ namespace RimMind.Infrastructure.UI
                 || err.IndexOf("No job available", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
-            // pawn.work.set: when player autonomy policy disables WorkPriorityModification
-            if (toolId == "pawn.work.set" && err.IndexOf("by player autonomy policy", StringComparison.OrdinalIgnoreCase) >= 0)
+            // pawn.work.set: when player autonomy policy disables WorkPriorityModification or pawn backstory disables the work type
+            if (toolId == "pawn.work.set" &&
+                (err.IndexOf("by player autonomy policy", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 err.IndexOf("is disabled for", StringComparison.OrdinalIgnoreCase) >= 0))
                 return true;
 
             // Composite actions on fresh -quicktest map: resource safety guard or missing worktable

@@ -10,6 +10,7 @@ using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Models.Pipeline;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Application.Features.Agent.InnerVoice;
+using RimMind.Application.Features.Pipeline.Unified;
 using RimMind.Application.Features.Tools;
 using RimMind.Domain.Llm;
 
@@ -97,9 +98,18 @@ namespace RimMind.Application.Features.Agent
             }
         }
 
+        private const string ToolResultsTruncationNotice = "\n...[truncated to fit GameStateInfo budget]";
+        private const int ToolResultsHeadroomChars = 400;
+        private const int ToolResultsMinPayloadFloorChars = 512;
+
         public string FormatToolCallResults(IReadOnlyList<ToolResult> results, int round)
         {
             var inner = ToolCallResultFormatter.Format(results, round);
+            return WrapToolCallResults(inner, round);
+        }
+
+        private static string WrapToolCallResults(string? inner, int round)
+        {
             if (string.IsNullOrEmpty(inner)) return "";
             var sb = new StringBuilder();
             sb.AppendLine($"<tool_call_results round=\"{round}\">");
@@ -112,11 +122,38 @@ namespace RimMind.Application.Features.Agent
         {
             if (envelope == null || results == null || results.Count == 0) return;
 
-            var toolCallSection = FormatToolCallResults(results, round);
+            var inner = ToolCallResultFormatter.Format(results, round);
+            if (string.IsNullOrEmpty(inner)) return;
+
+            int existingLength = envelope.GameStateInfo?.ToXml().Length ?? 0;
+            int wrapperOverhead = WrapToolCallResults("x", round).Length - 1
+                + "<tool_call_results>".Length + "</tool_call_results>".Length
+                + Environment.NewLine.Length * 3;
+
+            int budgetWithHeadroom = BudgetOverflowGuardrail.MaxGameStateInfoLength - existingLength - ToolResultsHeadroomChars;
+            int hardMaxInner = Math.Max(0, BudgetOverflowGuardrail.MaxGameStateInfoLength - existingLength - wrapperOverhead);
+            int maxInner = Math.Min(hardMaxInner, Math.Max(ToolResultsMinPayloadFloorChars, budgetWithHeadroom));
+
+            if (inner.Length > maxInner)
+            {
+                int keepChars = Math.Max(0, maxInner - ToolResultsTruncationNotice.Length);
+                if (keepChars > 0)
+                {
+                    inner = inner.Substring(0, keepChars) + ToolResultsTruncationNotice;
+                }
+                else
+                {
+                    inner = hardMaxInner >= ToolResultsTruncationNotice.Length
+                        ? ToolResultsTruncationNotice
+                        : ToolResultsTruncationNotice.Substring(0, hardMaxInner);
+                }
+            }
+
+            var toolCallSection = WrapToolCallResults(inner, round);
             if (string.IsNullOrEmpty(toolCallSection)) return;
 
             envelope.GameStateInfo ??= new GameStateInfo();
-            envelope.GameStateInfo.AddSection($"tool_call_results", toolCallSection);
+            envelope.GameStateInfo.AddSection("tool_call_results", toolCallSection);
         }
 
         public string FormatBehaviorHistory(IReadOnlyList<BehaviorRecordDto> history, float successRate)

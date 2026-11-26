@@ -225,7 +225,8 @@ namespace RimMind.Presentation.Runtime
                     new AIResponseAnalyzer(),
                     infraBag.RequestTraceLog,
                     runtime: deferredRuntime,
-                    queueSettings: resolvedSettings);
+                    queueSettings: resolvedSettings,
+                    mainThreadReader: Api.RimMindAPI.MainThreadSnapshot.SharedReader);
                 services.Bind<IPipeline<LlmRequestContext>>(unifiedPipeline);
                 var requestSubmission = new RequestSubmissionService(
                     appBag.Queue,

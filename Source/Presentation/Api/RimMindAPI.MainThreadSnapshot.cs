@@ -29,6 +29,8 @@ namespace RimMind.Presentation.Api
             private static readonly MainThreadReader Reader =
                 new MainThreadReader(MainThread.Post, () => UnityData.IsInMainThread);
 
+            internal static MainThreadReader SharedReader => Reader;
+
             /// <summary>True when the calling thread is the Unity main thread.</summary>
             public static bool IsMainThread => Reader.IsMainThread;
 

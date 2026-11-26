@@ -10,6 +10,7 @@ using RimMind.Application.Common.Interfaces.Pipeline;
 using RimMind.Application.Common.Interfaces.Runtime;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Pipeline;
+using RimMind.Application.Common.Threading;
 using RimMind.Application.Features.Context;
 
 namespace RimMind.Application.Features.Pipeline.Unified
@@ -28,7 +29,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
             AIResponseAnalyzer? responseAnalyzer = null,
             IAIRequestTraceLog? requestTraceLog = null,
             IRimMindRuntime? runtime = null,
-            IQueueSettings? queueSettings = null)
+            IQueueSettings? queueSettings = null,
+            MainThreadReader? mainThreadReader = null)
         {
             var analyzer = responseAnalyzer ?? new AIResponseAnalyzer();
             var middlewares = new List<IMiddleware<LlmRequestContext>>
@@ -49,7 +51,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
                 new CircuitBreakerMiddleware(circuitBreakerSettings, log),
                 new RetryMiddleware(log: log, queueSettings: queueSettings),
                 new ClientInvokeMiddleware(log, requestTraceLog),
-                new ToolCallDispatchMiddleware(toolRegistry, log, requestTraceLog),
+                new ToolCallDispatchMiddleware(toolRegistry, log, requestTraceLog, mainThreadReader),
                 new OutputGuardrailMiddleware()
             };
 
