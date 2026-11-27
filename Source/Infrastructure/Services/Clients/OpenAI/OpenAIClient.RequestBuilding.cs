@@ -23,6 +23,7 @@ namespace RimMind.Infrastructure.Services.Clients.OpenAI
                 ModId = envelope.ModId,
                 Messages = envelope.Messages,
                 SystemAugmentations = envelope.SystemAugmentations,
+                Attachments = envelope.Attachments != null ? new List<RimMind.Domain.Llm.LlmImageAttachment>(envelope.Attachments) : null,
                 JsonSchema = null,
                 Tools = envelope.Tools,
                 ToolDispatchMode = envelope.ToolDispatchMode,

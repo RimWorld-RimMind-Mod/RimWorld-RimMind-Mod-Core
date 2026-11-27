@@ -101,6 +101,8 @@ namespace RimMind.Application.Features.Agent
         private const string ToolResultsTruncationNotice = "\n...[truncated to fit GameStateInfo budget]";
         private const int ToolResultsHeadroomChars = 400;
         private const int ToolResultsMinPayloadFloorChars = 512;
+        internal const int MaxAttachmentsPerFollowUpRound = 2;
+        internal const int MaxAttachmentBase64Chars = 512 * 1024;
 
         public string FormatToolCallResults(IReadOnlyList<ToolResult> results, int round)
         {
@@ -121,6 +123,8 @@ namespace RimMind.Application.Features.Agent
         public void EnrichWithToolCallResults(LlmRequestEnvelope envelope, IReadOnlyList<ToolResult> results, int round)
         {
             if (envelope == null || results == null || results.Count == 0) return;
+
+            CollectToolAttachments(envelope, results);
 
             var inner = ToolCallResultFormatter.Format(results, round);
             if (string.IsNullOrEmpty(inner)) return;
@@ -154,6 +158,36 @@ namespace RimMind.Application.Features.Agent
 
             envelope.GameStateInfo ??= new GameStateInfo();
             envelope.GameStateInfo.AddSection("tool_call_results", toolCallSection);
+        }
+
+        private static void CollectToolAttachments(LlmRequestEnvelope envelope, IReadOnlyList<ToolResult> results)
+        {
+            int existingCount = envelope.Attachments?.Count ?? 0;
+            if (existingCount >= MaxAttachmentsPerFollowUpRound)
+                return;
+
+            for (int i = 0; i < results.Count; i++)
+            {
+                var toolAttachments = results[i]?.Attachments;
+                if (toolAttachments == null || toolAttachments.Count == 0)
+                    continue;
+
+                for (int j = 0; j < toolAttachments.Count; j++)
+                {
+                    var att = toolAttachments[j];
+                    if (att == null || string.IsNullOrWhiteSpace(att.Base64Data))
+                        continue;
+
+                    if (att.Base64Data.Length > MaxAttachmentBase64Chars)
+                        continue;
+
+                    envelope.Attachments ??= new List<LlmImageAttachment>();
+                    if (envelope.Attachments.Count >= MaxAttachmentsPerFollowUpRound)
+                        return;
+
+                    envelope.Attachments.Add(att);
+                }
+            }
         }
 
         public string FormatBehaviorHistory(IReadOnlyList<BehaviorRecordDto> history, float successRate)

@@ -10,5 +10,6 @@ namespace RimMind.Domain.Llm
         public string? ToolCallId { get; set; }
         public List<ChatToolCall>? ToolCalls { get; set; }
         public string? LayerTag { get; set; }
+        public List<LlmImageAttachment>? Attachments { get; set; }
     }
 }

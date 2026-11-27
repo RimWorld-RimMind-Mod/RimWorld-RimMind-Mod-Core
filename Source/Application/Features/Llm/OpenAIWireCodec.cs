@@ -28,7 +28,8 @@ namespace RimMind.Application.Features.Llm
             bool stream = false,
             bool forceJsonMode = false,
             bool omitZeroMaxTokens = false,
-            Action<JObject>? customizePayload = null)
+            Action<JObject>? customizePayload = null,
+            bool allowVisionAttachments = true)
         {
             if (envelope == null) throw new ArgumentNullException(nameof(envelope));
 
@@ -36,7 +37,7 @@ namespace RimMind.Application.Features.Llm
                 ? envelope.MaxTokens
                 : defaultMaxTokens;
 
-            var messages = BuildMessages(envelope);
+            var messages = BuildMessages(envelope, allowVisionAttachments);
             var responseFormat = BuildResponseFormat(envelope, forceJsonMode, messages);
             var (tools, toolChoice) = BuildTools(envelope);
 
@@ -226,20 +227,16 @@ namespace RimMind.Application.Features.Llm
         /// <summary>
         /// Ensures at least one message in a serialized <c>messages</c> JArray contains the keyword
         /// <c>"json"</c>, appending a system instruction if absent (required by OpenAI/DeepSeek <c>json_object</c> mode).
+        /// Supports both plain-string and multimodal content-parts array messages safely.
         /// </summary>
         public static void EnsureJsonKeyword(JArray messages)
         {
             if (messages == null) return;
             for (int i = 0; i < messages.Count; i++)
             {
-                if (messages[i] is JObject msgObj)
+                if (messages[i] is JObject msgObj && TokenContainsJsonKeyword(msgObj["content"]))
                 {
-                    string? content = msgObj["content"]?.ToString();
-                    if (!string.IsNullOrEmpty(content) &&
-                        content!.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        return;
-                    }
+                    return;
                 }
             }
 
@@ -248,8 +245,7 @@ namespace RimMind.Application.Features.Llm
                 if (messages[i] is JObject msgObj &&
                     string.Equals(msgObj["role"]?.ToString(), "system", StringComparison.OrdinalIgnoreCase))
                 {
-                    string existing = msgObj["content"]?.ToString() ?? string.Empty;
-                    msgObj["content"] = existing + "\n\nPlease respond in JSON format.";
+                    AppendJsonInstruction(msgObj);
                     return;
                 }
             }
@@ -259,6 +255,71 @@ namespace RimMind.Application.Features.Llm
                 ["role"] = "system",
                 ["content"] = "Please respond in JSON format."
             });
+        }
+
+        private static bool TokenContainsJsonKeyword(JToken? contentToken)
+        {
+            if (contentToken == null || contentToken.Type == JTokenType.Null || contentToken.Type == JTokenType.Undefined)
+                return false;
+
+            if (contentToken.Type == JTokenType.String)
+            {
+                string? text = contentToken.Value<string>();
+                return !string.IsNullOrEmpty(text) &&
+                    text!.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+
+            if (contentToken is JArray parts)
+            {
+                for (int i = 0; i < parts.Count; i++)
+                {
+                    if (parts[i] is JObject partObj &&
+                        string.Equals(partObj["type"]?.ToString(), "text", StringComparison.OrdinalIgnoreCase) &&
+                        partObj["text"]?.Type == JTokenType.String)
+                    {
+                        string? partText = partObj["text"]!.Value<string>();
+                        if (!string.IsNullOrEmpty(partText) &&
+                            partText!.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static void AppendJsonInstruction(JObject msgObj)
+        {
+            const string suffix = "Please respond in JSON format.";
+            var contentToken = msgObj["content"];
+            if (contentToken is JArray parts)
+            {
+                for (int i = parts.Count - 1; i >= 0; i--)
+                {
+                    if (parts[i] is JObject partObj &&
+                        string.Equals(partObj["type"]?.ToString(), "text", StringComparison.OrdinalIgnoreCase) &&
+                        partObj["text"]?.Type == JTokenType.String)
+                    {
+                        string existingPart = partObj["text"]!.Value<string>() ?? string.Empty;
+                        partObj["text"] = existingPart + "\n\n" + suffix;
+                        return;
+                    }
+                }
+
+                parts.Add(new JObject
+                {
+                    ["type"] = "text",
+                    ["text"] = suffix
+                });
+                return;
+            }
+
+            string existing = contentToken?.Type == JTokenType.String
+                ? (contentToken.Value<string>() ?? string.Empty)
+                : string.Empty;
+            msgObj["content"] = existing + "\n\n" + suffix;
         }
 
         public static bool TryParseJson(string? value, out object? parsed)
@@ -342,7 +403,7 @@ namespace RimMind.Application.Features.Llm
         {
             foreach (var m in messages)
             {
-                if (m.content != null && m.content.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
+                if (ContentContainsJsonKeyword(m.content))
                     return;
             }
             int lastSys = -1;
@@ -355,12 +416,53 @@ namespace RimMind.Application.Features.Llm
                 }
             }
             if (lastSys >= 0)
-                messages[lastSys].content = (messages[lastSys].content ?? "") + "\n\nPlease respond in JSON format.";
+            {
+                var target = messages[lastSys];
+                if (target.content is List<object> parts)
+                {
+                    for (int i = parts.Count - 1; i >= 0; i--)
+                    {
+                        if (parts[i] is WireTextContentPartDto textPart)
+                        {
+                            textPart.text = (textPart.text ?? "") + "\n\nPlease respond in JSON format.";
+                            return;
+                        }
+                    }
+                    parts.Add(new WireTextContentPartDto { text = "Please respond in JSON format." });
+                }
+                else
+                {
+                    target.content = (target.content as string ?? "") + "\n\nPlease respond in JSON format.";
+                }
+            }
             else
+            {
                 messages.Insert(0, new WireMessageDto { role = "system", content = "Please respond in JSON format." });
+            }
         }
 
-        private static List<WireMessageDto> BuildMessages(LlmRequestEnvelope envelope)
+        private static bool ContentContainsJsonKeyword(object? content)
+        {
+            if (content is string text)
+                return text.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (content is List<object> parts)
+            {
+                for (int i = 0; i < parts.Count; i++)
+                {
+                    if (parts[i] is WireTextContentPartDto textPart &&
+                        !string.IsNullOrEmpty(textPart.text) &&
+                        textPart.text.IndexOf("json", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static List<WireMessageDto> BuildMessages(LlmRequestEnvelope envelope, bool allowVisionAttachments)
         {
             var converted = new List<WireMessageDto>();
             if (envelope.Messages != null && envelope.Messages.Count > 0)
@@ -368,7 +470,11 @@ namespace RimMind.Application.Features.Llm
                 foreach (var m in envelope.Messages)
                 {
                     if (m == null) continue;
-                    var dto = new WireMessageDto { role = m.Role, content = m.Content };
+                    var dto = new WireMessageDto
+                    {
+                        role = m.Role,
+                        content = BuildMessageContent(m, allowVisionAttachments),
+                    };
                     if (m.Role == "assistant" && !string.IsNullOrEmpty(m.ReasoningContent))
                         dto.reasoning_content = m.ReasoningContent;
                     if (!string.IsNullOrEmpty(m.ToolCallId))
@@ -400,11 +506,85 @@ namespace RimMind.Application.Features.Llm
                 foreach (var ex in envelope.Examples)
                 {
                     if (ex == null) continue;
-                    messages.Add(new WireMessageDto { role = ex.Role, content = ex.Content });
+                    messages.Add(new WireMessageDto
+                    {
+                        role = ex.Role,
+                        content = BuildMessageContent(ex, allowVisionAttachments),
+                    });
                 }
             }
             for (int i = splitAt; i < converted.Count; i++) messages.Add(converted[i]);
             return messages;
+        }
+
+        private static object? BuildMessageContent(ChatMessage message, bool allowVisionAttachments)
+        {
+            if (!allowVisionAttachments ||
+                !string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase) ||
+                message.Attachments == null ||
+                message.Attachments.Count == 0)
+            {
+                return message.Content;
+            }
+
+            var validAttachments = new List<LlmImageAttachment>(message.Attachments.Count);
+            for (int i = 0; i < message.Attachments.Count; i++)
+            {
+                var att = message.Attachments[i];
+                if (att != null && !string.IsNullOrWhiteSpace(att.Base64Data))
+                {
+                    validAttachments.Add(att);
+                }
+            }
+
+            if (validAttachments.Count == 0)
+            {
+                return message.Content;
+            }
+
+            var labelLines = new List<string>();
+            for (int i = 0; i < validAttachments.Count; i++)
+            {
+                var label = validAttachments[i].Label;
+                if (!string.IsNullOrWhiteSpace(label))
+                    labelLines.Add($"[Image: {label!.Trim()}]");
+            }
+
+            string textContent = message.Content ?? string.Empty;
+            if (labelLines.Count > 0)
+            {
+                string labelBlock = string.Join("\n", labelLines);
+                textContent = string.IsNullOrEmpty(textContent)
+                    ? labelBlock
+                    : textContent + "\n" + labelBlock;
+            }
+
+            var parts = new List<object>(validAttachments.Count + 1);
+            if (!string.IsNullOrEmpty(textContent))
+            {
+                parts.Add(new WireTextContentPartDto { text = textContent });
+            }
+
+            for (int i = 0; i < validAttachments.Count; i++)
+            {
+                var att = validAttachments[i];
+                string rawData = att.Base64Data.Trim();
+                string mediaType = string.IsNullOrWhiteSpace(att.MediaType) ? "image/png" : att.MediaType.Trim();
+                string url = rawData.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
+                    ? rawData
+                    : $"data:{mediaType};base64,{rawData}";
+
+                parts.Add(new WireImageUrlContentPartDto
+                {
+                    image_url = new WireImageUrlDto
+                    {
+                        url = url,
+                        detail = string.IsNullOrWhiteSpace(att.Detail) ? null : att.Detail!.Trim(),
+                    }
+                });
+            }
+
+            return parts;
         }
 
         private static string? AsString(JToken? token)
@@ -468,10 +648,28 @@ namespace RimMind.Application.Features.Llm
         private sealed class WireMessageDto
         {
             public string role = "";
-            public string? content;
+            public object? content;
             public string? reasoning_content;
             public string? tool_call_id;
             public List<WireToolCallDto>? tool_calls;
+        }
+
+        private sealed class WireTextContentPartDto
+        {
+            public string type = "text";
+            public string text = "";
+        }
+
+        private sealed class WireImageUrlContentPartDto
+        {
+            public string type = "image_url";
+            public WireImageUrlDto? image_url;
+        }
+
+        private sealed class WireImageUrlDto
+        {
+            public string url = "";
+            public string? detail;
         }
 
         private sealed class WireToolCallDto
