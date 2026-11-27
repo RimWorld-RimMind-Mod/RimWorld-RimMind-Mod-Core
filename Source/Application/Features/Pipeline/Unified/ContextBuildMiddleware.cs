@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Constants;
@@ -13,6 +14,8 @@ namespace RimMind.Application.Features.Pipeline.Unified
 {
     internal sealed class ContextBuildMiddleware : IMiddleware<LlmRequestContext>
     {
+        private const string FallbackVisualUserPrompt = "[Attached visual inspection view]";
+
         public string Name => "UnifiedContextBuild";
         public int Order => RimMindDefaults.MiddlewareOrder.ContextBuild;
         public string Id => "UnifiedContextBuild";
@@ -43,6 +46,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             {
                 _log?.Message($"[UnifiedContextBuild] Messages already populated ({envelope.Messages.Count}), skipping context build");
                 ApplySystemAugmentations(envelope);
+                ApplyAttachments(envelope);
                 await next(context);
                 return;
             }
@@ -51,6 +55,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             if (_contextEngine == null || envelope.NpcId is not { Length: > 0 } npcId)
             {
                 _log?.Message("[UnifiedContextBuild] No context engine or NpcId, skipping context build");
+                ApplyAttachments(envelope);
                 await next(context);
                 return;
             }
@@ -100,6 +105,7 @@ namespace RimMind.Application.Features.Pipeline.Unified
             }
 
             ApplySystemAugmentations(envelope);
+            ApplyAttachments(envelope);
 
             _log?.Message($"[UnifiedContextBuild] Built context for NPC {npcId}: {snapshot.Messages.Count} messages, {snapshot.EstimatedTokens} tokens");
 
@@ -115,5 +121,74 @@ namespace RimMind.Application.Features.Pipeline.Unified
             envelope.SystemAugmentations = null;
         }
 
+        private static void ApplyAttachments(LlmRequestEnvelope envelope)
+        {
+            var pending = envelope.Attachments;
+            if (pending == null)
+                return;
+
+            envelope.Attachments = null;
+
+            if (pending.Count == 0 || envelope.Messages == null)
+                return;
+
+            var valid = new List<LlmImageAttachment>(pending.Count);
+            for (int i = 0; i < pending.Count; i++)
+            {
+                var att = pending[i];
+                if (att != null && !string.IsNullOrWhiteSpace(att.Base64Data))
+                {
+                    valid.Add(att);
+                }
+            }
+
+            if (valid.Count == 0)
+                return;
+
+            // Attach strictly onto the final L4 user turn (never L0/L1/L2 system prefixes).
+            int lastUserIndex = -1;
+            for (int i = envelope.Messages.Count - 1; i >= 0; i--)
+            {
+                var msg = envelope.Messages[i];
+                if (msg != null && string.Equals(msg.Role, "user", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastUserIndex = i;
+                    break;
+                }
+            }
+
+            if (lastUserIndex >= 0)
+            {
+                var original = envelope.Messages[lastUserIndex];
+                var combined = original.Attachments != null && original.Attachments.Count > 0
+                    ? new List<LlmImageAttachment>(original.Attachments.Count + valid.Count)
+                    : new List<LlmImageAttachment>(valid.Count);
+                if (original.Attachments != null && original.Attachments.Count > 0)
+                    combined.AddRange(original.Attachments);
+                combined.AddRange(valid);
+
+                // Clone target ChatMessage so cached/shared snapshot message instances are never mutated.
+                envelope.Messages[lastUserIndex] = new ChatMessage
+                {
+                    Role = original.Role,
+                    Content = original.Content,
+                    ReasoningContent = original.ReasoningContent,
+                    ToolCallId = original.ToolCallId,
+                    ToolCalls = original.ToolCalls,
+                    LayerTag = original.LayerTag,
+                    Attachments = combined
+                };
+            }
+            else
+            {
+                envelope.Messages.Add(new ChatMessage
+                {
+                    Role = "user",
+                    Content = FallbackVisualUserPrompt,
+                    LayerTag = "L4",
+                    Attachments = valid
+                });
+            }
+        }
     }
 }

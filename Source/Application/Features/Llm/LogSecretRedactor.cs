@@ -17,6 +17,10 @@ namespace RimMind.Application.Features.Llm
 
         private const string Mask = "***";
 
+        private static readonly Regex DataUriImageBase64Pattern = new Regex(
+            @"(?i)data:image/([a-zA-Z0-9.+-]+);base64,[A-Za-z0-9+/=]{64,}",
+            RegexOptions.Compiled);
+
         private static readonly Regex BearerPattern = new Regex(
             @"(?i)\b(Bearer|Basic)\s+[A-Za-z0-9\-\._~\+\/=:]{4,}",
             RegexOptions.Compiled);
@@ -32,7 +36,8 @@ namespace RimMind.Application.Features.Llm
         public static string Redact(string? text)
         {
             if (string.IsNullOrEmpty(text)) return text ?? string.Empty;
-            string result = BearerPattern.Replace(text!, m => m.Groups[1].Value + " " + Mask);
+            string result = DataUriImageBase64Pattern.Replace(text!, m => $"data:image/{m.Groups[1].Value};base64,<omitted>");
+            result = BearerPattern.Replace(result, m => m.Groups[1].Value + " " + Mask);
             result = KeyValuePattern.Replace(result, m => m.Groups[1].Value + Mask);
             result = KeyPrefixPattern.Replace(result, Mask);
             return result;

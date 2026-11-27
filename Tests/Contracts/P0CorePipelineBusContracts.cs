@@ -237,6 +237,7 @@ namespace RimMind.Tests.Contracts
                         ModId = "RimMind.Dialogue",
                         Messages = new List<ChatMessage> { new ChatMessage { Role = "user", Content = "hi" } },
                         SystemAugmentations = new List<PromptAugmentation> { new PromptAugmentation("aug", "text", 10) },
+                        Attachments = new List<LlmImageAttachment> { new LlmImageAttachment { MediaType = "image/png", Base64Data = "AAAA", Label = "probe" } },
                         JsonSchema = "{\"type\":\"object\"}",
                         Tools = new List<StructuredTool> { new StructuredTool { Name = "tool1", Description = "desc", Parameters = "{}" } },
                         ToolDispatchMode = ToolCallDispatchMode.Manual,

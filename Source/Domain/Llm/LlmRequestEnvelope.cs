@@ -15,6 +15,7 @@ namespace RimMind.Domain.Llm
         // === Content ===
         public List<ChatMessage> Messages { get; init; } = new();
         public List<PromptAugmentation>? SystemAugmentations { get; set; }
+        public List<LlmImageAttachment>? Attachments { get; set; }
         public string? JsonSchema { get; init; }
         public List<StructuredTool>? Tools { get; init; }
         public ToolCallDispatchMode ToolDispatchMode { get; init; } = ToolCallDispatchMode.Auto;
@@ -83,6 +84,7 @@ namespace RimMind.Domain.Llm
                 ModId = ModId,
                 Messages = Messages,
                 SystemAugmentations = SystemAugmentations,
+                Attachments = Attachments != null ? new List<LlmImageAttachment>(Attachments) : null,
                 JsonSchema = JsonSchema,
                 Tools = Tools,
                 ToolDispatchMode = ToolDispatchMode,
@@ -116,6 +118,7 @@ namespace RimMind.Domain.Llm
                 ModId = ModId,
                 Messages = Messages,
                 SystemAugmentations = SystemAugmentations,
+                Attachments = Attachments != null ? new List<LlmImageAttachment>(Attachments) : null,
                 JsonSchema = JsonSchema,
                 Tools = Tools,
                 ToolDispatchMode = ToolDispatchMode,
